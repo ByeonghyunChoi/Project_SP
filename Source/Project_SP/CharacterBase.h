@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "CharacterStats.h"
+#include "ObjectType.h"
 #include "CharacterBase.generated.h"
 
 /**
@@ -30,6 +31,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
 	int32 iTurnOrderIndex;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	EFaction CharacterFaction;
+
 public:
 
 	UCharacterBase();
@@ -42,6 +46,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Turn")
 	int32 GetTurnOrderIndex() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	const FCharacterStatsData& GetStats() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void UpdateActionGauge(float DeltaTime);
@@ -60,4 +67,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	virtual void DecideAction();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Stats")
+	EFaction GetFaction() const;
 };

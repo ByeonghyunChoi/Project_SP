@@ -15,6 +15,11 @@ class PROJECT_SP_API UBattleModeComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UBattleModeComponent();
+	UFUNCTION(BlueprintCallable, Category = "CombatMode")
+	void ReceiveTurn();
+
+	UFUNCTION(BlueprintCallable, Category = "CombatMode")
+	void EndPlayerTurn();
 
 protected:
 	// Called when the game starts

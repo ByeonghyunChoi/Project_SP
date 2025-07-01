@@ -11,6 +11,16 @@ UBattleModeComponent::UBattleModeComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
+void UBattleModeComponent::ReceiveTurn()
+{
+	//턴 받기 알림 로직
+}
+
+void UBattleModeComponent::EndPlayerTurn()
+{
+	//턴 종료 알림 로직
+}
+
 
 // Called when the game starts
 void UBattleModeComponent::BeginPlay()

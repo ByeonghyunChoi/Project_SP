@@ -57,6 +57,11 @@ void UCharacterBase::DecideAction()
 	//AI 로직 작동 BehaviorTree로 구현할 예정
 }
 
+EFaction UCharacterBase::GetFaction() const
+{
+	return CharacterFaction;
+}
+
 float UCharacterBase::GetActionGauge() const
 {
 	return fActionGauge;
@@ -70,4 +75,9 @@ bool UCharacterBase::GetIsMyTurn() const
 int32 UCharacterBase::GetTurnOrderIndex() const
 {
 	return iTurnOrderIndex;
+}
+
+const FCharacterStatsData& UCharacterBase::GetStats() const
+{
+	return Stats;
 }
