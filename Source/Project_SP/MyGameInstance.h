@@ -11,7 +11,7 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(BlueprintType)
 class PROJECT_SP_API UMyGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
