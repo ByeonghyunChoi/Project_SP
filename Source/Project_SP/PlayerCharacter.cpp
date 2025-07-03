@@ -2,6 +2,7 @@
 
 
 #include "PlayerCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -12,6 +13,11 @@ APlayerCharacter::APlayerCharacter()
 
 	FieldModeComp->SetComponentTickEnabled(false);
 	BattleModeComp->SetComponentTickEnabled(false);
+
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
 }
 
 void APlayerCharacter::EnterFieldMode()
