@@ -36,6 +36,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Modes")
 	void EnterBattleMode();
 
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

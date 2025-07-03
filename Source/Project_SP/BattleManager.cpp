@@ -79,11 +79,6 @@ bool ABattleManager::CheckBattleEndConditions()
 		UE_LOG(LogTemp, Log, TEXT("전투 패배!"));
 		return true;
 	}
-	// 양쪽 모두 0이면 무승부 또는 전투 시작 전
-	else if (PlayerSideCount == 0 && EnemySideCount == 0)
-	{
-		return false; // 아직 전투 시작 전이거나, 모두 사망한 경우 (이 경우는 이미 종료되었어야 함)
-	}
 
 	return false; // 전투가 아직 끝나지 않음
 }
