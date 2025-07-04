@@ -56,5 +56,4 @@ void APlayerCharacter::EnterBattleMode()
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	EnterFieldMode();
 }

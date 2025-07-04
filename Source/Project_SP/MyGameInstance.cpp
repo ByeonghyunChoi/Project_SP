@@ -9,16 +9,24 @@ void UMyGameInstance::Init()
 	Super::Init();
 }
 
-void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, AMonsterCharacter* AttackedMonster, FName CurrentFieldName)
+
+void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentFieldName)
 {
-    PlayerActorRef = PlayerActor;
-    EnemyActorRef = EnemyActor;
-    AttackedFieldMonsterActor = AttackedMonster; // 이 액터 레퍼런스는 다음 레벨 로드 시 유효하지 않을 수 있습니다.
-    // 실제로는 이 몬스터의 고유 ID를 저장하여 필드 맵 복귀 시 찾아 제거하는 방식이 더 안전합니다.
+    // 클래스 저장 (스폰용)
+    PlayerCharacterClassToSpawn = PlayerActor->GetClass();
+    EnemyCharacterClassToSpawn = EnemyActor->GetClass();
+
+    // 전투 데이터 복사 (FCharacterStatsData는 USTRUCT이므로 직접 복사 가능)
+    PlayerPersistedStats = PlayerActor->GetCombatData()->GetStats();
+    EnemyPersistedStats = EnemyActor->GetCombatData()->GetStats();
+
+    // 필드 몬스터 액터 레퍼런스 저장 (필드 복귀 시 사용)
+    AttackedFieldMonsterActor = EnemyActor;
+
     ReturnToFieldName = CurrentFieldName;
 
-    // 전투 레벨 로드 (전투 레벨의 이름을 "BattleMap"이라고 가정)
-    UGameplayStatics::OpenLevel(this, FName("BattleMap"), true); // true는 Seamless Travel (부드러운 전환)
+    UE_LOG(LogTemp, Log, TEXT("UMyGameInstance: 전투 데이터 저장 완료. BattleMap으로 전환 시작."));
+    UGameplayStatics::OpenLevel(this, FName("BattleMap_01"), true);
 }
 
 void UMyGameInstance::ReturnToFieldTransition(bool bPlayerWon)

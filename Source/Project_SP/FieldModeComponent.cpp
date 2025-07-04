@@ -109,10 +109,9 @@ void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
     if (MyGameInstance)
     {
         FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
-        MyGameInstance->StartBattleTransition( // <-- 변경: GameInstance 대신 MyGameInstance 사용
-            OwningPlayer,
-            HitMonster,
-            HitMonster,
+        MyGameInstance->StartBattleTransition(
+            OwningPlayer,      // 플레이어 액터 자체를 넘겨 클래스와 데이터를 추출하도록 함
+            HitMonster,        // 몬스터 액터 자체를 넘겨 클래스와 데이터를 추출하도록 함
             CurrentLevelName
         );
     }

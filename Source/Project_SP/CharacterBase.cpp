@@ -62,6 +62,11 @@ EFaction UCharacterBase::GetFaction() const
 	return CharacterFaction;
 }
 
+void UCharacterBase::SetStats(const FCharacterStatsData& NewStats)
+{
+	Stats = NewStats;
+}
+
 float UCharacterBase::GetActionGauge() const
 {
 	return fActionGauge;

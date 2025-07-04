@@ -70,4 +70,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Stats")
 	EFaction GetFaction() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetStats(const FCharacterStatsData& NewStats);
 };
