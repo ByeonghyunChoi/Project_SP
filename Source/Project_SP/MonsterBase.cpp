@@ -5,5 +5,5 @@
 
 UMonsterBase::UMonsterBase()
 {
-
+	SetFaction(EFaction::Enemy);
 }

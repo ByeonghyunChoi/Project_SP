@@ -174,17 +174,20 @@ void ABattleManager::Tick(float DeltaTime)
 
 void ABattleManager::StartBattle(TArray<ACombatPawn*> InitialCombatants)
 {
+	UE_LOG(LogTemp, Log, TEXT("StartBattle: 함수 진입."));
 	CurrentBattleState = EBattleState::Setup;
 	GlobalTime = 0.0f;
 	CurrentTurnCharacter = nullptr;
 	AllCombatants.Empty();
+	UE_LOG(LogTemp, Log, TEXT("StartBattle: 상태를 Setup으로 변경."))
 
 	for (ACombatPawn* CombatantActor : InitialCombatants)
 	{
 		AddCombatant(CombatantActor);
 	}
-
+	UE_LOG(LogTemp, Log, TEXT("StartBattle: 상태를 InProgress로 변경 직전."));
 	CurrentBattleState = EBattleState::InProgress;
+	UE_LOG(LogTemp, Log, TEXT("StartBattle: 상태를 InProgress로 변경 완료. 현재 상태: %s"), *UEnum::GetValueAsString(CurrentBattleState));
 }
 
 void ABattleManager::EndBattle()

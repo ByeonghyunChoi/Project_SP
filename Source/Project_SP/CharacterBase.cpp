@@ -62,6 +62,11 @@ EFaction UCharacterBase::GetFaction() const
 	return CharacterFaction;
 }
 
+void UCharacterBase::SetFaction(EFaction inFaction)
+{
+	CharacterFaction = inFaction;
+}
+
 void UCharacterBase::SetStats(const FCharacterStatsData& NewStats)
 {
 	Stats = NewStats;

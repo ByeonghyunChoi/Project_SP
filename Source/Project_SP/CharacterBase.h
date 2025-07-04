@@ -72,5 +72,8 @@ public:
 	EFaction GetFaction() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetFaction(EFaction inFaction);
+
+	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetStats(const FCharacterStatsData& NewStats);
 };
