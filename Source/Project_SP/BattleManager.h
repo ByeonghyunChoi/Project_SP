@@ -4,8 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "CharacterBase.h"
-#include "PlayerCharacter.h"
+#include "CombatPawn.h"
 #include "BattleManager.generated.h"
 
 UENUM(BlueprintType)
@@ -33,7 +32,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	// 턴 순서 결정 로직
-	void SortReadyCombatants(TArray<UCharacterBase*>& ReadyCombatants);
+	void SortReadyCombatants(TArray<ACombatPawn*>& ReadyCombatants);
 
 	// 전투 종료 조건을 확인하는 함수
 	bool CheckBattleEndConditions();
@@ -53,17 +52,17 @@ public:
 
 	// 현재 전투에 참여하고 있는 모든 캐릭터 (UCharacterBase 인스턴스)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle")
-	TArray<UCharacterBase*> AllCombatants;
+	TArray<ACombatPawn*> AllCombatants;
 
 	// 현재 턴인 캐릭터
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle")
-	UCharacterBase* CurrentTurnCharacter;
+	ACombatPawn* CurrentTurnCharacter;
 
 
 	//--------------------------------------함수 부분-------------------------------------
 	//전투 시작 함수
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void StartBattle(TArray<UCharacterBase*> InitialCombatants);
+	void StartBattle(TArray<ACombatPawn*> InitialCombatants);
 
 	// 전투 종료 함수
 	UFUNCTION(BlueprintCallable, Category = "Battle")
@@ -77,6 +76,6 @@ public:
 	// 이 함수는 APlayerCharacter, AMonsterCharacter에서 포함된 UCharacterBase 인스턴스를
 	// AllCombatants 배열에 추가할 때 사용됩니다.
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void AddCombatant(UCharacterBase* NewCombatant);
+	void AddCombatant(ACombatPawn* NewCombatant);
 
 };

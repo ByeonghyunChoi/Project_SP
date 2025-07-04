@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -22,15 +22,15 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	// °ø°İ ¹üÀ§
+	// ê³µê²© ë²”ìœ„
 	UPROPERTY(EditAnywhere, Category = "FieldMode")
 	float AttackRange = 200.0f;
 
-	//°ø°İ ÁßÀÎÁö ¿©ºÎ
+	//ê³µê²© ì¤‘ì¸ì§€ ì—¬ë¶€
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FieldMode")
 	bool bIsAttacking = false;
 
-	//ÀÌµ¿ ÁßÀÎÁö ¿©ºÎ
+	//ì´ë™ ì¤‘ì¸ì§€ ì—¬ë¶€
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FieldMode")
 	bool bIsMoving = true;
 
@@ -42,15 +42,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void StartAttackSequence();
 
-	//°ø°İ ÆÇÁ¤ ·ÎÁ÷ ºĞ¸®
+	//ê³µê²© íŒì • ë¡œì§ ë¶„ë¦¬
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	AMonsterCharacter* PerformAttackHitDetection();
 
-	//·¹º§ ÀüÈ¯ ·ÎÁ÷ ºĞ¸®
+	//ë ˆë²¨ ì „í™˜ ë¡œì§ ë¶„ë¦¬
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void StartBattleTransition(AMonsterCharacter* HitMonster);
 
-	// °ø°İ ¾Ö´Ï¸ŞÀÌ¼Ç Á¾·á ½Ã È£ÃâµÉ ÇÔ¼ö (¾Ö´Ï¸ŞÀÌ¼Ç ³ëÆ¼ÆÄÀÌ¿¡¼­ È£Ãâ)
+	// ê³µê²© ì• ë‹ˆë©”ì´ì…˜ ì¢…ë£Œ ì‹œ í˜¸ì¶œë  í•¨ìˆ˜ (ì• ë‹ˆë©”ì´ì…˜ ë…¸í‹°íŒŒì´ì—ì„œ í˜¸ì¶œ)
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void OnAttackAnimationFinished();
 	};

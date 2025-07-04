@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "FieldModeComponent.h"
@@ -36,9 +36,9 @@ void UFieldModeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 void UFieldModeComponent::StartAttackSequence()
 {
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
-    if (!OwningPlayer || !OwningPlayer->BasicStats || bIsAttacking)
+    if (!OwningPlayer || !OwningPlayer->GetCombatData() || bIsAttacking)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: OwningPlayer ¶Ç´Â BasicStats°¡ À¯È¿ÇÏÁö ¾Ê°Å³ª ÀÌ¹Ì °ø°İ ÁßÀÔ´Ï´Ù."));
+        UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: OwningPlayer ë˜ëŠ” BasicStatsê°€ ìœ íš¨í•˜ì§€ ì•Šê±°ë‚˜ ì´ë¯¸ ê³µê²© ì¤‘ì…ë‹ˆë‹¤."));
         return;
     }
 
@@ -81,44 +81,44 @@ AMonsterCharacter* UFieldModeComponent::PerformAttackHitDetection()
     if (bHit && HitResult.GetActor())
     {
         AMonsterCharacter* HitMonster = Cast<AMonsterCharacter>(HitResult.GetActor());
-        if (HitMonster && HitMonster->MonsterData)
+        if (HitMonster && HitMonster->GetCombatData())
         {
-            UE_LOG(LogTemp, Log, TEXT("UFieldModeComponent: ¸ó½ºÅÍ %s¿Í Ãæµ¹!"), *HitMonster->GetName());
-            return HitMonster; // Ãæµ¹ÇÑ ¸ó½ºÅÍ ¹İÈ¯
+            UE_LOG(LogTemp, Log, TEXT("UFieldModeComponent: ëª¬ìŠ¤í„° %sì™€ ì¶©ëŒ!"), *HitMonster->GetName());
+            return HitMonster; // ì¶©ëŒí•œ ëª¬ìŠ¤í„° ë°˜í™˜
         }
     }
-    return nullptr; // ¸ó½ºÅÍ¿Í Ãæµ¹ÇÏÁö ¾ÊÀ½
+    return nullptr; // ëª¬ìŠ¤í„°ì™€ ì¶©ëŒí•˜ì§€ ì•ŠìŒ
 }
 
 void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 {
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
-    if (!OwningPlayer || !OwningPlayer->BasicStats || !HitMonster || !HitMonster->MonsterData)
+    if (!OwningPlayer || !OwningPlayer->GetCombatData() || !HitMonster || !HitMonster->GetCombatData())
     {
-        UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: ÀüÅõ ÀüÈ¯¿¡ ÇÊ¿äÇÑ Á¤º¸°¡ ºÎÁ·ÇÕ´Ï´Ù."));
+        UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: ì „íˆ¬ ì „í™˜ì— í•„ìš”í•œ ì •ë³´ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤."));
         return;
     }
 
-    // UGameInstance¸¦ °¡Á®¿À´Â ¿Ã¹Ù¸¥ ¹æ¹ı (UActorComponent¿¡¼­)
+    // UGameInstanceë¥¼ ê°€ì ¸ì˜¤ëŠ” ì˜¬ë°”ë¥¸ ë°©ë²• (UActorComponentì—ì„œ)
     UMyGameInstance* MyGameInstance = nullptr;
-    if (GetWorld()) // ÄÄÆ÷³ÍÆ®°¡ À¯È¿ÇÑ ¿ùµå¿¡ ¼ÓÇØ ÀÖ´ÂÁö È®ÀÎ
+    if (GetWorld()) // ì»´í¬ë„ŒíŠ¸ê°€ ìœ íš¨í•œ ì›”ë“œì— ì†í•´ ìˆëŠ”ì§€ í™•ì¸
     {
         MyGameInstance = Cast<UMyGameInstance>(GetWorld()->GetGameInstance());
     }
 
-    if (MyGameInstance) // <-- º¯°æ: GameInstance ´ë½Å MyGameInstance »ç¿ë
+    if (MyGameInstance)
     {
         FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
-        MyGameInstance->StartBattleTransition( // <-- º¯°æ: GameInstance ´ë½Å MyGameInstance »ç¿ë
-            OwningPlayer->BasicStats,
-            HitMonster->MonsterData,
+        MyGameInstance->StartBattleTransition( // <-- ë³€ê²½: GameInstance ëŒ€ì‹  MyGameInstance ì‚¬ìš©
+            OwningPlayer,
+            HitMonster,
             HitMonster,
             CurrentLevelName
         );
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: UMyGameInstance¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù!"));
+        UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: UMyGameInstanceë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤!"));
     }
 }
 
@@ -127,12 +127,12 @@ void UFieldModeComponent::OnAttackAnimationFinished()
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
     if (OwningPlayer)
     {
-        // 1. ÀÌµ¿ ¹æÇâ È¸Àü ´Ù½Ã È°¼ºÈ­
+        // 1. ì´ë™ ë°©í–¥ íšŒì „ ë‹¤ì‹œ í™œì„±í™”
         OwningPlayer->GetCharacterMovement()->bOrientRotationToMovement = true;
-        // 2. °ø°İ Áß ÇÃ·¡±× ÇØÁ¦
+        // 2. ê³µê²© ì¤‘ í”Œë˜ê·¸ í•´ì œ
         bIsAttacking = false;
         bIsMoving = true;
-        UE_LOG(LogTemp, Log, TEXT("°ø°İ ¾Ö´Ï¸ŞÀÌ¼Ç Á¾·á, ÀÌµ¿ ¹æÇâ È¸Àü º¹±Í."));
+        UE_LOG(LogTemp, Log, TEXT("ê³µê²© ì• ë‹ˆë©”ì´ì…˜ ì¢…ë£Œ, ì´ë™ ë°©í–¥ íšŒì „ ë³µê·€."));
     }
 }
 

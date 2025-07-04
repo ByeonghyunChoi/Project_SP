@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
-#include "CharacterBase.h"
+#include "PlayerCharacter.h"
 #include "MonsterCharacter.h"
 #include "MyGameInstance.generated.h"
 
@@ -21,11 +21,11 @@ public:
 	
 	//전투 시작 시 전달될 플레이어 인스턴스
 	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	UCharacterBase* PlayerCombatantRef;
+	APlayerCharacter* PlayerActorRef;
 
 	// 전투 시작 시 전달될 적 UCharacterBase 인스턴스
 	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	UCharacterBase* EnemyCombatantRef;
+	AMonsterCharacter* EnemyActorRef;
 
 	// 필드 맵에서 공격한 몬스터 액터의 레퍼런스 (전투 종료 후 제거용)
 	// 주의: 액터 레퍼런스는 레벨 로드 후 유효하지 않을 수 있으므로, 액터 ID나 이름을 저장하는 것이 더 안전합니다.
@@ -39,7 +39,7 @@ public:
 
 	// 전투 시작을 위한 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void StartBattleTransition(UCharacterBase* PlayerCharBase, UCharacterBase* EnemyCharBase, AMonsterCharacter* AttackedMonster, FName CurrentFieldName);
+	void StartBattleTransition(APlayerCharacter* PlayerCharBase, AMonsterCharacter* EnemyCharBase, AMonsterCharacter* AttackedMonster, FName CurrentFieldName);
 
 	// 전투 종료 후 필드 맵으로 돌아갈 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")

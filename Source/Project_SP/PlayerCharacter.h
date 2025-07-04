@@ -7,10 +7,11 @@
 #include "CharacterBase.h"
 #include "FieldModeComponent.h"
 #include "BattleModeComponent.h"
+#include "CombatPawn.h"
 #include "PlayerCharacter.generated.h"
 
 UCLASS()
-class PROJECT_SP_API APlayerCharacter : public ACharacter
+class PROJECT_SP_API APlayerCharacter : public ACombatPawn
 {
 	GENERATED_BODY()
 
@@ -18,8 +19,8 @@ public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	UCharacterBase* BasicStats;
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
+	virtual UCharacterBase* GetCombatData() const override { return BasicStats; }
 
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
@@ -40,4 +41,7 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UCharacterBase* BasicStats;
 };

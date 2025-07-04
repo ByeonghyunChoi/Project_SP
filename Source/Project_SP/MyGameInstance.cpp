@@ -9,10 +9,10 @@ void UMyGameInstance::Init()
 	Super::Init();
 }
 
-void UMyGameInstance::StartBattleTransition(UCharacterBase* PlayerCharBase, UCharacterBase* EnemyCharBase, AMonsterCharacter* AttackedMonster, FName CurrentFieldName)
+void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, AMonsterCharacter* AttackedMonster, FName CurrentFieldName)
 {
-    PlayerCombatantRef = PlayerCharBase;
-    EnemyCombatantRef = EnemyCharBase;
+    PlayerActorRef = PlayerActor;
+    EnemyActorRef = EnemyActor;
     AttackedFieldMonsterActor = AttackedMonster; // 이 액터 레퍼런스는 다음 레벨 로드 시 유효하지 않을 수 있습니다.
     // 실제로는 이 몬스터의 고유 ID를 저장하여 필드 맵 복귀 시 찾아 제거하는 방식이 더 안전합니다.
     ReturnToFieldName = CurrentFieldName;

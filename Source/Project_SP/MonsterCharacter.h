@@ -5,10 +5,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "MonsterBase.h"
+#include "CombatPawn.h"
 #include "MonsterCharacter.generated.h"
 
 UCLASS()
-class PROJECT_SP_API AMonsterCharacter : public ACharacter
+class PROJECT_SP_API AMonsterCharacter : public ACombatPawn
 {
 	GENERATED_BODY()
 
@@ -16,9 +17,11 @@ public:
 	// Sets default values for this character's properties
 	AMonsterCharacter();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MonsterType")
-	UMonsterBase* MonsterData;
-
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
+	virtual UCharacterBase* GetCombatData() const override { return MonsterData; }
+	
+	UFUNCTION(BlueprintCallable, Category = "MonsterType")
+	void PerformMonsterTurnAction();
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -26,7 +29,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterType")
 	TSubclassOf<UMonsterBase> MonsterBaseClass;
 
-	UFUNCTION(BlueprintCallable, Category = "MonsterType")
-	void PerformMonsterTurnAction();
+	
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MonsterType")
+	UMonsterBase* MonsterData;
 
 };
