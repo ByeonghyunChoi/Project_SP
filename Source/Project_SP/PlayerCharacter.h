@@ -20,7 +20,7 @@ public:
 	APlayerCharacter();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
-	virtual UCharacterBase* GetCombatData() const override { return BasicStats; }
+	virtual UCharacterBase* GetCombatData() const override { return PlayerData; }
 
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
@@ -43,5 +43,5 @@ protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Instanced)
-	UCharacterBase* BasicStats;
+	UCharacterBase* PlayerData;
 };

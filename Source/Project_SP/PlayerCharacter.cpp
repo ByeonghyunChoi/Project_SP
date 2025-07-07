@@ -7,7 +7,7 @@
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
-	BasicStats = CreateDefaultSubobject<UCharacterBase>(TEXT("BasicStatsComponent"));
+	PlayerData = CreateDefaultSubobject<UCharacterBase>(TEXT("BasicStatsComponent"));
 	FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
 	BattleModeComp = CreateDefaultSubobject<UBattleModeComponent>(TEXT("BattleModeComponent"));
 
