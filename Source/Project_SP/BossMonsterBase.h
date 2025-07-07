@@ -9,7 +9,7 @@
 /**
  * 
  */
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class PROJECT_SP_API UBossMonsterBase : public UMonsterBase
 {
 	GENERATED_BODY()

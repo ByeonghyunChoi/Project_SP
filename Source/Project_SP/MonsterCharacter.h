@@ -26,12 +26,13 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MonsterType")
-	TSubclassOf<UMonsterBase> MonsterBaseClass;
-
-	
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MonsterType")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Monster Data")
 	UMonsterBase* MonsterData;
 
+	UPROPERTY(EditAnywhere, Category = "Monster Config")
+	TSubclassOf<UMonsterBase> MonsterClass;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };

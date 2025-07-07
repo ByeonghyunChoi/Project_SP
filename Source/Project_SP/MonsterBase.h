@@ -9,7 +9,7 @@
 /**
  * 
  */
-UCLASS(BlueprintType, Abstract)
+UCLASS(Blueprintable, BlueprintType, Abstract)
 class PROJECT_SP_API UMonsterBase : public UCharacterBase
 {
 	GENERATED_BODY()

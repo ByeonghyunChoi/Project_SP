@@ -4,13 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "Engine/DataTable.h"
 #include "CharacterStats.generated.h"
 
 /**
  * 
  */
 USTRUCT(BlueprintType)
-struct FCharacterStatsData
+struct FCharacterStatsData : public FTableRowBase
 {
 	GENERATED_BODY()
 

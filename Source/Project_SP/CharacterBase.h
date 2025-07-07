@@ -13,7 +13,7 @@
  */
 
 
-UCLASS(BlueprintType)
+UCLASS(Blueprintable, BlueprintType)
 class PROJECT_SP_API UCharacterBase : public UObject
 {
 	GENERATED_BODY()

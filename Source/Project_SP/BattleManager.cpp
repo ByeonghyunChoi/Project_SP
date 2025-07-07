@@ -137,7 +137,7 @@ void ABattleManager::Tick(float DeltaTime)
 		CurrentBattleState == EBattleState::PlayerTurn ||
 		CurrentBattleState == EBattleState::EnemyTurn)
 	{
-		GlobalTime += DeltaTime;
+		GlobalTime += (DeltaTime * 10);
 
 		// 모든 전투 참여자의 행동 게이지 업데이트
 		for (ACombatPawn* CombatantActor : AllCombatants)
