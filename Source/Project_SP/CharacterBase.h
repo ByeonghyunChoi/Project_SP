@@ -51,7 +51,7 @@ public:
 	const FCharacterStatsData& GetStats() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void UpdateActionGauge(float DeltaTime);
+	void UpdateActionGauge(float Amount);
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void TakeDamage(float DamageAmount);

@@ -2,6 +2,7 @@
 
 
 #include "CharacterBase.h"
+#include "BattleManager.h"
 
 
 UCharacterBase::UCharacterBase()
@@ -11,15 +12,13 @@ UCharacterBase::UCharacterBase()
 	iTurnOrderIndex = 0;
 }
 
-void UCharacterBase::UpdateActionGauge(float DeltaTime)
+void UCharacterBase::UpdateActionGauge(float Amount)
 {
-	if ((fActionGauge >= 100.0f) || bIsMyTurn)
+	if (!bIsMyTurn) 
 	{
-		return;
+		fActionGauge += Amount;
+		fActionGauge = FMath::Min(fActionGauge, 100.0f);
 	}
-
-	fActionGauge += Stats.fSpeed * DeltaTime;
-	fActionGauge = FMath::Min(fActionGauge, 100.0f);
 }
 
 void UCharacterBase::TakeDamage(float DamageAmount)
@@ -36,16 +35,15 @@ void UCharacterBase::TakeDamage(float DamageAmount)
 void UCharacterBase::StartTurn()
 {
 	bIsMyTurn = true;
+	fActionGauge = 0.0f;
 	//턴 행동
 }
 
 void UCharacterBase::EndTurn()
 {
 	bIsMyTurn = false;
-	fActionGauge -= 100.0f;
-	fActionGauge = FMath::Max(fActionGauge, 0.0f);
-	//턴 종료
 }
+
 
 bool UCharacterBase::IsReadyForTurn()
 {
