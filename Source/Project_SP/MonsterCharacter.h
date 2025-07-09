@@ -17,7 +17,6 @@ public:
 	// Sets default values for this character's properties
 	AMonsterCharacter();
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
 	virtual UCharacterBase* GetCombatData() const override { return MonsterData; }
 	
 	UFUNCTION(BlueprintCallable, Category = "MonsterType")

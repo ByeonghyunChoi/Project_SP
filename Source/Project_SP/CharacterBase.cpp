@@ -2,23 +2,14 @@
 
 
 #include "CharacterBase.h"
-#include "BattleManager.h"
 
 
 UCharacterBase::UCharacterBase()
 {
-	fActionGauge = 0.0f;
 	bIsMyTurn = false;
-	iTurnOrderIndex = 0;
-}
-
-void UCharacterBase::UpdateActionGauge(float Amount)
-{
-	if (!bIsMyTurn) 
-	{
-		fActionGauge += Amount;
-		fActionGauge = FMath::Min(fActionGauge, 100.0f);
-	}
+	CharacterName = "Default Character";
+	CharacterFaction = EFaction::Player;
+	fActionValue = 0.0f;
 }
 
 void UCharacterBase::TakeDamage(float DamageAmount)
@@ -35,7 +26,7 @@ void UCharacterBase::TakeDamage(float DamageAmount)
 void UCharacterBase::StartTurn()
 {
 	bIsMyTurn = true;
-	fActionGauge = 0.0f;
+	fActionValue = 0.0f;
 	//턴 행동
 }
 
@@ -44,10 +35,58 @@ void UCharacterBase::EndTurn()
 	bIsMyTurn = false;
 }
 
-
-bool UCharacterBase::IsReadyForTurn()
+bool UCharacterBase::GetIsMyTurn() const
 {
-	return fActionGauge >= 100.0f;
+	return bIsMyTurn;
+}
+
+const FCharacterStatsData& UCharacterBase::GetStats() const
+{
+	return Stats;
+}
+
+const FString& UCharacterBase::GetCharacterName() const
+{
+	return CharacterName;
+}
+
+float UCharacterBase::GetTimeLeftToAct() const
+{
+	const float TargetDistance = 10000.0f;
+	float RemainingDistance = TargetDistance - fActionValue;
+
+	// 속도가 0이거나 음수일 경우를 방지 (0으로 나누기 오류)
+	if (Stats.fSpeed <= 0.0f)
+	{
+		return 99999.0f; // 속도 0이면 무한대 시간
+	}
+
+	// 남은 거리가 음수일 경우 (이미 목적지를 지났을 경우) 0으로 처리
+	return FMath::Max(0.0f, RemainingDistance / Stats.fSpeed);
+}
+
+void UCharacterBase::UpdateActionValue(float DeltaTime)
+{
+	if (!bIsMyTurn) // 자신의 턴이 아닐 때만 거리 증가
+	{
+		fActionValue += Stats.fSpeed * DeltaTime;
+		// fActionValue가 10000m를 넘어도 계속 증가하도록 허용 (초과 게이지)
+		// 붕괴 스타레일은 10000을 넘으면 턴을 잡고 0으로 리셋되지만,
+		// 내부적으로는 10000을 넘는 값도 처리하여 턴 순서에 반영합니다.
+		// UI에서는 10000을 기준으로 백분율을 표시합니다.
+		// StartTurn() 호출은 ABattleManager가 IsReadyForTurn()을 확인 후 담당합니다.
+	}
+}
+
+bool UCharacterBase::IsReadyForTurn() const
+{
+	const float TargetDistance = 10000.0f;
+	return fActionValue >= TargetDistance;
+}
+
+float UCharacterBase::GetActionValue() const
+{
+	return fActionValue;
 }
 
 void UCharacterBase::DecideAction()
@@ -60,9 +99,9 @@ EFaction UCharacterBase::GetFaction() const
 	return CharacterFaction;
 }
 
-void UCharacterBase::SetFaction(EFaction inFaction)
+void UCharacterBase::SetFaction(EFaction InFaction)
 {
-	CharacterFaction = inFaction;
+	CharacterFaction = InFaction;
 }
 
 void UCharacterBase::SetStats(const FCharacterStatsData& NewStats)
@@ -70,22 +109,7 @@ void UCharacterBase::SetStats(const FCharacterStatsData& NewStats)
 	Stats = NewStats;
 }
 
-float UCharacterBase::GetActionGauge() const
+void UCharacterBase::SetCharacterName(const FString& NewName)
 {
-	return fActionGauge;
-}
-
-bool UCharacterBase::GetIsMyTurn() const
-{
-	return bIsMyTurn;
-}
-
-int32 UCharacterBase::GetTurnOrderIndex() const
-{
-	return iTurnOrderIndex;
-}
-
-const FCharacterStatsData& UCharacterBase::GetStats() const
-{
-	return Stats;
+	CharacterName = NewName;
 }

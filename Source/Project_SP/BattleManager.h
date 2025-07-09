@@ -10,11 +10,11 @@
 UENUM(BlueprintType)
 enum class EBattleState : uint8
 {
-	Setup UMETA(DisplayName = "Setup"), 
-	InProgress UMETA(DisplayName = "In Progress"), 
-	PlayerTurn UMETA(DisplayName = "Player Turn"), 
-	EnemyTurn UMETA(DisplayName = "Enemy Turn"),   
-	Ended UMETA(DisplayName = "Ended")             
+	Setup UMETA(DisplayName = "전투 준비"), 
+	InProgress UMETA(DisplayName = "전투 진행 중"), 
+	PlayerTurn UMETA(DisplayName = "플레이어 턴"), 
+	EnemyTurn UMETA(DisplayName = "적 턴"),   
+	Ended UMETA(DisplayName = "전투 종료")             
 };
 
 UCLASS()
@@ -31,7 +31,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	float GlobalTime;
 
-	// 현재 전투에 참여하고 있는 모든 캐릭터 (UCharacterBase 인스턴스)
+	// 현재 전투에 참여하고 있는 모든 캐릭터
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	TArray<ACombatPawn*> AllCombatants;
 
@@ -39,19 +39,17 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	ACombatPawn* CurrentTurnCharacter;
 
-	//---------------------------------함수------------------------------------
-	// 턴 진행을 위한 내부 함수
-	void AdvanceTimeAndFindNextTurn();
+	// 턴을 획득할 캐릭터를 찾아 턴을 부여
+	void FindAndInitiateNextTurn();
 
 	// 전투 종료 조건을 확인하는 함수
-	bool CheckBattleEndConditions();
-
-	// 턴 순서 결정 로직
-	void SortReadyCombatants(TArray<ACombatPawn*>& ReadyCombatants) const;
+	bool CheckBattleEndConditions() const;
 
 	// 특정 캐릭터에게 턴을 부여하고 행동을 시작하도록 지시
 	void InitiateTurnFor(ACombatPawn* TargetCombatant);
 
+	// 턴을 획득할 준비가 된 캐릭터들을 규칙에 따라 정렬
+	void SortReadyCombatants(TArray<ACombatPawn*>& ReadyCombatants) const;
 
 public:
 	//생성자
@@ -65,28 +63,22 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 
 public:	
-	// 전투 시작 함수 
+	// 전투 시작 함수 (BP_CombatGameMode에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(TArray<ACombatPawn*> InitialCombatants);
+
+	// 턴 진행의 메인 진입점 (Tick 또는 EndTurn에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void ProcessTurn();
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void AddCombatant(ACombatPawn* NewCombatant);
 
 	// 전투 종료 함수
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndBattle();
 
-	// 턴 진행의 메인 진입점 (Tick, EndTurn에서 호출)
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void ProcessTurn();
-
-	// 전투 참여자 추가
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void AddCombatant(ACombatPawn* NewCombatant);
-
 	// 턴 종료 함수 (UBattleModeComponent 또는 AMonsterCharacter에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn();
-
-	// 현재 턴을 가질 수 있는 모든 전투 참여자들의 배열을 반환 (정렬된 상태)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
-	TArray<ACombatPawn*> GetTurnOrderCombatants() const;
-
 };

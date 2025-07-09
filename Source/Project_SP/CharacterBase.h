@@ -22,48 +22,54 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	FCharacterStatsData Stats;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
-	float fActionGauge;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	FString CharacterName;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
 	bool bIsMyTurn;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
-	int32 iTurnOrderIndex;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	EFaction CharacterFaction;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
+	float fActionValue;
 public:
 
 	UCharacterBase();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Turn")
-	float GetActionGauge() const;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Turn")
 	bool GetIsMyTurn() const;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Turn")
-	int32 GetTurnOrderIndex() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	const FCharacterStatsData& GetStats() const;
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
+	const FString& GetCharacterName() const;
+
+	// 목적지까지 남은 시간을 계산하여 반환 (TimeLeftToAct)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
+	float GetTimeLeftToAct() const;
+
+	// fActionValue를 증가시키는 함수 (ABattleManager의 Tick에서 DeltaTime을 받아 호출)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void UpdateActionGauge(float Amount);
+	void UpdateActionValue(float DeltaTime);
+
+	// 턴을 잡을 준비가 되었는지 (목표 거리에 도달했는지)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
+	bool IsReadyForTurn() const;
+
+	// GetActionValue() Getter (const float -> float, BlueprintPure 추가)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
+	float GetActionValue() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void TakeDamage(float DamageAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void StartTurn();
+	void StartTurn(); // 턴 시작 시 fActionValue 초기화 로직 포함
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn();
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	bool IsReadyForTurn();	
+	void TakeDamage(float DamageAmount);
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	virtual void DecideAction();
@@ -76,4 +82,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetStats(const FCharacterStatsData& NewStats);
+
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetCharacterName(const FString& NewName);
 };

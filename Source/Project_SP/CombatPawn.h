@@ -15,6 +15,8 @@ class PROJECT_SP_API ACombatPawn : public ACharacter
 public:
 	// Sets default values for this character's properties
 	ACombatPawn();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
 	virtual UCharacterBase* GetCombatData() const PURE_VIRTUAL(ACombatPawn::GetCombatData, return nullptr;);
 
 };

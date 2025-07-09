@@ -19,7 +19,6 @@ public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
 	virtual UCharacterBase* GetCombatData() const override { return PlayerData; }
 
 	// 필드 모드 컴포넌트
