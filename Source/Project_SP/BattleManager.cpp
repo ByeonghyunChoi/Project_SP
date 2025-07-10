@@ -12,9 +12,9 @@ auto BattleCombatantSortPredicate = [](const ACombatPawn& A, const ACombatPawn& 
 		UCharacterBase* DataB = B.GetCombatData();
 
 		// 1. 유효하지 않은 데이터 처리 (nullptr은 항상 뒤로 보냄)
-		if (!DataA && !DataB) return A.GetUniqueID() < B.GetUniqueID(); // 둘 다 nullptr이면 ID로 정렬
-		if (!DataA) return false; // A만 nullptr이면 A가 뒤로 (B가 먼저)
-		if (!DataB) return true;  // B만 nullptr이면 B가 뒤로 (A가 먼저)
+		if (!DataA && !DataB) return A.GetUniqueID() < B.GetUniqueID();
+		if (!DataA) return false;
+		if (!DataB) return true;
 
 		// GetTimeLeftToAct()가 낮은 것이 우선 (오름차순)
 		float TimeLeftA = DataA->GetTimeLeftToAct();
@@ -22,7 +22,7 @@ auto BattleCombatantSortPredicate = [](const ACombatPawn& A, const ACombatPawn& 
 
 		if (TimeLeftA != TimeLeftB)
 		{
-			return TimeLeftA < TimeLeftB; // <-- TimeLeft 낮은 순
+			return TimeLeftA < TimeLeftB;
 		}
 		else // TimeLeft가 같다면 다음 규칙 적용
 		{
@@ -43,11 +43,9 @@ auto BattleCombatantSortPredicate = [](const ACombatPawn& A, const ACombatPawn& 
 				if (FactionA == EFaction::Player && FactionB != EFaction::Player) return true;
 				if (FactionB == EFaction::Player && FactionA != EFaction::Player) return false;
 
-				// 적군 진영 내에서는 아무나 턴을 잡도록 규칙 5-2 제거
-
 				// 그 외의 경우 (같은 진영, 같은 속도, 같은 TimeLeft)
 				// 안정적인 정렬을 위해 고유 ID나 포인터 주소를 사용
-				return A.GetUniqueID() < B.GetUniqueID(); // 고유 ID가 작은 순 (안정적 정렬)
+				return A.GetUniqueID() < B.GetUniqueID();
 			}
 		}
 	};
@@ -65,29 +63,17 @@ ABattleManager::ABattleManager()
 void ABattleManager::BeginPlay()
 {
 	Super::BeginPlay();
+
 }
 
 void ABattleManager::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 전투가 진행 중이고, 현재 턴을 가진 캐릭터가 없을 때만 GlobalTime을 증가시키고 턴 탐색
-	// (턴 중에는 GlobalTime 증가 및 fActionValue 업데이트를 멈춤)
+	// 전투가 진행 중이고, 현재 턴을 가진 캐릭터가 없을 때만 ProcessTurn 호출
 	if (CurrentBattleState == EBattleState::InProgress && CurrentTurnCharacter == nullptr)
 	{
-		GlobalTime += DeltaTime; // GlobalTime을 매 틱마다 증가
-
-		// 모든 캐릭터의 fActionValue를 업데이트 (달린 거리 증가)
-		for (ACombatPawn* CombatantActor : AllCombatants)
-		{
-			UCharacterBase* CombatantData = CombatantActor->GetCombatData();
-			if (CombatantData && CombatantData->GetStats().fCurrentHealth > 0)
-			{
-				CombatantData->UpdateActionValue(DeltaTime * 500.0f); // fActionValue 증가
-			}
-		}
-
-		FindAndInitiateNextTurn(); // fActionValue가 10000에 도달했는지 확인하고 턴 진행
+		ProcessTurn(); // <-- 핵심!
 	}
 }
 
@@ -114,8 +100,16 @@ void ABattleManager::StartBattle(TArray<ACombatPawn*> InitialCombatants)
 	CurrentBattleState = EBattleState::InProgress;
 	UE_LOG(LogTemp, Log, TEXT("ABattleManager: 전투 시작 준비 완료. 상태: InProgress."));
 
-	// OnTurnOrderChanged.Broadcast(); // 이제 PredictOrder가 관리하므로 호출 안함
-	FindAndInitiateNextTurn(); // 전투 시작 후 첫 턴 진행 시도 (바로 턴을 잡을 캐릭터가 있을 수 있음)
+	if (OnTurnOrderChanged.IsBound()) // <-- 이 조건문과 로그 추가
+	{
+		UE_LOG(LogTemp, Log, TEXT("ABattleManager: OnTurnOrderChanged 델리게이트에 바인딩된 함수가 있습니다."));
+		OnTurnOrderChanged.Broadcast();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("ABattleManager: OnTurnOrderChanged 델리게이트에 바인딩된 함수가 없습니다!"));
+	}
+	ProcessTurn(); // 전투 시작 후 첫 턴 진행 시도
 }
 
 void ABattleManager::EndBattle()
@@ -134,8 +128,70 @@ void ABattleManager::ProcessTurn()
 		return;
 	}
 
-	// CTB 핵심: fActionValue가 10000에 도달했는지 확인하고 턴 진행
-	FindAndInitiateNextTurn();
+	// 1. 현재 턴을 잡을 준비가 된 캐릭터가 있는지 확인
+	TArray<ACombatPawn*> ReadyCombatants;
+	const float TargetDistance = 10000.0f; // 목표 거리 상수
+
+	for (ACombatPawn* CombatantActor : AllCombatants)
+	{
+		UCharacterBase* CombatantData = CombatantActor->GetCombatData();
+		if (CombatantData && CombatantData->GetStats().fCurrentHealth > 0 && CombatantData->IsReadyForTurn())
+		{
+			ReadyCombatants.Add(CombatantActor);
+		}
+	}
+
+	// 2. 턴을 잡을 캐릭터가 있다면 (점프할 필요 없이 바로 턴 부여)
+	if (ReadyCombatants.Num() > 0)
+	{
+		ReadyCombatants.Sort([this](const ACombatPawn& A, const ACombatPawn& B) -> bool
+			{
+				return BattleCombatantSortPredicate(A, B, *this);
+			});
+		InitiateTurnFor(ReadyCombatants[0]); // 가장 우선순위 높은 캐릭터에게 턴 부여
+		return; // 턴이 부여되었으므로, 이 ProcessTurn 호출은 여기서 종료. 다음 턴은 EndTurn에서 다시 ProcessTurn을 호출하여 진행.
+	}
+
+	// 3. 턴을 잡을 캐릭터가 없다면, 다음 턴까지의 시간을 계산하여 GlobalTime 점프
+	float MinTimeToNextTurn = 99999.0f; // 다음 턴까지 필요한 최소 시간
+
+	for (ACombatPawn* CombatantActor : AllCombatants)
+	{
+		UCharacterBase* CombatantData = CombatantActor->GetCombatData();
+		// 살아있고, 아직 턴을 잡을 준비가 안 되었고, 속도가 0보다 큰 캐릭터만 고려
+		if (CombatantData && CombatantData->GetStats().fCurrentHealth > 0 && !CombatantData->IsReadyForTurn() && CombatantData->GetStats().fSpeed > 0)
+		{
+			float TimeLeftForThisCombatant = CombatantData->GetTimeLeftToAct(); // 이 캐릭터가 턴을 잡기까지 남은 시간
+			if (TimeLeftForThisCombatant < MinTimeToNextTurn)
+			{
+				MinTimeToNextTurn = TimeLeftForThisCombatant;
+			}
+		}
+	}
+
+	// 4. GlobalTime을 점프시키고 모든 캐릭터의 fActionValue를 업데이트
+	if (MinTimeToNextTurn < 99999.0f && MinTimeToNextTurn > 0.0f)
+	{
+		GlobalTime += MinTimeToNextTurn; // GlobalTime을 다음 턴 시점까지 점프
+
+		for (ACombatPawn* CombatantActor : AllCombatants)
+		{
+			UCharacterBase* CombatantData = CombatantActor->GetCombatData();
+			if (CombatantData && CombatantData->GetStats().fCurrentHealth > 0)
+			{
+				CombatantData->AdvanceActionValue(MinTimeToNextTurn); // <-- fActionValue를 MinTimeToNextTurn만큼 증가
+			}
+		}
+
+		// 시간 점프 후, 다시 ProcessTurn을 호출하여 턴을 잡을 캐릭터가 있는지 확인
+		ProcessTurn(); // 재귀 호출 (Stack Overflow 주의: 방어 로직 필요)
+	}
+	else
+	{
+		// 더 이상 턴을 잡을 캐릭터가 없거나 모두 죽은 경우
+		UE_LOG(LogTemp, Warning, TEXT("ABattleManager: 더 이상 턴을 획득할 캐릭터가 없습니다 (모두 사망 또는 속도 0). 전투가 멈추거나 종료될 수 있습니다."));
+		CurrentBattleState = EBattleState::Ended; // 전투 종료 (선택 사항)
+	}
 }
 
 void ABattleManager::EndTurn()
@@ -149,8 +205,8 @@ void ABattleManager::EndTurn()
 	CurrentTurnCharacter = nullptr; // 현재 턴 캐릭터 초기화
 	CurrentBattleState = EBattleState::InProgress; // 턴 종료 후 다시 InProgress로 전환하여 시간 진행 재개
 
-	// OnTurnOrderChanged.Broadcast(); // 이제 PredictOrder가 관리하므로 호출 안함
-	FindAndInitiateNextTurn(); // 턴 종료 후 바로 다음 턴 진행 시도
+	OnTurnOrderChanged.Broadcast(); // UI 연동 시도
+	ProcessTurn(); // 턴 종료 후 바로 다음 턴 진행 (재귀 호출)
 }
 
 void ABattleManager::AddCombatant(ACombatPawn* NewCombatant)
@@ -170,42 +226,13 @@ void ABattleManager::AddCombatant(ACombatPawn* NewCombatant)
 	}
 }
 
-// CTB 핵심: fActionValue가 10000에 도달한 캐릭터를 찾아 턴을 부여
-void ABattleManager::FindAndInitiateNextTurn()
-{
-	// 1. 턴을 획득할 준비가 된 캐릭터 목록 생성 (fActionValue가 10000 이상인 캐릭터)
-	TArray<ACombatPawn*> ReadyCombatants;
-	const float TargetDistance = 10000.0f; // 목표 거리 상수
-	for (ACombatPawn* CombatantActor : AllCombatants)
-	{
-		UCharacterBase* CombatantData = CombatantActor->GetCombatData();
-		// 살아있고, fActionValue가 10000에 도달했으면 턴 준비 완료
-		if (CombatantData && CombatantData->GetStats().fCurrentHealth > 0 && CombatantData->IsReadyForTurn())
-		{
-			ReadyCombatants.Add(CombatantActor);
-		}
-	}
-
-	// 2. 턴을 획득할 캐릭터가 있다면 바로 턴 부여
-	if (ReadyCombatants.Num() > 0)
-	{
-		// 정렬 로직 람다 사용 (BattleCombatantSortPredicate)
-		ReadyCombatants.Sort([this](const ACombatPawn& A, const ACombatPawn& B) -> bool
-			{
-				return BattleCombatantSortPredicate(A, B, *this);
-			});
-		InitiateTurnFor(ReadyCombatants[0]); // 가장 우선순위 높은 캐릭터에게 턴 부여
-	}
-	// 턴을 획득할 캐릭터가 없다면, GlobalTime은 Tick에서 계속 진행됩니다.
-}
 
 void ABattleManager::InitiateTurnFor(ACombatPawn* TargetCombatant)
 {
 	if (!TargetCombatant || !TargetCombatant->GetCombatData())
 	{
 		UE_LOG(LogTemp, Error, TEXT("ABattleManager: 유효하지 않은 타겟에게 턴 부여 시도."));
-		// 문제 발생 시 (예: 대상이 죽었거나 데이터 없음) 다음 턴 진행 시도
-		ProcessTurn();
+		ProcessTurn(); // 문제 발생 시 다음 턴 진행 (재귀 호출)
 		return;
 	}
 

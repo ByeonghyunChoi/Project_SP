@@ -65,16 +65,11 @@ float UCharacterBase::GetTimeLeftToAct() const
 	return FMath::Max(0.0f, RemainingDistance / Stats.fSpeed);
 }
 
-void UCharacterBase::UpdateActionValue(float DeltaTime)
+void UCharacterBase::AdvanceActionValue(float TimeIncrement)
 {
 	if (!bIsMyTurn) // 자신의 턴이 아닐 때만 거리 증가
 	{
-		fActionValue += Stats.fSpeed * DeltaTime;
-		// fActionValue가 10000m를 넘어도 계속 증가하도록 허용 (초과 게이지)
-		// 붕괴 스타레일은 10000을 넘으면 턴을 잡고 0으로 리셋되지만,
-		// 내부적으로는 10000을 넘는 값도 처리하여 턴 순서에 반영합니다.
-		// UI에서는 10000을 기준으로 백분율을 표시합니다.
-		// StartTurn() 호출은 ABattleManager가 IsReadyForTurn()을 확인 후 담당합니다.
+		fActionValue += Stats.fSpeed * TimeIncrement;
 	}
 }
 

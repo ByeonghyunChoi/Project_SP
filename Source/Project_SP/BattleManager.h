@@ -17,6 +17,8 @@ enum class EBattleState : uint8
 	Ended UMETA(DisplayName = "전투 종료")             
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnOrderChanged);
+
 UCLASS()
 class PROJECT_SP_API ABattleManager : public AActor
 {
@@ -31,16 +33,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	float GlobalTime;
 
-	// 현재 전투에 참여하고 있는 모든 캐릭터
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
-	TArray<ACombatPawn*> AllCombatants;
-
 	// 현재 턴인 캐릭터
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	ACombatPawn* CurrentTurnCharacter;
-
-	// 턴을 획득할 캐릭터를 찾아 턴을 부여
-	void FindAndInitiateNextTurn();
 
 	// 전투 종료 조건을 확인하는 함수
 	bool CheckBattleEndConditions() const;
@@ -63,6 +58,15 @@ protected:
 	virtual void Tick(float DeltaTime) override;
 
 public:	
+
+	// 현재 전투에 참여하고 있는 모든 캐릭터
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
+	TArray<ACombatPawn*> AllCombatants;
+
+	// 턴 순서 변경 시 UI에 알릴 델리게이트
+	UPROPERTY(BlueprintAssignable, Category = "Battle Events")
+	FOnTurnOrderChanged OnTurnOrderChanged;
+
 	// 전투 시작 함수 (BP_CombatGameMode에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(TArray<ACombatPawn*> InitialCombatants);
@@ -71,6 +75,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void ProcessTurn();
 
+	//전투 참여자 추가
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void AddCombatant(ACombatPawn* NewCombatant);
 

@@ -50,9 +50,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
 	float GetTimeLeftToAct() const;
 
-	// fActionValue를 증가시키는 함수 (ABattleManager의 Tick에서 DeltaTime을 받아 호출)
+	// fActionValue를 특정 시간만큼 증가시키는 함수 (ABattleManager에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void UpdateActionValue(float DeltaTime);
+	void AdvanceActionValue(float TimeIncrement);
 
 	// 턴을 잡을 준비가 되었는지 (목표 거리에 도달했는지)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
