@@ -68,12 +68,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn();
 
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void TakeDamage(float DamageAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	virtual void DecideAction();
-
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Stats")
 	EFaction GetFaction() const;
 
@@ -81,8 +75,13 @@ public:
 	void SetFaction(EFaction inFaction);
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetStats(const FCharacterStatsData& NewStats);
+	void SetStats(const EStat& ChangeStat, const float InAmount);
+
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void CopyStats(FCharacterStatsData InStats);
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetCharacterName(const FString& NewName);
+
+	virtual void DecideAction() PURE_VIRTUAL(UCharacterBase::DecideAction, );
 };

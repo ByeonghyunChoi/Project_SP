@@ -5,7 +5,7 @@
 
 UBossMonsterBase::UBossMonsterBase()
 {
-
+	SetFaction(EFaction::Enemy);
 }
 
 void UBossMonsterBase::DecideAction()

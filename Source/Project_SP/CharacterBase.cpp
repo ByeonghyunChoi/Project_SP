@@ -12,17 +12,6 @@ UCharacterBase::UCharacterBase()
 	fActionValue = 0.0f;
 }
 
-void UCharacterBase::TakeDamage(float DamageAmount)
-{
-	Stats.fCurrentHealth -= DamageAmount;
-	Stats.fCurrentHealth = FMath::Max(Stats.fCurrentHealth, 0.0f);
-
-	if (Stats.fCurrentHealth <= 0.0f)
-	{
-		//사망
-	}
-}
-
 void UCharacterBase::StartTurn()
 {
 	bIsMyTurn = true;
@@ -84,11 +73,6 @@ float UCharacterBase::GetActionValue() const
 	return fActionValue;
 }
 
-void UCharacterBase::DecideAction()
-{
-	//AI 로직 작동 BehaviorTree로 구현할 예정
-}
-
 EFaction UCharacterBase::GetFaction() const
 {
 	return CharacterFaction;
@@ -99,9 +83,59 @@ void UCharacterBase::SetFaction(EFaction InFaction)
 	CharacterFaction = InFaction;
 }
 
-void UCharacterBase::SetStats(const FCharacterStatsData& NewStats)
+void UCharacterBase::SetStats(const EStat& ChangeStat, const float InAmount)
 {
-	Stats = NewStats;
+	switch (ChangeStat)
+	{
+	case EStat::CurrentHealth:
+		Stats.fCurrentHealth = FMath::Clamp(InAmount, 0.0f, Stats.fMaxHealth);;
+		break;
+	case EStat::MaxHealth:
+		Stats.fMaxHealth = InAmount;
+		break;
+	case EStat::AttackPower:
+		Stats.fAttackPower = InAmount;
+		break;
+	case EStat::DefensePower:
+		Stats.fDefensePower = InAmount;
+		break;
+	case EStat::Speed:
+		Stats.fSpeed = InAmount;
+		break;
+	case EStat::CriticalChance:
+		Stats.fCriticalChance = InAmount;
+		break;
+	case EStat::CriticalDamageMultiplier:
+		Stats.fCriticalDamageMultiplier = InAmount;
+		break;
+	case EStat::Accuracy:
+		Stats.fAccuracy = InAmount;
+		break;
+	case EStat::Evasion:
+		Stats.fEvasion = InAmount;
+		break;
+	case EStat::StatusEffectResistance:
+		Stats.fStatusEffectResistance = InAmount;
+		break;
+	case EStat::StatusEffectAccuracy:
+		Stats.fStatusEffectAccuracy = InAmount;
+		break;
+	case EStat::DamageIncreaseMultiplier:
+		Stats.fDamageIncreaseMultiplier = InAmount;
+		break;
+	case EStat::DamageReductionMultiplier:
+		Stats.fDamageReductionMultiplier = InAmount;
+		break;
+	case EStat::ArmorPenetration:
+		Stats.fArmorPenetration = InAmount;
+		break;
+	}
+}
+
+
+void UCharacterBase::CopyStats(FCharacterStatsData InStats)
+{
+	Stats = InStats;
 }
 
 void UCharacterBase::SetCharacterName(const FString& NewName)

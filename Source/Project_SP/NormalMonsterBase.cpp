@@ -5,7 +5,7 @@
 
 UNormalMonsterBase::UNormalMonsterBase()
 {
-
+	SetFaction(EFaction::Enemy);
 }
 
 void UNormalMonsterBase::DecideAction()

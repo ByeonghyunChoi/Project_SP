@@ -10,7 +10,7 @@
 // Sets default values
 AMonsterCharacter::AMonsterCharacter()
 {
-    MonsterData = nullptr;
+    CombatData->SetFaction(EFaction::Enemy);
 }
 
 // Called when the game starts or when spawned
@@ -18,24 +18,24 @@ void AMonsterCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (MonsterClass && MonsterData && MonsterData->GetClass() != MonsterClass)
+    if (MonsterClass && CombatData && CombatData->GetClass() != MonsterClass)
     {
-        MonsterData = NewObject<UMonsterBase>(this, MonsterClass);
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 MonsterDataInstance를 템플릿으로 재설정."));
+        CombatData = NewObject<UMonsterBase>(this, MonsterClass);
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 CombatDataInstance를 템플릿으로 재설정."));
     }
-    else if (!MonsterData && MonsterClass)
+    else if (!CombatData && MonsterClass)
     {
-        // MonsterDataInstance가 nullptr인데 템플릿이 설정되어 있으면 새로 생성
-        MonsterData = NewObject<UMonsterBase>(this, MonsterClass);
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 MonsterDataInstance가 없어 템플릿으로 생성."));
+        // CombatDataInstance가 nullptr인데 템플릿이 설정되어 있으면 새로 생성
+        CombatData = NewObject<UMonsterBase>(this, MonsterClass);
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 CombatDataInstance가 없어 템플릿으로 생성."));
     }
-    else if (!MonsterData && !MonsterClass)
+    else if (!CombatData && !MonsterClass)
     {
-        UE_LOG(LogTemp, Warning, TEXT("AMonsterCharacter: MonsterDataInstance와 MonsterBaseClassTemplate 모두 설정되지 않았습니다."));
+        UE_LOG(LogTemp, Warning, TEXT("AMonsterCharacter: CombatDataInstance와 MonsterBaseClassTemplate 모두 설정되지 않았습니다."));
     }
     else
     {
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: MonsterDataInstance 사용 중 (%s)"), *GetNameSafe(MonsterData));
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: CombatDataInstance 사용 중 (%s)"), *GetNameSafe(CombatData));
     }
     
 }
@@ -54,16 +54,16 @@ void AMonsterCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
         {
             if (MonsterClass)
             {
-                // MonsterDataInstance를 선택된 MonsterBaseClassTemplate 타입으로 새로 생성
+                // CombatDataInstance를 선택된 MonsterBaseClassTemplate 타입으로 새로 생성
                 // 이렇게 하면 디테일 패널에서 MonsterBaseClassTemplate을 변경하는 즉시
-                // MonsterDataInstance의 타입과 기본값이 반영됩니다.
-                MonsterData = NewObject<UMonsterBase>(this, MonsterClass);
-                UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 에디터에서 MonsterBaseClassTemplate 변경 감지, MonsterDataInstance 재설정."));
+                // CombatDataInstance의 타입과 기본값이 반영됩니다.
+                CombatData = NewObject<UCharacterBase>(this, MonsterClass);
+                UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 에디터에서 MonsterBaseClassTemplate 변경 감지, CombatDataInstance 재설정."));
             }
             else
             {
-                // MonsterBaseClassTemplate이 None으로 설정되면 MonsterDataInstance도 None으로
-                MonsterData = nullptr;
+                // MonsterBaseClassTemplate이 None으로 설정되면 CombatDataInstance도 None으로
+                CombatData = nullptr;
             }
         }
     }
@@ -72,9 +72,9 @@ void AMonsterCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 void AMonsterCharacter::PerformMonsterTurnAction()
 {
-	if (MonsterData)
+	if (CombatData)
 	{
-		MonsterData->DecideAction();
+		CombatData->DecideAction();
 	}
 }
 

@@ -89,12 +89,6 @@ void ABattleManager::StartBattle(TArray<ACombatPawn*> InitialCombatants)
 	{
 		AddCombatant(CombatantActor);
 		UCharacterBase* CombatantData = CombatantActor->GetCombatData();
-		if (CombatantData)
-		{
-			// 캐릭터 이름 설정 (UI용)
-			CombatantData->SetCharacterName(CombatantActor->GetName());
-			// fActionValue는 UCharacterBase 생성자에서 0으로 초기화됨
-		}
 	}
 
 	CurrentBattleState = EBattleState::InProgress;

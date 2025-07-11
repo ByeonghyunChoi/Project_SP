@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "PlayerCharacter.h"
@@ -7,7 +7,6 @@
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
-	PlayerData = CreateDefaultSubobject<UCharacterBase>(TEXT("BasicStatsComponent"));
 	FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
 	BattleModeComp = CreateDefaultSubobject<UBattleModeComponent>(TEXT("BattleModeComponent"));
 
@@ -22,33 +21,33 @@ APlayerCharacter::APlayerCharacter()
 
 void APlayerCharacter::EnterFieldMode()
 {
-	// ÇÊµå ¸ğµå ÄÄÆ÷³ÍÆ® È°¼ºÈ­
+	// í•„ë“œ ëª¨ë“œ ì»´í¬ë„ŒíŠ¸ í™œì„±í™”
 	if (FieldModeComp)
 	{
 		FieldModeComp->SetComponentTickEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("ÇÃ·¹ÀÌ¾î ÇÊµå ¸ğµå ÁøÀÔ."));
+		UE_LOG(LogTemp, Log, TEXT("í”Œë ˆì´ì–´ í•„ë“œ ëª¨ë“œ ì§„ì…."));
 	}
-	// ÀüÅõ ¸ğµå ÄÄÆ÷³ÍÆ® ºñÈ°¼ºÈ­
+	// ì „íˆ¬ ëª¨ë“œ ì»´í¬ë„ŒíŠ¸ ë¹„í™œì„±í™”
 	if (BattleModeComp)
 	{
 		BattleModeComp->SetComponentTickEnabled(false);
-		UE_LOG(LogTemp, Log, TEXT("ÀüÅõ ¸ğµå ºñÈ°¼ºÈ­."));
+		UE_LOG(LogTemp, Log, TEXT("ì „íˆ¬ ëª¨ë“œ ë¹„í™œì„±í™”."));
 	}
 }
 
 void APlayerCharacter::EnterBattleMode()
 {
-	// ÇÊµå ¸ğµå ÄÄÆ÷³ÍÆ® È°¼ºÈ­
+	// í•„ë“œ ëª¨ë“œ ì»´í¬ë„ŒíŠ¸ í™œì„±í™”
 	if (FieldModeComp)
 	{
 		FieldModeComp->SetComponentTickEnabled(false);
-		UE_LOG(LogTemp, Log, TEXT("ÇÊµå ¸ğµå ºñÈ°¼ºÈ­."));
+		UE_LOG(LogTemp, Log, TEXT("í•„ë“œ ëª¨ë“œ ë¹„í™œì„±í™”."));
 	}
-	// ÀüÅõ ¸ğµå ÄÄÆ÷³ÍÆ® ºñÈ°¼ºÈ­
+	// ì „íˆ¬ ëª¨ë“œ ì»´í¬ë„ŒíŠ¸ ë¹„í™œì„±í™”
 	if (BattleModeComp)
 	{
 		BattleModeComp->SetComponentTickEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("ÇÃ·¹ÀÌ¾î ÀüÅõ ¸ğµå ÁøÀÔ."));
+		UE_LOG(LogTemp, Log, TEXT("í”Œë ˆì´ì–´ ì „íˆ¬ ëª¨ë“œ ì§„ì…."));
 	}
 }
 

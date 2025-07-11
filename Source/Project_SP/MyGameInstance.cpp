@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MyGameInstance.h"
@@ -12,29 +12,29 @@ void UMyGameInstance::Init()
 
 void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentFieldName)
 {
-    // Å¬·¡½º ÀúÀå (½ºÆù¿ë)
+    // í´ë˜ìŠ¤ ì €ì¥ (ìŠ¤í°ìš©)
     PlayerCharacterClassToSpawn = PlayerActor->GetClass();
     EnemyCharacterClassToSpawn = EnemyActor->GetClass();
 
-    // ÀüÅõ µ¥ÀÌÅÍ º¹»ç (FCharacterStatsData´Â USTRUCTÀÌ¹Ç·Î Á÷Á¢ º¹»ç °¡´É)
+    // ì „íˆ¬ ë°ì´í„° ë³µì‚¬ (FCharacterStatsDataëŠ” USTRUCTì´ë¯€ë¡œ ì§ì ‘ ë³µì‚¬ ê°€ëŠ¥)
     PlayerPersistedStats = PlayerActor->GetCombatData()->GetStats();
     EnemyPersistedStats = EnemyActor->GetCombatData()->GetStats();
 
-    // ÇÊµå ¸ó½ºÅÍ ¾×ÅÍ ·¹ÆÛ·±½º ÀúÀå (ÇÊµå º¹±Í ½Ã »ç¿ë)
+    // í•„ë“œ ëª¬ìŠ¤í„° ì•¡í„° ë ˆí¼ëŸ°ìŠ¤ ì €ì¥ (í•„ë“œ ë³µê·€ ì‹œ ì‚¬ìš©)
     AttackedFieldMonsterActor = EnemyActor;
 
     ReturnToFieldName = CurrentFieldName;
 
-    UE_LOG(LogTemp, Log, TEXT("UMyGameInstance: ÀüÅõ µ¥ÀÌÅÍ ÀúÀå ¿Ï·á. BattleMapÀ¸·Î ÀüÈ¯ ½ÃÀÛ."));
+    UE_LOG(LogTemp, Log, TEXT("UMyGameInstance: ì „íˆ¬ ë°ì´í„° ì €ì¥ ì™„ë£Œ. BattleMapìœ¼ë¡œ ì „í™˜ ì‹œì‘."));
     UGameplayStatics::OpenLevel(this, FName("BattleMap_01"), true);
 }
 
 void UMyGameInstance::ReturnToFieldTransition(bool bPlayerWon)
 {
-    // ÀüÅõ °á°ú Ã³¸® (¿¹: ¸ó½ºÅÍ Á¦°Å, ÇÃ·¹ÀÌ¾î °æÇèÄ¡ È¹µæ µî)
-    // ÀÌ ·ÎÁ÷Àº ÁÖ·Î FieldGameModeÀÇ BeginPlay³ª PlayerCharacterÀÇ BeginPlay¿¡¼­ Ã³¸®ÇÏ´Â °ÍÀÌ ÁÁ½À´Ï´Ù.
-    // GameInstance´Â µ¥ÀÌÅÍ¸¦ Àü´ŞÇÏ´Â ¿ªÇÒ¿¡ ÁıÁß.
+    // ì „íˆ¬ ê²°ê³¼ ì²˜ë¦¬ (ì˜ˆ: ëª¬ìŠ¤í„° ì œê±°, í”Œë ˆì´ì–´ ê²½í—˜ì¹˜ íšë“ ë“±)
+    // ì´ ë¡œì§ì€ ì£¼ë¡œ FieldGameModeì˜ BeginPlayë‚˜ PlayerCharacterì˜ BeginPlayì—ì„œ ì²˜ë¦¬í•˜ëŠ” ê²ƒì´ ì¢‹ìŠµë‹ˆë‹¤.
+    // GameInstanceëŠ” ë°ì´í„°ë¥¼ ì „ë‹¬í•˜ëŠ” ì—­í• ì— ì§‘ì¤‘.
 
-    // ÇÊµå ·¹º§·Î µ¹¾Æ°¨
+    // í•„ë“œ ë ˆë²¨ë¡œ ëŒì•„ê°
     UGameplayStatics::OpenLevel(this, ReturnToFieldName, true);
 }

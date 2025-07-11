@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -10,11 +10,11 @@
 UENUM(BlueprintType)
 enum class EBattleState : uint8
 {
-	Setup UMETA(DisplayName = "ÀüÅõ ÁØºñ"), 
-	InProgress UMETA(DisplayName = "ÀüÅõ ÁøÇà Áß"), 
-	PlayerTurn UMETA(DisplayName = "ÇÃ·¹ÀÌ¾î ÅÏ"), 
-	EnemyTurn UMETA(DisplayName = "Àû ÅÏ"),   
-	Ended UMETA(DisplayName = "ÀüÅõ Á¾·á")             
+	Setup UMETA(DisplayName = "ì „íˆ¬ ì¤€ë¹„"), 
+	InProgress UMETA(DisplayName = "ì „íˆ¬ ì§„í–‰ ì¤‘"), 
+	PlayerTurn UMETA(DisplayName = "í”Œë ˆì´ì–´ í„´"), 
+	EnemyTurn UMETA(DisplayName = "ì  í„´"),   
+	Ended UMETA(DisplayName = "ì „íˆ¬ ì¢…ë£Œ")             
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnOrderChanged);
@@ -25,65 +25,65 @@ class PROJECT_SP_API ABattleManager : public AActor
 	GENERATED_BODY()
 	
 private:
-	// ÀüÅõÀÇ ÇöÀç »óÅÂ
+	// ì „íˆ¬ì˜ í˜„ì¬ ìƒíƒœ
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	EBattleState CurrentBattleState;
 
-	// ÀüÅõ°¡ ½ÃÀÛµÈ ÀÌÈÄÀÇ Àü¿ª ½Ã°£
+	// ì „íˆ¬ê°€ ì‹œì‘ëœ ì´í›„ì˜ ì „ì—­ ì‹œê°„
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	float GlobalTime;
 
-	// ÇöÀç ÅÏÀÎ Ä³¸¯ÅÍ
+	// í˜„ì¬ í„´ì¸ ìºë¦­í„°
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	ACombatPawn* CurrentTurnCharacter;
 
-	// ÀüÅõ Á¾·á Á¶°ÇÀ» È®ÀÎÇÏ´Â ÇÔ¼ö
+	// ì „íˆ¬ ì¢…ë£Œ ì¡°ê±´ì„ í™•ì¸í•˜ëŠ” í•¨ìˆ˜
 	bool CheckBattleEndConditions() const;
 
-	// Æ¯Á¤ Ä³¸¯ÅÍ¿¡°Ô ÅÏÀ» ºÎ¿©ÇÏ°í Çàµ¿À» ½ÃÀÛÇÏµµ·Ï Áö½Ã
+	// íŠ¹ì • ìºë¦­í„°ì—ê²Œ í„´ì„ ë¶€ì—¬í•˜ê³  í–‰ë™ì„ ì‹œì‘í•˜ë„ë¡ ì§€ì‹œ
 	void InitiateTurnFor(ACombatPawn* TargetCombatant);
 
-	// ÅÏÀ» È¹µæÇÒ ÁØºñ°¡ µÈ Ä³¸¯ÅÍµéÀ» ±ÔÄ¢¿¡ µû¶ó Á¤·Ä
+	// í„´ì„ íšë“í•  ì¤€ë¹„ê°€ ëœ ìºë¦­í„°ë“¤ì„ ê·œì¹™ì— ë”°ë¼ ì •ë ¬
 	void SortReadyCombatants(TArray<ACombatPawn*>& ReadyCombatants) const;
 
 public:
-	//»ı¼ºÀÚ
+	//ìƒì„±ì
 	ABattleManager();
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	//ÅÏ ·ÎÁ÷ È£Ãâ ºÎºĞ
+	//í„´ ë¡œì§ í˜¸ì¶œ ë¶€ë¶„
 	virtual void Tick(float DeltaTime) override;
 
 public:	
 
-	// ÇöÀç ÀüÅõ¿¡ Âü¿©ÇÏ°í ÀÖ´Â ¸ğµç Ä³¸¯ÅÍ
+	// í˜„ì¬ ì „íˆ¬ì— ì°¸ì—¬í•˜ê³  ìˆëŠ” ëª¨ë“  ìºë¦­í„°
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle", meta = (AllowPrivateAccess = "true"))
 	TArray<ACombatPawn*> AllCombatants;
 
-	// ÅÏ ¼ø¼­ º¯°æ ½Ã UI¿¡ ¾Ë¸± µ¨¸®°ÔÀÌÆ®
+	// í„´ ìˆœì„œ ë³€ê²½ ì‹œ UIì— ì•Œë¦´ ë¸ë¦¬ê²Œì´íŠ¸
 	UPROPERTY(BlueprintAssignable, Category = "Battle Events")
 	FOnTurnOrderChanged OnTurnOrderChanged;
 
-	// ÀüÅõ ½ÃÀÛ ÇÔ¼ö (BP_CombatGameMode¿¡¼­ È£Ãâ)
+	// ì „íˆ¬ ì‹œì‘ í•¨ìˆ˜ (BP_CombatGameModeì—ì„œ í˜¸ì¶œ)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(TArray<ACombatPawn*> InitialCombatants);
 
-	// ÅÏ ÁøÇàÀÇ ¸ŞÀÎ ÁøÀÔÁ¡ (Tick ¶Ç´Â EndTurn¿¡¼­ È£Ãâ)
+	// í„´ ì§„í–‰ì˜ ë©”ì¸ ì§„ì…ì  (Tick ë˜ëŠ” EndTurnì—ì„œ í˜¸ì¶œ)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void ProcessTurn();
 
-	//ÀüÅõ Âü¿©ÀÚ Ãß°¡
+	//ì „íˆ¬ ì°¸ì—¬ì ì¶”ê°€
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void AddCombatant(ACombatPawn* NewCombatant);
 
-	// ÀüÅõ Á¾·á ÇÔ¼ö
+	// ì „íˆ¬ ì¢…ë£Œ í•¨ìˆ˜
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndBattle();
 
-	// ÅÏ Á¾·á ÇÔ¼ö (UBattleModeComponent ¶Ç´Â AMonsterCharacter¿¡¼­ È£Ãâ)
+	// í„´ ì¢…ë£Œ í•¨ìˆ˜ (UBattleModeComponent ë˜ëŠ” AMonsterCharacterì—ì„œ í˜¸ì¶œ)
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn();
 };

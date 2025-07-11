@@ -17,18 +17,13 @@ public:
 	// Sets default values for this character's properties
 	AMonsterCharacter();
 
-	virtual UCharacterBase* GetCombatData() const override { return MonsterData; }
-	
 	UFUNCTION(BlueprintCallable, Category = "MonsterType")
 	void PerformMonsterTurnAction();
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Monster Data")
-	UMonsterBase* MonsterData;
-
-	UPROPERTY(EditAnywhere, Category = "Monster Config")
+	UPROPERTY(EditAnywhere, Category = "Data")
 	TSubclassOf<UMonsterBase> MonsterClass;
 
 #if WITH_EDITOR

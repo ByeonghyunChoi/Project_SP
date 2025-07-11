@@ -5,7 +5,7 @@
 
 UEliteMonsterBase::UEliteMonsterBase()
 {
-
+	SetFaction(EFaction::Enemy);
 }
 
 void UEliteMonsterBase::DecideAction()

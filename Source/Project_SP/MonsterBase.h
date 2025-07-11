@@ -13,7 +13,6 @@ UCLASS(Blueprintable, BlueprintType, Abstract)
 class PROJECT_SP_API UMonsterBase : public UCharacterBase
 {
 	GENERATED_BODY()
-
 public:
 	UMonsterBase();
 	virtual void DecideAction() override PURE_VIRTUAL(UMonsterBase::DecideAction,);

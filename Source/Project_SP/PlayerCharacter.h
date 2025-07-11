@@ -19,8 +19,6 @@ public:
 	// Sets default values for this character's properties
 	APlayerCharacter();
 
-	virtual UCharacterBase* GetCombatData() const override { return PlayerData; }
-
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
 	UFieldModeComponent* FieldModeComp;
@@ -40,7 +38,4 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Instanced)
-	UCharacterBase* PlayerData;
 };

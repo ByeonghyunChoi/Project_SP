@@ -10,6 +10,25 @@
 /**
  * 
  */
+UENUM(BlueprintType)
+enum class EStat : uint8
+{
+	CurrentHealth,
+	MaxHealth,
+	AttackPower,
+	DefensePower,
+	Speed,
+	CriticalChance,
+	CriticalDamageMultiplier,
+	Accuracy,
+	Evasion,
+	StatusEffectResistance,
+	StatusEffectAccuracy,
+	DamageIncreaseMultiplier,
+	DamageReductionMultiplier,
+	ArmorPenetration
+};
+
 USTRUCT(BlueprintType)
 struct FCharacterStatsData : public FTableRowBase
 {
