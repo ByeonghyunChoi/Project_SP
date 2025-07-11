@@ -115,6 +115,10 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Artifact System")
     TArray<FEquippedArtifact> GetAllEquippedArtifacts() const;
 
+ //   //랜덤 능력치 증가 함수
+	//UFUNCTION(BlueprintCallable, Category = "Artifact System")
+	//void ApplyArtifactBonusToCharacter(FStatBonus Bonus, FCharacterStatsData& TargetStats);
+
 protected:
     // 스탯 보너스 재계산 함수
     void RecalculateStats();

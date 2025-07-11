@@ -11,11 +11,11 @@ UENUM(BlueprintType)
 enum class EArtifactType : uint8
 {
     None        UMETA(DisplayName = "None"),
-    Flower      UMETA(DisplayName = "Flower"),      // 체력 증가 (생명의 꽃)
-    Feather     UMETA(DisplayName = "Feather"),     // 공격력 증가 (죽음의 깃털)
-    Hourglass   UMETA(DisplayName = "Hourglass"),   // 방어력 증가 (시간의 모래)
-    Goblet      UMETA(DisplayName = "Goblet"),      // 속도 증가 (공간의 성배)
-    Circlet     UMETA(DisplayName = "Circlet")      // 특수 능력 (이성의 왕관)
+    HPUp        UMETA(DisplayName = "HPUp"),      // 체력 증가 
+    ATKUp       UMETA(DisplayName = "ATKUp"),     // 공격력 증가 
+    DFEUp       UMETA(DisplayName = "DFEUp"),   // 방어력 증가 
+    SPDUp       UMETA(DisplayName = "SPDUp"),      // 속도 증가 
+    SPLUp       UMETA(DisplayName = "SPLUp")      // 특수 능력 
 };
 
 // 아티팩트 세트 타입 열거형 (3개 세트)
@@ -140,4 +140,7 @@ public:
     // FArtifactData를 에디터에서 사용 가능한 형태로 포함
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Artifact")
     FArtifactData ArtifactData;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data Tables", meta = (AllowPrivateAccess = "true"))
+    UDataTable* ArtifactDataTable;
 };

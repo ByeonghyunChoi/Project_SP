@@ -34,11 +34,15 @@ void UArtifactSystem::BeginPlay() // 게임시작
     if (!ArtifactDataTable)
     {
         UE_LOG(LogTemp, Error, TEXT("ArtifactDataTable is NULL at BeginPlay!"));
+        checkf(false, TEXT("ArtifactDataTable must be set in the Blueprint!"));
+        return;
     }
 
     if (!SetBonusDataTable)
     {
         UE_LOG(LogTemp, Error, TEXT("SetBonusDataTable is NULL at BeginPlay!"));
+        checkf(false, TEXT("SetBonusDataTable must be set in the Blueprint!"));
+        return;
     }
 
     // 게임 시작 시 초기 스탯 계산
@@ -332,6 +336,40 @@ TArray<FEquippedArtifact> UArtifactSystem::GetAllEquippedArtifacts() const // 현
     return Result;
 }
 
+//void UArtifactSystem::ApplyArtifactBonusToCharacter(FStatBonus Bonus, FCharacterStatsData& TargetStats)
+//{
+//    // 고정 스탯은 그대로 적용
+//    TargetStats.fMaxHealth += Bonus.HP;
+//    TargetStats.fAttackPower += Bonus.Attack;
+//    TargetStats.fDefensePower += Bonus.Defense;
+//    TargetStats.fSpeed += Bonus.Speed;
+//
+//    // Special은 무작위 능력치에 적용
+//    if (Bonus.Special != 0.0f)
+//    {
+//        // 랜덤 스탯 선택
+//        int32 RandomStatIndex = FMath::RandRange(0, 12); // 스탯 종류가 총 13개
+//
+//        switch (RandomStatIndex)
+//        {
+//        case 0: TargetStats.fMaxHealth += Bonus.Special; break;
+//        case 1: TargetStats.fAttackPower += Bonus.Special; break;
+//        case 2: TargetStats.fDefensePower += Bonus.Special; break;
+//        case 3: TargetStats.fSpeed += Bonus.Special; break;
+//        case 4: TargetStats.fCriticalChance += Bonus.Special; break;
+//        case 5: TargetStats.fCriticalDamageMultiplier += Bonus.Special; break;
+//        case 6: TargetStats.fAccuracy += Bonus.Special; break;
+//        case 7: TargetStats.fEvasion += Bonus.Special; break;
+//        case 8: TargetStats.fStatusEffectResistance += Bonus.Special; break;
+//        case 9: TargetStats.fStatusEffectAccuracy += Bonus.Special; break;
+//        case 10: TargetStats.fDamageIncreaseMultiplier += Bonus.Special; break;
+//        case 11: TargetStats.fDamageReductionMultiplier += Bonus.Special; break;
+//        case 12: TargetStats.fArmorPenetration += Bonus.Special; break;
+//        default: break;
+//        }
+//    }
+//}
+
 void UArtifactSystem::RecalculateStats() // 현재 장착된 아티팩트들의 스탯 보너스 재계산
 {
     // 스탯 보너스 초기화
@@ -404,25 +442,25 @@ void UArtifactSystem::UpdateSetCounts() // 현재 장착된 아티팩트들의 세트 카운트 
     }
 }
 
-//FArtifactData* UArtifactSystem::LoadArtifactData(FName ArtifactID) const // 특정 아티팩트 ID에 대한 데이터 로드
-//{
-//    // 데이터 테이블이 유효한지 확인
-//    if (!ArtifactDataTable)
-//    {
-//        UE_LOG(LogTemp, Warning, TEXT("ArtifactDataTable is not set"));
-//        return nullptr;
-//    }
-//
-//    // 데이터 테이블에서 아티팩트 데이터 찾기
-//    FArtifactData* ArtifactData = ArtifactDataTable->FindRow<FArtifactData>(ArtifactID, TEXT(""));
-//    if (!ArtifactData)
-//    {
-//        UE_LOG(LogTemp, Warning, TEXT("Artifact data not found: %s"), *ArtifactID.ToString());
-//        return nullptr;
-//    }
-//
-//    return ArtifactData;
-//}
+FArtifactData* UArtifactSystem::LoadArtifactData(FName ArtifactID) const // 특정 아티팩트 ID에 대한 데이터 로드
+{
+    // 데이터 테이블이 유효한지 확인
+    if (!ArtifactDataTable)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ArtifactDataTable is not set"));
+        return nullptr;
+    }
+
+    // 데이터 테이블에서 아티팩트 데이터 찾기
+    FArtifactData* ArtifactData = ArtifactDataTable->FindRow<FArtifactData>(ArtifactID, TEXT(""));
+    if (!ArtifactData)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Artifact data not found: %s"), *ArtifactID.ToString());
+        return nullptr;
+    }
+
+    return ArtifactData;
+}
 
 FSetBonusData* UArtifactSystem::LoadSetBonusData(EArtifactSetType SetType, int32 PieceCount) const // 특정 세트 타입과 피스 수에 대한 세트 보너스 데이터 로드
 {
