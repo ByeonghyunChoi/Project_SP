@@ -4,138 +4,124 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Engine/DataTable.h"
 #include "CharacterStats.generated.h"
 
 /**
  * 
  */
-UENUM(BlueprintType)
-enum class EStat : uint8
-{
-	CurrentHealth,
-	MaxHealth,
-	AttackPower,
-	DefensePower,
-	Speed,
-	CriticalChance,
-	CriticalDamageMultiplier,
-	Accuracy,
-	Evasion,
-	StatusEffectResistance,
-	StatusEffectAccuracy,
-	DamageIncreaseMultiplier,
-	DamageReductionMultiplier,
-	ArmorPenetration
-};
 
-USTRUCT(BlueprintType)
-struct FCharacterStatsData : public FTableRowBase
-{
-	GENERATED_BODY()
-
-	// 현재 체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fCurrentHealth;
-	// 최대 체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fMaxHealth;
-	// 공격력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fAttackPower;
-	// 방어력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fDefensePower;
-	// 속도
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fSpeed;
-	// 치명타 확률
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fCriticalChance;
-	// 치명타 피해
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fCriticalDamageMultiplier;
-	// 명중치
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fAccuracy;
-	// 회피치
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fEvasion;
-	// 상태 저항
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fStatusEffectResistance;
-	// 상태 적중
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fStatusEffectAccuracy;
-	// 피해량 증가
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fDamageIncreaseMultiplier;
-	// 피해량 감소
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fDamageReductionMultiplier;
-	// 방어 무시
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fArmorPenetration;
-
-	FCharacterStatsData()
-	{
-		fMaxHealth = 200.0f;
-		fCurrentHealth = fMaxHealth;
-		fAttackPower = 100.0f;
-		fDefensePower = 80.0f;
-		fSpeed = 100.0f;
-		fCriticalChance = 0.1f;
-		fCriticalDamageMultiplier = 1.5f;
-		fAccuracy = 0.0f;
-		fEvasion = 0.1f;
-		fStatusEffectResistance = 10.0f;
-		fStatusEffectAccuracy = 10.0f;
-		fDamageIncreaseMultiplier = 0.0f;
-		fDamageReductionMultiplier = 0.0f;
-		fArmorPenetration = 0.0f;
-	}
-
-	bool operator==(const FCharacterStatsData& InCharacterStats) const
-	{
-		return ((fCurrentHealth == InCharacterStats.fCurrentHealth) &&
-			(fMaxHealth == InCharacterStats.fMaxHealth) &&
-			(fAttackPower == InCharacterStats.fAttackPower) &&
-			(fDefensePower == InCharacterStats.fDefensePower) &&
-			(fSpeed == InCharacterStats.fSpeed) &&
-			(fCriticalChance == InCharacterStats.fCriticalChance) &&
-			(fCriticalDamageMultiplier == InCharacterStats.fCriticalDamageMultiplier) &&
-			(fAccuracy == InCharacterStats.fAccuracy) &&
-			(fEvasion == InCharacterStats.fEvasion) &&
-			(fStatusEffectResistance == InCharacterStats.fStatusEffectResistance) &&
-			(fStatusEffectAccuracy == InCharacterStats.fStatusEffectAccuracy) &&
-			(fDamageIncreaseMultiplier == InCharacterStats.fDamageIncreaseMultiplier) &&
-			(fDamageReductionMultiplier == InCharacterStats.fDamageReductionMultiplier) &&
-			(fArmorPenetration == InCharacterStats.fArmorPenetration));
-	}
-
-	friend FORCEINLINE uint32 GetTypeHash(const FCharacterStatsData& InCharacterStats)
-	{
-		uint32 Hash = GetTypeHash(InCharacterStats.fCurrentHealth);
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fMaxHealth));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fAttackPower));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fDefensePower));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fSpeed));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fCriticalChance));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fCriticalDamageMultiplier));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fAccuracy));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fEvasion));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fStatusEffectResistance));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fStatusEffectAccuracy));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fDamageIncreaseMultiplier));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fDamageReductionMultiplier));
-		Hash = HashCombine(Hash, GetTypeHash(InCharacterStats.fArmorPenetration));
-		return Hash;
-	}
-};
-
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class PROJECT_SP_API UCharacterStats : public UObject
 {
 	GENERATED_BODY()
-	
+private:
+	// 현재 체력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fCurrentHealth;
+	// 최대 체력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fMaxHealth;
+	// 공격력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fAttackPower;
+	// 방어력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fDefensePower;
+	// 속도
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fMovementSpeed;
+	// 치명타 확률
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fCriticalChance;
+	// 치명타 피해
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fCriticalDamageMultiplier;
+	// 명중치
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fHitProbability;
+	// 회피치
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fEvasion;
+	// 상태 저항
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fStatusEffectResistance;
+	// 상태 적중
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fStatusEffectAccuracy;
+	// 피해량 증가
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fDamageIncreaseMultiplier;
+	// 피해량 감소
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fDamageReductionMultiplier;
+	// 방어 무시
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
+	float fArmorPenetration;
+
+public:
+	UCharacterStats();
+
+	//Geter 함수
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetCurrentHealth() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetMaxHealth() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetAttackPower() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetDefensePower() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetMovementSpeed() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetCriticalChance() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetCriticalDamageMultiplier() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetHitProbability() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetEvasion() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetStatusEffectResistance() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetStatusEffectAccuracy() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetDamageIncreaseMultiplier() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetDamageReductionMultiplier() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetArmorPenetration() const;
+
+	//Seter 함수
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetCurrentHealth(const float& InCurrentHealth);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetMaxHealth(const float& InMaxHealth);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetAttackPower(const float& InAttackPower);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetDefensePower(const float& InDefensePower);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetMovementSpeed(const float& InMovementSpeed);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetCriticalChance(const float& InCriticalChance);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetCriticalDamageMultiplier(const float& InCriticalDamageMultiplier);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetHitProbability(const float& InHitProbability);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetEvasion(const float& InEvasion);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetStatusEffectResistance(const float& InStatusEffectResistance);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetStatusEffectAccuracy(const float& InStatusEffectAccuracy);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetDamageIncreaseMultiplier(const float& InDamageIncreaseMultiplier);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetDamageReductionMultiplier(const float& InDamageReductionMultiplier);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetArmorPenetration(const float& InArmorPenetration);
+
+	//데이터 복사 함수
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void CopyFrom(UCharacterStats* OtherStats);
 };

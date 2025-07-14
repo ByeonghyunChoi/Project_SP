@@ -5,22 +5,28 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "CharacterStats.h"
-#include "ObjectType.h"
 #include "CharacterBase.generated.h"
 
 /**
  * 
  */
 
+UENUM(BlueprintType)
+enum class EFaction : uint8
+{
+	Player UMETA(DisplayName = "플레이어"),
+	Enemy UMETA(DisplayName = "적"),
+	None UMETA(DisplayName = "None")
+};
 
-UCLASS(Blueprintable, BlueprintType)
+UCLASS()
 class PROJECT_SP_API UCharacterBase : public UObject
 {
 	GENERATED_BODY()
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	FCharacterStatsData Stats;
+	UCharacterStats* Stats;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	FString CharacterName;
@@ -41,7 +47,7 @@ public:
 	bool GetIsMyTurn() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	const FCharacterStatsData& GetStats() const;
+	UCharacterStats* GetStats() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
 	const FString& GetCharacterName() const;
@@ -58,12 +64,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
 	bool IsReadyForTurn() const;
 
-	// GetActionValue() Getter (const float -> float, BlueprintPure 추가)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Battle")
 	float GetActionValue() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void StartTurn(); // 턴 시작 시 fActionValue 초기화 로직 포함
+	void StartTurn(); 
 
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn();
@@ -72,16 +77,11 @@ public:
 	EFaction GetFaction() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetFaction(EFaction inFaction);
+	void SetFaction(const EFaction& inFaction);
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetStats(const EStat& ChangeStat, const float InAmount);
-
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void CopyStats(FCharacterStatsData InStats);
+	void SetStats(UCharacterStats* InStats);
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetCharacterName(const FString& NewName);
-
-	virtual void DecideAction() PURE_VIRTUAL(UCharacterBase::DecideAction, );
 };

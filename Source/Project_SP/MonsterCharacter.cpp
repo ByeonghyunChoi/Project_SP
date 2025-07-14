@@ -10,7 +10,7 @@
 // Sets default values
 AMonsterCharacter::AMonsterCharacter()
 {
-    CombatData->SetFaction(EFaction::Enemy);
+    MonsterAIInstance = CreateDefaultSubobject<UMonsterBase>(TEXT("MonsterAIInstance"));
 }
 
 // Called when the game starts or when spawned
@@ -18,26 +18,28 @@ void AMonsterCharacter::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (MonsterClass && CombatData && CombatData->GetClass() != MonsterClass)
+    CombatData->SetFaction(EFaction::Enemy);
+    
+    // MonsterAIClass가 설정되어 있고, MonsterAIInstance가 해당 타입이 아니면 새로 생성
+    if (MonsterClass && MonsterAIInstance && MonsterAIInstance->GetClass() != MonsterClass)
     {
-        CombatData = NewObject<UMonsterBase>(this, MonsterClass);
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 CombatDataInstance를 템플릿으로 재설정."));
+        // 기존 MonsterAIInstance는 가비지 컬렉션 대상이 됨
+        MonsterAIInstance = NewObject<UMonsterBase>(this, MonsterClass);
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 MonsterAIInstance를 템플릿으로 재설정."));
     }
-    else if (!CombatData && MonsterClass)
+    else if (MonsterClass && !MonsterAIInstance) // MonsterAIInstance가 아직 없다면
     {
-        // CombatDataInstance가 nullptr인데 템플릿이 설정되어 있으면 새로 생성
-        CombatData = NewObject<UMonsterBase>(this, MonsterClass);
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 CombatDataInstance가 없어 템플릿으로 생성."));
+        MonsterAIInstance = NewObject<UMonsterBase>(this, MonsterClass);
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: BeginPlay에서 MonsterAIInstance가 없어 템플릿으로 생성."));
     }
-    else if (!CombatData && !MonsterClass)
+    else if (MonsterAIInstance)
     {
-        UE_LOG(LogTemp, Warning, TEXT("AMonsterCharacter: CombatDataInstance와 MonsterBaseClassTemplate 모두 설정되지 않았습니다."));
+        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 기존 MonsterAIInstance 사용 중 (%s)"), *GetNameSafe(MonsterAIInstance));
     }
     else
     {
-        UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: CombatDataInstance 사용 중 (%s)"), *GetNameSafe(CombatData));
+        UE_LOG(LogTemp, Warning, TEXT("AMonsterCharacter: MonsterAIClass와 MonsterAIInstance 모두 설정되지 않았습니다."));
     }
-    
 }
 
 #if WITH_EDITOR
@@ -49,21 +51,20 @@ void AMonsterCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
     {
         FName PropertyName = PropertyChangedEvent.Property->GetFName();
 
-        // MonsterBaseClassTemplate 변수가 변경되었을 때
+        // MonsterAIClass 변수가 변경되었을 때
         if (PropertyName == GET_MEMBER_NAME_CHECKED(AMonsterCharacter, MonsterClass))
         {
             if (MonsterClass)
             {
-                // CombatDataInstance를 선택된 MonsterBaseClassTemplate 타입으로 새로 생성
-                // 이렇게 하면 디테일 패널에서 MonsterBaseClassTemplate을 변경하는 즉시
-                // CombatDataInstance의 타입과 기본값이 반영됩니다.
-                CombatData = NewObject<UCharacterBase>(this, MonsterClass);
-                UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 에디터에서 MonsterBaseClassTemplate 변경 감지, CombatDataInstance 재설정."));
+                // MonsterAIInstance를 선택된 MonsterAIClass 타입으로 새로 생성하여 할당
+                MonsterAIInstance = NewObject<UMonsterBase>(this, MonsterClass);
+                UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 에디터에서 MonsterAIClass 변경 감지, MonsterAIInstance 재설정."));
             }
             else
             {
-                // MonsterBaseClassTemplate이 None으로 설정되면 CombatDataInstance도 None으로
-                CombatData = nullptr;
+                // MonsterAIClass가 None으로 설정되면 MonsterAIInstance도 None으로
+                MonsterAIInstance = nullptr; // 또는 기본 UMonsterBase 인스턴스로
+                UE_LOG(LogTemp, Log, TEXT("AMonsterCharacter: 에디터에서 MonsterAIClass가 None으로 설정됨."));
             }
         }
     }
@@ -72,9 +73,9 @@ void AMonsterCharacter::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 
 void AMonsterCharacter::PerformMonsterTurnAction()
 {
-	if (CombatData)
+	if (MonsterAIInstance)
 	{
-		CombatData->DecideAction();
+        MonsterAIInstance->DecideAction();
 	}
 }
 

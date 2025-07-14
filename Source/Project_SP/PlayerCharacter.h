@@ -6,7 +6,6 @@
 #include "GameFramework/Character.h"
 #include "CharacterBase.h"
 #include "FieldModeComponent.h"
-#include "BattleModeComponent.h"
 #include "CombatPawn.h"
 #include "PlayerCharacter.generated.h"
 
@@ -22,10 +21,6 @@ public:
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
 	UFieldModeComponent* FieldModeComp;
-
-	// 전투 모드 컴포넌트
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
-	UBattleModeComponent* BattleModeComp;
 
 	// 모드 전환 함수
 	UFUNCTION(BlueprintCallable, Category = "Modes")

@@ -26,6 +26,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Data")
 	TSubclassOf<UMonsterBase> MonsterClass;
 
+	UPROPERTY() 
+	UMonsterBase* MonsterAIInstance;
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif

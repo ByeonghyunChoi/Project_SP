@@ -99,7 +99,6 @@ void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
         return;
     }
 
-    // UGameInstance를 가져오는 올바른 방법 (UActorComponent에서)
     UMyGameInstance* MyGameInstance = nullptr;
     if (GetWorld()) // 컴포넌트가 유효한 월드에 속해 있는지 확인
     {

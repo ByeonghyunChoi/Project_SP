@@ -27,7 +27,6 @@ void ACombatPawn::Attack(ACombatPawn* Target)
 	}
 
 	//공격 애니메이션 재생
-	PlayAttackAnimation();
 
 	// 데미지 계산(나중에 수정 할 예정)
 	float Damage = CombatData->GetStats().fAttackPower;
@@ -44,7 +43,6 @@ void ACombatPawn::UseSkill(int32 SkillID, ACombatPawn* Target)
 	}
 
 	//스킬 애니메이션 재생
-	PlaySkillAnimation(SkillID);
 
 	// 데미지 계산(나중에 수정 할 예정)
 	float Damage = CombatData->GetStats().fAttackPower;
@@ -64,7 +62,6 @@ void ACombatPawn::ReceiveDamage(float DamageAmount)
 	CombatData->SetStats(EStat::CurrentHealth, CombatData->GetStats().fCurrentHealth - DamageAmount);
 
 	//피격 애니메이션 재생
-	PlayHitAnimation();
 
 	//사망 처리
 	if (CombatData->GetStats().fCurrentHealth <= 0.0f)
@@ -73,20 +70,6 @@ void ACombatPawn::ReceiveDamage(float DamageAmount)
 	}
 }
 
-void ACombatPawn::PlayAttackAnimation_Implementation()
-{
-	// 기본적으로 아무것도 하지 않음 (블루프린트에서 구현될 예정)
-}
-
-void ACombatPawn::PlayHitAnimation_Implementation()
-{
-	// 기본적으로 아무것도 하지 않음 (블루프린트에서 구현될 예정)
-}
-
-void ACombatPawn::PlaySkillAnimation_Implementation(int32 SkillID)
-{
-	// 기본적으로 아무것도 하지 않음 (블루프린트에서 구현될 예정)
-}
 
 TArray<ACombatPawn*> ACombatPawn::GetAllAliveCombatantsOfFaction(EFaction TargetFaction) const
 {

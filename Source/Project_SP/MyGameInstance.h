@@ -19,22 +19,18 @@ class PROJECT_SP_API UMyGameInstance : public UGameInstance
 
 public:
 	virtual void Init() override;
-	
-	//1.플레이어 캐릭터의 클래스(BP_Player 같은 블루프린트 설계도)
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	TSubclassOf<APlayerCharacter> PlayerCharacterClassToSpawn;
 
-	// 2. 플레이어의 전투 데이터 (FCharacterStatsData 구조체 복사본)
+	// 1. 플레이어의 전투 데이터 
 	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	FCharacterStatsData PlayerPersistedStats; // USTRUCT이므로 복사되어 저장됨
+	UCharacterStats* PlayerPersistedStats; 
 
-	// 3. 몬스터 캐릭터의 클래스 (BP_Goblin 같은 블루프린트 설계도)
+	// 2. 몬스터 캐릭터의 클래스 
 	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
 	TSubclassOf<AMonsterCharacter> EnemyCharacterClassToSpawn;
 
-	// 4. 몬스터의 전투 데이터 (FCharacterStatsData 구조체 복사본)
+	// 3. 몬스터의 전투 데이터 
 	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	FCharacterStatsData EnemyPersistedStats;
+	UCharacterStats* EnemyPersistedStats;
 
 	// 필드 맵에서 공격한 몬스터 액터의 레퍼런스 (전투 종료 후 제거용)
 	// 주의: 액터 레퍼런스는 레벨 로드 후 유효하지 않을 수 있으므로, 액터 ID나 이름을 저장하는 것이 더 안전합니다.
@@ -48,10 +44,7 @@ public:
 
 	// 전투 시작을 위한 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void StartBattleTransition(
-		APlayerCharacter* PlayerActor, 
-		AMonsterCharacter* EnemyActor,
-		FName CurrentFieldName);
+	void StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentFieldName);
 
 	// 전투 종료 후 필드 맵으로 돌아갈 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
