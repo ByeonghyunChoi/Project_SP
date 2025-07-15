@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "CharacterBase.h"
 #include "FieldModeComponent.h"
 #include "CombatPawn.h"
 #include "PlayerCharacter.generated.h"

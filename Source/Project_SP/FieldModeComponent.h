@@ -6,8 +6,9 @@
 #include "Components/ActorComponent.h"
 #include "FieldModeComponent.generated.h"
 
-class APlayerCharacter;   
+class APlayerCharacter;
 class AMonsterCharacter;
+class ACombatPawn;
 
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -53,4 +54,4 @@ public:
 	// 공격 애니메이션 종료 시 호출될 함수 (애니메이션 노티파이에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void OnAttackAnimationFinished();
-	};
+};

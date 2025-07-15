@@ -10,87 +10,44 @@ ACombatPawn::ACombatPawn()
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	CombatData = CreateDefaultSubobject<UCharacterBase>(TEXT("CombatData"));
+	StatsComponent = CreateDefaultSubobject<UCharacterStatsComponent>(TEXT("StatsComponent"));
+	BattleTurnComponent = CreateDefaultSubobject<UBattleTurnComponent>(TEXT("BattleTurnComponent"));
 }
 
-UCharacterBase* ACombatPawn::GetCombatData() const
+void ACombatPawn::BeginPlay()
 {
-	return CombatData;
-}
-
-void ACombatPawn::Attack(ACombatPawn* Target)
-{
-	if (!Target || !Target->GetCombatData() || !CombatData)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Attack 실패 - 대상 또는 CombatData 유효하지 않음."));
-		return;
-	}
-
-	//공격 애니메이션 재생
-
-	// 데미지 계산(나중에 수정 할 예정)
-	float Damage = CombatData->GetStats().fAttackPower;
-
-	Target->ReceiveDamage(Damage);
-}
-
-void ACombatPawn::UseSkill(int32 SkillID, ACombatPawn* Target)
-{
-	if (!Target || !Target->GetCombatData() || !CombatData)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Attack 실패 - 대상 또는 CombatData 유효하지 않음."));
-		return;
-	}
-
-	//스킬 애니메이션 재생
-
-	// 데미지 계산(나중에 수정 할 예정)
-	float Damage = CombatData->GetStats().fAttackPower;
-
-	Target->ReceiveDamage(Damage);
-
-}
-
-void ACombatPawn::ReceiveDamage(float DamageAmount)
-{
-	if (!CombatData)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TakeDamage 실패 - CombatData 유효하지 않음."));
-		return;
-	}
-
-	CombatData->SetStats(EStat::CurrentHealth, CombatData->GetStats().fCurrentHealth - DamageAmount);
-
-	//피격 애니메이션 재생
-
-	//사망 처리
-	if (CombatData->GetStats().fCurrentHealth <= 0.0f)
-	{
-		// TODO: 사망 로직 (사망 애니메이션, 전투에서 제거 등)
-	}
+	Super::BeginPlay();
 }
 
 
-TArray<ACombatPawn*> ACombatPawn::GetAllAliveCombatantsOfFaction(EFaction TargetFaction) const
+FString ACombatPawn::GetCharacterName() const
 {
-	TArray<ACombatPawn*> FoundCombatants;
-	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+	return CharacterName;
+}
 
-	if (BattleManager)
-	{
-		for (ACombatPawn* Combatant : BattleManager->AllCombatants)
-		{
-			if (Combatant && Combatant->GetCombatData() && Combatant->GetCombatData()->GetStats().fCurrentHealth > 0 && Combatant->GetCombatData()->GetFaction() == TargetFaction)
-			{
-				FoundCombatants.Add(Combatant);
-			}
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GetAllAliveCombatantsOfFaction: BattleManager를 찾을 수 없습니다."));
-	}
-	return FoundCombatants;
+void ACombatPawn::SetCharacterName(const FString& NewName)
+{
+	CharacterName = NewName;
+}
+
+EFaction ACombatPawn::GetFaction() const
+{
+	return Faction;
+}
+
+void ACombatPawn::SetFaction(EFaction NewFaction)
+{
+	Faction = NewFaction;
+}
+
+UCharacterStatsComponent* ACombatPawn::GetStatsComponent() const
+{
+	return StatsComponent;
+}
+
+UBattleTurnComponent* ACombatPawn::GetBattleTurnComponent() const
+{ 
+	return BattleTurnComponent; 
 }
 
 

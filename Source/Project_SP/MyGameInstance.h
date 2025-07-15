@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
-#include "CharacterStats.h"
 #include "PlayerCharacter.h"
 #include "MonsterCharacter.h"
 #include "MyGameInstance.generated.h"
@@ -20,27 +19,32 @@ class PROJECT_SP_API UMyGameInstance : public UGameInstance
 public:
 	virtual void Init() override;
 
-	// 1. 플레이어의 전투 데이터 
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	UCharacterStats* PlayerPersistedStats; 
+	// 전투 이전의 플레이어 객체
+	UPROPERTY(BlueprintReadWrite)
+	TSubclassOf<APlayerCharacter> PlayerClass;
 
-	// 2. 몬스터 캐릭터의 클래스 
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	TSubclassOf<AMonsterCharacter> EnemyCharacterClassToSpawn;
+	// 전투 이전의 플레이어 상태 저장 (CombatPawn)
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<ACombatPawn> PlayerCombatPawnRef;
 
-	// 3. 몬스터의 전투 데이터 
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	UCharacterStats* EnemyPersistedStats;
+	// 적 클래스 및 상태 저장
+	UPROPERTY(BlueprintReadWrite)
+	TSubclassOf<AMonsterCharacter> EnemyClass;
 
-	// 필드 맵에서 공격한 몬스터 액터의 레퍼런스 (전투 종료 후 제거용)
-	// 주의: 액터 레퍼런스는 레벨 로드 후 유효하지 않을 수 있으므로, 액터 ID나 이름을 저장하는 것이 더 안전합니다.
-	// 여기서는 예시로 사용하며, 실제 구현에서는 더 견고한 방법(예: Unique ID 시스템) 고려
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	AMonsterCharacter* AttackedFieldMonsterActor;
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<ACombatPawn> EnemyCombatPawnRef;
 
-	// 전투 종료 후 돌아갈 필드 맵 이름
-	UPROPERTY(BlueprintReadWrite, Category = "BattleData")
-	FName ReturnToFieldName;
+	// 전투 후 돌아갈 필드 맵 이름
+	UPROPERTY(BlueprintReadWrite)
+	FName ReturnToFieldMapName;
+
+	// 전투 후 처리할 대상 몬스터 (필드에 있는 원본)
+	UPROPERTY(BlueprintReadWrite)
+	TWeakObjectPtr<AMonsterCharacter> AttackedFieldMonsterRef;
+
+	// 전투 데이터 초기화 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ResetBattleData();
 
 	// 전투 시작을 위한 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")

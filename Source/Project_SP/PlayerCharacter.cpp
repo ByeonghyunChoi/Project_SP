@@ -41,5 +41,5 @@ void APlayerCharacter::EnterBattleMode()
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	CombatData->SetFaction(EFaction::Player);
+	Faction = EFaction::Player;
 }

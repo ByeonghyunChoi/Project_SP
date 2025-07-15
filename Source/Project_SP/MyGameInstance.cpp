@@ -7,32 +7,44 @@
 void UMyGameInstance::Init()
 {
 	Super::Init();
+    ResetBattleData();
 }
 
 
-void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentFieldName)
+void UMyGameInstance::ResetBattleData()
 {
-    // 클래스 저장 (스폰용)
-    EnemyCharacterClassToSpawn = EnemyActor->GetClass();
+	PlayerClass = nullptr;
+	PlayerCombatPawnRef = nullptr;
+	EnemyClass = nullptr;
+	EnemyCombatPawnRef = nullptr;
+	AttackedFieldMonsterRef = nullptr;
+	ReturnToFieldMapName = NAME_None;
+}
 
-    // 전투 데이터 복사
-    PlayerPersistedStats = NewObject<UCharacterStats>(this, UCharacterStats::StaticClass());
-    PlayerPersistedStats->CopyFrom(PlayerActor->GetCombatData()->GetStats());
+void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentMapName)
+{
+	if (!PlayerActor || !EnemyActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartBattleTransition: 유효하지 않은 Actor. 전투 시작 중단."));
+		return;
+	}
 
-    EnemyPersistedStats = NewObject<UCharacterStats>(this, UCharacterStats::StaticClass());
-    EnemyPersistedStats->CopyFrom(EnemyActor->GetCombatData()->GetStats());
+	ResetBattleData();
 
-    // 필드 몬스터 액터 레퍼런스 저장 (필드 복귀 시 사용)
-    AttackedFieldMonsterActor = EnemyActor;
+	PlayerClass = PlayerActor->GetClass();
+	PlayerCombatPawnRef = PlayerActor;
 
-    ReturnToFieldName = CurrentFieldName;
+	EnemyClass = EnemyActor->GetClass();
+	EnemyCombatPawnRef = EnemyActor;
 
-    UE_LOG(LogTemp, Log, TEXT("UMyGameInstance: 전투 데이터 저장 완료. BattleMap으로 전환 시작."));
-    UGameplayStatics::OpenLevel(this, FName("BattleMap_01"), true);
+	ReturnToFieldMapName = CurrentMapName;
+	AttackedFieldMonsterRef = EnemyActor;
+
+	UGameplayStatics::OpenLevel(this, FName("BattleMap_01"), true);
 }
 
 void UMyGameInstance::ReturnToFieldTransition(bool bPlayerWon)
 {
     // 필드 레벨로 돌아감
-    UGameplayStatics::OpenLevel(this, ReturnToFieldName, true);
+    UGameplayStatics::OpenLevel(this, ReturnToFieldMapName, true);
 }

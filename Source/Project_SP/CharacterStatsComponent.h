@@ -3,18 +3,23 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/NoExportTypes.h"
-#include "CharacterStats.generated.h"
+#include "Components/ActorComponent.h"
+#include "CharacterStatsComponent.generated.h"
 
-/**
- * 
- */
 
-UCLASS(Blueprintable, BlueprintType)
-class PROJECT_SP_API UCharacterStats : public UObject
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class PROJECT_SP_API UCharacterStatsComponent : public UActorComponent
 {
 	GENERATED_BODY()
-private:
+
+public:	
+	// Sets default values for this component's properties
+	UCharacterStatsComponent();
+
+protected:
+	// Called when the game starts
+	virtual void BeginPlay() override;
+	
 	// 현재 체력
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	float fCurrentHealth;
@@ -59,8 +64,6 @@ private:
 	float fArmorPenetration;
 
 public:
-	UCharacterStats();
-
 	//Geter 함수
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetCurrentHealth() const;
@@ -123,5 +126,5 @@ public:
 
 	//데이터 복사 함수
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void CopyFrom(UCharacterStats* OtherStats);
+	void CopyFrom(UCharacterStatsComponent* OtherStats);
 };

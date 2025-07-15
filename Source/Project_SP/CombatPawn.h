@@ -1,11 +1,20 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "CharacterBase.h"
+#include "CharacterStatsComponent.h"
+#include "BattleTurnComponent.h"
 #include "CombatPawn.generated.h"
+
+UENUM(BlueprintType)
+enum class EFaction : uint8
+{
+	Player UMETA(DisplayName = "í”Œë ˆì´ì–´"),
+	Enemy UMETA(DisplayName = "ì "),
+	None UMETA(DisplayName = "None")
+};
 
 UCLASS()
 class PROJECT_SP_API ACombatPawn : public ACharacter
@@ -16,28 +25,44 @@ public:
 	// Sets default values for this character's properties
 	ACombatPawn();
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CombatData")
-	virtual UCharacterBase* GetCombatData() const;
-
-	// ±âº» °ø°İ ÇÔ¼ö
-	UFUNCTION(BlueprintCallable, Category = "Combat|Action")
-	virtual void Attack(ACombatPawn* Target); 
-
-	// ½ºÅ³ »ç¿ë ÇÔ¼ö
-	UFUNCTION(BlueprintCallable, Category = "Combat|Action")
-	virtual void UseSkill(int32 SkillID, ACombatPawn* Target); 
-
-	// µ¥¹ÌÁö¸¦ ¹Ş´Â ÇÔ¼ö (ÇÇ°İ ¹İÀÀ Ã³¸®)
-	UFUNCTION(BlueprintCallable, Category = "Combat|Action")
-	virtual void ReceiveDamage(float DamageAmount);
-
-	// Æ¯Á¤ Áø¿µÀÇ ¸ğµç »ì¾ÆÀÖ´Â CombatPawnÀ» ¹İÈ¯ (AI Å¸°Ù ¼±ÅÃ¿ë)
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Combat|Targeting")
-	TArray<ACombatPawn*> GetAllAliveCombatantsOfFaction(EFaction TargetFaction) const;
-
 protected:
-	//µ¥ÀÌÅÍ
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data", meta = (AllowPrivateAccess = "true"), Instanced = "true")
-	UCharacterBase* CombatData;
 
+	virtual void BeginPlay() override;
+
+	// ìºë¦­í„° ì´ë¦„
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+	FString CharacterName;
+
+	// íŒ©ì…˜ (í”Œë ˆì´ì–´ / ì )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+	EFaction Faction;
+
+	// ìŠ¤íƒ¯ ì»´í¬ë„ŒíŠ¸
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UCharacterStatsComponent* StatsComponent;
+
+	// ìŠ¤íƒ¯ ì»´í¬ë„ŒíŠ¸
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UBattleTurnComponent* BattleTurnComponent;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	FString GetCharacterName() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void SetCharacterName(const FString& NewName);
+
+	// íŒ©ì…˜
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	EFaction GetFaction() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void SetFaction(EFaction NewFaction);
+
+	// ìŠ¤íƒ¯ ì»´í¬ë„ŒíŠ¸ ì ‘ê·¼
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	UCharacterStatsComponent* GetStatsComponent() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	UBattleTurnComponent* GetBattleTurnComponent() const;
 };

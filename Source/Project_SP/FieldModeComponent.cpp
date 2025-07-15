@@ -6,6 +6,7 @@
 #include "MyGameInstance.h"
 #include "PlayerCharacter.h" 
 #include "MonsterCharacter.h"
+#include "CombatPawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -15,7 +16,7 @@ UFieldModeComponent::UFieldModeComponent()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
 
@@ -36,7 +37,7 @@ void UFieldModeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 void UFieldModeComponent::StartAttackSequence()
 {
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
-    if (!OwningPlayer || !OwningPlayer->GetCombatData() || bIsAttacking)
+    if (!OwningPlayer || bIsAttacking)
     {
         UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: OwningPlayer 또는 BasicStats가 유효하지 않거나 이미 공격 중입니다."));
         return;
@@ -81,7 +82,7 @@ AMonsterCharacter* UFieldModeComponent::PerformAttackHitDetection()
     if (bHit && HitResult.GetActor())
     {
         AMonsterCharacter* HitMonster = Cast<AMonsterCharacter>(HitResult.GetActor());
-        if (HitMonster && HitMonster->GetCombatData())
+        if (HitMonster->IsValidLowLevel())
         {
             UE_LOG(LogTemp, Log, TEXT("UFieldModeComponent: 몬스터 %s와 충돌!"), *HitMonster->GetName());
             return HitMonster; // 충돌한 몬스터 반환
@@ -93,7 +94,7 @@ AMonsterCharacter* UFieldModeComponent::PerformAttackHitDetection()
 void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 {
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
-    if (!OwningPlayer || !OwningPlayer->GetCombatData() || !HitMonster || !HitMonster->GetCombatData())
+    if (!OwningPlayer || !HitMonster)
     {
         UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: 전투 전환에 필요한 정보가 부족합니다."));
         return;
@@ -108,11 +109,7 @@ void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
     if (MyGameInstance)
     {
         FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
-        MyGameInstance->StartBattleTransition(
-            OwningPlayer,      // 플레이어 액터 자체를 넘겨 클래스와 데이터를 추출하도록 함
-            HitMonster,        // 몬스터 액터 자체를 넘겨 클래스와 데이터를 추출하도록 함
-            CurrentLevelName
-        );
+        MyGameInstance->StartBattleTransition(Cast<APlayerCharacter>(OwningPlayer), Cast<AMonsterCharacter>(HitMonster), CurrentLevelName);
     }
     else
     {
