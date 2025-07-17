@@ -108,8 +108,18 @@ void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 
     if (MyGameInstance)
     {
+        UMonsterGroupObject* MonsterGroup = HitMonster->GetMonsterGroup();
+        if (!MonsterGroup)
+        {
+            UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: HitMonster->GetMonsterGroup()이 NULL입니다. 전투 시작 실패."));
+            return;
+        }
+
         FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
-        MyGameInstance->StartBattleTransition(Cast<APlayerCharacter>(OwningPlayer), Cast<AMonsterCharacter>(HitMonster), CurrentLevelName);
+        MyGameInstance->StartBattleTransitionWithGroup(
+            Cast<APlayerCharacter>(GetOwner()),
+            MonsterGroup
+        );
     }
     else
     {

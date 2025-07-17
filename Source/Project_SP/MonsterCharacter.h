@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "CombatPawn.h"
+#include "MonsterGroupObject.h"
 #include "MonsterCharacter.generated.h"
 
 UCLASS()
@@ -19,5 +20,11 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, Instanced, Category = "Monster Group")
+	UMonsterGroupObject* MonsterGroup;
+
+public:
+	UMonsterGroupObject* GetMonsterGroup();
 
 };

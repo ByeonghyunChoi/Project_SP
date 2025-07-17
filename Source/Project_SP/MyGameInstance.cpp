@@ -13,32 +13,34 @@ void UMyGameInstance::Init()
 
 void UMyGameInstance::ResetBattleData()
 {
-	PlayerClass = nullptr;
-	PlayerCombatPawnRef = nullptr;
-	EnemyClass = nullptr;
-	EnemyCombatPawnRef = nullptr;
-	AttackedFieldMonsterRef = nullptr;
+	PendingMonsterGroup = nullptr;
 	ReturnToFieldMapName = NAME_None;
+	StoredPlayerStatsComponent = nullptr;
 }
 
-void UMyGameInstance::StartBattleTransition(APlayerCharacter* PlayerActor, AMonsterCharacter* EnemyActor, FName CurrentMapName)
+void UMyGameInstance::StartBattleTransitionWithGroup(APlayerCharacter* PlayerActor, UMonsterGroupObject* MonsterGroup)
 {
-	if (!PlayerActor || !EnemyActor)
+	if (!PlayerActor || !MonsterGroup)
 	{
-		UE_LOG(LogTemp, Error, TEXT("StartBattleTransition: 유효하지 않은 Actor. 전투 시작 중단."));
+		UE_LOG(LogTemp, Error, TEXT("StartBattleTransitionWithGroup: 유효하지 않은 파라미터. 전투 시작 중단."));
 		return;
 	}
 
 	ResetBattleData();
+	UCharacterStatsComponent* PlayerActorStats = PlayerActor->FindComponentByClass<UCharacterStatsComponent>();
+	if (PlayerActorStats)
+	{
+		if(!StoredPlayerStatsComponent) // 기존에 인스턴스가 없으면 새로 생성
+		{
+			StoredPlayerStatsComponent = NewObject<UCharacterStatsComponent>();
+			StoredPlayerStatsComponent->CopyFrom(PlayerActorStats);
+		}
+	}
 
-	PlayerClass = PlayerActor->GetClass();
-	PlayerCombatPawnRef = PlayerActor;
+	PendingMonsterGroup = NewObject<UMonsterGroupObject>();
+	PendingMonsterGroup->CopyMonterGroup(MonsterGroup);
 
-	EnemyClass = EnemyActor->GetClass();
-	EnemyCombatPawnRef = EnemyActor;
-
-	ReturnToFieldMapName = CurrentMapName;
-	AttackedFieldMonsterRef = EnemyActor;
+	ReturnToFieldMapName = FName("FieldMap");
 
 	UGameplayStatics::OpenLevel(this, FName("BattleMap_01"), true);
 }

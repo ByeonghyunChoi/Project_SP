@@ -18,4 +18,9 @@ void AMonsterCharacter::BeginPlay()
     Faction = EFaction::Enemy;
 }
 
+UMonsterGroupObject* AMonsterCharacter::GetMonsterGroup()
+{
+    return MonsterGroup;
+}
+
 
