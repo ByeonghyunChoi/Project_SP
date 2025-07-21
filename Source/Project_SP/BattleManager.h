@@ -2,8 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "CombatPawn.h"
 #include "BattleManager.generated.h"
+
+class ACombatPawn;
 
 UENUM(BlueprintType)
 enum class EBattleState : uint8
@@ -72,4 +73,5 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	ACombatPawn* GetCurrentTurnCharacter() const;
+
 };

@@ -1,6 +1,7 @@
 ﻿#include "BattleManager.h"
 #include "PlayerCharacter.h"
 #include "MonsterCharacter.h"
+#include "MyGameInstance.h"
 
 ABattleManager::ABattleManager()
 {
@@ -121,8 +122,10 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 	CurrentTurnCharacter = Target;
 
 	if (auto Turn = Target->GetBattleTurnComponent())
+	{
 		Turn->StartTurn();
-
+	}
+		
 	EFaction Faction = Target->GetFaction();
 	if (Faction == EFaction::Player)
 	{
@@ -133,7 +136,29 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 		CurrentBattleState = EBattleState::EnemyTurn;
 		if (auto Monster = Cast<AMonsterCharacter>(Target))
 		{
-			//몬스터 행동 처리 AI 로직
+			ACombatPawn* PlayerPawn = nullptr;
+			for (ACombatPawn* Combatant : AllCombatants)
+			{
+				if (Combatant->GetFaction() == EFaction::Player &&
+					Combatant->GetStatsComponent()->GetCurrentHealth() > 0)
+				{
+					PlayerPawn = Combatant;
+					break;
+				}
+			}
+			if (PlayerPawn)
+			{
+				// 단순 공격 처리
+				float Damage = Monster->GetStatsComponent()->GetAttackPower() - PlayerPawn->GetStatsComponent()->GetDefensePower();
+				Damage = FMath::Max(Damage, 1.0f);
+
+				float NewHealth = PlayerPawn->GetStatsComponent()->GetCurrentHealth() - Damage;
+				PlayerPawn->GetStatsComponent()->SetCurrentHealth(NewHealth);
+
+				UE_LOG(LogTemp, Log, TEXT("%s가 플레이어 %s를 공격하여 %f 데미지를 입혔습니다."), *Monster->GetCharacterName(), *PlayerPawn->GetCharacterName(), Damage);
+			}
+
+			EndTurn();
 		}
 	}
 }
@@ -184,6 +209,11 @@ void ABattleManager::EndBattle()
 {
 	CurrentBattleState = EBattleState::Ended;
 	UE_LOG(LogTemp, Log, TEXT("전투 종료"));
+
+	if (UMyGameInstance* GI = Cast<UMyGameInstance>(GetGameInstance()))
+	{
+		GI->ReturnToFieldTransition(true); 
+	}
 }
 
 bool ABattleManager::CombatantSortPredicate(const ACombatPawn& A, const ACombatPawn& B)
@@ -217,4 +247,6 @@ ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
 {
 	return CurrentTurnCharacter;
 }
+
+
 

@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "FieldModeComponent.h"
 #include "CombatPawn.h"
+#include "BattleManager.h"
 #include "PlayerCharacter.generated.h"
 
 UCLASS()
@@ -28,6 +29,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Modes")
 	void EnterBattleMode();
 
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void PlayerAttackSelectedTarget();
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void SelectMonster(ACombatPawn* target);
+
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	ACombatPawn* SelectedTarget;
 
 protected:
 	// Called when the game starts or when spawned

@@ -26,5 +26,4 @@ protected:
 
 public:
 	UMonsterGroupObject* GetMonsterGroup();
-
 };

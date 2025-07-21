@@ -25,6 +25,10 @@ void APlayerCharacter::EnterFieldMode()
 		FieldModeComp->SetComponentTickEnabled(true);
 		UE_LOG(LogTemp, Log, TEXT("플레이어 필드 모드 진입."));
 	}
+	if (BattleTurnComponent)
+	{
+		BattleTurnComponent->SetComponentTickEnabled(false);
+	}
 }
 
 void APlayerCharacter::EnterBattleMode()
@@ -35,6 +39,35 @@ void APlayerCharacter::EnterBattleMode()
 		FieldModeComp->SetComponentTickEnabled(false);
 		UE_LOG(LogTemp, Log, TEXT("필드 모드 비활성화."));
 	}
+
+	if (BattleTurnComponent)
+	{
+		BattleTurnComponent->SetComponentTickEnabled(true);
+	}
+}
+
+void APlayerCharacter::PlayerAttackSelectedTarget()
+{	
+
+	if (!SelectedTarget)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("공격 대상이 없습니다."));
+		return;
+	}
+
+	float Damage = StatsComponent->GetAttackPower() - SelectedTarget->GetStatsComponent()->GetDefensePower();
+	Damage = FMath::Max(1.0f, Damage);
+
+	float NewHealth = SelectedTarget->GetStatsComponent()->GetCurrentHealth() - Damage;
+	SelectedTarget->GetStatsComponent()->SetCurrentHealth(NewHealth);
+	UE_LOG(LogTemp, Log, TEXT("%s 가 %s 에게 %f 피해를 입힘"), *GetCharacterName(), *SelectedTarget->GetCharacterName(), Damage);
+
+	BattleTurnComponent->BattleManagerRef->EndTurn();
+}
+
+void APlayerCharacter::SelectMonster(ACombatPawn* Target)
+{
+	SelectedTarget = Target;
 }
 
 // Called when the game starts or when spawned

@@ -7,7 +7,7 @@
 #include "BattleTurnComponent.generated.h"
 
 class UCharacterStatsComponent;
-
+class ABattleManager;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API UBattleTurnComponent : public UActorComponent
@@ -61,5 +61,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Turn")
 	void AdvanceActionValue(float DeltaTime);
+
+	UPROPERTY()
+	ABattleManager* BattleManagerRef;
 		
 };

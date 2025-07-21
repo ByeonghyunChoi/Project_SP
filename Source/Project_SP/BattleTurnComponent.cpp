@@ -3,6 +3,9 @@
 
 #include "BattleTurnComponent.h"
 #include "CharacterStatsComponent.h"
+#include "BattleManager.h"
+#include "EngineUtils.h"
+
 
 // Sets default values for this component's properties
 UBattleTurnComponent::UBattleTurnComponent()
@@ -11,6 +14,7 @@ UBattleTurnComponent::UBattleTurnComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
 
+	BattleManagerRef = nullptr;
 	bIsMyTurn = false;
 	ActionValue = 0.0f;
 	ActionThreshold = 10000.0f;
@@ -23,6 +27,12 @@ void UBattleTurnComponent::BeginPlay()
 	Super::BeginPlay();
 
 	StatsComp = GetOwner()->FindComponentByClass<UCharacterStatsComponent>();
+
+	for (TActorIterator<ABattleManager> It(GetWorld()); It; ++It)
+	{
+		BattleManagerRef = *It;
+		break;
+	}
 }
 
 bool UBattleTurnComponent::GetIsMyTurn() const
@@ -55,8 +65,6 @@ void UBattleTurnComponent::StartTurn()
 {
 	bIsMyTurn = true;
 	ActionValue = 0.f;
-
-	// TODO: 턴 시작 시 호출할 이벤트가 있다면 여기에 추가
 }
 
 void UBattleTurnComponent::EndTurn()
