@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h" 
 #include "BattleManager.generated.h"
 
 class ACombatPawn;
@@ -13,6 +14,7 @@ enum class EBattleState : uint8
 	InProgress UMETA(DisplayName = "전투 진행 중"),
 	PlayerTurn UMETA(DisplayName = "플레이어 턴"),
 	EnemyTurn UMETA(DisplayName = "적 턴"),
+	ExecutingAction UMETA(DisplayName = "행동 실행 중"),
 	WaitForPlayerInput UMETA(DisplayName = "플레이어 입력 대기"), 
 	Ended UMETA(DisplayName = "전투 종료")
 };
@@ -35,14 +37,17 @@ private:
 	UPROPERTY()
 	TArray<ACombatPawn*> AllCombatants;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere)
 	ACombatPawn* CurrentTurnCharacter;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere)
 	EBattleState CurrentBattleState;
 
 	UPROPERTY()
 	float GlobalTime;
+
+	UPROPERTY()
+	APlayerController* PlayerControllerRef;
 
 	void ProcessTurn();
 	void InitiateTurnFor(ACombatPawn* Target);
@@ -73,5 +78,19 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	ACombatPawn* GetCurrentTurnCharacter() const;
+
+	//-----------------------------------------------------------------------
+	UFUNCTION(BlueprintImplementableEvent, Category = "Battle Manager|Input")
+	void InitializeCombatInput(APlayerController* PC);
+
+	// 플레이어 입력 활성화 시 호출
+	UFUNCTION(BlueprintImplementableEvent, Category = "Battle Manager|Input")
+	void ActivatePlayerInput(APlayerController* PC);
+
+	// 플레이어 입력 비활성화 시 호출
+	UFUNCTION(BlueprintImplementableEvent, Category = "Battle Manager|Input")
+	void DeactivatePlayerInput(APlayerController* PC);
+
+
 
 };

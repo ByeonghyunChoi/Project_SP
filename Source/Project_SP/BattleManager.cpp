@@ -2,6 +2,7 @@
 #include "PlayerCharacter.h"
 #include "MonsterCharacter.h"
 #include "MyGameInstance.h"
+#include "Kismet/GameplayStatics.h"
 
 ABattleManager::ABattleManager()
 {
@@ -9,11 +10,25 @@ ABattleManager::ABattleManager()
 	GlobalTime = 0.f;
 	CurrentBattleState = EBattleState::Setup;
 	CurrentTurnCharacter = nullptr;
+	PlayerControllerRef = nullptr;
 }
 
 void ABattleManager::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// BeginPlay에서 PlayerControllerRef 초기화
+	// GetWorld()->GetFirstPlayerController()를 통해 현재 레벨의 첫 번째 플레이어 컨트롤러를 가져옴
+	if (GetWorld())
+	{
+		PlayerControllerRef = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	}
+
+	// 플레이어 컨트롤러를 찾았으면 초기 입력 설정 함수 호출 (블루프린트에서 구현)
+	if (PlayerControllerRef)
+	{
+		InitializeCombatInput(PlayerControllerRef);
+	}
 }
 
 void ABattleManager::Tick(float DeltaTime)
@@ -98,19 +113,26 @@ void ABattleManager::ProcessTurn()
 		return;
 	}
 
-	TArray<ACombatPawn*> Ready = GetReadyCombatants();
-	if (Ready.Num() > 0)
+	if (CurrentBattleState == EBattleState::InProgress)
 	{
-		Ready.Sort([](const ACombatPawn& A, const ACombatPawn& B) {
-			return ABattleManager::CombatantSortPredicate(A, B);
-			});
-		InitiateTurnFor(Ready[0]);
-	}
-	else
-	{
-		float WaitTime = GetMinTimeToNextTurn();
-		GlobalTime += WaitTime;
-		AdvanceAllActionValues(WaitTime);
+		TArray<ACombatPawn*> Ready = GetReadyCombatants();
+		if (Ready.Num() > 0)
+		{
+			Ready.Sort([](const ACombatPawn& A, const ACombatPawn& B) {
+				return ABattleManager::CombatantSortPredicate(A, B);
+				});
+			InitiateTurnFor(Ready[0]);
+		}
+		else
+		{
+			if (CurrentBattleState == EBattleState::InProgress)
+			{
+				float WaitTime = GetMinTimeToNextTurn();
+				GlobalTime += WaitTime;
+				AdvanceAllActionValues(WaitTime);
+			}
+			
+		}
 	}
 }
 
@@ -130,10 +152,19 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 	if (Faction == EFaction::Player)
 	{
 		CurrentBattleState = EBattleState::PlayerTurn;
+		if (PlayerControllerRef)
+		{
+			ActivatePlayerInput(PlayerControllerRef); // 블루프린트에서 구현될 플레이어 입력 활성화 함수 호출
+		}
 	}
 	else
 	{
 		CurrentBattleState = EBattleState::EnemyTurn;
+		if (PlayerControllerRef)
+		{
+			DeactivatePlayerInput(PlayerControllerRef); // 블루프린트에서 구현될 플레이어 입력 비활성화 함수 호출
+		}
+
 		if (auto Monster = Cast<AMonsterCharacter>(Target))
 		{
 			ACombatPawn* PlayerPawn = nullptr;
@@ -148,23 +179,27 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 			}
 			if (PlayerPawn)
 			{
-				// 단순 공격 처리
-				float Damage = Monster->GetStatsComponent()->GetAttackPower() - PlayerPawn->GetStatsComponent()->GetDefensePower();
-				Damage = FMath::Max(Damage, 1.0f);
-
-				float NewHealth = PlayerPawn->GetStatsComponent()->GetCurrentHealth() - Damage;
-				PlayerPawn->GetStatsComponent()->SetCurrentHealth(NewHealth);
-
-				UE_LOG(LogTemp, Log, TEXT("%s가 플레이어 %s를 공격하여 %f 데미지를 입혔습니다."), *Monster->GetCharacterName(), *PlayerPawn->GetCharacterName(), Damage);
+				CurrentBattleState = EBattleState::ExecutingAction;
+				Monster->TriggerAttackBlueprintEvent();
 			}
-
-			EndTurn();
+			else
+			{
+				EndTurn();
+			}
 		}
 	}
+
+	if (OnTurnOrderChanged.IsBound())
+		OnTurnOrderChanged.Broadcast();
 }
 
 void ABattleManager::EndTurn()
 {
+	if (PlayerControllerRef)
+	{
+		DeactivatePlayerInput(PlayerControllerRef); // 블루프린트에서 구현될 플레이어 입력 비활성화 함수 호출
+	}
+
 	if (CurrentTurnCharacter)
 	{
 		if (auto Turn = CurrentTurnCharacter->GetBattleTurnComponent())
@@ -173,9 +208,6 @@ void ABattleManager::EndTurn()
 
 	CurrentTurnCharacter = nullptr;
 	CurrentBattleState = EBattleState::InProgress;
-
-	if (OnTurnOrderChanged.IsBound())
-		OnTurnOrderChanged.Broadcast();
 }
 
 bool ABattleManager::CheckBattleEndConditions() const

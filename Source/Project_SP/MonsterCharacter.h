@@ -26,4 +26,7 @@ protected:
 
 public:
 	UMonsterGroupObject* GetMonsterGroup();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Monster|Combat")
+	void TriggerAttackBlueprintEvent();
 };

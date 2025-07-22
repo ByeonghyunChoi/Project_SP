@@ -18,6 +18,7 @@ UBattleTurnComponent::UBattleTurnComponent()
 	bIsMyTurn = false;
 	ActionValue = 0.0f;
 	ActionThreshold = 10000.0f;
+	StatsComp = nullptr;
 }
 
 
