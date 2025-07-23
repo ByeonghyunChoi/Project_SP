@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Data/CharacterStatsData.h" 
 #include "CharacterStatsComponent.generated.h"
 
 
@@ -20,50 +21,23 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	
-	// 현재 체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fCurrentHealth;
-	// 최대 체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fMaxHealth;
-	// 공격력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fAttackPower;
-	// 방어력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fDefensePower;
-	// 속도
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fMovementSpeed;
-	// 치명타 확률
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fCriticalChance;
-	// 치명타 피해
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fCriticalDamageMultiplier;
-	// 명중치
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fHitProbability;
-	// 회피치
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fEvasion;
-	// 상태 저항
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fStatusEffectResistance;
-	// 상태 적중
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fStatusEffectAccuracy;
-	// 피해량 증가
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fDamageIncreaseMultiplier;
-	// 피해량 감소
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fDamageReductionMultiplier;
-	// 방어 무시
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	float fArmorPenetration;
-
 public:
+	//스탯 데이터를 참조하기 위한 변수, 캐릭터가 가질 스탯 데이터 테이블과 해당 데이터 테이블의 RowName을 지정
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|DataTable")
+	UDataTable* CharacterStatsDataTable;
+
+	//DataTable에서 사용할 Row의 이름
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|DataTable")
+	FName RowName;
+
+	//현재 스탯 데이터
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	FCharacterStatsData CurrentStats;
+
+	//스탯 초기화 함수
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void InitializeStatsFromDataTable();
+
 	//Geter 함수
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetCurrentHealth() const;
