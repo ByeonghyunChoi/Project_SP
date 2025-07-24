@@ -41,9 +41,18 @@ enum class ESpecialStatType : uint8
 	ArmorPenetration,
 	AttackPercent,
 	DefensePercent,
-	HpPercent,
+	HPPercent,
 	SpeedPercent
 };
+
+UENUM(BlueprintType)
+enum class EMonsterGrade : uint8
+{
+	MNormal,
+	MElite,
+	MBoss,
+};
+
 
 USTRUCT(BlueprintType)
 struct FStatBonus

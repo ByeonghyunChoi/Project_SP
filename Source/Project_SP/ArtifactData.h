@@ -32,8 +32,15 @@ struct FArtifactData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float SpecialValue;
 
+	// �ʱⰪ
     FArtifactData()
-        : ID(NAME_None), SpecialValue(0.f)
+        : ID(NAME_None)
+        , Type(EArtifactType::HPUp)
+        , Rarity(ERarity::Normal)
+        , SetType(ESetType::Crystal)
+        , SpecialStat(ESpecialStatType::CriticalChance)
+        , SpecialValue(0.f)
+        , StatBonus()
     {
     }
 };
