@@ -46,6 +46,14 @@ public:
     UFUNCTION(BlueprintPure)
     FStatBonus GetTotalStatBonus() const;
 
+	// 현재 장착된 아티팩트 목록
+    UFUNCTION(BlueprintPure)
+    FArtifactData GetEquippedArtifact(EArtifactType Type) const;
+
+	// 현재 장착된 오파츠 
+    UFUNCTION(BlueprintPure)
+    FOrpartsData GetEquippedOrparts() const;
+
     // 능력치 변경 시 알림
     UPROPERTY(BlueprintAssignable, Category = "Stats")
     FOnStatsChanged OnStatsChanged;

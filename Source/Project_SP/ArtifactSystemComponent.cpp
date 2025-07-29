@@ -108,3 +108,19 @@ void UArtifactSystemComponent::RecalculateStats()
     OnStatsChanged.Broadcast(TotalStats);
 }
 
+// 현재 장착된 아티팩트 목록
+FArtifactData UArtifactSystemComponent::GetEquippedArtifact(EArtifactType Type) const
+{
+    if (const FArtifactData* Found = EquippedArtifacts.Find(Type))
+    {
+        return *Found;
+    }
+
+    return FArtifactData(); // 비어있는 기본값 반환
+}
+
+// 현재 장착된 오파츠
+FOrpartsData UArtifactSystemComponent::GetEquippedOrparts() const
+{
+    return bHasOrpartsEquipped ? EquippedOrparts : FOrpartsData();
+}
