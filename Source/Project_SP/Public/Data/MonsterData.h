@@ -4,8 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
-#include "Data/CharacterStatsData.h"
 #include "MonsterData.generated.h"
+
+class AMonsterCharacter;
 
 /**
  * 
@@ -28,12 +29,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
 	FName CharacterStatsRowName;
 
-	//몬스터의 AI에 대한 참조 
-	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
-	// class UBehaviorTree* MonsterBehaviorTree;
-
-	// 몬스터가 드랍할 아이템 테이블 ID(나중에 추가)
-	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
-	// FName ItemDropTableID;
+	//몬스터가 사용할 행동 참조
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
+	TArray<FName> AvailableActionIDs;
 };
 

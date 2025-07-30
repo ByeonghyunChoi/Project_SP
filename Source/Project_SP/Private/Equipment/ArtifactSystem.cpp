@@ -1,4 +1,4 @@
-#include "ArtifactSystem.h"
+#include "Equipment/ArtifactSystem.h"
 #include "Engine/DataTable.h"
 #include "Engine/Engine.h"
 

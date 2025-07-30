@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "CombatPawn.h"
-#include "BattleManager.h"
+#include "Core/BattleManager.h"
 #include "PredictOrder.generated.h"
 
 USTRUCT(BlueprintType)

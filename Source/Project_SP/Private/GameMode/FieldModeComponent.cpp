@@ -1,12 +1,12 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "FieldModeComponent.h"
+#include "GameMode/FieldModeComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "MyGameInstance.h"
-#include "PlayerCharacter.h" 
-#include "MonsterCharacter.h"
-#include "CombatPawn.h"
+#include "Core/MyGameInstance.h"
+#include "Combat/PlayerCharacter.h" 
+#include "Combat/MonsterCharacter.h"
+#include "Combat/CombatPawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -93,12 +93,6 @@ AMonsterCharacter* UFieldModeComponent::PerformAttackHitDetection()
 
 void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 {
-    APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
-    if (!OwningPlayer || !HitMonster)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("UFieldModeComponent: 전투 전환에 필요한 정보가 부족합니다."));
-        return;
-    }
 
     UMyGameInstance* MyGameInstance = nullptr;
     if (GetWorld()) // 컴포넌트가 유효한 월드에 속해 있는지 확인
@@ -108,17 +102,17 @@ void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 
     if (MyGameInstance)
     {
-        UMonsterGroupObject* MonsterGroup = HitMonster->GetMonsterGroup();
+        UMonsterGroupObject* MonsterGroup = HitMonster->GetCombatMonsterGroup();
         if (!MonsterGroup)
         {
             UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: HitMonster->GetMonsterGroup()이 NULL입니다. 전투 시작 실패."));
             return;
         }
 
-        FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
+        FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld()));
         MyGameInstance->StartBattleTransitionWithGroup(
-            Cast<APlayerCharacter>(GetOwner()),
-            MonsterGroup
+            MonsterGroup,
+            CurrentLevelName
         );
     }
     else

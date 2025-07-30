@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "CharacterStatsComponent.h"
+#include "Combat/CharacterStatsComponent.h"
 
 // Sets default values for this component's properties
 UCharacterStatsComponent::UCharacterStatsComponent()
@@ -111,6 +111,16 @@ float UCharacterStatsComponent::GetArmorPenetration() const
 	return CurrentStats.fArmorPenetration;
 }
 
+float UCharacterStatsComponent::GetCurrentSP() const
+{
+	return fCurrentSP;
+}
+
+float UCharacterStatsComponent::GetMaxSP() const
+{
+	return fMaxSP;
+}
+
 void UCharacterStatsComponent::SetCurrentHealth(const float& InCurrentHealth)
 {
 	CurrentStats.fCurrentHealth = FMath::Clamp(InCurrentHealth, 0.0f, CurrentStats.fMaxHealth);
@@ -179,6 +189,16 @@ void UCharacterStatsComponent::SetDamageReductionMultiplier(const float& InDamag
 void UCharacterStatsComponent::SetArmorPenetration(const float& InArmorPenetration)
 {
 	CurrentStats.fArmorPenetration = InArmorPenetration;
+}
+
+void UCharacterStatsComponent::SetCurrentSP(const float& InSP)
+{
+	fCurrentSP = InSP;
+}
+
+void UCharacterStatsComponent::ModifySP(const float& Delta)
+{
+	fMaxSP = Delta;
 }
 
 void UCharacterStatsComponent::CopyFrom(UCharacterStatsComponent* OtherStats)

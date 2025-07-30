@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "BattleHUD.h"
+#include "UI/BattleHUD.h"
 
 ABattleHUD::ABattleHUD()
 {

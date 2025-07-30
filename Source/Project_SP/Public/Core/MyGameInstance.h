@@ -4,8 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
-#include "PlayerCharacter.h"
-#include "MonsterCharacter.h"
+#include "Combat/MonsterGroupObject.h"
 #include "MyGameInstance.generated.h"
 
 /**
@@ -18,9 +17,6 @@ class PROJECT_SP_API UMyGameInstance : public UGameInstance
 
 public:
 	virtual void Init() override;
-	//플레이어 스탯 데이터
-	UPROPERTY(BlueprintReadWrite, Category = "CombatData")
-	UCharacterStatsComponent* StoredPlayerStatsComponent;
 
 	//몬스터 클래스 정보
 	UPROPERTY(BlueprintReadWrite)
@@ -36,9 +32,9 @@ public:
 
 	// 전투 시작을 위한 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void StartBattleTransitionWithGroup(APlayerCharacter* PlayerActor, UMonsterGroupObject* MonsterGroup);
+	void StartBattleTransitionWithGroup(UMonsterGroupObject* MonsterGroup, FName MapName);
 
 	// 전투 종료 후 필드 맵으로 돌아갈 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void ReturnToFieldTransition(bool bPlayerWon);
+	void ReturnToFieldTransition();
 };
