@@ -38,8 +38,6 @@ struct FArtifactData
         , Type(EArtifactType::HPUp)
         , Rarity(ERarity::Normal)
         , SetType(ESetType::Crystal)
-        , SpecialStat(ESpecialStatType::CriticalChance)
-        , SpecialValue(0.f)
         , StatBonus()
     {
     }

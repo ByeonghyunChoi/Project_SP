@@ -11,8 +11,6 @@ UArtifactGeneratorComponent::UArtifactGeneratorComponent()
     ArtifactRarityRates.Add(ERarity::Legendary, 0.1f);
     ArtifactRarityRates.Add(ERarity::Mystic, 0.05f);
 
-    OrpartsRarityRates = ArtifactRarityRates;
-
     // 특수옵션 풀 초기화
     SpecialStatPool = {
         ESpecialStatType::CriticalChance,
@@ -108,8 +106,11 @@ FArtifactData UArtifactGeneratorComponent::GenerateRandomArtifact(EArtifactType 
     NewArtifact.Type = Type;
     NewArtifact.SetType = SetType;
     NewArtifact.Rarity = Rarity;
-    NewArtifact.SpecialStat = Special;
-    NewArtifact.SpecialValue = SpecialValue;
+    if (NewArtifact.Type == EArtifactType::Special)
+    {
+        NewArtifact.SpecialStat = Special;
+        NewArtifact.SpecialValue = SpecialValue;
+	}
     NewArtifact.ID = FName(*FString::Printf(TEXT("Artifact_%d"), FMath::Rand()));
 
     NewArtifact.StatBonus = GetBaseStatsFromType(Type, Rarity);
@@ -119,7 +120,6 @@ FArtifactData UArtifactGeneratorComponent::GenerateRandomArtifact(EArtifactType 
 
 FOrpartsData UArtifactGeneratorComponent::GenerateRandomOrparts(ESetType SetType)
 {
-    ERarity Rarity = GetRandomRarity(OrpartsRarityRates);
     ESpecialStatType StatA = GetRandomSpecialStat();
     ESpecialStatType StatB = GetRandomSpecialStat();
 
@@ -130,16 +130,15 @@ FOrpartsData UArtifactGeneratorComponent::GenerateRandomOrparts(ESetType SetType
 
     FOrpartsData NewOrparts;
     NewOrparts.ID = FName(*FString::Printf(TEXT("Orparts_%d"), FMath::Rand()));
-    NewOrparts.Rarity = Rarity;
     NewOrparts.SetType = SetType;
     NewOrparts.Level = 1;
 
-    NewOrparts.BaseStats.HP = 100.f * (1 + static_cast<int>(Rarity) * 0.3f);
-    NewOrparts.BaseStats.Attack = 50.f * (1 + static_cast<int>(Rarity) * 0.3f);
-    NewOrparts.BaseStats.Defense = 50.f * (1 + static_cast<int>(Rarity) * 0.3f);
+    NewOrparts.BaseStats.HP = 100.f;
+    NewOrparts.BaseStats.Attack = 50.f;
+    NewOrparts.BaseStats.Defense = 50.f;
 
-    NewOrparts.SpecialStats.Add(StatA, GetRandomSpecialValue(Rarity));
-    NewOrparts.SpecialStats.Add(StatB, GetRandomSpecialValue(Rarity));
+    NewOrparts.SpecialStats.Add(StatA, FMath::FRandRange(5.f, 15.f));
+    NewOrparts.SpecialStats.Add(StatB, FMath::FRandRange(5.f, 15.f));
 
     return NewOrparts;
 }

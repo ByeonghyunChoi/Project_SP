@@ -13,7 +13,6 @@ void UArtifactSystemComponent::BeginPlay()
     RecalculateStats();
 }
 
-
 void UArtifactSystemComponent::EquipArtifact(const FArtifactData& Artifact) // ¾ÆÆ¼ÆÑÆ® ÀåÂø
 {
     EquippedArtifacts.Add(Artifact.Type, Artifact);

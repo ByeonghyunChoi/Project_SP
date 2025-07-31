@@ -15,9 +15,6 @@ struct FOrpartsData
 	FName ID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	ERarity Rarity; //등급
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	ESetType SetType; //타입
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

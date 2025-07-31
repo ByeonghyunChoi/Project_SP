@@ -87,10 +87,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Probability")
     TMap<ERarity, float> ArtifactRarityRates;
 
-    // 오파츠 생성 등급 확률
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Probability")
-    TMap<ERarity, float> OrpartsRarityRates;
-
     // 특수옵션 후보 리스트
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Special Stats")
     TArray<ESpecialStatType> SpecialStatPool;
