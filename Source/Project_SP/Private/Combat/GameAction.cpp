@@ -13,11 +13,11 @@ UGameAction::UGameAction()
 }
 
 
-void UGameAction::ExecuteAction(ACombatPawn* Instigator, FActionData ActionData, ABattleManager* BattleManagerRef, ACombatPawn* TargetPawn, const TArray<ACombatPawn*>& TargetPawns)
+void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& ActionData, ABattleManager* BattleManagerRef, ACombatPawn* TargetPawn, const TArray<ACombatPawn*>& TargetPawns)
 {
 	if (Instigator && Instigator->GetStatsComponent() && ActionData.CostType != ECostType::None)
 	{
-		if (ActionData.CostType == ECostType::SP && Instigator->GetStatsComponent()->fCurrentSP >= 100)
+		if (ActionData.CostType == ECostType::SP && Instigator->GetStatsComponent()->fCurrentSP >= ActionData.CostAmount)
 		{ 
 			Instigator->GetStatsComponent()->SetCurrentSP(Instigator->GetStatsComponent()->GetCurrentSP() - ActionData.CostAmount);
 		}
@@ -56,18 +56,38 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, FActionData ActionData,
         return; // BattleManager 없으면 타겟 결정 불가
     }
 
+    float FinalDamage = 0.0f;
+
     // ----- 최종 타겟에 효과 적용 -----
     for (ACombatPawn* CurrentTarget : FinalTargets)
     {
-        if (CurrentTarget && CurrentTarget->GetStatsComponent() && CurrentTarget->GetStatsComponent()->GetCurrentHealth() > 0)
+        if (CurrentTarget &&  Instigator)
         {
-            float AttackerAttackPower = Instigator && Instigator->GetStatsComponent() ? Instigator->GetStatsComponent()->GetAttackPower() : 0.0f;
-            float FinalDamage = 0; // 아직 데미지 로직이 없음
+            //---- 데미지 계산
+            UCharacterStatsComponent* AttackerStats = Instigator->GetStatsComponent();
+            UCharacterStatsComponent* TargetStats = CurrentTarget->GetStatsComponent();
+            if (AttackerStats && TargetStats)
+            {
+                float BaseDamage = AttackerStats->GetAttackPower() * ActionData.SkillCoefficient;
+                float DamageMultiCoef = (1 + AttackerStats->GetDamageIncreaseMultiplier() - AttackerStats->GetDamageReductionMultiplier());
+                float DefendCoef = 1 - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500)) + AttackerStats->GetArmorPenetration();
+                float HitChance = 1 - (TargetStats->GetEvasion() - AttackerStats->GetHitProbability());
+                if (FMath::FRand() > HitChance)
+                {
+                    BaseDamage *= 0.5;
+                }
+                if (FMath::FRand() < AttackerStats->GetCriticalChance())
+                {
+                    BaseDamage *= AttackerStats->GetCriticalDamageMultiplier();
+                }
+                //레벨 계수 추가해야 함(모르고 빼먹음;;;)
 
+                FinalDamage = BaseDamage * DamageMultiCoef * DefendCoef; //레벨 계수도 곱해야 함
+            }
+            UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
             // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
             UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
 
-            UE_LOG(LogTemp, Warning, TEXT("[UGameAction] %s dealt %f damage to %s."), Instigator ? *Instigator->GetName() : TEXT("Unknown"), FinalDamage, *CurrentTarget->GetName());
         }
     }
 }

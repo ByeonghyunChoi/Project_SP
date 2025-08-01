@@ -46,15 +46,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
 	void PlayerSelectAction(FName ActionID); // FName으로 ActionID 받음
 
-	// 타겟팅 모드에서 몬스터를 마우스 좌클릭 시 호출 (임시)
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void PlayerTargetMonsterClicked(ACombatPawn* Target);
-
-	// 타겟 확정 (마우스 좌클릭 또는 UI 버튼)
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void PlayerConfirmTargets(); // 타겟 확정 후 ExecuteConfirmedAction 호출
-
 	// 현재 선택된 타겟 (UI에서 표시할 수 있도록)
-	UPROPERTY(BlueprintReadWrite, Category = "Player|Combat")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Player|Combat")
 	ACombatPawn* CurrentlySelectedTarget;
+
+	//타겟 바꾸는 함수
+	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
+	void PlayerSwitchTarget(bool bSwitchToNext);
 };

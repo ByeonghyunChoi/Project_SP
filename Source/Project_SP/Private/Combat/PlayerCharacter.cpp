@@ -52,6 +52,24 @@ void APlayerCharacter::HandlePlayerTurnStarted(ACombatPawn * TurnPawn)
         // TODO: 플레이어 턴 UI (행동 선택 메뉴) 활성화
         // ACombatPawn의 InternalSetCombatPawnState를 통해 ECombatPawnState::SelectingAction으로 상태 변경
         InternalSetCombatPawnState(ECombatPawnState::SelectingAction);
+
+        ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+        if (BattleManager)
+        {
+            for (ACombatPawn* Combatant : BattleManager->GetAllCombatants())
+            {
+                if (Combatant && Combatant->GetFaction() == EFaction::Enemy && Combatant->GetStatsComponent()->GetCurrentHealth() > 0)
+                {
+                    CurrentlySelectedTarget = Combatant; // 첫 번째 적을 현재 타겟으로 저장
+                    if (GameEventComponent)
+                    {
+                        // 이 줄을 추가하여 UI에 신호를 보냅니다.
+                        GameEventComponent->BroadcastTargetChanged(CurrentlySelectedTarget);
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -59,7 +77,6 @@ void APlayerCharacter::HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnSt
 {
     if (Pawn == this) // 내 Pawn 상태가 변경되었을 때
     {
-        UE_LOG(LogTemp, Log, TEXT("%s's CombatPawnState changed to %s."), *GetName(), *UEnum::GetValueAsString(TEXT("ECombatPawnState"), NewState));
         // TODO: 상태에 따른 UI 피드백 (예: SelectingTarget 상태 시 타겟 선택 UI 활성화)
     }
 }
@@ -67,122 +84,87 @@ void APlayerCharacter::HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnSt
 // --- 플레이어 행동/타겟 선택 로직 ---
 void APlayerCharacter::PlayerSelectAction(FName ActionID)
 {
-    // ACombatPawn의 SelectAction 호출 (코스트 체크, ActiveActionInstance 생성, 상태 변경 등 ACombatPawn의 공통 로직 실행)
-    Super::SelectAction(ActionID);
+    // 이미 행동 중이면 무시
+    if (GetCombatPawnState() == ECombatPawnState::PerformingAction || GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
-    // SelectAction 호출 후 CombatPawnState가 ECombatPawnState::SelectingTarget으로 변경되었는지 확인
-    if (GetCombatPawnState() == ECombatPawnState::SelectingTarget)
+    // --- 실행 로직: 이미 선택된 행동 버튼을 다시 눌렀을 경우 ---
+    if (SelectedActionID == ActionID)
     {
-        // TODO: 타겟 선택 UI 활성화 (예: 모든 몬스터 머리 위에 타겟링 아이콘 표시)
-        UE_LOG(LogTemp, Log, TEXT("%s has selected action %s. Awaiting Target Selection."), *GetName(), *ActionID.ToString());
-    }
-}
+        if(!ActiveActionInstance)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Action %s confirmed, but ActiveActionInstance is NULL!"), *ActionID.ToString());
+            return;
+        }
+        UE_LOG(LogTemp, Log, TEXT("Action '%s' Confirmed!"), *ActionID.ToString());
 
-void APlayerCharacter::PlayerTargetMonsterClicked(ACombatPawn* Target)
-{
-    // 타겟 선택 상태가 아니면 무시
-    if (GetCombatPawnState() != ECombatPawnState::SelectingTarget)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("%s is not in SelectingTarget state. Target click ignored."), *GetName());
-        return;
-    }
-
-    // 유효한 타겟인지, 적 진영인지, 살아있는지 확인
-    if (!Target || !Target->IsValidLowLevel() || Target->GetFaction() == GetFaction() || !Target->GetStatsComponent() || Target->GetStatsComponent()->GetCurrentHealth() <= 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("%s selected invalid target. Please select a valid enemy."), *Target->GetName());
-        // TODO: 유효하지 않은 타겟에 대한 UI 피드백
-        return;
-    }
-
-    CurrentlySelectedTarget = Target; // 현재 선택된 타겟 저장
-    UE_LOG(LogTemp, Log, TEXT("%s selected target: %s."), *GetName(), *Target->GetName());
-
-    // TODO: 타겟을 UI에 표시 (테두리 하이라이트 등)
-    // 다음 행동으로 넘어갈 수 있는 조건 확인
-    // 현재는 단일 타겟팅이므로 타겟 하나만 있어도 확정 가능
-
-    // PlayerConfirmTargets()를 명시적으로 호출하도록 하거나, 
-    // 마우스 좌클릭을 두 번 누르면 발동되도록 구현할 수도 있습니다.
-}
-
-void APlayerCharacter::PlayerConfirmTargets()
-{
-    // 타겟 선택 상태가 아니면 무시
-    if (GetCombatPawnState() != ECombatPawnState::SelectingTarget)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("%s is not in SelectingTarget state. Confirm ignored."), *GetName());
-        return;
-    }
-
-    FActionData ActionData = GetActionDataByID(SelectedActionID); // 현재 선택된 액션 데이터 가져오기
-
-    TArray<ACombatPawn*> ConfirmedTargets;
-
-    // 타겟팅 타입에 따른 확정 로직 (ACombatPawn의 PerformAction에서는 ConfirmedTargets가 비어있어도 ExecuteConfirmedAction이 실행되므로, 여기서 확정 필요)
-    if (ActionData.TargetingType == ETargetingType::Single)
-    {
-        if (CurrentlySelectedTarget)
+        TArray<ACombatPawn*> ConfirmedTargets;
+        // 전체 공격이 아니면 현재 선택된 타겟을 사용
+        if (GetActionDataByID(ActionID).TargetingType != ETargetingType::All && CurrentlySelectedTarget)
         {
             ConfirmedTargets.Add(CurrentlySelectedTarget);
         }
+
+        // 유효한 타겟이 있거나 전체 공격일 경우에만 실행
+        if (ConfirmedTargets.Num() > 0 || GetActionDataByID(ActionID).TargetingType == ETargetingType::All)
+        {
+            // 부모의 ExecuteConfirmedAction을 호출하여 실제 행동 실행
+            Super::ExecuteConfirmedAction(ActionID, ConfirmedTargets);
+        }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("%s tried to confirm single target action '%s' but no target was selected."), *GetName(), *ActionData.DisplayName.ToString());
-            // TODO: 타겟 미선택 시 UI 피드백 및 타겟 선택 모드 유지
-            return;
+            UE_LOG(LogTemp, Warning, TEXT("No valid target selected for action '%s'."), *ActionID.ToString());
         }
     }
-    else if (ActionData.TargetingType == ETargetingType::All)
+    // --- 선택 로직: 새로운 행동 버튼을 눌렀을 경우 ---
+    else
     {
-        // ABattleManager를 통해 모든 적 전투원을 가져옴
-        ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
-        if (BattleManager)
+        SelectedActionID = ActionID;
+        UE_LOG(LogTemp, Log, TEXT("Action '%s' Selected."), *ActionID.ToString());
+
+        FActionData ActionData = GetActionDataByID(ActionID);
+        if (ActionData.GameActionClass)
         {
-            for (ACombatPawn* Comp : BattleManager->AllCombatants)
-            {
-                if (Comp && Comp->IsValidLowLevel() && Comp->GetFaction() != GetFaction() && Comp->GetStatsComponent() && Comp->GetStatsComponent()->GetCurrentHealth() > 0)
-                {
-                    ConfirmedTargets.Add(Comp);
-                }
-            }
+            ActiveActionInstance = NewObject<UGameAction>(this, ActionData.GameActionClass);
         }
-        else { UE_LOG(LogTemp, Error, TEXT("BattleManager not found for AllEnemies targeting.")); return; }
-    }
-    else if (ActionData.TargetingType == ETargetingType::Dual)
-    {
-        ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
-        if (BattleManager)
+        else
         {
-            for (ACombatPawn* Comp : BattleManager->AllCombatants)
-            {
-                if (Comp && Comp->IsValidLowLevel() && Comp->GetFaction() != GetFaction() && Comp->GetStatsComponent() && Comp->GetStatsComponent()->GetCurrentHealth() > 0)
-                {
-                    ConfirmedTargets.Add(Comp);
-                    if (ConfirmedTargets.Num() >= 2)
-                    {
-                        break;
-                    }
-                }
-            }
+            UE_LOG(LogTemp, Error, TEXT("Action %s has no GameActionClass assigned!"), *ActionID.ToString());
+            ActiveActionInstance = nullptr; // 유효하지 않으면 null로 초기화
+        }
+        // TODO: UI에서 이 버튼이 선택되었음을 표시(부각)하도록 델리게이트 호출
+    }
+}
+
+
+void APlayerCharacter::PlayerSwitchTarget(bool bSwitchToNext)
+{
+    ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+    if (!BattleManager || GetCombatPawnState() == ECombatPawnState::PerformingAction) return;
+
+    // 현재 살아있는 모든 적 목록을 가져옵니다.
+    TArray<ACombatPawn*> EnemyList;
+    for (ACombatPawn* Combatant : BattleManager->GetAllCombatants())
+    {
+        if (Combatant && Combatant->GetFaction() == EFaction::Enemy && Combatant->GetStatsComponent()->GetCurrentHealth() > 0)
+        {
+            EnemyList.Add(Combatant);
         }
     }
 
-    // 타겟 확정 후 ACombatPawn의 ExecuteConfirmedAction 호출
-    if (ConfirmedTargets.Num() > 0)
+    if (EnemyList.Num() == 0) return; // 적이 없으면 종료
+
+    int32 CurrentIndex = EnemyList.Find(CurrentlySelectedTarget);
+    int32 NewIndex = bSwitchToNext ? CurrentIndex + 1 : CurrentIndex - 1;
+
+    // 인덱스 범위 처리 (배열의 처음과 끝을 순환)
+    if (NewIndex >= EnemyList.Num()) NewIndex = 0;
+    if (NewIndex < 0) NewIndex = EnemyList.Num() - 1;
+
+    CurrentlySelectedTarget = EnemyList[NewIndex];
+    if (GameEventComponent)
     {
-        Super::ExecuteConfirmedAction(SelectedActionID, ConfirmedTargets);
-        // ExecuteConfirmedAction 호출 후 PawnState는 PerformingAction으로 변경됩니다.
-        // ActingCombatPawnState는 PerformAction 완료 후 BroadcastActionExecutionFinished 이벤트에서 Idle로 돌아갈 것입니다.
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("%s confirmed action '%s' but no valid targets found. Action cancelled."), *GetName(), *ActionData.DisplayName.ToString());
-        // TODO: 타겟을 찾을 수 없거나 유효하지 않아 행동을 취소했음을 알리는 UI/사운드 피드백
-        InternalSetCombatPawnState(ECombatPawnState::Idle); // 상태 초기화
-        SelectedActionID = NAME_None;
-        ActiveActionInstance = nullptr;
-        if (GameEventComponent) GameEventComponent->BroadcastActionExecutionFinished(this); // 행동을 실행할 수 없으므로 즉시 턴 종료 신호
+        // 이 줄을 추가하여 UI에 신호를 보냅니다.
+        GameEventComponent->BroadcastTargetChanged(CurrentlySelectedTarget);
     }
 }
 

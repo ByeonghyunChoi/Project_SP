@@ -53,6 +53,7 @@ void AMonsterCharacter::DecideAction()
         return;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("액션 선택 완료 매우 성공적임;;;"));
     // 오버라이드된 SelectAction 호출 (몬스터의 경우 즉시 행동 실행)
     SelectAction(ActionIDToPerform);
 
@@ -64,7 +65,7 @@ void AMonsterCharacter::SelectAction(FName ActionID)
     // ACombatPawn의 SelectAction 로직을 거의 그대로 가져오지만, 타겟 선택 단계에서 즉시 실행합니다.
     if (GetCombatPawnState() == ECombatPawnState::PerformingAction || GetCombatPawnState() == ECombatPawnState::Defeated)
     {
-        UE_LOG(LogTemp, Warning, TEXT("%s cannot select action in current state %s."), *GetName(), *UEnum::GetValueAsString(TEXT("ECombatPawnState"), GetCombatPawnState()));
+        UE_LOG(LogTemp, Log, TEXT("여기서 걸린듯;;; ㅇㅇ"));
         return;
     }
 
@@ -88,7 +89,7 @@ void AMonsterCharacter::SelectAction(FName ActionID)
     SelectedActionID = ActionID; // 선택된 ActionID 저장
 
     // --- 몬스터 고유 로직: 타겟 선택 UI를 거치지 않고 AI가 타겟을 결정하여 즉시 실행 ---
-    InternalSetCombatPawnState(ECombatPawnState::PerformingAction); // 바로 수행 상태로 전환 (InternalSetCombatPawnState로 호출)
+    InternalSetCombatPawnState(ECombatPawnState::SelectingAction); // 바로 수행 상태로 전환 (InternalSetCombatPawnState로 호출)
 
     // ABattleManager를 통해 전체 전투원 목록에 접근하여 AI 타겟 결정
     ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));

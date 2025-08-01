@@ -37,7 +37,6 @@ void ABattleManager::SetCurrentBattleState(EBattleState NewState)
 	{
 		CurrentBattleState = NewState;
 		OnBattleStateChanged.Broadcast(NewState); // 상태 변경 시 브로드캐스트
-		UE_LOG(LogTemp, Log, TEXT("Battle State Changed to: %s"), *UEnum::GetValueAsString(TEXT("EBattleState"), NewState));
 	}
 }
 
@@ -53,7 +52,6 @@ void ABattleManager::StartBattle()
     AllCombatants.Empty();
 
     // 1. 플레이어 전투원 추가 및 이벤트 바인딩
-    // 플레이어 Pawn이 ACombatPawn을 상속받았다고 가정
     if (APawn* PlayerPawnBase = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
     {
         if (ACombatPawn* PlayerCombatant = Cast<ACombatPawn>(PlayerPawnBase))
@@ -77,15 +75,6 @@ void ABattleManager::StartBattle()
     if (MyGameInstance && MyGameInstance->PendingMonsterGroup)
     {
         TArray<FMonsterData> MonstersToSpawn = MyGameInstance->PendingMonsterGroup->GetAllMonsterDataInGroup();
-
-        // 데이터 테이블 에셋 로드 (StartBattle 시점에 한 번만 로드)
-        // **경로 하드코딩 대신 ABattleManager 블루프린트에 UPROPERTY로 할당하는 방식이 더 좋습니다.**
-        UDataTable* CharStatsDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, TEXT("/Game/ParrySystem/Data/DT_CharacterStats.DT_CharacterStats")));
-        UDataTable* ActionsDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, TEXT("/Game/ParrySystem/Data/DT_Actions.DT_Actions")));
-
-        // TODO: DT_CharacterStats.DT_CharacterStats / DT_Actions.DT_Actions 경로가 정확한지 확인.
-        // 해당 에셋이 존재하지 않으면 CharStatsDataTable / ActionsDataTable이 nullptr이 됩니다.
-
         FVector SpawnLocationBase = GetActorLocation() + FVector(500.0f, 0.0f, 0.0f); // 몬스터 시작 스폰 위치
         float MonsterSpacing = 150.0f; // 몬스터 간 간격
 
@@ -105,7 +94,7 @@ void ABattleManager::StartBattle()
                     // 스탯 컴포넌트 초기화
                     if (UCharacterStatsComponent* StatsComp = SpawnedMonster->GetStatsComponent())
                     {
-                        StatsComp->CharacterStatsDataTable = CharStatsDataTable;
+                        StatsComp->CharacterStatsDataTable = CharacterStatsDataTable;
                         StatsComp->RowName = MonsterData.CharacterStatsRowName;
                         StatsComp->InitializeStatsFromDataTable();
                     }
@@ -132,8 +121,6 @@ void ABattleManager::StartBattle()
     // 3. 전투 시작 상태로 전환
     SetCurrentBattleState(EBattleState::InProgress); // 전투 관리자는 현재 상태만 변경
     OnTurnOrderChanged.Broadcast(); // UI 업데이트용 (초기 턴 순서 표시)
-
-    UE_LOG(LogTemp, Warning, TEXT("Battle Started! Total Combatants: %d"), AllCombatants.Num());
 }
 
 void ABattleManager::EndBattle()
@@ -356,32 +343,39 @@ void ABattleManager::HandleCombatantDamageReceived(ACombatPawn* DamagedPawn, flo
 
 void ABattleManager::HandleCombatantHealthChanged(ACombatPawn* CombatPawn, float CurrentHealth)
 {
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's health changed to %f (Max: %f)."), *CombatPawn->GetName(), CurrentHealth, CombatPawn->GetStatsComponent() ? CombatPawn->GetStatsComponent()->GetMaxHealth() : -1.0f);
-    if (CombatPawn && CombatPawn->GetStatsComponent() && CombatPawn->GetStatsComponent()->GetCurrentHealth() <= 0)
-    {
-        if (AllCombatants.Contains(CombatPawn))
-        {
-            UE_LOG(LogTemp, Warning, TEXT("[BM Event] %s has been defeated and removed from combat."), *CombatPawn->GetName());
-            AllCombatants.Remove(CombatPawn);
+    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's health changed to %f"), *CombatPawn->GetName(), CurrentHealth);
 
-            if (CombatPawn == CurrentTurnCharacter)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Current turn character %s was defeated. Ending turn immediately."), *CombatPawn->GetName());
-                EndTurn();
-            }
-            if (CheckBattleEndConditions())
-            {
-                EndBattle();
-            }
+    // 체력이 0 이하이고, 아직 사망 상태가 아닐 때만 실행
+    if (CombatPawn && CombatPawn->GetStatsComponent()->GetCurrentHealth() <= 0 && CombatPawn->GetCombatPawnState() != ECombatPawnState::Defeated)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BM Event] %s has been defeated."), *CombatPawn->GetName());
+
+        // 1. 캐릭터의 내부 상태를 '사망'으로 변경
+        CombatPawn->InternalSetCombatPawnState(ECombatPawnState::Defeated);
+
+        // 2. 시각적 처리 (사망 애니메이션, 소멸 이펙트 등) 호출 -> 블루프린트에서 구현
+        CombatPawn->K2_OnDefeated();
+
+        // 3. 충돌 비활성화 (더 이상 타겟팅되지 않도록)
+        CombatPawn->SetActorEnableCollision(false);
+
+        // 4. 현재 턴을 진행 중인 캐릭터가 사망했다면 즉시 턴 종료
+        if (CombatPawn == CurrentTurnCharacter)
+        {
+            EndTurn();
+        }
+
+        // 5. 전투 종료 조건 확인 (모든 적 또는 모든 플레이어가 사망했는지)
+        if (CheckBattleEndConditions())
+        {
+            EndBattle();
         }
     }
 }
 
 void ABattleManager::HandleCombatantTurnStarted(ACombatPawn* TurnPawn)
 {
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's turn has started. Current Battle State: %s"),
-        TurnPawn ? *TurnPawn->GetName() : TEXT("N/A"),
-        *UEnum::GetValueAsString(TEXT("EBattleState"), CurrentBattleState));
+    
 }
 
 void ABattleManager::HandleCombatantTurnEnded(ACombatPawn* TurnPawn)

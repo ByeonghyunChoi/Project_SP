@@ -26,8 +26,13 @@ void UMyGameInstance::ResetBattleData()
 
 void UMyGameInstance::StartBattleTransitionWithGroup(UMonsterGroupObject* MonsterGroup, FName MapName)
 {
-    PendingMonsterGroup = MonsterGroup; // 그룹 데이터 저장 (주로 BP에서 생성된 UMonsterGroupObject 인스턴스)
     ReturnToFieldMapName = MapName;
+    PendingMonsterGroup = NewObject<UMonsterGroupObject>(this);
+    if (PendingMonsterGroup && MonsterGroup)
+    {
+        PendingMonsterGroup->CopyMonterGroup(MonsterGroup);
+    }
+
 
     UGameplayStatics::OpenLevel(this, FName("BattleMap_01")); // 전투 맵 이름으로 변경
 }

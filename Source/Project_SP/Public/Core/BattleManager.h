@@ -36,6 +36,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Manager")
 	float GlobalTime = 0.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data Tables")
+	UDataTable* CharacterStatsDataTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data Tables")
+	UDataTable* ActionsDataTable;
+
 public:
 	virtual void Tick(float DeltaTime) override;
 

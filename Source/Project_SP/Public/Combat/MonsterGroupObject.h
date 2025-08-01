@@ -10,7 +10,7 @@
 /**
  * 
  */
-UCLASS(BlueprintType, EditInlineNew, DefaultToInstanced)
+UCLASS(Blueprintable, BlueprintType, EditInlineNew, DefaultToInstanced)
 class PROJECT_SP_API UMonsterGroupObject : public UObject
 {
 	GENERATED_BODY()

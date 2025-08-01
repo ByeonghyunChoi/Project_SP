@@ -4,9 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "Combat/GameAction.h" 
 #include "ActionData.generated.h"
 
-class UGameAction;
 
 /**
  * 
@@ -71,6 +71,10 @@ public:
     //자원 사용량
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
     float CostAmount = 0.0f;
+
+    //스킬 계수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
+    float SkillCoefficient;
 
     //데미지 타입(속성)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")

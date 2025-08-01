@@ -19,7 +19,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnEnded, class ACombatPawn*, Tu
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPerformed, class ACombatPawn*, PerformingPawn, FActionData, PerformedActionData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionExecutionFinished, class ACombatPawn*, FinishedPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCombatPawnStateChanged, class ACombatPawn*, Pawn, ECombatPawnState, NewState); // 새로운 델리게이트 추가
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChanged, class ACombatPawn*, NewTarget);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UGameEventComponent : public UActorComponent
@@ -47,7 +47,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnActionExecutionFinished OnActionExecutionFinished;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
-    FOnCombatPawnStateChanged OnCombatPawnStateChanged; // 새로운 델리게이트 인스턴스
+    FOnCombatPawnStateChanged OnCombatPawnStateChanged; 
+    UPROPERTY(BlueprintAssignable, Category = "Game Events")
+    FOnTargetChanged OnTargetChanged;
 
     // --- 브로드캐스트 함수들 ---
     UFUNCTION(BlueprintCallable, Category = "Game Events")
@@ -63,6 +65,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastActionExecutionFinished(ACombatPawn* FinishedPawn);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
-    void BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState); // 새로운 브로드캐스트 함수
+    void BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState); 
+    UFUNCTION(BlueprintCallable, Category = "Game Events")
+    void BroadcastTargetChanged(ACombatPawn* NewTarget);
 
 };

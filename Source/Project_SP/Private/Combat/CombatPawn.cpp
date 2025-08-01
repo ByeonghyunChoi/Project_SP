@@ -42,7 +42,6 @@ void ACombatPawn::InternalSetCombatPawnState(ECombatPawnState NewState)
         {
             GameEventComponent->BroadcastCombatPawnStateChanged(this, CurrentPawnState);
         }
-        UE_LOG(LogTemp, Log, TEXT("%s Pawn State Changed to: %s"), *GetName(), *UEnum::GetValueAsString(TEXT("ECombatPawnState"), NewState));
     }
 }
 
@@ -77,7 +76,6 @@ void ACombatPawn::SelectAction(FName ActionID)
     // ABattleManager나 APlayerController에서 턴 상태를 통제하여 SelectAction이 올바른 시점에 호출되도록 해야 함
     if (CurrentPawnState == ECombatPawnState::PerformingAction || CurrentPawnState == ECombatPawnState::Defeated)
     {
-        UE_LOG(LogTemp, Warning, TEXT("%s cannot select action in current state %s."), *GetName(), *UEnum::GetValueAsString(TEXT("ECombatPawnState"), CurrentPawnState));
         return;
     }
 
@@ -116,11 +114,11 @@ void ACombatPawn::SelectAction(FName ActionID)
 
 void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPawn*>& ConfirmedTargets)
 {
+    UE_LOG(LogTemp, Log, TEXT("Execute 실행됨"));
     // 유효성 체크 및 상태 확인
-    if (SelectedActionID != ActionID || !ActiveActionInstance || CurrentPawnState != ECombatPawnState::SelectingTarget) // SelectingTarget 상태여야만 진입 가능
+    if (SelectedActionID != ActionID || !ActiveActionInstance || CurrentPawnState != ECombatPawnState::SelectingAction) 
     {
-        UE_LOG(LogTemp, Warning, TEXT("Attempted to execute unselected, invalid, or already executing action %s by %s. Current State: %s"),
-            *ActionID.ToString(), *GetName(), *UEnum::GetValueAsString(TEXT("ECombatPawnState"), CurrentPawnState));
+        UE_LOG(LogTemp, Log, TEXT("유효성 체크 실패함"));
         // 비정상적인 호출이므로 BattleManager에게 턴을 넘겨 다음 턴으로 넘어가게 함
         if (GameEventComponent) GameEventComponent->BroadcastActionExecutionFinished(this);
         InternalSetCombatPawnState(ECombatPawnState::Idle); // 상태 초기화
@@ -151,7 +149,10 @@ void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPaw
     }
 
     // 4. 이벤트 브로드캐스트 (ActionData는 ActionInstance에서 사용하는 FActionData와 동일)
-    if (GameEventComponent) GameEventComponent->BroadcastActionPerformed(this, ActionData);
+    if (GameEventComponent)
+    {
+        GameEventComponent->BroadcastActionPerformed(this, ActionData);
+    }
 
     // 5. 시각적/청각적 연출을 블루프린트로 위임
     K2_ExecuteActionVisuals(ActionData, ConfirmedTargets.Num() > 0 ? ConfirmedTargets[0] : nullptr);
@@ -165,7 +166,22 @@ void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPaw
 
 float ACombatPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-    return 0;
+    Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+    if (StatsComponent)
+    {
+        // 1. 현재 체력에서 데미지만큼 감소
+        float NewHealth = StatsComponent->GetCurrentHealth() - DamageAmount;
+        StatsComponent->SetCurrentHealth(NewHealth);
+
+        // 2. 체력 변경 이벤트 호출 (UI 업데이트 등)
+        if (GameEventComponent)
+        {
+            GameEventComponent->BroadcastHealthChanged(this, NewHealth);
+        }
+    }
+
+    return DamageAmount;
 }
 
 // --- Faction 및 컴포넌트 Getter ---

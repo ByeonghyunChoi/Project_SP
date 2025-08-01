@@ -14,4 +14,5 @@ void UGameEventComponent::BroadcastTurnStarted(ACombatPawn* TurnPawn) { OnTurnSt
 void UGameEventComponent::BroadcastTurnEnded(ACombatPawn* TurnPawn) { OnTurnEnded.Broadcast(TurnPawn); }
 void UGameEventComponent::BroadcastActionPerformed(ACombatPawn* PerformingPawn, FActionData PerformedActionData) { OnActionPerformed.Broadcast(PerformingPawn, PerformedActionData); }
 void UGameEventComponent::BroadcastActionExecutionFinished(ACombatPawn* FinishedPawn) { OnActionExecutionFinished.Broadcast(FinishedPawn); }
-void UGameEventComponent::BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState) { OnCombatPawnStateChanged.Broadcast(Pawn, NewState); } // 새로운 브로드캐스트 함수 구현
+void UGameEventComponent::BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState) { OnCombatPawnStateChanged.Broadcast(Pawn, NewState); }
+void UGameEventComponent::BroadcastTargetChanged(ACombatPawn* NewTarget){ OnTargetChanged.Broadcast(NewTarget);}

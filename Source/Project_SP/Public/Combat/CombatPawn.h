@@ -45,8 +45,7 @@ protected:
 	// --- 전투원의 현재 내부 상태 (Protected - 내부 함수를 통해서만 변경) ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|State")
 	ECombatPawnState CurrentPawnState;
-	// 내부적으로 캐릭터 상태를 설정하고, 변경 시 OnCombatPawnStateChanged 이벤트를 브로드캐스트
-	void InternalSetCombatPawnState(ECombatPawnState NewState);
+	
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|State")
 	EFaction CurrentFaction;
@@ -73,6 +72,9 @@ public:
 	UGameAction* ActiveActionInstance; // 현재 실행 중인 UGameAction 인스턴스 (행동 로직 관리)
 
 	// --- 공통 행동 함수들 ---
+	// 내부적으로 캐릭터 상태를 설정하고, 변경 시 OnCombatPawnStateChanged 이벤트를 브로드캐스트
+	UFUNCTION(BlueprintCallable)
+	void InternalSetCombatPawnState(ECombatPawnState NewState);
 	// ActionID에 해당하는 FActionData를 반환 (DataTable에서 조회)
 	UFUNCTION(BlueprintPure, Category = "Combat|Actions")
 	FActionData GetActionDataByID(FName ActionID) const;
@@ -88,7 +90,9 @@ public:
 	// 행동의 시각적/청각적 부분을 블루프린트에서 구현하기 위한 이벤트
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat|Actions", meta = (DisplayName = "ExecuteActionVisuals"))
 	void K2_ExecuteActionVisuals(const FActionData& ActionData, ACombatPawn* PrimaryTargetPawn);
-
+	// 캐릭터가 사망했을때 호출될 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void K2_OnDefeated();
 	// --- 공통 상태 및 속성 접근자 ---
 	UFUNCTION(BlueprintPure, Category = "Combat|State")
 	ECombatPawnState GetCombatPawnState() const { return CurrentPawnState; }

@@ -28,6 +28,7 @@ void UCharacterStatsComponent::InitializeStatsFromDataTable()
 		{
 			// 찾은 스탯 데이터를 CurrentStats에 복사합니다.
 			CurrentStats = *FoundStats;
+			CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth;
 			UE_LOG(LogTemp, Warning, TEXT("Stats for %s initialized from DataTable (Row: %s). MaxHealth: %f"), *GetOwner()->GetName(), *RowName.ToString(), CurrentStats.fMaxHealth);
 		}
 		else
