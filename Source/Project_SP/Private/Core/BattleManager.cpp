@@ -3,6 +3,7 @@
 #include "Combat/CombatPawn.h"
 #include "Combat/BattleTurnComponent.h"
 #include "Combat/CharacterStatsComponent.h"
+#include "Combat/StatusEffectComponent.h"
 #include "Event/GameEventComponent.h"
 #include "Data/MonsterData.h"
 #include "Core/MyGameInstance.h"
@@ -127,6 +128,16 @@ void ABattleManager::EndBattle()
 {
     SetCurrentBattleState(EBattleState::Ended); // 전투 종료 상태로 변경
     UE_LOG(LogTemp, Warning, TEXT("Battle Ended!"));
+
+    UMyGameInstance* MyGameInstance = GetGameInstance<UMyGameInstance>();
+    if (MyGameInstance)
+    {
+        MyGameInstance->ReturnToFieldTransition();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("EndBattle: MyGameInstance not found!"));
+    }
 }
 
 void ABattleManager::ProcessTurn()
@@ -169,6 +180,9 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
     }
 
     CurrentTurnCharacter = Target; // 현재 턴 캐릭터 설정
+
+    //턴 시작 시 상태 이상 효과 처리
+    Target->StatusEffectComponent->OnTurnStarted();
 
     if (auto Turn = Target->GetBattleTurnComponent())
     {

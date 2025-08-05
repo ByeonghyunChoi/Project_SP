@@ -4,6 +4,7 @@
 #include "Combat/CombatPawn.h"
 #include "Combat/CharacterStatsComponent.h"
 #include "Combat/BattleTurnComponent.h"
+#include "Combat/StatusEffectComponent.h"
 #include "Data/ActionData.h"
 #include "Event/GameEventComponent.h"
 #include "Combat/GameAction.h"
@@ -17,6 +18,7 @@ ACombatPawn::ACombatPawn()
     StatsComponent = CreateDefaultSubobject<UCharacterStatsComponent>(TEXT("StatsComponent"));
     BattleTurnComponent = CreateDefaultSubobject<UBattleTurnComponent>(TEXT("BattleTurnComponent"));
     GameEventComponent = CreateDefaultSubobject<UGameEventComponent>(TEXT("GameEventComponent"));
+    StatusEffectComponent = CreateDefaultSubobject<UStatusEffectComponent>(TEXT("StatusEffectComponent"));
 
     InternalSetCombatPawnState(ECombatPawnState::Idle); // 생성자에서 초기 상태 설정 (Internal 함수 사용)
 }

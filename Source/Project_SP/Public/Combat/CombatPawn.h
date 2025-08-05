@@ -10,6 +10,7 @@
 #include "CombatPawn.generated.h"
 
 class UGameEventComponent;
+class UStatusEffectComponent;
 
 UENUM(BlueprintType)
 enum class ECombatPawnState : uint8
@@ -58,6 +59,8 @@ public:
 	UCharacterStatsComponent* StatsComponent;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Components")
 	UBattleTurnComponent* BattleTurnComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Components")
+	UStatusEffectComponent* StatusEffectComponent;
 
 	// --- 행동(스킬) 관련 데이터 (DataTable을 통해 정의) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Actions")
