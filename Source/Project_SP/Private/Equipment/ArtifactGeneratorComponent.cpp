@@ -1,4 +1,4 @@
-#include "ArtifactGeneratorComponent.h"
+#include "Equipment/ArtifactGeneratorComponent.h"
 
 UArtifactGeneratorComponent::UArtifactGeneratorComponent()
 {
