@@ -122,6 +122,11 @@ float UCharacterStatsComponent::GetMaxSP() const
 	return fMaxSP;
 }
 
+float UCharacterStatsComponent::GetStatusEffectMultiplier() const
+{
+	return CurrentStats.fStatusEffectMultiplier;
+}
+
 void UCharacterStatsComponent::SetCurrentHealth(const float& InCurrentHealth)
 {
 	CurrentStats.fCurrentHealth = FMath::Clamp(InCurrentHealth, 0.0f, CurrentStats.fMaxHealth);
@@ -195,6 +200,11 @@ void UCharacterStatsComponent::SetArmorPenetration(const float& InArmorPenetrati
 void UCharacterStatsComponent::SetCurrentSP(const float& InSP)
 {
 	fCurrentSP = InSP;
+}
+
+void UCharacterStatsComponent::SetStatusEffectMultiplier(const float& InStatusEffectMultiplier)
+{
+	CurrentStats.fStatusEffectMultiplier = InStatusEffectMultiplier;
 }
 
 void UCharacterStatsComponent::ModifySP(const float& Delta)

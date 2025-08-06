@@ -57,4 +57,7 @@ public:
 	// 방어 무시
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float fArmorPenetration = 0.0f;
+	// 효과 증가
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	float fStatusEffectMultiplier = 0.0f;
 };

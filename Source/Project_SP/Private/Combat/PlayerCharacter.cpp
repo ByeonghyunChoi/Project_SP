@@ -5,6 +5,7 @@
 #include "Core/BattleManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Event/GameEventComponent.h"
+#include "Equipment/WeaponSystemComponent.h"
 #include "GameMode/FieldModeComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -12,6 +13,7 @@
 APlayerCharacter::APlayerCharacter()
 {
 	FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
+    WeaponSystemComponent = CreateDefaultSubobject<UWeaponSystemComponent>(TEXT("WeaponSystemComponent"));
 
 	FieldModeComp->SetComponentTickEnabled(false);
 

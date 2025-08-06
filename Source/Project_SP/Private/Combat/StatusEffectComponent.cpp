@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Combat/StatusEffectComponent.h"
@@ -28,7 +28,7 @@ void UStatusEffectComponent::ApplyStatusEffect(FName StatusEffectID, ACombatPawn
     FStatusEffectData* EffectData = StatusEffectDataTable->FindRow<FStatusEffectData>(StatusEffectID, TEXT("Find Status Effect Data"));
     if (!EffectData) return;
 
-    // Á¶ÇÕ ·ÎÁ÷
+    // ì¡°í•© ë¡œì§
     if (EffectData->CombinationTargetID != NAME_None)
     {
         int32 FoundIndex = ActiveStatusEffects.IndexOfByPredicate([&](const FActiveStatusEffect& Effect) {
@@ -39,13 +39,13 @@ void UStatusEffectComponent::ApplyStatusEffect(FName StatusEffectID, ACombatPawn
         {
             UE_LOG(LogTemp, Warning, TEXT("Combination Occured! Removing %s and applying %s"), *EffectData->CombinationTargetID.ToString(), *EffectData->CombinationResultID.ToString());
             ActiveStatusEffects.RemoveAt(FoundIndex);
-            // Àç±Í È£Ãâ·Î Á¶ÇÕµÈ »õ·Î¿î È¿°ú¸¦ Àû¿ë
+            // ì¬ê·€ í˜¸ì¶œë¡œ ì¡°í•©ëœ ìƒˆë¡œìš´ íš¨ê³¼ë¥¼ ì ìš©
             ApplyStatusEffect(EffectData->CombinationResultID, Instigator);
             return;
         }
     }
 
-    // ÀÏ¹İ È¿°ú Àû¿ë
+    // ì¼ë°˜ íš¨ê³¼ ì ìš©
     FActiveStatusEffect NewEffect;
     NewEffect.EffectID = StatusEffectID;
     NewEffect.RemainingTurns = EffectData->TurnDuration;
@@ -53,7 +53,7 @@ void UStatusEffectComponent::ApplyStatusEffect(FName StatusEffectID, ACombatPawn
     ActiveStatusEffects.Add(NewEffect);
     UE_LOG(LogTemp, Log, TEXT("%s is now affected by %s"), *OwnerPawn->GetName(), *EffectData->DisplayName.ToString());
 
-    // ½ºÅÈ º¯°æ È¿°ú°¡ ÀÖ´Ù¸é Áï½Ã Àç°è»ê ¹× Àû¿ë
+    // ìŠ¤íƒ¯ ë³€ê²½ íš¨ê³¼ê°€ ìˆë‹¤ë©´ ì¦‰ì‹œ ì¬ê³„ì‚° ë° ì ìš©
     RecalculateStatModifiers();
 }
 
@@ -63,7 +63,7 @@ void UStatusEffectComponent::OnTurnStarted()
 
     TArray<FActiveStatusEffect> EffectsToRemove;
 
-    // ÅÏ ½ÃÀÛ ½Ã È¿°ú ¹ßµ¿
+    // í„´ ì‹œì‘ ì‹œ íš¨ê³¼ ë°œë™
     for (FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
     {
         FStatusEffectData* EffectData = StatusEffectDataTable->FindRow<FStatusEffectData>(ActiveEffect.EffectID, TEXT(""));
@@ -73,16 +73,23 @@ void UStatusEffectComponent::OnTurnStarted()
             {
                 if (SubEffect.EffectType == EStatusEffectType::DamageOverTime)
                 {
-                    float Damage = ActiveEffect.Instigator->GetStatsComponent()->GetAttackPower() * SubEffect.EffectMagnitude;
-                    UGameplayStatics::ApplyDamage(OwnerPawn, Damage, ActiveEffect.Instigator->GetController(), ActiveEffect.Instigator.Get(), UDamageType::StaticClass());
-                    UE_LOG(LogTemp, Warning, TEXT("%s takes %f damage from %s"), *OwnerPawn->GetName(), Damage, *EffectData->DisplayName.ToString());
+                    float BaseDamage = ActiveEffect.Instigator->GetStatsComponent()->GetAttackPower() * SubEffect.EffectMagnitude;
+                    float IncreaseDamage = (1 + ActiveEffect.Instigator->GetStatsComponent()->GetDamageIncreaseMultiplier() - OwnerStatsComp->GetDamageReductionMultiplier());
+                    float defenceCoefficient = 1 - (OwnerStatsComp->GetDefensePower() / (OwnerStatsComp->GetDefensePower() + 500)) + ActiveEffect.Instigator->GetStatsComponent()->GetArmorPenetration();
+                    //ë ˆë²¨ ê³„ìˆ˜ ì¶”ê°€ í•´ì•¼ í•¨
+                    float UnroundedDamage = BaseDamage * IncreaseDamage * defenceCoefficient * ActiveEffect.Instigator->GetStatsComponent()->GetStatusEffectMultiplier();
+                    float FinalDamage = FMath::RoundToFloat(UnroundedDamage);
+
+                    UGameplayStatics::ApplyDamage(OwnerPawn, FinalDamage, ActiveEffect.Instigator->GetController(), ActiveEffect.Instigator.Get(), UDamageType::StaticClass());
+                    UE_LOG(LogTemp, Log, TEXT("ìƒíƒœ ì´ìƒ ë°ë¯¸ì§€: %f"), FinalDamage);
+
                 }
-                // 'È¥Àı' °°Àº Çàµ¿ ºÒ°¡ ·ÎÁ÷µµ ¿©±â¼­ Ã³¸® °¡´É
+                // 'í˜¼ì ˆ' ê°™ì€ í–‰ë™ ë¶ˆê°€ ë¡œì§ë„ ì—¬ê¸°ì„œ ì²˜ë¦¬ ê°€ëŠ¥
             }
         }
     }
 
-    // ÅÏ °¨¼Ò ¹× ¸¸·áµÈ È¿°ú Á¦°Å ÁØºñ
+    // í„´ ê°ì†Œ ë° ë§Œë£Œëœ íš¨ê³¼ ì œê±° ì¤€ë¹„
     for (FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
     {
         ActiveEffect.RemainingTurns--;
@@ -92,7 +99,7 @@ void UStatusEffectComponent::OnTurnStarted()
         }
     }
 
-    // ¸¸·áµÈ È¿°ú ½ÇÁ¦ Á¦°Å
+    // ë§Œë£Œëœ íš¨ê³¼ ì‹¤ì œ ì œê±°
     for (const FActiveStatusEffect& EffectToRemove : EffectsToRemove)
     {
         ActiveStatusEffects.RemoveAll([&](const FActiveStatusEffect& Effect) {
@@ -101,7 +108,7 @@ void UStatusEffectComponent::OnTurnStarted()
         UE_LOG(LogTemp, Log, TEXT("%s's %s has worn off."), *OwnerPawn->GetName(), *EffectToRemove.EffectID.ToString());
     }
 
-    // È¿°ú°¡ Á¦°ÅµÇ¾úÀ¸¹Ç·Î ½ºÅÈ Àç°è»ê
+    // íš¨ê³¼ê°€ ì œê±°ë˜ì—ˆìœ¼ë¯€ë¡œ ìŠ¤íƒ¯ ì¬ê³„ì‚°
     if (EffectsToRemove.Num() > 0)
     {
         RecalculateStatModifiers();
@@ -112,10 +119,17 @@ void UStatusEffectComponent::RecalculateStatModifiers()
 {
     if (!OwnerStatsComp) return;
 
-    // 1. µ¥ÀÌÅÍ Å×ÀÌºí¿¡¼­ ¿øº» ½ºÅÈÀ» ´Ù½Ã ºÒ·¯¿Í ÃÊ±âÈ­
+    // í˜„ì¬ ì²´ë ¥ê³¼ SPë¥¼ ë¯¸ë¦¬ ë³€ìˆ˜ì— ì €ì¥
+    const float HealthBeforeRecalc = OwnerStatsComp->GetCurrentHealth();
+    const float SPBeforeRecalc = OwnerStatsComp->GetCurrentSP();
+
+    // 1. ë°ì´í„° í…Œì´ë¸”ì—ì„œ ì›ë³¸ ìŠ¤íƒ¯ì„ ë‹¤ì‹œ ë¶ˆëŸ¬ì™€ ì´ˆê¸°í™”
     OwnerStatsComp->InitializeStatsFromDataTable();
 
-    // 2. ÇöÀç °É·ÁÀÖ´Â ¸ğµç È¿°ú¸¦ ¼øÈ¸ÇÏ¸ç ½ºÅÈ º¯°æ
+    OwnerStatsComp->SetCurrentHealth(HealthBeforeRecalc);
+    OwnerStatsComp->SetCurrentSP(SPBeforeRecalc);
+
+    // 2. í˜„ì¬ ê±¸ë ¤ìˆëŠ” ëª¨ë“  íš¨ê³¼ë¥¼ ìˆœíšŒí•˜ë©° ìŠ¤íƒ¯ ë³€ê²½
     for (const FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
     {
         FStatusEffectData* EffectData = StatusEffectDataTable->FindRow<FStatusEffectData>(ActiveEffect.EffectID, TEXT(""));
@@ -128,7 +142,7 @@ void UStatusEffectComponent::RecalculateStatModifiers()
                     if (SubEffect.StatToModify == EStatToModify::DefensePower)
                     {
                         float OriginalDefense = OwnerStatsComp->GetDefensePower();
-                        OwnerStatsComp->SetDefensePower(OriginalDefense * (1.0f + SubEffect.EffectMagnitude)); // Magnitude´Â -0.25¿Í °°Àº À½¼ö°ª
+                        OwnerStatsComp->SetDefensePower(OriginalDefense * (1.0f + SubEffect.EffectMagnitude)); // MagnitudeëŠ” -0.25ì™€ ê°™ì€ ìŒìˆ˜ê°’
                     }
                 }
             }

@@ -9,6 +9,8 @@
 #include "PlayerCharacter.generated.h"
 
 class ABattleManager;
+class UWeaponSystemComponent;
+
 UCLASS()
 class PROJECT_SP_API APlayerCharacter : public ACombatPawn
 {
@@ -21,6 +23,9 @@ public:
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
 	UFieldModeComponent* FieldModeComp;
+	// 무기 관리 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UWeaponSystemComponent* WeaponSystemComponent;
 
 protected:
 	// Called when the game starts or when spawned

@@ -79,6 +79,8 @@ public:
 	float GetCurrentSP() const;
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetMaxSP() const;
+	UFUNCTION(BlueprintPure, Category = "Stats")
+	float GetStatusEffectMultiplier() const;
 
 	//Seter 함수
 	UFUNCTION(BlueprintCallable, Category = "Stats")
@@ -111,6 +113,8 @@ public:
 	void SetArmorPenetration(const float& InArmorPenetration);
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetCurrentSP(const float& InSP);
+	UFUNCTION(BlueprintCallable, Category = "Stats")
+	void SetStatusEffectMultiplier(const float& InStatusEffectMultiplier);
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void ModifySP(const float& Delta);
 	//데이터 복사 함수

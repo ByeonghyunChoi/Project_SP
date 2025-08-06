@@ -4,6 +4,7 @@
 #include "Combat/GameAction.h"
 #include "Combat/CombatPawn.h"
 #include "Combat/CharacterStatsComponent.h"
+#include "Combat/StatusEffectComponent.h" 
 #include "Core/BattleManager.h"
 #include "Kismet/GameplayStatics.h" 
 #include "Data/ActionData.h"
@@ -68,26 +69,36 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
             UCharacterStatsComponent* TargetStats = CurrentTarget->GetStatsComponent();
             if (AttackerStats && TargetStats)
             {
-                float BaseDamage = AttackerStats->GetAttackPower() * ActionData.SkillCoefficient;
-                float DamageMultiCoef = (1 + AttackerStats->GetDamageIncreaseMultiplier() - AttackerStats->GetDamageReductionMultiplier());
-                float DefendCoef = 1 - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500)) + AttackerStats->GetArmorPenetration();
-                float HitChance = 1 - (TargetStats->GetEvasion() - AttackerStats->GetHitProbability());
-                if (FMath::FRand() > HitChance)
+                for (int32 i = 0; i < ActionData.NumberOfHits; ++i)
                 {
-                    BaseDamage *= 0.5;
+                    float BaseDamage = AttackerStats->GetAttackPower() * ActionData.SkillCoefficient;
+                    float DamageMultiCoef = (1 + AttackerStats->GetDamageIncreaseMultiplier() - AttackerStats->GetDamageReductionMultiplier());
+                    float DefendCoef = 1 - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500)) + AttackerStats->GetArmorPenetration();
+                    float HitChance = 1 - (TargetStats->GetEvasion() - AttackerStats->GetHitProbability());
+                    if (FMath::FRand() > HitChance)
+                    {
+                        BaseDamage *= 0.5;
+                    }
+                    if (FMath::FRand() < AttackerStats->GetCriticalChance())
+                    {
+                        BaseDamage *= AttackerStats->GetCriticalDamageMultiplier();
+                    }
+                    //레벨 계수 추가해야 함(모르고 빼먹음;;;)
+                    float UnroundedDamage = BaseDamage * DamageMultiCoef * DefendCoef;
+                    FinalDamage = FMath::RoundToFloat(UnroundedDamage);  //레벨 계수도 곱해야 함
+                
+                UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
+                // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
+                UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
                 }
-                if (FMath::FRand() < AttackerStats->GetCriticalChance())
+                if (ActionData.StatusEffectIDToApply != NAME_None && FMath::FRand() < ActionData.StatusEffectChance)
                 {
-                    BaseDamage *= AttackerStats->GetCriticalDamageMultiplier();
+                    if (CurrentTarget->StatusEffectComponent)
+                    {
+                        CurrentTarget->StatusEffectComponent->ApplyStatusEffect(ActionData.StatusEffectIDToApply, Instigator);
+                    }
                 }
-                //레벨 계수 추가해야 함(모르고 빼먹음;;;)
-
-                FinalDamage = BaseDamage * DamageMultiCoef * DefendCoef; //레벨 계수도 곱해야 함
             }
-            UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
-            // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
-            UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
-
         }
     }
 }

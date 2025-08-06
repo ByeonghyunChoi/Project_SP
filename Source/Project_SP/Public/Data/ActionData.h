@@ -76,6 +76,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
     float SkillCoefficient;
 
+    // 이 행동이 적용할 상태 이상의 ID (DT_StatusEffects의 Row Name)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+    FName StatusEffectIDToApply;
+
+    // 상태 이상이 적용될 확률 (0.0 ~ 1.0)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+    float StatusEffectChance;
+
+    //공격 횟수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+    int32 NumberOfHits = 1;
+
     //데미지 타입(속성)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
     EDamageType DamageType;
