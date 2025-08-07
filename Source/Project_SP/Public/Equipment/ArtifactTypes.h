@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -8,49 +8,49 @@
 UENUM(BlueprintType)
 enum class EArtifactType : uint8
 {
-	HPUp,
-	ATKUp,
-	DEFUp,
-	SPDUp,
-	Special
+	HPUp UMETA(DisplayName = "HP"),
+	ATKUp UMETA(DisplayName = "ATK"),
+	DEFUp UMETA(DisplayName = "DEF"),
+	SPDUp UMETA(DisplayName = "SPD"),
+	Special UMETA(DisplayName = "SP")
 };
 
 UENUM(BlueprintType)
 enum class ERarity : uint8
 {
-	Normal,
-	Rare,
-	Unique,
-	Legendary,
-	Mystic
+	Normal UMETA(DisplayName = "NORMAL"),
+	Rare UMETA(DisplayName = "RARE"),
+	Unique UMETA(DisplayName = "UNIQUE"),
+	Legendary UMETA(DisplayName = "LEGENDARY"),
+	Mystic UMETA(DisplayName = "MYSTIC")
 };
 
 UENUM(BlueprintType)
 enum class ESetType : uint8
 {
-	Crystal,
-	Emerald,
-	Gold
+	Crystal UMETA(DisplayName = "CRTSTAL"),
+	Emerald UMETA(DisplayName = "EMERALD"),
+	Gold UMETA(DisplayName = "GOLD")
 };
 
 UENUM(BlueprintType)
 enum class ESpecialStatType : uint8
 {
-	CriticalChance,
-	CriticalDamage,
-	ArmorPenetration,
-	AttackPercent,
-	DefensePercent,
-	HPPercent,
-	SpeedPercent
+	CriticalChance UMETA(DisplayName = "치확"),
+	CriticalDamage UMETA(DisplayName = "치피"),
+	ArmorPenetration UMETA(DisplayName = "방무뎀"),
+	AttackPercent UMETA(DisplayName = "공격력"),
+	DefensePercent UMETA(DisplayName = "방어력"),
+	HPPercent UMETA(DisplayName = "체력"),
+	SpeedPercent UMETA(DisplayName = "속도")
 };
 
 UENUM(BlueprintType)
 enum class EMonsterGrade : uint8
 {
-	MNormal,
-	MElite,
-	MBoss,
+	MNormal UMETA(DisplayName = "일반몹"),
+	MElite UMETA(DisplayName = "엘리트몹"),
+	MBoss UMETA(DisplayName = "보스몹"),
 };
 
 
