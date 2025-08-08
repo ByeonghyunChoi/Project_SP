@@ -180,6 +180,7 @@ float ACombatPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEven
         if (GameEventComponent)
         {
             GameEventComponent->BroadcastHealthChanged(this, NewHealth);
+            GameEventComponent->BroadcastDamageReceived(this, DamageAmount, Cast<ACombatPawn>(DamageCauser), nullptr);
         }
     }
 

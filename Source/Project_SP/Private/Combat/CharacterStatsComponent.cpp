@@ -29,7 +29,7 @@ void UCharacterStatsComponent::InitializeStatsFromDataTable()
 			// 찾은 스탯 데이터를 CurrentStats에 복사합니다.
 			CurrentStats = *FoundStats;
 			CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth;
-			UE_LOG(LogTemp, Warning, TEXT("Stats for %s initialized from DataTable (Row: %s). MaxHealth: %f"), *GetOwner()->GetName(), *RowName.ToString(), CurrentStats.fMaxHealth);
+			UE_LOG(LogTemp, Error, TEXT("!!! STATS INITIALIZED for %s. Health set to MAX: %f"), *GetOwner()->GetName(), CurrentStats.fCurrentHealth);
 		}
 		else
 		{
@@ -130,6 +130,7 @@ float UCharacterStatsComponent::GetStatusEffectMultiplier() const
 void UCharacterStatsComponent::SetCurrentHealth(const float& InCurrentHealth)
 {
 	CurrentStats.fCurrentHealth = FMath::Clamp(InCurrentHealth, 0.0f, CurrentStats.fMaxHealth);
+	UE_LOG(LogTemp, Log, TEXT("health changed: %f"), CurrentStats.fCurrentHealth);
 }
 
 void UCharacterStatsComponent::SetMaxHealth(const float& InMaxHealth)

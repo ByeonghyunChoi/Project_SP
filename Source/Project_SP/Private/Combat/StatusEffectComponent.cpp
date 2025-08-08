@@ -120,14 +120,19 @@ void UStatusEffectComponent::RecalculateStatModifiers()
     if (!OwnerStatsComp) return;
 
     // 현재 체력과 SP를 미리 변수에 저장
+    UE_LOG(LogTemp, Warning, TEXT("--- RecalculateStatModifiers START ---"));
     const float HealthBeforeRecalc = OwnerStatsComp->GetCurrentHealth();
+    UE_LOG(LogTemp, Warning, TEXT("1. Health Before Recalc: %f"), HealthBeforeRecalc);
     const float SPBeforeRecalc = OwnerStatsComp->GetCurrentSP();
 
     // 1. 데이터 테이블에서 원본 스탯을 다시 불러와 초기화
     OwnerStatsComp->InitializeStatsFromDataTable();
 
+    UE_LOG(LogTemp, Warning, TEXT("2. Health After Init (should be MAX): %f"), OwnerStatsComp->GetCurrentHealth());
+
     OwnerStatsComp->SetCurrentHealth(HealthBeforeRecalc);
     OwnerStatsComp->SetCurrentSP(SPBeforeRecalc);
+    UE_LOG(LogTemp, Warning, TEXT("3. Health After Restore: %f"), OwnerStatsComp->GetCurrentHealth());
 
     // 2. 현재 걸려있는 모든 효과를 순회하며 스탯 변경
     for (const FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
@@ -148,5 +153,6 @@ void UStatusEffectComponent::RecalculateStatModifiers()
             }
         }
     }
+    UE_LOG(LogTemp, Warning, TEXT("--- RecalculateStatModifiers END ---"));
 }
 

@@ -10,6 +10,7 @@
 class UWeapon;
 class APlayerCharacter;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponEquipped, UWeapon*, NewWeapon);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API UWeaponSystemComponent : public UActorComponent
@@ -28,6 +29,10 @@ protected:
 	APlayerCharacter* OwnerPlayer;
 
 public:	
+	//무기 교체 델리게이트
+	UPROPERTY(BlueprintAssignable, Category = "Weapon System|Events")
+	FOnWeaponEquipped OnWeaponEquipped;
+
 	// 플레이어가 소유한 3가지 무기 (에디터에서 설정)
 	UPROPERTY(EditAnywhere, Instanced, Category = "Weapon System")
 	TMap<EDamageType, UWeapon*> Weapons;
