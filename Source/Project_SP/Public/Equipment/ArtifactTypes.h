@@ -36,6 +36,7 @@ enum class ESetType : uint8
 UENUM(BlueprintType)
 enum class ESpecialStatType : uint8
 {
+	Default UMETA(DisplayName = "기본"),
 	CriticalChance UMETA(DisplayName = "치확"),
 	CriticalDamage UMETA(DisplayName = "치피"),
 	ArmorPenetration UMETA(DisplayName = "방무뎀"),

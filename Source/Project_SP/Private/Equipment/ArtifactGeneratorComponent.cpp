@@ -111,6 +111,11 @@ FArtifactData UArtifactGeneratorComponent::GenerateRandomArtifact(EArtifactType 
         NewArtifact.SpecialStat = Special;
         NewArtifact.SpecialValue = SpecialValue;
 	}
+    else
+    {
+        NewArtifact.SpecialStat = ESpecialStatType::Default;
+        NewArtifact.SpecialValue = 0.0f;
+    }
     NewArtifact.ID = FName(*FString::Printf(TEXT("Artifact_%d"), FMath::Rand()));
 
     NewArtifact.StatBonus = GetBaseStatsFromType(Type, Rarity);
@@ -162,7 +167,7 @@ ERarity UArtifactGeneratorComponent::GetRandomRarity(const TMap<ERarity, float>&
 
 ESpecialStatType UArtifactGeneratorComponent::GetRandomSpecialStat() const
 {
-    int32 Index = FMath::RandRange(0, SpecialStatPool.Num() - 1);
+    int32 Index = FMath::RandRange(1, SpecialStatPool.Num() - 1);
     return SpecialStatPool[Index];
 }
 

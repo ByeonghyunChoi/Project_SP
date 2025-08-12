@@ -24,6 +24,7 @@ void UInventoryComponent::BeginPlay()
 void UInventoryComponent::AddArtifact(const FArtifactData& NewArtifact)
 {
     ArtifactInventory.Add(NewArtifact);
+    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("Added Artifact: %s"));
 }
 
 void UInventoryComponent::AddOrparts(const FOrpartsData& NewOrparts)

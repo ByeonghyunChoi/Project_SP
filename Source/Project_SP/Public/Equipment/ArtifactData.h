@@ -41,4 +41,5 @@ struct FArtifactData
         , StatBonus()
     {
     }
+
 };
