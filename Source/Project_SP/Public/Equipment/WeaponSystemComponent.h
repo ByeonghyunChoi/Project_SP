@@ -28,6 +28,17 @@ protected:
 	UPROPERTY()
 	APlayerCharacter* OwnerPlayer;
 
+	// 패링 창이 열려있는지 여부
+	bool bIsParryWindowOpen;
+	// 현재 공격해오는 적
+	TWeakObjectPtr<ACombatPawn> ParryAttacker;
+	// 현재 들어오는 공격의 속성
+	EDamageType ParryAttackType;
+
+	// 패링 창 이벤트 핸들러
+	UFUNCTION()
+	void HandleParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
+
 public:	
 	//무기 교체 델리게이트
 	UPROPERTY(BlueprintAssignable, Category = "Weapon System|Events")

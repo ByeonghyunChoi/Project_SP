@@ -67,7 +67,8 @@ public:
 	UDataTable* AvailableActionsDataTable; // 이 전투원이 사용할 수 있는 모든 행동 데이터가 있는 DataTable
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Actions")
 	TArray<FName> MyActionIDs; // AvailableActionsDataTable에서 이 전투원이 실제로 사용 가능한 행동 ID 목록
-
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|State")
+	EDamageType WeaknessType;
 	// --- 현재 진행 중인 행동 관련 변수들 ---
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category = "Combat|Actions")
 	FName SelectedActionID; // 현재 선택된 행동의 ID (타겟 선택 등 중간 단계에서 사용)
@@ -107,6 +108,8 @@ public:
 	UCharacterStatsComponent* GetStatsComponent() const;
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	UBattleTurnComponent* GetBattleTurnComponent() const;
+	UFUNCTION(BlueprintCallable, Category = "Combat|Events")
+	void BroadcastParryWindowEvent(bool bIsWindowOpen);
 
 	// --- 버프/상태 이상 관련 함수 (초기 스켈레톤, 나중에 구현) ---
    // 버프를 적용할 때 호출

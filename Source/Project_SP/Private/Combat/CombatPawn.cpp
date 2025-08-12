@@ -208,4 +208,14 @@ UBattleTurnComponent* ACombatPawn::GetBattleTurnComponent() const
     return BattleTurnComponent; 
 }
 
+void ACombatPawn::BroadcastParryWindowEvent(bool bIsWindowOpen)
+{
+    if (GameEventComponent)
+    {
+        // 현재 내가 선택해서 사용 중인 공격(SelectedActionID)의 속성 정보를 가져옴
+        FActionData MyAttackData = GetActionDataByID(SelectedActionID);
+        GameEventComponent->BroadcastParryWindowChanged(this, MyAttackData.DamageType, bIsWindowOpen);
+    }
+}
+
 

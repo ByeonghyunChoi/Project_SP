@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "Data/ActionData.h" 
 #include "MonsterData.generated.h"
 
 class AMonsterCharacter;
@@ -32,5 +33,9 @@ public:
 	//몬스터가 사용할 행동 참조
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
 	TArray<FName> AvailableActionIDs;
+
+	//몬스터의 약점 속성
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
+	EDamageType WeaknessType;
 };
 

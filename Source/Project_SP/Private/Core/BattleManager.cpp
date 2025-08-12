@@ -114,6 +114,10 @@ void ABattleManager::StartBattle()
                         SpawnedMonster->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
                         SpawnedMonster->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
                     }
+
+                    SpawnedMonster->WeaknessType = MonsterData.WeaknessType;
+
+                    SpawnedMonster->SetFaction(EFaction::Enemy);
                 }
             }
         }
