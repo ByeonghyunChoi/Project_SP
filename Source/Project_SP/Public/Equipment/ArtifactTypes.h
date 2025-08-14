@@ -8,29 +8,29 @@
 UENUM(BlueprintType)
 enum class EArtifactType : uint8
 {
-	HPUp UMETA(DisplayName = "HP"),
-	ATKUp UMETA(DisplayName = "ATK"),
-	DEFUp UMETA(DisplayName = "DEF"),
-	SPDUp UMETA(DisplayName = "SPD"),
-	Special UMETA(DisplayName = "SP")
+	HPUp UMETA(DisplayName = "체력"),
+	ATKUp UMETA(DisplayName = "공격"),
+	DEFUp UMETA(DisplayName = "방어"),
+	SPDUp UMETA(DisplayName = "속도"),
+	Special UMETA(DisplayName = "특수능력치")
 };
 
 UENUM(BlueprintType)
 enum class ERarity : uint8
 {
-	Normal UMETA(DisplayName = "NORMAL"),
-	Rare UMETA(DisplayName = "RARE"),
-	Unique UMETA(DisplayName = "UNIQUE"),
-	Legendary UMETA(DisplayName = "LEGENDARY"),
-	Mystic UMETA(DisplayName = "MYSTIC")
+	Normal UMETA(DisplayName = "노말"),
+	Rare UMETA(DisplayName = "레어"),
+	Unique UMETA(DisplayName = "유니크"),
+	Legendary UMETA(DisplayName = "레전더리"),
+	Mystic UMETA(DisplayName = "미스틱")
 };
 
 UENUM(BlueprintType)
 enum class ESetType : uint8
 {
-	Crystal UMETA(DisplayName = "CRTSTAL"),
-	Emerald UMETA(DisplayName = "EMERALD"),
-	Gold UMETA(DisplayName = "GOLD")
+	Crystal UMETA(DisplayName = "크리스탈"),
+	Emerald UMETA(DisplayName = "에메랄드"),
+	Gold UMETA(DisplayName = "골드")
 };
 
 UENUM(BlueprintType)
