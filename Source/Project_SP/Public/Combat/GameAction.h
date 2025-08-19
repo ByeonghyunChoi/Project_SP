@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -11,7 +9,7 @@ class ABattleManager;
 struct FActionData;
 
 /**
- * 
+ *
  */
 UCLASS(Blueprintable, BlueprintType)
 class PROJECT_SP_API UGameAction : public UObject

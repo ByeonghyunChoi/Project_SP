@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Combat/BattleTurnComponent.h"
 #include "Combat/CharacterStatsComponent.h"
 #include "Core/BattleManager.h"

@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Combat/PlayerCharacter.h"
+﻿#include "Combat/PlayerCharacter.h"
 #include "Core/BattleManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Event/GameEventComponent.h"
@@ -12,41 +9,41 @@
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
-	FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
+    FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
     WeaponSystemComponent = CreateDefaultSubobject<UWeaponSystemComponent>(TEXT("WeaponSystemComponent"));
 
-	FieldModeComp->SetComponentTickEnabled(false);
+    FieldModeComp->SetComponentTickEnabled(false);
 
-	GetCharacterMovement()->bOrientRotationToMovement = true;
-	bUseControllerRotationYaw = false;
-	bUseControllerRotationPitch = false;
-	bUseControllerRotationRoll = false;
+    GetCharacterMovement()->bOrientRotationToMovement = true;
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
 
-	CurrentlySelectedTarget = nullptr;
+    CurrentlySelectedTarget = nullptr;
 }
 
 void APlayerCharacter::EnterFieldMode()
 {
-	// 필드 모드 컴포넌트 활성화
-	if (FieldModeComp)
-	{
-		FieldModeComp->SetComponentTickEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("플레이어 필드 모드 진입."));
-	}
+    // 필드 모드 컴포넌트 활성화
+    if (FieldModeComp)
+    {
+        FieldModeComp->SetComponentTickEnabled(true);
+        UE_LOG(LogTemp, Log, TEXT("플레이어 필드 모드 진입."));
+    }
 }
 
 void APlayerCharacter::EnterBattleMode()
 {
-	// 전투 진입 시 필드 모드 컴포넌트 비활성화
-	if (FieldModeComp)
-	{
-		FieldModeComp->SetComponentTickEnabled(false);
-		UE_LOG(LogTemp, Log, TEXT("필드 모드 비활성화."));
-	}
+    // 전투 진입 시 필드 모드 컴포넌트 비활성화
+    if (FieldModeComp)
+    {
+        FieldModeComp->SetComponentTickEnabled(false);
+        UE_LOG(LogTemp, Log, TEXT("필드 모드 비활성화."));
+    }
 }
 
 // -- - 이벤트 핸들러 구현-- -
-void APlayerCharacter::HandlePlayerTurnStarted(ACombatPawn * TurnPawn)
+void APlayerCharacter::HandlePlayerTurnStarted(ACombatPawn* TurnPawn)
 {
     if (TurnPawn == this) // 내 턴이 시작되었을 때
     {
@@ -92,7 +89,7 @@ void APlayerCharacter::PlayerSelectAction(FName ActionID)
     // --- 실행 로직: 이미 선택된 행동 버튼을 다시 눌렀을 경우 ---
     if (SelectedActionID == ActionID)
     {
-        if(!ActiveActionInstance)
+        if (!ActiveActionInstance)
         {
             UE_LOG(LogTemp, Error, TEXT("Action %s confirmed, but ActiveActionInstance is NULL!"), *ActionID.ToString());
             return;
@@ -173,11 +170,11 @@ void APlayerCharacter::PlayerSwitchTarget(bool bSwitchToNext)
 // Called when the game starts or when spawned
 void APlayerCharacter::BeginPlay()
 {
-	Super::BeginPlay();
-	SetFaction(EFaction::Player);
-	if (GameEventComponent)
-	{
-		GameEventComponent->OnTurnStarted.AddDynamic(this, &APlayerCharacter::HandlePlayerTurnStarted);
-		GameEventComponent->OnCombatPawnStateChanged.AddDynamic(this, &APlayerCharacter::HandleMyPawnStateChanged);
-	}
+    Super::BeginPlay();
+    SetFaction(EFaction::Player);
+    if (GameEventComponent)
+    {
+        GameEventComponent->OnTurnStarted.AddDynamic(this, &APlayerCharacter::HandlePlayerTurnStarted);
+        GameEventComponent->OnCombatPawnStateChanged.AddDynamic(this, &APlayerCharacter::HandleMyPawnStateChanged);
+    }
 }

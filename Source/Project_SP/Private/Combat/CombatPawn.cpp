@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Combat/CombatPawn.h"
+﻿#include "Combat/CombatPawn.h"
 #include "Combat/CharacterStatsComponent.h"
 #include "Combat/BattleTurnComponent.h"
 #include "Combat/StatusEffectComponent.h"
@@ -118,7 +115,7 @@ void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPaw
 {
     UE_LOG(LogTemp, Log, TEXT("Execute 실행됨"));
     // 유효성 체크 및 상태 확인
-    if (SelectedActionID != ActionID || !ActiveActionInstance || CurrentPawnState != ECombatPawnState::SelectingAction) 
+    if (SelectedActionID != ActionID || !ActiveActionInstance || CurrentPawnState != ECombatPawnState::SelectingTarget)
     {
         UE_LOG(LogTemp, Log, TEXT("유효성 체크 실패함"));
         // 비정상적인 호출이므로 BattleManager에게 턴을 넘겨 다음 턴으로 넘어가게 함
@@ -187,15 +184,19 @@ float ACombatPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEven
     return DamageAmount;
 }
 
+void ACombatPawn::ResolveAction()
+{
+}
+
 // --- Faction 및 컴포넌트 Getter ---
 EFaction ACombatPawn::GetFaction() const
-{ 
-    return CurrentFaction; 
+{
+    return CurrentFaction;
 }
 
 void ACombatPawn::SetFaction(EFaction NewFaction)
-{ 
-    CurrentFaction = NewFaction; 
+{
+    CurrentFaction = NewFaction;
 }
 
 UCharacterStatsComponent* ACombatPawn::GetStatsComponent() const
@@ -205,7 +206,7 @@ UCharacterStatsComponent* ACombatPawn::GetStatsComponent() const
 
 UBattleTurnComponent* ACombatPawn::GetBattleTurnComponent() const
 {
-    return BattleTurnComponent; 
+    return BattleTurnComponent;
 }
 
 void ACombatPawn::BroadcastParryWindowEvent(bool bIsWindowOpen)
@@ -217,5 +218,3 @@ void ACombatPawn::BroadcastParryWindowEvent(bool bIsWindowOpen)
         GameEventComponent->BroadcastParryWindowChanged(this, MyAttackData.DamageType, bIsWindowOpen);
     }
 }
-
-

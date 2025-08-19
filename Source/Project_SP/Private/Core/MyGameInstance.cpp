@@ -1,26 +1,23 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Core/MyGameInstance.h"
+﻿#include "Core/MyGameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Combat/MonsterGroupObject.h"
 
 void UMyGameInstance::Init()
 {
-	Super::Init();
+    Super::Init();
     ResetBattleData();
 }
 
 
 void UMyGameInstance::ResetBattleData()
 {
-	if (PendingMonsterGroup)
-	{
-		PendingMonsterGroup->ConditionalBeginDestroy();
-		PendingMonsterGroup = nullptr;
-	}
+    if (PendingMonsterGroup)
+    {
+        PendingMonsterGroup->ConditionalBeginDestroy();
+        PendingMonsterGroup = nullptr;
+    }
 
-	ReturnToFieldMapName = NAME_None;
+    ReturnToFieldMapName = NAME_None;
 
 }
 

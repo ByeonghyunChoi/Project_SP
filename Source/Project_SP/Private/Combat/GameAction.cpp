@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Combat/GameAction.h"
 #include "Combat/CombatPawn.h"
 #include "Combat/CharacterStatsComponent.h"
@@ -8,6 +5,7 @@
 #include "Core/BattleManager.h"
 #include "Kismet/GameplayStatics.h" 
 #include "Data/ActionData.h"
+#include "Combat/CombatStatics.h"
 
 UGameAction::UGameAction()
 {
@@ -16,15 +14,15 @@ UGameAction::UGameAction()
 
 void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& ActionData, ABattleManager* BattleManagerRef, ACombatPawn* TargetPawn, const TArray<ACombatPawn*>& TargetPawns)
 {
-	if (Instigator && Instigator->GetStatsComponent() && ActionData.CostType != ECostType::None)
-	{
-		if (ActionData.CostType == ECostType::SP && Instigator->GetStatsComponent()->fCurrentSP >= ActionData.CostAmount)
-		{ 
-			Instigator->GetStatsComponent()->SetCurrentSP(Instigator->GetStatsComponent()->GetCurrentSP() - ActionData.CostAmount);
-		}
-	}
+    if (Instigator && Instigator->GetStatsComponent() && ActionData.CostType != ECostType::None)
+    {
+        if (ActionData.CostType == ECostType::SP && Instigator->GetStatsComponent()->fCurrentSP >= ActionData.CostAmount)
+        {
+            Instigator->GetStatsComponent()->SetCurrentSP(Instigator->GetStatsComponent()->GetCurrentSP() - ActionData.CostAmount);
+        }
+    }
 
-	TArray<ACombatPawn*> FinalTargets;
+    TArray<ACombatPawn*> FinalTargets;
 
     if (BattleManagerRef) // BattleManagerRef를 통해 모든 전투원 목록에 접근
     {
@@ -57,12 +55,11 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
         return; // BattleManager 없으면 타겟 결정 불가
     }
 
-    float FinalDamage = 0.0f;
 
     // ----- 최종 타겟에 효과 적용 -----
     for (ACombatPawn* CurrentTarget : FinalTargets)
     {
-        if (CurrentTarget &&  Instigator)
+        if (CurrentTarget && Instigator)
         {
             //---- 데미지 계산
             UCharacterStatsComponent* AttackerStats = Instigator->GetStatsComponent();
@@ -71,25 +68,15 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
             {
                 for (int32 i = 0; i < ActionData.NumberOfHits; ++i)
                 {
-                    float BaseDamage = AttackerStats->GetAttackPower() * ActionData.SkillCoefficient;
-                    float DamageMultiCoef = (1 + AttackerStats->GetDamageIncreaseMultiplier() - AttackerStats->GetDamageReductionMultiplier());
-                    float DefendCoef = 1 - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500)) + AttackerStats->GetArmorPenetration();
-                    float HitChance = 1 - (TargetStats->GetEvasion() - AttackerStats->GetHitProbability());
-                    if (FMath::FRand() > HitChance)
-                    {
-                        BaseDamage *= 0.5;
-                    }
-                    if (FMath::FRand() < AttackerStats->GetCriticalChance())
-                    {
-                        BaseDamage *= AttackerStats->GetCriticalDamageMultiplier();
-                    }
-                    //레벨 계수 추가해야 함(모르고 빼먹음;;;)
-                    float UnroundedDamage = BaseDamage * DamageMultiCoef * DefendCoef;
-                    FinalDamage = FMath::RoundToFloat(UnroundedDamage);  //레벨 계수도 곱해야 함
-                
-                UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
-                // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
-                UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
+                    float FinalDamage = UCombatStatics::CalculateDamage(
+                        Instigator->GetStatsComponent(),
+                        CurrentTarget->GetStatsComponent(),
+                        ActionData.SkillCoefficient
+                    );
+
+                    UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
+                    // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
+                    UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
                 }
                 if (ActionData.StatusEffectIDToApply != NAME_None && FMath::FRand() < ActionData.StatusEffectChance)
                 {
@@ -105,17 +92,17 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
 
 bool UGameAction::HasEnoughCost(ACombatPawn* Instigator, const FActionData& ActionData) const
 {
-	if (ActionData.CostType == ECostType::None)
-		return true;
+    if (ActionData.CostType == ECostType::None)
+        return true;
 
-	if (!Instigator || !Instigator->GetStatsComponent())
-		return false;
+    if (!Instigator || !Instigator->GetStatsComponent())
+        return false;
 
-	UCharacterStatsComponent* StatsComp = Instigator->GetStatsComponent();
+    UCharacterStatsComponent* StatsComp = Instigator->GetStatsComponent();
 
-	if (ActionData.CostType == ECostType::SP)
-	{
-		return StatsComp->GetCurrentSP() >= ActionData.CostAmount;
-	}
-	return false;
+    if (ActionData.CostType == ECostType::SP)
+    {
+        return StatsComp->GetCurrentSP() >= ActionData.CostAmount;
+    }
+    return false;
 }

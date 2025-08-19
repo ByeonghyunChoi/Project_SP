@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Equipment/WeaponSystemComponent.h"
 #include "Core/BattleManager.h"
 #include "Equipment/Weapon.h"
@@ -15,7 +12,7 @@ UWeaponSystemComponent::UWeaponSystemComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
 
-	
+
 	// ...
 }
 
@@ -24,30 +21,14 @@ UWeaponSystemComponent::UWeaponSystemComponent()
 void UWeaponSystemComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	OwnerPlayer = Cast<APlayerCharacter>(GetOwner());
 
-	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
-	if (BattleManager)
-	{
-		// 타이밍 문제를 피하기 위해, BattleManager가 준비된 후 바인딩하는 것이 더 안전할 수 있습니다.
-		// 지금은 간단하게 BeginPlay에서 처리합니다.
-		for (ACombatPawn* Combatant : BattleManager->GetAllCombatants())
-		{
-			if (Combatant && Combatant->GetFaction() == EFaction::Enemy)
-			{
-				if (Combatant->GameEventComponent)
-				{
-					Combatant->GameEventComponent->OnParryWindowChanged.AddDynamic(this, &UWeaponSystemComponent::HandleParryWindowChanged);
-				}
-			}
-		}
-	}
 	if (!CurrentWeapon && Weapons.Contains(EDamageType::Fenrir))
 	{
 		// 'Fenrir'를 기본 무기로 장착시킨다.
 		EquipWeapon(EDamageType::Fenrir);
 	}
-	// ...
-	
+	// ...	
 }
 
 void UWeaponSystemComponent::EquipWeapon(EDamageType WeaponTypeToEquip)
@@ -79,38 +60,37 @@ void UWeaponSystemComponent::HandleParryWindowChanged(ACombatPawn* Attacker, EDa
 
 bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 {
-	// 1. 패링 창이 열려있는지, 공격하는 몬스터가 유효한지 확인
-	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid())
-	{
-		return false;
-	}
+	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
 
-	// 2. "내가 바꾸려는 무기 타입"이 "공격하는 몬스터의 약점 타입"과 일치하는지 확인
+	EParryResult Result;
+	// 내가 바꾸려는 무기 타입이 공격하는 몬스터의 약점과 일치하는가?
 	if (WeaponTypeToSwitch == ParryAttacker->WeaknessType)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS against %s's weakness!"), *ParryAttacker->GetName());
-		bIsParryWindowOpen = false; // 한 번 성공하면 창을 닫아 중복 입력 방지
-
-		// 3. 무기 교체 (이미 같은 무기라도 EquipWeapon을 호출하여 UI 신호를 보낼 수 있음)
-		EquipWeapon(WeaponTypeToSwitch);
-
-		// 4. 스위치 스킬로 반격
+		Result = EParryResult::Success;
+		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
+		EquipWeapon(WeaponTypeToSwitch); // 무기 교체
+		// 스위치 스킬로 반격
 		if (CurrentWeapon && CurrentWeapon->SwitchSkillActionID != NAME_None)
 		{
-			TArray<ACombatPawn*> CounterAttackTarget;
-			CounterAttackTarget.Add(ParryAttacker.Get());
-
-			// 플레이어의 공격 로직을 그대로 사용하여 반격 실행
-			OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID); // 선택과 즉시 실행
-			return true;
+			TArray<ACombatPawn*> CounterTarget;
+			CounterTarget.Add(ParryAttacker.Get());
+			OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
+			OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Log, TEXT("Parry FAILED. %s is not the weakness of %s."), *UEnum::GetValueAsString(WeaponTypeToSwitch), *ParryAttacker->GetName());
-		return false;
+		Result = EParryResult::PartialSuccess;
+		UE_LOG(LogTemp, Log, TEXT("Parry Partial Success (Guard)."));
+		EquipWeapon(WeaponTypeToSwitch); // 무기 교체는 동일하게 함
 	}
-	return false;
+
+	bIsParryWindowOpen = false; // 입력 기회는 한 번뿐
+
+	// 결과를 BattleManager에게 브로드캐스트
+	if (OwnerPlayer->GameEventComponent)
+	{
+		OwnerPlayer->GameEventComponent->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
+	}
+	return true;
 }
-
-

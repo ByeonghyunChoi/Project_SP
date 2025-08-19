@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,19 +6,19 @@
 #include "CharacterStatsComponent.generated.h"
 
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UCharacterStatsComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	// Sets default values for this component's properties
 	UCharacterStatsComponent();
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
-	
+
 public:
 	//스탯 데이터를 참조하기 위한 변수, 캐릭터가 가질 스탯 데이터 테이블과 해당 데이터 테이블의 RowName을 지정
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|DataTable")

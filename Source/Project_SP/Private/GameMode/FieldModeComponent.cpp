@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "GameMode/FieldModeComponent.h"
+﻿#include "GameMode/FieldModeComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Core/MyGameInstance.h"
 #include "Combat/PlayerCharacter.h" 
@@ -14,24 +11,24 @@
 // Sets default values for this component's properties
 UFieldModeComponent::UFieldModeComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
+    // Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
+    // off to improve performance if you don't need them.
+    PrimaryComponentTick.bCanEverTick = false;
 }
 
 
 // Called when the game starts
 void UFieldModeComponent::BeginPlay()
 {
-	Super::BeginPlay();
-	
+    Super::BeginPlay();
+
 }
 
 
 // Called every frame
 void UFieldModeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
 void UFieldModeComponent::StartAttackSequence()
@@ -134,4 +131,3 @@ void UFieldModeComponent::OnAttackAnimationFinished()
         UE_LOG(LogTemp, Log, TEXT("공격 애니메이션 종료, 이동 방향 회전 복귀."));
     }
 }
-

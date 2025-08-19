@@ -1,4 +1,3 @@
-// Source/YOURGAME_API/Private/Events/GameEventComponent.cpp
 #include "Event/GameEventComponent.h"
 #include "Combat/CombatPawn.h" 
 #include "Data/ActionData.h" 
@@ -15,5 +14,6 @@ void UGameEventComponent::BroadcastTurnEnded(ACombatPawn* TurnPawn) { OnTurnEnde
 void UGameEventComponent::BroadcastActionPerformed(ACombatPawn* PerformingPawn, FActionData PerformedActionData) { OnActionPerformed.Broadcast(PerformingPawn, PerformedActionData); }
 void UGameEventComponent::BroadcastActionExecutionFinished(ACombatPawn* FinishedPawn) { OnActionExecutionFinished.Broadcast(FinishedPawn); }
 void UGameEventComponent::BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState) { OnCombatPawnStateChanged.Broadcast(Pawn, NewState); }
-void UGameEventComponent::BroadcastTargetChanged(ACombatPawn* NewTarget){ OnTargetChanged.Broadcast(NewTarget);}
+void UGameEventComponent::BroadcastTargetChanged(ACombatPawn* NewTarget) { OnTargetChanged.Broadcast(NewTarget); }
 void UGameEventComponent::BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen) { OnParryWindowChanged.Broadcast(Attacker, AttackType, bIsWindowOpen); }
+void UGameEventComponent::BroadcastParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult) { OnParryAttempted.Broadcast(ParriedAttacker, ParryingPlayer, ParryResult); }

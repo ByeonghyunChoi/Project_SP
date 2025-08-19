@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -10,7 +8,7 @@
 class AMonsterCharacter;
 
 /**
- * 
+ *
  */
 USTRUCT(BlueprintType)
 struct FMonsterData : public FTableRowBase
@@ -38,4 +36,3 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
 	EDamageType WeaknessType;
 };
-

@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Combat/CharacterStatsComponent.h"
 
 // Sets default values for this component's properties
@@ -210,7 +207,7 @@ void UCharacterStatsComponent::SetStatusEffectMultiplier(const float& InStatusEf
 
 void UCharacterStatsComponent::ModifySP(const float& Delta)
 {
-	fMaxSP = Delta;
+	fCurrentSP = FMath::Clamp(Delta, 0.0f, fMaxSP);
 }
 
 void UCharacterStatsComponent::CopyFrom(UCharacterStatsComponent* OtherStats)
@@ -235,5 +232,3 @@ void UCharacterStatsComponent::CopyFrom(UCharacterStatsComponent* OtherStats)
 	CurrentStats.fDamageReductionMultiplier = OtherStats->CurrentStats.fDamageReductionMultiplier;
 	CurrentStats.fArmorPenetration = OtherStats->CurrentStats.fArmorPenetration;
 }
-
-

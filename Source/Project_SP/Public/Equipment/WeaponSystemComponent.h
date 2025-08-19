@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -12,12 +10,12 @@ class APlayerCharacter;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponEquipped, UWeapon*, NewWeapon);
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UWeaponSystemComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	// Sets default values for this component's properties
 	UWeaponSystemComponent();
 
@@ -35,11 +33,9 @@ protected:
 	// 현재 들어오는 공격의 속성
 	EDamageType ParryAttackType;
 
-	// 패링 창 이벤트 핸들러
-	UFUNCTION()
-	void HandleParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
 
-public:	
+
+public:
 	//무기 교체 델리게이트
 	UPROPERTY(BlueprintAssignable, Category = "Weapon System|Events")
 	FOnWeaponEquipped OnWeaponEquipped;
@@ -60,5 +56,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon System")
 	bool AttemptParry(EDamageType WeaponTypeToSwitch);
 
-		
+	// 패링 창 이벤트 핸들러
+	UFUNCTION()
+	void HandleParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
+
 };

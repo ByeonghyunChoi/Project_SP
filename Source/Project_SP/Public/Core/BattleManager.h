@@ -18,6 +18,15 @@ enum class EBattleState : uint8
 	Ended UMETA(DisplayName = "전투 종료")
 };
 
+UENUM(BlueprintType)
+enum class EParryResult : uint8
+{
+	None,           // 패링 시도 없음
+	Success,        // 패링 성공 (약점 일치)
+	PartialSuccess  // 부분 성공 (약점 불일치)
+};
+
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnOrderChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBattleStateChanged, EBattleState, NewState);
 
@@ -60,6 +69,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Battle Manager|Events")
 	FOnBattleStateChanged OnBattleStateChanged;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Manager|Turn")
+	EParryResult CurrentTurnParryResult;
+
 	UFUNCTION(BlueprintCallable)
 	void StartBattle();
 
@@ -99,6 +111,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	ACombatPawn* GetCurrentTurnCharacter() const;
 
+	UFUNCTION(BlueprintPure)
+	EParryResult GetCurrentTurnParryResult() const { return CurrentTurnParryResult; }
+
 protected:
 	UFUNCTION()
 	void HandleCombatantActionFinished(ACombatPawn* FinishedPawn);
@@ -114,6 +129,9 @@ protected:
 
 	UFUNCTION()
 	void HandleCombatantTurnEnded(ACombatPawn* TurnPawn);
+
+	UFUNCTION()
+	void HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
 
 	UFUNCTION()
 	void SetCurrentBattleState(EBattleState NewState);

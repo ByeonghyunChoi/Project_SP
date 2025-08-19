@@ -1,10 +1,8 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Combat/StatusEffectComponent.h"
+﻿#include "Combat/StatusEffectComponent.h"
 #include "Combat/CombatPawn.h"
 #include "Combat/CharacterStatsComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Combat/CombatStatics.h"
 
 UStatusEffectComponent::UStatusEffectComponent()
 {
@@ -73,12 +71,11 @@ void UStatusEffectComponent::OnTurnStarted()
             {
                 if (SubEffect.EffectType == EStatusEffectType::DamageOverTime)
                 {
-                    float BaseDamage = ActiveEffect.Instigator->GetStatsComponent()->GetAttackPower() * SubEffect.EffectMagnitude;
-                    float IncreaseDamage = (1 + ActiveEffect.Instigator->GetStatsComponent()->GetDamageIncreaseMultiplier() - OwnerStatsComp->GetDamageReductionMultiplier());
-                    float defenceCoefficient = 1 - (OwnerStatsComp->GetDefensePower() / (OwnerStatsComp->GetDefensePower() + 500)) + ActiveEffect.Instigator->GetStatsComponent()->GetArmorPenetration();
-                    //레벨 계수 추가 해야 함
-                    float UnroundedDamage = BaseDamage * IncreaseDamage * defenceCoefficient * ActiveEffect.Instigator->GetStatsComponent()->GetStatusEffectMultiplier();
-                    float FinalDamage = FMath::RoundToFloat(UnroundedDamage);
+                    float FinalDamage = UCombatStatics::CalculateStatusEffectDamage(
+                        ActiveEffect.Instigator.Get(),
+                        OwnerPawn,
+                        SubEffect
+                    );
 
                     UGameplayStatics::ApplyDamage(OwnerPawn, FinalDamage, ActiveEffect.Instigator->GetController(), ActiveEffect.Instigator.Get(), UDamageType::StaticClass());
                     UE_LOG(LogTemp, Log, TEXT("상태 이상 데미지: %f"), FinalDamage);
@@ -155,4 +152,3 @@ void UStatusEffectComponent::RecalculateStatModifiers()
     }
     UE_LOG(LogTemp, Warning, TEXT("--- RecalculateStatModifiers END ---"));
 }
-

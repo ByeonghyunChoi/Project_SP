@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,7 +6,7 @@
 #include "MonsterGroupObject.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS(Blueprintable, BlueprintType, EditInlineNew, DefaultToInstanced)
 class PROJECT_SP_API UMonsterGroupObject : public UObject
@@ -31,7 +29,7 @@ public:
 	// 필요하다면, MonsterID에 해당하는 FMonsterData를 반환하는 함수
 	UFUNCTION(BlueprintPure, Category = "Monster Group")
 	FMonsterData GetMonsterData(FName MonsterID) const;
-	
+
 	// 다른 몬스터 그룹의 정보를 복사하는 함수 (필요시 업데이트)
 	void CopyMonterGroup(UMonsterGroupObject* OtherGroup);
 };

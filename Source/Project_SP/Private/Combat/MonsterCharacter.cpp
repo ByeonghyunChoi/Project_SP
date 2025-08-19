@@ -1,17 +1,16 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Combat/MonsterCharacter.h"
+﻿#include "Combat/MonsterCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Core/BattleManager.h"
 #include "Combat/GameAction.h"
 #include "Event/GameEventComponent.h"
+#include "Combat/CombatStatics.h"
+#include "Data/ActionData.h"
 
 
 // Sets default values
 AMonsterCharacter::AMonsterCharacter()
 {
-    
+
 }
 
 // Called when the game starts or when spawned
@@ -89,7 +88,7 @@ void AMonsterCharacter::SelectAction(FName ActionID)
     SelectedActionID = ActionID; // 선택된 ActionID 저장
 
     // --- 몬스터 고유 로직: 타겟 선택 UI를 거치지 않고 AI가 타겟을 결정하여 즉시 실행 ---
-    InternalSetCombatPawnState(ECombatPawnState::SelectingAction); // 바로 수행 상태로 전환 (InternalSetCombatPawnState로 호출)
+    InternalSetCombatPawnState(ECombatPawnState::SelectingTarget); 
 
     // ABattleManager를 통해 전체 전투원 목록에 접근하여 AI 타겟 결정
     ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
@@ -102,7 +101,7 @@ void AMonsterCharacter::SelectAction(FName ActionID)
 
     TArray<ACombatPawn*> ConfirmedTargets;
 
-    
+
     if (ActionData.TargetingType == ETargetingType::Single)
     {
         // 살아있는 플레이어 타겟 찾기
@@ -128,10 +127,52 @@ void AMonsterCharacter::HandleThisMonsterTurnStarted(ACombatPawn* TurnPawn)
     }
 }
 
+void AMonsterCharacter::ResolveAction()
+{
+    ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+    if (!BattleManager || BattleManager->GetCurrentTurnCharacter() != this) return;
+
+    EParryResult ParryResult = BattleManager->GetCurrentTurnParryResult();
+
+    // 패링에 성공했다면, 턴이 이미 종료되었을 것이므로 아무것도 하지 않고 종료.
+    if (ParryResult == EParryResult::Success)
+    {
+        UE_LOG(LogTemp, Log, TEXT("%s's attack is cancelled by successful parry."), *GetName());
+        return;
+    }
+
+    // 플레이어 타겟 찾기
+    ACombatPawn* PlayerTarget = nullptr;
+    for (ACombatPawn* Combatant : BattleManager->GetAllCombatants())
+    {
+        if (Combatant && Combatant->GetFaction() == EFaction::Player)
+        {
+            PlayerTarget = Combatant;
+            break;
+        }
+    }
+    if (!PlayerTarget) return;
+
+    // UGameAction의 데미지 공식을 참고하여 전체 데미지 계산
+    float FullDamage = UCombatStatics::CalculateDamage(
+        GetStatsComponent(),
+        PlayerTarget->GetStatsComponent(),
+        GetActionDataByID(SelectedActionID).SkillCoefficient
+    );
+
+    if (ParryResult == EParryResult::PartialSuccess)
+    {
+        // 부분 성공(가드) 시 70% 데미지
+        UGameplayStatics::ApplyDamage(PlayerTarget, FullDamage * 0.7f, GetController(), this, UDamageType::StaticClass());
+    }
+    else // ParryResult::None
+    {
+        // 패링 시도 없었으면 100% 데미지
+        UGameplayStatics::ApplyDamage(PlayerTarget, FullDamage, GetController(), this, UDamageType::StaticClass());
+    }
+}
+
 UMonsterGroupObject* AMonsterCharacter::GetCombatMonsterGroup() const
 {
     return CombatMonsterGroup;
 }
-
-
-

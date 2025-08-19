@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,12 +6,12 @@
 #include "Weapon.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS(Blueprintable, BlueprintType, EditInlineNew, DefaultToInstanced)
 class PROJECT_SP_API UWeapon : public UObject
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
     // 무기의 속성 (Fenrir, Surtr, Jormungandr)
@@ -31,5 +29,5 @@ public:
     // 이 무기로 패링(스위치) 성공 시 발동할 스킬의 ID
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
     FName SwitchSkillActionID;
-	
+
 };

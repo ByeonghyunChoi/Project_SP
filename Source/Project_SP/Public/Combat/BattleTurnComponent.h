@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,12 +7,12 @@
 class UCharacterStatsComponent;
 class ABattleManager;
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UBattleTurnComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	// Sets default values for this component's properties
 	UBattleTurnComponent();
 
@@ -38,7 +36,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turn", meta = (AllowPrivateAccess = "true"))
 	float ActionThreshold;
 
-public:	
+public:
 	// 상태 확인
 	UFUNCTION(BlueprintCallable, Category = "Turn")
 	bool GetIsMyTurn() const;
@@ -64,5 +62,5 @@ public:
 
 	UPROPERTY()
 	ABattleManager* BattleManagerRef;
-		
+
 };

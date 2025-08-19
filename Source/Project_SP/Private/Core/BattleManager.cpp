@@ -7,38 +7,40 @@
 #include "Event/GameEventComponent.h"
 #include "Data/MonsterData.h"
 #include "Core/MyGameInstance.h"
+#include "Equipment/WeaponSystemComponent.h" 
 #include "Combat/MonsterCharacter.h" 
+#include "Combat/PlayerCharacter.h"
 
 
 ABattleManager::ABattleManager()
 {
-	PrimaryActorTick.bCanEverTick = true;
-	CurrentTurnCharacter = nullptr;
-	SetCurrentBattleState(EBattleState::Setup);
+    PrimaryActorTick.bCanEverTick = true;
+    CurrentTurnCharacter = nullptr;
+    SetCurrentBattleState(EBattleState::Setup);
 }
 
 void ABattleManager::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 }
 
 void ABattleManager::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 
-	if (CurrentBattleState == EBattleState::InProgress)
-	{
-		ProcessTurn();
-	}
+    if (CurrentBattleState == EBattleState::InProgress)
+    {
+        ProcessTurn();
+    }
 }
 
 void ABattleManager::SetCurrentBattleState(EBattleState NewState)
 {
-	if (CurrentBattleState != NewState)
-	{
-		CurrentBattleState = NewState;
-		OnBattleStateChanged.Broadcast(NewState); // 상태 변경 시 브로드캐스트
-	}
+    if (CurrentBattleState != NewState)
+    {
+        CurrentBattleState = NewState;
+        OnBattleStateChanged.Broadcast(NewState); // 상태 변경 시 브로드캐스트
+    }
 }
 
 void ABattleManager::StartBattle()
@@ -52,24 +54,32 @@ void ABattleManager::StartBattle()
     }
     AllCombatants.Empty();
 
+    APlayerCharacter* PlayerCharacter = nullptr;
+
     // 1. 플레이어 전투원 추가 및 이벤트 바인딩
     if (APawn* PlayerPawnBase = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
     {
-        if (ACombatPawn* PlayerCombatant = Cast<ACombatPawn>(PlayerPawnBase))
+        PlayerCharacter = Cast<APlayerCharacter>(PlayerPawnBase);
+        if (PlayerCharacter)
         {
-            AllCombatants.Add(PlayerCombatant);
-            if (PlayerCombatant->GameEventComponent)
+            AllCombatants.Add(PlayerCharacter);
+            if (PlayerCharacter->GameEventComponent)
             {
-                PlayerCombatant->GameEventComponent->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
-                PlayerCombatant->GameEventComponent->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
-                PlayerCombatant->GameEventComponent->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
-                PlayerCombatant->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
-                PlayerCombatant->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
+                PlayerCharacter->GameEventComponent->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
+                PlayerCharacter->GameEventComponent->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
+                PlayerCharacter->GameEventComponent->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
+                PlayerCharacter->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
+                PlayerCharacter->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
+                PlayerCharacter->GameEventComponent->OnParryAttempted.AddDynamic(this, &ABattleManager::HandleParryAttempt);
             }
         }
-        else { UE_LOG(LogTemp, Error, TEXT("Player Pawn is not ACombatPawn derived!")); return; }
     }
-    else { UE_LOG(LogTemp, Error, TEXT("Player Pawn not found for battle!")); return; }
+
+    if (!PlayerCharacter)
+    {
+        UE_LOG(LogTemp, Error, TEXT("StartBattle: PlayerCharacter not found!"));
+        return;
+    }
 
     // 2. 몬스터 스폰 및 이벤트 바인딩
     UMyGameInstance* MyGameInstance = GetGameInstance<UMyGameInstance>();
@@ -113,11 +123,14 @@ void ABattleManager::StartBattle()
                         SpawnedMonster->GameEventComponent->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
                         SpawnedMonster->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
                         SpawnedMonster->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
+                        if (PlayerCharacter->WeaponSystemComponent)
+                        {
+                            SpawnedMonster->GameEventComponent->OnParryWindowChanged.AddDynamic(PlayerCharacter->WeaponSystemComponent, &UWeaponSystemComponent::HandleParryWindowChanged);
+                        }
                     }
 
                     SpawnedMonster->WeaknessType = MonsterData.WeaknessType;
 
-                    SpawnedMonster->SetFaction(EFaction::Enemy);
                 }
             }
         }
@@ -184,6 +197,7 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
     }
 
     CurrentTurnCharacter = Target; // 현재 턴 캐릭터 설정
+    CurrentTurnParryResult = EParryResult::None; // 패링 결과 초기화
 
     //턴 시작 시 상태 이상 효과 처리
     Target->StatusEffectComponent->OnTurnStarted();
@@ -237,25 +251,25 @@ void ABattleManager::EndTurn()
 
 void ABattleManager::AddCombatant(ACombatPawn* NewCombatant)
 {
-	if (NewCombatant)
-	{
-		AllCombatants.AddUnique(NewCombatant);
-	}
+    if (NewCombatant)
+    {
+        AllCombatants.AddUnique(NewCombatant);
+    }
 }
 
 TArray<ACombatPawn*> ABattleManager::GetReadyCombatants() const
 {
-	TArray<ACombatPawn*> ReadyCombatants;
-	for (ACombatPawn* Combatant : AllCombatants)
-	{
-		if (Combatant && Combatant->IsValidLowLevel() &&
-			Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
-			Combatant != CurrentTurnCharacter && Combatant->GetBattleTurnComponent() && Combatant->GetBattleTurnComponent()->IsReadyForTurn())
-		{
-			ReadyCombatants.Add(Combatant);
-		}
-	}
-	return ReadyCombatants;
+    TArray<ACombatPawn*> ReadyCombatants;
+    for (ACombatPawn* Combatant : AllCombatants)
+    {
+        if (Combatant && Combatant->IsValidLowLevel() &&
+            Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
+            Combatant != CurrentTurnCharacter && Combatant->GetBattleTurnComponent() && Combatant->GetBattleTurnComponent()->IsReadyForTurn())
+        {
+            ReadyCombatants.Add(Combatant);
+        }
+    }
+    return ReadyCombatants;
 }
 
 float ABattleManager::GetMinTimeToNextTurn() const
@@ -315,27 +329,27 @@ bool ABattleManager::CheckBattleEndConditions() const
 
 bool ABattleManager::CombatantSortPredicate(const ACombatPawn* A, const ACombatPawn* B)
 {
-	float TimeA = A->GetBattleTurnComponent()->GetTimeLeftToAct();
-	float TimeB = B->GetBattleTurnComponent()->GetTimeLeftToAct();
-	if (!FMath::IsNearlyEqual(TimeA, TimeB)) return TimeA < TimeB;
+    float TimeA = A->GetBattleTurnComponent()->GetTimeLeftToAct();
+    float TimeB = B->GetBattleTurnComponent()->GetTimeLeftToAct();
+    if (!FMath::IsNearlyEqual(TimeA, TimeB)) return TimeA < TimeB;
 
-	float SpeedA = A->GetStatsComponent()->GetMovementSpeed();
-	float SpeedB = B->GetStatsComponent()->GetMovementSpeed();
-	if (!FMath::IsNearlyEqual(SpeedA, SpeedB)) return SpeedA > SpeedB;
+    float SpeedA = A->GetStatsComponent()->GetMovementSpeed();
+    float SpeedB = B->GetStatsComponent()->GetMovementSpeed();
+    if (!FMath::IsNearlyEqual(SpeedA, SpeedB)) return SpeedA > SpeedB;
 
-	if (A->GetFaction() != B->GetFaction()) return A->GetFaction() == EFaction::Player;
+    if (A->GetFaction() != B->GetFaction()) return A->GetFaction() == EFaction::Player;
 
-	return A->GetUniqueID() < B->GetUniqueID();
+    return A->GetUniqueID() < B->GetUniqueID();
 }
 
 const TArray<ACombatPawn*>& ABattleManager::GetAllCombatants() const
 {
-	return AllCombatants;
+    return AllCombatants;
 }
 
 ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
 {
-	return CurrentTurnCharacter;
+    return CurrentTurnCharacter;
 }
 
 // --- 이벤트 핸들러 구현 ---
@@ -393,7 +407,7 @@ void ABattleManager::HandleCombatantHealthChanged(ACombatPawn* CombatPawn, float
 
 void ABattleManager::HandleCombatantTurnStarted(ACombatPawn* TurnPawn)
 {
-    
+
 }
 
 void ABattleManager::HandleCombatantTurnEnded(ACombatPawn* TurnPawn)
@@ -401,5 +415,29 @@ void ABattleManager::HandleCombatantTurnEnded(ACombatPawn* TurnPawn)
     UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's turn has ended."), TurnPawn ? *TurnPawn->GetName() : TEXT("N/A"));
 }
 
+void ABattleManager::HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
+{
+    CurrentTurnParryResult = ParryResult; // 결과 기록
 
+    switch (ParryResult)
+    {
+    case EParryResult::Success:
+        UE_LOG(LogTemp, Warning, TEXT("Parry Result: SUCCESS!"));
+        break;
+    case EParryResult::PartialSuccess:
+        UE_LOG(LogTemp, Log, TEXT("Parry Result: GUARD! (Partial Success)"));
+        break;
+    case EParryResult::None:
+        // 이 경우는 호출되지 않아야 정상입니다.
+        UE_LOG(LogTemp, Error, TEXT("Parry Result received as None, this should not happen here."));
+        break;
+    }
 
+    if (ParryResult == EParryResult::Success) // 성공한 경우에만 즉시 턴 종료
+    {
+        if (ParriedAttacker && ParriedAttacker == CurrentTurnCharacter)
+        {
+            EndTurn();
+        }
+    }
+}

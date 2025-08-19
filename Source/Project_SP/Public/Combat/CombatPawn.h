@@ -1,6 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -46,7 +44,7 @@ protected:
 	// --- 전투원의 현재 내부 상태 (Protected - 내부 함수를 통해서만 변경) ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|State")
 	ECombatPawnState CurrentPawnState;
-	
+
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|State")
 	EFaction CurrentFaction;
@@ -97,6 +95,9 @@ public:
 	// 캐릭터가 사망했을때 호출될 이벤트
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void K2_OnDefeated();
+	//패링 결과 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat|Actions")
+	virtual void ResolveAction();
 	// --- 공통 상태 및 속성 접근자 ---
 	UFUNCTION(BlueprintPure, Category = "Combat|State")
 	ECombatPawnState GetCombatPawnState() const { return CurrentPawnState; }

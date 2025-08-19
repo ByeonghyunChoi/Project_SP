@@ -1,13 +1,11 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "StatusEffectData.generated.h"
 
 /**
- * 
+ *
  */
  // 효과의 종류 (버프, 디버프, 지속 데미지 등)
 UENUM(BlueprintType)
