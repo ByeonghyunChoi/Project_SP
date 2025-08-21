@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
 	void PlayerSelectAction(FName ActionID); // FName으로 ActionID 받음
 
+	//실제 스킬 사용 로직
+	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
+	void PlayerConfirmSelectedAction();
+
 	// 현재 선택된 타겟 (UI에서 표시할 수 있도록)
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Player|Combat")
 	ACombatPawn* CurrentlySelectedTarget;

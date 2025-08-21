@@ -207,7 +207,7 @@ void UCharacterStatsComponent::SetStatusEffectMultiplier(const float& InStatusEf
 
 void UCharacterStatsComponent::ModifySP(const float& Delta)
 {
-	fCurrentSP = FMath::Clamp(Delta, 0.0f, fMaxSP);
+	fCurrentSP = FMath::Clamp(fCurrentSP + Delta, 0.0f, fMaxSP);
 }
 
 void UCharacterStatsComponent::CopyFrom(UCharacterStatsComponent* OtherStats)

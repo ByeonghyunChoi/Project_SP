@@ -83,54 +83,61 @@ void APlayerCharacter::HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnSt
 // --- 플레이어 행동/타겟 선택 로직 ---
 void APlayerCharacter::PlayerSelectAction(FName ActionID)
 {
-    // 이미 행동 중이면 무시
+    // 이미 행동 중이거나 패배했다면 선택 불가
     if (GetCombatPawnState() == ECombatPawnState::PerformingAction || GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
-    // --- 실행 로직: 이미 선택된 행동 버튼을 다시 눌렀을 경우 ---
-    if (SelectedActionID == ActionID)
+    // 새로운 행동 버튼을 눌렀을 경우
+    SelectedActionID = ActionID;
+    UE_LOG(LogTemp, Log, TEXT("Action '%s' Selected."), *ActionID.ToString());
+
+    FActionData ActionData = GetActionDataByID(ActionID);
+    if (ActionData.GameActionClass)
     {
-        if (!ActiveActionInstance)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Action %s confirmed, but ActiveActionInstance is NULL!"), *ActionID.ToString());
-            return;
-        }
-        UE_LOG(LogTemp, Log, TEXT("Action '%s' Confirmed!"), *ActionID.ToString());
-
-        TArray<ACombatPawn*> ConfirmedTargets;
-        // 전체 공격이 아니면 현재 선택된 타겟을 사용
-        if (GetActionDataByID(ActionID).TargetingType != ETargetingType::All && CurrentlySelectedTarget)
-        {
-            ConfirmedTargets.Add(CurrentlySelectedTarget);
-        }
-
-        // 유효한 타겟이 있거나 전체 공격일 경우에만 실행
-        if (ConfirmedTargets.Num() > 0 || GetActionDataByID(ActionID).TargetingType == ETargetingType::All)
-        {
-            // 부모의 ExecuteConfirmedAction을 호출하여 실제 행동 실행
-            Super::ExecuteConfirmedAction(ActionID, ConfirmedTargets);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("No valid target selected for action '%s'."), *ActionID.ToString());
-        }
+        ActiveActionInstance = NewObject<UGameAction>(this, ActionData.GameActionClass);
     }
-    // --- 선택 로직: 새로운 행동 버튼을 눌렀을 경우 ---
     else
     {
-        SelectedActionID = ActionID;
-        UE_LOG(LogTemp, Log, TEXT("Action '%s' Selected."), *ActionID.ToString());
+        UE_LOG(LogTemp, Error, TEXT("Action %s has no GameActionClass assigned!"), *ActionID.ToString());
+        ActiveActionInstance = nullptr; // 유효하지 않으면 null로 초기화
+    }
+}
 
-        FActionData ActionData = GetActionDataByID(ActionID);
-        if (ActionData.GameActionClass)
-        {
-            ActiveActionInstance = NewObject<UGameAction>(this, ActionData.GameActionClass);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Action %s has no GameActionClass assigned!"), *ActionID.ToString());
-            ActiveActionInstance = nullptr; // 유효하지 않으면 null로 초기화
-        }
-        // TODO: UI에서 이 버튼이 선택되었음을 표시(부각)하도록 델리게이트 호출
+void APlayerCharacter::PlayerConfirmSelectedAction()
+{
+    // 선택된 액션이나 활성화된 인스턴스가 없으면 실행 불가
+    if (SelectedActionID == NAME_None || !ActiveActionInstance)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No action selected to confirm."));
+        return;
+    }
+
+    // 코스트가 부족하면 실행 불가
+    if (!ActiveActionInstance->HasEnoughCost(this, GetActionDataByID(SelectedActionID)))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough cost for action '%s'."), *SelectedActionID.ToString());
+        return;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Action '%s' Confirmed!"), *SelectedActionID.ToString());
+
+    TArray<ACombatPawn*> ConfirmedTargets;
+    FActionData ActionData = GetActionDataByID(SelectedActionID);
+
+    // 전체 공격이 아니면 현재 선택된 타겟을 사용
+    if (ActionData.TargetingType != ETargetingType::All && CurrentlySelectedTarget)
+    {
+        ConfirmedTargets.Add(CurrentlySelectedTarget);
+    }
+
+    // 유효한 타겟이 있거나 전체 공격일 경우에만 실행
+    if (ConfirmedTargets.Num() > 0 || ActionData.TargetingType == ETargetingType::All)
+    {
+        // 부모의 ExecuteConfirmedAction을 호출하여 실제 행동 실행
+        Super::ExecuteConfirmedAction(SelectedActionID, ConfirmedTargets);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No valid target selected for action '%s'."), *SelectedActionID.ToString());
     }
 }
 
