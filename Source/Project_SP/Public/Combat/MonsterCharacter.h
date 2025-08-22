@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -21,15 +21,21 @@ protected:
 
     UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Monster Group")
     UMonsterGroupObject* CombatMonsterGroup;
+    // ëª¬ìŠ¤í„° ì• ë‹ˆë©”ì´ì…˜ ì•¡ì…˜ê³¼ ì—°ê²°í•¨
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|Animations")
+    TMap<FName, TSoftObjectPtr<UAnimMontage>> ActionMontageMap;
+    // ê³µê²©í•  íƒ€ê²Ÿ
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
+    TWeakObjectPtr<ACombatPawn> CurrentTarget;
 public:
-    // --- ¸ó½ºÅÍ AI Çàµ¿ °áÁ¤ ÇÔ¼ö ---
+    // --- ëª¬ìŠ¤í„° AI í–‰ë™ ê²°ì • í•¨ìˆ˜ ---
     UFUNCTION(BlueprintCallable, Category = "Monster|AI")
     void DecideAction();
 
-    // --- SelectAction ¿À¹ö¶óÀÌµå ---
+    // --- SelectAction ì˜¤ë²„ë¼ì´ë“œ ---
     virtual void SelectAction(FName ActionID) override;
 
-    // --- ¸ó½ºÅÍ Àü¿ë ÀÌº¥Æ® ÇÚµé·¯ ---
+    // --- ëª¬ìŠ¤í„° ì „ìš© ì´ë²¤íŠ¸ í•¸ë“¤ëŸ¬ ---
     UFUNCTION()
     void HandleThisMonsterTurnStarted(ACombatPawn* TurnPawn);
 

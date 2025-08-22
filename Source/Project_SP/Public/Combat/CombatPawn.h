@@ -95,6 +95,9 @@ public:
 	// 캐릭터가 사망했을때 호출될 이벤트
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void K2_OnDefeated();
+	//패링 됬을때 호출할 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat", meta = (DisplayName = "OnParried"))
+	void K2_OnParried();
 	//패링 결과 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat|Actions")
 	virtual void ResolveAction();

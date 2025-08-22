@@ -61,54 +61,44 @@ void UWeaponSystemComponent::HandleParryWindowChanged(ACombatPawn* Attacker, EDa
 
 bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 {
-    if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
+	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
 
-    // 1. 스탯 컴포넌트를 가져와 SP가 100 이상인지 확인
-    UCharacterStatsComponent* StatsComp = OwnerPlayer->GetStatsComponent();
-    if (!StatsComp || StatsComp->GetCurrentSP() < 100.0f)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Not enough SP to parry. Required: 100, Have: %f"), StatsComp ? StatsComp->GetCurrentSP() : 0.0f);
-        return false;
-    }
+	UCharacterStatsComponent* StatsComp = OwnerPlayer->GetStatsComponent();
+	if (!StatsComp || StatsComp->GetCurrentSP() < 100.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SP 부족. 필요: 100"));
+		return false;
+	}
 
-    // 2. SP 100 소모
-    StatsComp->ModifySP(-100.0f);
-    UE_LOG(LogTemp, Log, TEXT("Used 100 SP for parry. Remaining SP: %f"), StatsComp->GetCurrentSP());
+	StatsComp->ModifySP(-100.0f); // SP 100 소모
 
+	EParryResult Result;
+	if (WeaponTypeToSwitch == ParryAttacker->WeaknessType) // 성공 조건
+	{
+		Result = EParryResult::Success;
+		StatsComp->ModifySP(50.0f); // SP 50 회복
+		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
 
-    EParryResult Result;
-    if (WeaponTypeToSwitch == ParryAttacker->WeaknessType)
-    {
-        Result = EParryResult::Success;
-        UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
+		EquipWeapon(WeaponTypeToSwitch);
+		if (CurrentWeapon && CurrentWeapon->SwitchSkillActionID != NAME_None)
+		{
+			TArray<ACombatPawn*> CounterTarget;
+			CounterTarget.Add(ParryAttacker.Get());
+			OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
+			OwnerPlayer->PlayerConfirmSelectedAction(); // 분리된 함수 호출
+		}
+	}
+	else // 부분 성공 (가드)
+	{
+		Result = EParryResult::PartialSuccess;
+		UE_LOG(LogTemp, Log, TEXT("Parry Partial Success (Guard)."));
+		EquipWeapon(WeaponTypeToSwitch);
+	}
 
-        // 3. 패링 성공 시 SP 50 회복
-        StatsComp->ModifySP(50.0f);
-        UE_LOG(LogTemp, Log, TEXT("Parry success! Recovered 50 SP. Current SP: %f"), StatsComp->GetCurrentSP());
-
-        EquipWeapon(WeaponTypeToSwitch);
-
-        if (CurrentWeapon && CurrentWeapon->SwitchSkillActionID != NAME_None)
-        {
-            TArray<ACombatPawn*> CounterTarget;
-            CounterTarget.Add(ParryAttacker.Get());
-            // PlayerSelectAction은 두 번 호출하여 즉시 실행하도록 되어있습니다.
-            OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
-            OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
-        }
-    }
-    else
-    {
-        Result = EParryResult::PartialSuccess;
-        UE_LOG(LogTemp, Log, TEXT("Parry Partial Success (Guard)."));
-        EquipWeapon(WeaponTypeToSwitch);
-    }
-
-    bIsParryWindowOpen = false;
-
-    if (OwnerPlayer->GameEventComponent)
-    {
-        OwnerPlayer->GameEventComponent->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
-    }
-    return true;
+	bIsParryWindowOpen = false;
+	if (OwnerPlayer->GameEventComponent)
+	{
+		OwnerPlayer->GameEventComponent->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
+	}
+	return true;
 }

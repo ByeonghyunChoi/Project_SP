@@ -417,7 +417,7 @@ void ABattleManager::HandleCombatantTurnEnded(ACombatPawn* TurnPawn)
 
 void ABattleManager::HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
 {
-    CurrentTurnParryResult = ParryResult; // 결과 기록
+    CurrentTurnParryResult = ParryResult;
 
     switch (ParryResult)
     {
@@ -428,16 +428,17 @@ void ABattleManager::HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPaw
         UE_LOG(LogTemp, Log, TEXT("Parry Result: GUARD! (Partial Success)"));
         break;
     case EParryResult::None:
-        // 이 경우는 호출되지 않아야 정상입니다.
         UE_LOG(LogTemp, Error, TEXT("Parry Result received as None, this should not happen here."));
         break;
     }
 
-    if (ParryResult == EParryResult::Success) // 성공한 경우에만 즉시 턴 종료
+    if (ParryResult == EParryResult::Success) // 성공한 경우에만
     {
         if (ParriedAttacker && ParriedAttacker == CurrentTurnCharacter)
         {
-            EndTurn();
+            // [수정] 공격자(몬스터)에게 패링 당했음을 알려 애니메이션을 중단/교체하도록 명령합니다.
+            ParriedAttacker->K2_OnParried();
+            EndTurn(); // 턴을 즉시 종료합니다.
         }
     }
 }
