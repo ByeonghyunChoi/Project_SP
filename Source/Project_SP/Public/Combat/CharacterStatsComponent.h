@@ -34,7 +34,7 @@ public:
 
 	//현재 스위치 포인트
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fCurrentSP = 0.0f;
+	float fCurrentSP = 200.0f;
 
 	//최대 스위치 포인트
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
