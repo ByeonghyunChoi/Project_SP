@@ -13,6 +13,9 @@ struct FCharacterStatsData : public FTableRowBase
 	GENERATED_BODY()
 
 public:
+	// 레벨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	int32 iLevel = 1;
 	// 현재 체력
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float fCurrentHealth = 0.0f;

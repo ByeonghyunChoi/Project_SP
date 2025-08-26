@@ -36,6 +36,18 @@ protected:
 	UFUNCTION()
 	void HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState);
 
+	// 레벨업 처리를 위한 함수
+	void LevelUp();
+
+	// 최대 레벨
+	const int32 iMaxLevel = 50;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Stats")
+	int32 iCurrentEXP;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Stats")
+	int32 iNextLevelEXP;
+
 public:
 	// 모드 전환 함수
 	UFUNCTION(BlueprintCallable, Category = "Modes")
@@ -60,4 +72,8 @@ public:
 	//타겟 바꾸는 함수
 	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
 	void PlayerSwitchTarget(bool bSwitchToNext);
+
+	//경험치를 획득하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
+	void GainEXP(int32 GainedEXP);
 };

@@ -18,8 +18,10 @@ APlayerCharacter::APlayerCharacter()
     bUseControllerRotationYaw = false;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
-
     CurrentlySelectedTarget = nullptr;
+
+    iCurrentEXP = 0;
+    iNextLevelEXP = 100;
 }
 
 void APlayerCharacter::EnterFieldMode()
@@ -80,6 +82,21 @@ void APlayerCharacter::HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnSt
     }
 }
 
+void APlayerCharacter::LevelUp()
+{
+    iCurrentEXP -= iNextLevelEXP;
+
+    int32 NewLevel = StatsComponent->GetCharacterLevel() + 1;
+
+    // StatsComponent의 재계산 함수 호출
+    StatsComponent->RecalculateStatsForLevelUp(NewLevel);
+    // 체력은 최대로 회복
+    StatsComponent->SetCurrentHealth(StatsComponent->GetMaxHealth());
+
+    // 다음 레벨업에 필요한 경험치 재설정 (나중에 조정하실 수 있도록 그대로 둠)
+    iNextLevelEXP = FMath::RoundToInt(iNextLevelEXP * 1.5f);
+}
+
 // --- 플레이어 행동/타겟 선택 로직 ---
 void APlayerCharacter::PlayerSelectAction(FName ActionID)
 {
@@ -100,6 +117,9 @@ void APlayerCharacter::PlayerSelectAction(FName ActionID)
         UE_LOG(LogTemp, Error, TEXT("Action %s has no GameActionClass assigned!"), *ActionID.ToString());
         ActiveActionInstance = nullptr; // 유효하지 않으면 null로 초기화
     }
+
+    //타갯 선택 중 상태로 전환
+    InternalSetCombatPawnState(ECombatPawnState::SelectingTarget);
 }
 
 void APlayerCharacter::PlayerConfirmSelectedAction()
@@ -171,6 +191,19 @@ void APlayerCharacter::PlayerSwitchTarget(bool bSwitchToNext)
     {
         // 이 줄을 추가하여 UI에 신호를 보냅니다.
         GameEventComponent->BroadcastTargetChanged(CurrentlySelectedTarget);
+    }
+}
+
+void APlayerCharacter::GainEXP(int32 GainedEXP)
+{
+    if (GetStatsComponent()->GetCurrentHealth() <= 0 || StatsComponent->GetCharacterLevel() >= iMaxLevel) return;
+
+    iCurrentEXP += GainedEXP;
+    UE_LOG(LogTemp, Log, TEXT("%s gained %d EXP! (Current EXP: %d / %d)"), *GetName(), GainedEXP, iCurrentEXP, iNextLevelEXP);
+
+    while (iCurrentEXP >= iNextLevelEXP && StatsComponent->GetCharacterLevel() < iMaxLevel)
+    {
+        LevelUp();
     }
 }
 

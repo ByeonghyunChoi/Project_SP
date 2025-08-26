@@ -23,10 +23,13 @@ void UCharacterStatsComponent::InitializeStatsFromDataTable()
 		FCharacterStatsData* FoundStats = CharacterStatsDataTable->FindRow<FCharacterStatsData>(RowName, TEXT("Looking for Character Stats"));
 		if (FoundStats)
 		{
-			// 찾은 스탯 데이터를 CurrentStats에 복사합니다.
-			CurrentStats = *FoundStats;
+			// 찾은 스탯 데이터를 BaseStats와 CurrentStats 둘 다에 복사
+			BaseStats = *FoundStats; // 원본 스탯 저장
+			CurrentStats = *FoundStats; // 현재 스탯으로 사용
 			CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth;
-			UE_LOG(LogTemp, Error, TEXT("!!! STATS INITIALIZED for %s. Health set to MAX: %f"), *GetOwner()->GetName(), CurrentStats.fCurrentHealth);
+			iCurrentLevel = BaseStats.iLevel;
+
+			UE_LOG(LogTemp, Error, TEXT("!!! STATS INITIALIZED for %s. Level: %d, Health set to MAX: %f"), *GetOwner()->GetName(), iCurrentLevel, CurrentStats.fCurrentHealth);
 		}
 		else
 		{
@@ -37,6 +40,40 @@ void UCharacterStatsComponent::InitializeStatsFromDataTable()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("CharacterStatsDataTable is not set on %s."), *GetOwner()->GetName());
 	}
+}
+
+void UCharacterStatsComponent::RecalculateStatsForLevelUp(int32 NewLevel)
+{
+	const int32 MaxLevel = 50;
+	if (NewLevel <= 1 || NewLevel > MaxLevel) return;
+
+	// 체력 계산
+	float NewMaxHealth = BaseStats.fMaxHealth + (fMaxHealthCap - BaseStats.fMaxHealth) / (MaxLevel - 1) * (NewLevel - 1);
+	SetMaxHealth(FMath::RoundToFloat(NewMaxHealth));
+
+	// 공격력 계산
+	float NewAttackPower = BaseStats.fAttackPower + (fAttackPowerCap - BaseStats.fAttackPower) / (MaxLevel - 1) * (NewLevel - 1);
+	SetAttackPower(FMath::RoundToFloat(NewAttackPower));
+
+	// 방어력 계산
+	float NewDefensePower = BaseStats.fDefensePower + (fDefensePowerCap - BaseStats.fDefensePower) / (MaxLevel - 1) * (NewLevel - 1);
+	SetDefensePower(FMath::RoundToFloat(NewDefensePower));
+
+	// 속도 계산
+	float NewMovementSpeed = BaseStats.fMovementSpeed + (fMovementSpeedCap - BaseStats.fMovementSpeed) / (MaxLevel - 1) * (NewLevel - 1);
+	SetMovementSpeed(FMath::RoundToFloat(NewMovementSpeed));
+
+	// 치명타 확률 계산
+	float NewCriticalChance = BaseStats.fCriticalChance + (fCriticalChanceCap - BaseStats.fCriticalChance) / (MaxLevel - 1) * (NewLevel - 1);
+	SetCriticalChance(NewCriticalChance);
+
+	// 레벨 업데이트
+	SetCharacterLevel(NewLevel);
+}
+
+int32 UCharacterStatsComponent::GetCharacterLevel() const
+{
+	return iCurrentLevel;
 }
 
 float UCharacterStatsComponent::GetCurrentHealth() const
@@ -122,6 +159,11 @@ float UCharacterStatsComponent::GetMaxSP() const
 float UCharacterStatsComponent::GetStatusEffectMultiplier() const
 {
 	return CurrentStats.fStatusEffectMultiplier;
+}
+
+void UCharacterStatsComponent::SetCharacterLevel(const int32& InLevel)
+{
+	iCurrentLevel = InLevel;
 }
 
 void UCharacterStatsComponent::SetCurrentHealth(const float& InCurrentHealth)
