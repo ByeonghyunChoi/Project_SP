@@ -35,9 +35,9 @@ struct FArtifactData
 	// �ʱⰪ
     FArtifactData()
         : ID(NAME_None)
-        , Type(EArtifactType::HPUp)
-        , Rarity(ERarity::Normal)
-        , SetType(ESetType::Crystal)
+        , Type()
+        , Rarity()
+        , SetType()
         , StatBonus()
     {
     }
