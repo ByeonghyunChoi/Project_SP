@@ -111,6 +111,11 @@ FArtifactData UArtifactGeneratorComponent::GenerateRandomArtifact(EArtifactType 
         NewArtifact.SpecialStat = Special;
         NewArtifact.SpecialValue = SpecialValue;
 	}
+    else
+    {
+        NewArtifact.SpecialStat = ESpecialStatType::Default;
+        NewArtifact.SpecialValue = 0.0f;
+    }
     NewArtifact.ID = FName(*FString::Printf(TEXT("Artifact_%d"), FMath::Rand()));
 
     NewArtifact.StatBonus = GetBaseStatsFromType(Type, Rarity);
@@ -162,7 +167,7 @@ ERarity UArtifactGeneratorComponent::GetRandomRarity(const TMap<ERarity, float>&
 
 ESpecialStatType UArtifactGeneratorComponent::GetRandomSpecialStat() const
 {
-    int32 Index = FMath::RandRange(0, SpecialStatPool.Num() - 1);
+    int32 Index = FMath::RandRange(1, SpecialStatPool.Num() - 1);
     return SpecialStatPool[Index];
 }
 
@@ -175,16 +180,84 @@ float UArtifactGeneratorComponent::GetRandomSpecialValue(ERarity Rarity) const
 
 FStatBonus UArtifactGeneratorComponent::GetBaseStatsFromType(EArtifactType Type, ERarity Rarity) const
 {
-    float Scale = 10.f + static_cast<int>(Rarity) * 5.f;
     FStatBonus Bonus;
 
     switch (Type)
     {
-    case EArtifactType::HPUp: Bonus.HP = Scale * 10.f; break;
-    case EArtifactType::ATKUp: Bonus.Attack = Scale; break;
-    case EArtifactType::DEFUp: Bonus.Defense = Scale; break;
-    case EArtifactType::SPDUp: Bonus.Speed = Scale * 0.1f; break;
-    default: break;
+    case EArtifactType::HPUp:
+    {
+        float Min = 0.f, Max = 0.f;
+        switch (Rarity)
+        {
+        case ERarity::Normal:    Min = 0.05f; Max = 0.10f; break; // 5% ~ 10%
+        case ERarity::Rare:      Min = 0.10f; Max = 0.15f; break; // 10% ~ 15%
+        case ERarity::Unique:    Min = 0.15f; Max = 0.20f; break; // 15% ~ 20%
+        case ERarity::Legendary: Min = 0.20f; Max = 0.25f; break; // 20% ~ 25%
+        case ERarity::Mystic:    Min = 0.25f; Max = 0.30f; break; // 25% ~ 30%
+        }
+		float Step = 0.01f; // 1% 단위로 증가
+		int32 MinInt = FMath::RoundToInt(Min / Step);
+		int32 MaxInt = FMath::RoundToInt(Max / Step);
+
+        Bonus.HP = FMath::RandRange(MinInt, MaxInt);
+        break;
+    }
+    case EArtifactType::ATKUp:
+    {
+        float Min = 0.f, Max = 0.f;
+        switch (Rarity)
+        {
+        case ERarity::Normal:    Min = 0.02f; Max = 0.05f; break;
+        case ERarity::Rare:      Min = 0.05f; Max = 0.08f; break;
+        case ERarity::Unique:    Min = 0.08f; Max = 0.12f; break;
+        case ERarity::Legendary: Min = 0.12f; Max = 0.18f; break;
+        case ERarity::Mystic:    Min = 0.18f; Max = 0.25f; break;
+        }
+        float Step = 0.01f; // 1% 단위로 증가
+        int32 MinInt = FMath::RoundToInt(Min / Step);
+        int32 MaxInt = FMath::RoundToInt(Max / Step);
+
+        Bonus.HP = FMath::RandRange(MinInt, MaxInt);
+        break;
+    }
+    case EArtifactType::DEFUp:
+    {
+        float Min = 0.f, Max = 0.f;
+        switch (Rarity)
+        {
+        case ERarity::Normal:    Min = 0.02f; Max = 0.05f; break;
+        case ERarity::Rare:      Min = 0.05f; Max = 0.08f; break;
+        case ERarity::Unique:    Min = 0.08f; Max = 0.12f; break;
+        case ERarity::Legendary: Min = 0.12f; Max = 0.18f; break;
+        case ERarity::Mystic:    Min = 0.18f; Max = 0.25f; break;
+        }
+        float Step = 0.01f; // 1% 단위로 증가
+        int32 MinInt = FMath::RoundToInt(Min / Step);
+        int32 MaxInt = FMath::RoundToInt(Max / Step);
+
+        Bonus.HP = FMath::RandRange(MinInt, MaxInt);
+        break;
+    }
+    case EArtifactType::SPDUp:
+    {
+        float Min = 0.f, Max = 0.f;
+        switch (Rarity)
+        {
+        case ERarity::Normal:    Min = 0.01f; Max = 0.02f; break;
+        case ERarity::Rare:      Min = 0.02f; Max = 0.03f; break;
+        case ERarity::Unique:    Min = 0.03f; Max = 0.04f; break;
+        case ERarity::Legendary: Min = 0.04f; Max = 0.05f; break;
+        case ERarity::Mystic:    Min = 0.05f; Max = 0.06f; break;
+        }
+        float Step = 0.01f; // 1% 단위로 증가
+        int32 MinInt = FMath::RoundToInt(Min / Step);
+        int32 MaxInt = FMath::RoundToInt(Max / Step);
+
+        Bonus.HP = FMath::RandRange(MinInt, MaxInt);
+        break;
+    }
+    default:
+        break;
     }
 
     return Bonus;
