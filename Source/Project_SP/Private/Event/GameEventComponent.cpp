@@ -14,6 +14,6 @@ void UGameEventComponent::BroadcastTurnEnded(ACombatPawn* TurnPawn) { OnTurnEnde
 void UGameEventComponent::BroadcastActionPerformed(ACombatPawn* PerformingPawn, FActionData PerformedActionData) { OnActionPerformed.Broadcast(PerformingPawn, PerformedActionData); }
 void UGameEventComponent::BroadcastActionExecutionFinished(ACombatPawn* FinishedPawn) { OnActionExecutionFinished.Broadcast(FinishedPawn); }
 void UGameEventComponent::BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState) { OnCombatPawnStateChanged.Broadcast(Pawn, NewState); }
-void UGameEventComponent::BroadcastTargetChanged(ACombatPawn* NewTarget) { OnTargetChanged.Broadcast(NewTarget); }
+void UGameEventComponent::BroadcastTargetListChanged(const TArray<ACombatPawn*>& NewTargets){ OnTargetListChanged.Broadcast(NewTargets); }
 void UGameEventComponent::BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen) { OnParryWindowChanged.Broadcast(Attacker, AttackType, bIsWindowOpen); }
 void UGameEventComponent::BroadcastParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult) { OnParryAttempted.Broadcast(ParriedAttacker, ParryingPlayer, ParryResult); }

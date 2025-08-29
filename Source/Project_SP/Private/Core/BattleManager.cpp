@@ -87,7 +87,7 @@ void ABattleManager::StartBattle()
     {
         TArray<FMonsterData> MonstersToSpawn = MyGameInstance->PendingMonsterGroup->GetAllMonsterDataInGroup();
         FVector SpawnLocationBase = GetActorLocation() + FVector(500.0f, 0.0f, 0.0f); // 몬스터 시작 스폰 위치
-        float MonsterSpacing = 150.0f; // 몬스터 간 간격
+        float MonsterSpacing = 200.0f; // 몬스터 간 간격
 
         for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
         {

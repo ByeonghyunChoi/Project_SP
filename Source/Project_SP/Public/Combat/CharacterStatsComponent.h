@@ -20,8 +20,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	// 데이터 테이블에서 로드한 원본 스탯 
-	UPROPERTY()
-	FCharacterStatsData BaseStats;
+	
 
 	// 스탯 최대치(수정 가능)
 	UPROPERTY(EditDefaultsOnly, Category = "Stats|Growth")
@@ -40,6 +39,10 @@ protected:
 	float fCriticalChanceCap = 0.25f;
 
 public:
+	// 데이터 테이블에서 로드한 원본 스탯 
+	UPROPERTY()
+	FCharacterStatsData BaseStats;
+
 	//스탯 데이터를 참조하기 위한 변수, 캐릭터가 가질 스탯 데이터 테이블과 해당 데이터 테이블의 RowName을 지정
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|DataTable")
 	UDataTable* CharacterStatsDataTable;

@@ -64,10 +64,9 @@ public:
 	//실제 스킬 사용 로직
 	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
 	void PlayerConfirmSelectedAction();
-
-	// 현재 선택된 타겟 (UI에서 표시할 수 있도록)
+	//현재 타겟 목록
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Player|Combat")
-	ACombatPawn* CurrentlySelectedTarget;
+	TArray<ACombatPawn*> SelectedTargetList;
 
 	//타겟 바꾸는 함수
 	UFUNCTION(BlueprintCallable, Category = "Player|Actions")

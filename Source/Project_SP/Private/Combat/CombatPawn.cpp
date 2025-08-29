@@ -114,11 +114,25 @@ void ACombatPawn::SelectAction(FName ActionID)
 void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPawn*>& ConfirmedTargets)
 {
     UE_LOG(LogTemp, Log, TEXT("Execute 실행됨"));
+
+    // <<<--- 추가된 디버그 로그 ---
+    // 유효성 검사 직전의 모든 변수 상태를 확인합니다.
+    FString PtrString = (ActiveActionInstance != nullptr) ? TEXT("VALID (유효함)") : TEXT("NULL (비어있음)");
+    FString StateString = UEnum::GetValueAsString(CurrentPawnState);
+
+    UE_LOG(LogTemp, Warning, TEXT("--- 유효성 검사 시작 ---"));
+    UE_LOG(LogTemp, Warning, TEXT("Parameter ActionID: %s"), *ActionID.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("Member SelectedActionID: %s"), *SelectedActionID.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("ActiveActionInstance is: %s"), *PtrString);
+    UE_LOG(LogTemp, Warning, TEXT("CurrentPawnState is: %s"), *StateString);
+    UE_LOG(LogTemp, Warning, TEXT("--------------------------"));
+    // --- 디버그 로그 끝 ---
+
     // 유효성 체크 및 상태 확인
     if (SelectedActionID != ActionID || !ActiveActionInstance || CurrentPawnState != ECombatPawnState::SelectingTarget)
     {
-        UE_LOG(LogTemp, Log, TEXT("유효성 체크 실패함"));
-        // 비정상적인 호출이므로 BattleManager에게 턴을 넘겨 다음 턴으로 넘어가게 함
+        UE_LOG(LogTemp, Error, TEXT("!!!!!!!! 유효성 체크 실패함 !!!!!!!!")); // <<<--- Error 로그로 변경하여 눈에 띄게 함
+
         if (GameEventComponent) GameEventComponent->BroadcastActionExecutionFinished(this);
         InternalSetCombatPawnState(ECombatPawnState::Idle); // 상태 초기화
         SelectedActionID = NAME_None;
@@ -126,40 +140,30 @@ void ACombatPawn::ExecuteConfirmedAction(FName ActionID, const TArray<ACombatPaw
         return;
     }
 
-    FActionData ActionData = GetActionDataByID(ActionID); // 최신 ActionData 가져오기
+    FActionData ActionData = GetActionDataByID(ActionID);
 
-    InternalSetCombatPawnState(ECombatPawnState::PerformingAction); // 행동 수행 상태로 전환
+    InternalSetCombatPawnState(ECombatPawnState::PerformingAction);
 
-    // UGameAction 인스턴스의 ExecuteAction 호출
     if (ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass())))
     {
-        // UGameAction의 ExecuteAction 내에서 ABattleManager를 찾아 모든 전투원을 가져오도록 하였으므로, ABattleManager는 인자로 전달
-        // ConfirmedTargets는 UGameAction::ExecuteAction에서 최종적으로 사용될 타겟 리스트
         ActiveActionInstance->ExecuteAction(this, ActionData, BattleManager, ConfirmedTargets.Num() > 0 ? ConfirmedTargets[0] : nullptr, ConfirmedTargets);
     }
     else
     {
         UE_LOG(LogTemp, Error, TEXT("ABattleManager not found for executing action %s. Action cancelled."), *ActionID.ToString());
-        if (GameEventComponent) GameEventComponent->BroadcastActionExecutionFinished(this); // 행동을 실행할 수 없으므로 즉시 턴 종료 신호
-        InternalSetCombatPawnState(ECombatPawnState::Idle); // 상태 초기화
+        if (GameEventComponent) GameEventComponent->BroadcastActionExecutionFinished(this);
+        InternalSetCombatPawnState(ECombatPawnState::Idle);
         SelectedActionID = NAME_None;
         ActiveActionInstance = nullptr;
         return;
     }
 
-    // 4. 이벤트 브로드캐스트 (ActionData는 ActionInstance에서 사용하는 FActionData와 동일)
     if (GameEventComponent)
     {
         GameEventComponent->BroadcastActionPerformed(this, ActionData);
     }
 
-    // 5. 시각적/청각적 연출을 블루프린트로 위임
     K2_ExecuteActionVisuals(ActionData, ConfirmedTargets.Num() > 0 ? ConfirmedTargets[0] : nullptr);
-
-    // TODO: 연출이 끝나면 GameEventComponent->BroadcastActionExecutionFinished(this);를 호출해야 함.
-    // 이는 K2_ExecuteActionVisuals의 블루프린트 구현 내부(애니메이션 끝나는 지점)에서 처리되어야 합니다.
-    // ABattleManager가 ActionExecutionFinished 이벤트를 받아 턴을 종료할 것이므로, 여기서 ACombatPawn의 상태를 즉시 Idle로 바꾸지 않습니다.
-    // ABattleManager가 턴을 종료하고 다음 턴으로 넘어가면 다시 Idle 상태로 돌아갈 것입니다.
 }
 
 

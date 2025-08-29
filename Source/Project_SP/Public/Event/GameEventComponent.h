@@ -18,8 +18,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnStarted, class ACombatPawn*, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnEnded, class ACombatPawn*, TurnPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPerformed, class ACombatPawn*, PerformingPawn, FActionData, PerformedActionData);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionExecutionFinished, class ACombatPawn*, FinishedPawn);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCombatPawnStateChanged, class ACombatPawn*, Pawn, ECombatPawnState, NewState); // 새로운 델리게이트 추가
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChanged, class ACombatPawn*, NewTarget);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCombatPawnStateChanged, class ACombatPawn*, Pawn, ECombatPawnState, NewState); 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetListChanged, const TArray<ACombatPawn*>&, NewTargets);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryWindowChanged, ACombatPawn*, Attacker, EDamageType, AttackType, bool, bIsWindowOpen);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryAttempted, ACombatPawn*, ParriedAttacker, ACombatPawn*, ParryingPlayer, EParryResult, ParryResult);
 
@@ -51,7 +51,7 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnCombatPawnStateChanged OnCombatPawnStateChanged;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
-    FOnTargetChanged OnTargetChanged;
+    FOnTargetListChanged OnTargetListChanged;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnParryWindowChanged OnParryWindowChanged;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
@@ -73,7 +73,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
-    void BroadcastTargetChanged(ACombatPawn* NewTarget);
+    void BroadcastTargetListChanged(const TArray<ACombatPawn*>& NewTargets);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
