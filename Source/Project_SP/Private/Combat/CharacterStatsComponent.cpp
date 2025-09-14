@@ -146,12 +146,12 @@ float UCharacterStatsComponent::GetArmorPenetration() const
 	return CurrentStats.fArmorPenetration;
 }
 
-float UCharacterStatsComponent::GetCurrentSP() const
+int32 UCharacterStatsComponent::GetCurrentSP() const
 {
 	return fCurrentSP;
 }
 
-float UCharacterStatsComponent::GetMaxSP() const
+int32 UCharacterStatsComponent::GetMaxSP() const
 {
 	return fMaxSP;
 }
@@ -237,7 +237,7 @@ void UCharacterStatsComponent::SetArmorPenetration(const float& InArmorPenetrati
 	CurrentStats.fArmorPenetration = InArmorPenetration;
 }
 
-void UCharacterStatsComponent::SetCurrentSP(const float& InSP)
+void UCharacterStatsComponent::SetCurrentSP(const int32& InSP)
 {
 	fCurrentSP = InSP;
 }
@@ -247,9 +247,9 @@ void UCharacterStatsComponent::SetStatusEffectMultiplier(const float& InStatusEf
 	CurrentStats.fStatusEffectMultiplier = InStatusEffectMultiplier;
 }
 
-void UCharacterStatsComponent::ModifySP(const float& Delta)
+void UCharacterStatsComponent::ModifySP(const int32& Delta)
 {
-	fCurrentSP = FMath::Clamp(fCurrentSP + Delta, 0.0f, fMaxSP);
+	fCurrentSP = FMath::Clamp(fCurrentSP + Delta, 0, fMaxSP);
 }
 
 void UCharacterStatsComponent::CopyFrom(UCharacterStatsComponent* OtherStats)

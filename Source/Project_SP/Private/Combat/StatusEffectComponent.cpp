@@ -27,19 +27,24 @@ void UStatusEffectComponent::ApplyStatusEffect(FName StatusEffectID, ACombatPawn
     if (!EffectData) return;
 
     // 조합 로직
-    if (EffectData->CombinationTargetID != NAME_None)
+    if (EffectData->CombinationRules.Num() > 0)
     {
-        int32 FoundIndex = ActiveStatusEffects.IndexOfByPredicate([&](const FActiveStatusEffect& Effect) {
-            return Effect.EffectID == EffectData->CombinationTargetID;
-            });
-
-        if (FoundIndex != INDEX_NONE)
+        for (const TPair<FName, FName>& Rule : EffectData->CombinationRules)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Combination Occured! Removing %s and applying %s"), *EffectData->CombinationTargetID.ToString(), *EffectData->CombinationResultID.ToString());
-            ActiveStatusEffects.RemoveAt(FoundIndex);
-            // 재귀 호출로 조합된 새로운 효과를 적용
-            ApplyStatusEffect(EffectData->CombinationResultID, Instigator);
-            return;
+            const FName& TargetID = Rule.Key;
+            const FName& ResultID = Rule.Value;
+
+            int32 FoundIndex = ActiveStatusEffects.IndexOfByPredicate([&](const FActiveStatusEffect& Effect) {
+                return Effect.EffectID == TargetID;
+                });
+
+            if (FoundIndex != INDEX_NONE)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Combination Occured! Removing %s and applying %s"), *TargetID.ToString(), *ResultID.ToString());
+                ActiveStatusEffects.RemoveAt(FoundIndex);
+                ApplyStatusEffect(ResultID, Instigator);
+                return;
+            }
         }
     }
 

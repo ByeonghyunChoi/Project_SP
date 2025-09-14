@@ -59,13 +59,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	FCharacterStatsData CurrentStats;
 
-	//현재 스위치 포인트
+	//현재 스킬 포인트
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fCurrentSP = 200.0f;
+	int32 fCurrentSP = 8;
 
 	//최대 스위치 포인트
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float fMaxSP = 200.0f;
+	int32 fMaxSP = 8;
 
 	//스탯 초기화 함수
 	UFUNCTION(BlueprintCallable, Category = "Stats")
@@ -107,9 +107,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetArmorPenetration() const;
 	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetCurrentSP() const;
+	int32 GetCurrentSP() const;
 	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetMaxSP() const;
+	int32 GetMaxSP() const;
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	float GetStatusEffectMultiplier() const;
 
@@ -145,11 +145,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetArmorPenetration(const float& InArmorPenetration);
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetCurrentSP(const float& InSP);
+	void SetCurrentSP(const int32& InSP);
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void SetStatusEffectMultiplier(const float& InStatusEffectMultiplier);
 	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void ModifySP(const float& Delta);
+	void ModifySP(const int32& Delta);
 	//데이터 복사 함수
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 	void CopyFrom(UCharacterStatsComponent* OtherStats);

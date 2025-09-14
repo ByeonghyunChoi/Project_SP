@@ -62,13 +62,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EStatToModify StatToModify;
 
-    // 조합될 대상 상태이상의 ID 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FName CombinationTargetID;
-
-    // 조합 성공 시 생성될 상태이상의 ID (예: 화상의 경우 '열풍')
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FName CombinationResultID;
+    //상태 이상 조합 규칙
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combination")
+    TMap<FName, FName> CombinationRules;
 
     // 여러 개의 세부 효과를 담을 배열
     UPROPERTY(EditAnywhere, BlueprintReadWrite)

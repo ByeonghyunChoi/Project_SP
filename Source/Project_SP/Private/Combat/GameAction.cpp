@@ -22,6 +22,16 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
         }
     }
 
+    if (ActionData.ActionType == EActionType::Attack)
+    {
+        if (Instigator && Instigator->GetStatsComponent())
+        {
+            // ModifySP 함수는 최대 SP를 넘지 않도록 자동으로 값을 조절해줍니다.
+            Instigator->GetStatsComponent()->ModifySP(1.0f);
+        }
+    }
+
+
     TArray<ACombatPawn*> FinalTargets;
 
     if (BattleManagerRef) // BattleManagerRef를 통해 모든 전투원 목록에 접근

@@ -64,19 +64,18 @@ bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
 
 	UCharacterStatsComponent* StatsComp = OwnerPlayer->GetStatsComponent();
-	if (!StatsComp || StatsComp->GetCurrentSP() < 100.0f)
+	if (!StatsComp || StatsComp->GetCurrentSP() < 1)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SP 부족. 필요: 100"));
+		UE_LOG(LogTemp, Warning, TEXT("SP 부족. 필요: 1"));
 		return false;
 	}
 
-	StatsComp->ModifySP(-100.0f); // SP 100 소모
+	StatsComp->ModifySP(-1); // SP 100 소모
 
 	EParryResult Result;
 	if (WeaponTypeToSwitch == ParryAttacker->WeaknessType) // 성공 조건
 	{
 		Result = EParryResult::Success;
-		StatsComp->ModifySP(50.0f); // SP 50 회복
 		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
 
 		EquipWeapon(WeaponTypeToSwitch);

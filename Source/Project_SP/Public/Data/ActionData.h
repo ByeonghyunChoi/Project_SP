@@ -38,7 +38,7 @@ UENUM(BlueprintType)
 enum class ECostType : uint8
 {
     None UMETA(DisplayName = "없음"),
-    SP UMETA(DisplayName = "스위치 포인트")
+    SP UMETA(DisplayName = "스킬 포인트")
 };
 
 USTRUCT(BlueprintType)
@@ -68,7 +68,7 @@ public:
 
     //자원 사용량
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
-    float CostAmount = 0.0f;
+    int32 CostAmount = 0;
 
     //스킬 계수
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
