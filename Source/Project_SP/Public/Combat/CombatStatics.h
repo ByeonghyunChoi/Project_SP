@@ -5,7 +5,7 @@
 #include "Data/StatusEffectData.h" 
 #include "CombatStatics.generated.h"
 
-class UCharacterStatsComponent;
+class UAttributesComponent;
 class ACombatPawn;
 /**
  *
@@ -18,8 +18,8 @@ class PROJECT_SP_API UCombatStatics : public UBlueprintFunctionLibrary
 public:
 	UFUNCTION(BlueprintPure, Category = "Combat Statics")
 	static float CalculateDamage(
-		const UCharacterStatsComponent* AttackerStats,
-		const UCharacterStatsComponent* TargetStats,
+		const UAttributesComponent* AttackerStats,
+		const UAttributesComponent* TargetStats,
 		float SkillCoefficient
 	);
 

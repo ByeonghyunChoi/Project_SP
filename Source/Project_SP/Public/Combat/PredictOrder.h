@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "CombatPawn.h"
+#include "Combat/AttributesComponent.h"
+#include "Combat/BattleTurnComponent.h"
 #include "Core/BattleManager.h"
 #include "PredictOrder.generated.h"
 
@@ -35,15 +37,15 @@ struct FSimulatedCombatantData
 	{
 		if (InCombatant)
 		{
-			UCharacterStatsComponent* Stats = InCombatant->GetStatsComponent();
+			UAttributesComponent* Stats = InCombatant->GetAttributesComponent();
 			UBattleTurnComponent* TurnComp = InCombatant->FindComponentByClass<UBattleTurnComponent>();
 
 			if (Stats && TurnComp)
 			{
 				SimulatedActionValue = TurnComp->GetActionValue();
-				OriginalSpeed = Stats->GetMovementSpeed();
+				OriginalSpeed = Stats->GetCurrentStats().fMovementSpeed;
 				OriginalFaction = InCombatant->GetFaction();
-				bIsAlive = Stats->GetCurrentHealth() > 0;
+				bIsAlive = Stats->GetCurrentStats().fCurrentHealth > 0;
 			}
 		}
 	}

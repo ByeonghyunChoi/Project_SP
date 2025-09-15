@@ -6,7 +6,7 @@
 #include "StatusEffectComponent.generated.h"
 
 class ACombatPawn;
-class UCharacterStatsComponent;
+class UAttributesComponent;
 
 // 활성화된 상태 이상 정보를 담을 구조체
 USTRUCT(BlueprintType)
@@ -47,7 +47,7 @@ protected:
 	ACombatPawn* OwnerPawn;
 
 	UPROPERTY()
-	UCharacterStatsComponent* OwnerStatsComp;
+	UAttributesComponent* OwnerAttributesComp;
 
 	// 스탯 변경 효과를 모두 재계산하고 적용하는 함수
 	void RecalculateStatModifiers();

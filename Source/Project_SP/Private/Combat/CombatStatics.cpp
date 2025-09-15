@@ -1,8 +1,8 @@
 #include "Combat/CombatStatics.h"
-#include "Combat/CharacterStatsComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "Combat/CombatPawn.h"
 
-float UCombatStatics::CalculateDamage(const UCharacterStatsComponent* AttackerStats, const UCharacterStatsComponent* TargetStats, float SkillCoefficient)
+float UCombatStatics::CalculateDamage(const UAttributesComponent* AttackerStats, const UAttributesComponent* TargetStats, float SkillCoefficient)
 {
     if (!AttackerStats || !TargetStats)
     {
@@ -10,7 +10,7 @@ float UCombatStatics::CalculateDamage(const UCharacterStatsComponent* AttackerSt
     }
 
     float LevelCoefficient = 1.0f;
-    int32 LevelDifference = FMath::Abs(AttackerStats->GetCharacterLevel() - TargetStats->GetCharacterLevel());
+    int32 LevelDifference = FMath::Abs(AttackerStats->GetLevel() - TargetStats->GetLevel());
 
     if (LevelDifference >= 6 && LevelDifference <= 10)
     {
@@ -21,17 +21,17 @@ float UCombatStatics::CalculateDamage(const UCharacterStatsComponent* AttackerSt
         LevelCoefficient = 0.5f;
     }
 
-    float BaseDamage = AttackerStats->GetAttackPower() * SkillCoefficient;
-    float DamageMultiCoef = (1 + AttackerStats->GetDamageIncreaseMultiplier() - AttackerStats->GetDamageReductionMultiplier());
-    float DefendCoef = 1 - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500)) + AttackerStats->GetArmorPenetration();
-    float HitChance = 1 - (TargetStats->GetEvasion() - AttackerStats->GetHitProbability());
+    float BaseDamage = AttackerStats->GetCurrentStats().fAttackPower * SkillCoefficient;
+    float DamageMultiCoef = (1 + AttackerStats->GetCurrentStats().fDamageIncreaseMultiplier - AttackerStats->GetCurrentStats().fDamageReductionMultiplier);
+    float DefendCoef = 1 - (TargetStats->GetCurrentStats().fDefensePower / (TargetStats->GetCurrentStats().fDefensePower + 500)) + AttackerStats->GetCurrentStats().fArmorPenetration;
+    float HitChance = 1 - (TargetStats->GetCurrentStats().fEvasion - AttackerStats->GetCurrentStats().fHitProbability);
     if (FMath::FRand() > HitChance)
     {
         BaseDamage *= 0.5;
     }
-    if (FMath::FRand() < AttackerStats->GetCriticalChance())
+    if (FMath::FRand() < AttackerStats->GetCurrentStats().fCriticalChance)
     {
-        BaseDamage *= AttackerStats->GetCriticalDamageMultiplier();
+        BaseDamage *= AttackerStats->GetCurrentStats().fCriticalDamageMultiplier;
     }
     // 최종 데미지
     float FinalDamage = BaseDamage * DamageMultiCoef * DefendCoef * LevelCoefficient;
@@ -42,16 +42,16 @@ float UCombatStatics::CalculateDamage(const UCharacterStatsComponent* AttackerSt
 
 float UCombatStatics::CalculateStatusEffectDamage(const ACombatPawn* Instigator, const ACombatPawn* Target, const FStatusSubEffect& SubEffect)
 {
-    if (!Instigator || !Target || !Instigator->GetStatsComponent() || !Target->GetStatsComponent())
+    if (!Instigator || !Target || !Instigator->GetAttributesComponent() || !Target->GetAttributesComponent())
     {
         return 0.0f;
     }
 
-    const UCharacterStatsComponent* InstigatorStats = Instigator->GetStatsComponent();
-    const UCharacterStatsComponent* TargetStats = Target->GetStatsComponent();
+    const UAttributesComponent* InstigatorStats = Instigator->GetAttributesComponent();
+    const UAttributesComponent* TargetStats = Target->GetAttributesComponent();
 
     float LevelCoefficient = 1.0f;
-    int32 LevelDifference = FMath::Abs(InstigatorStats->GetCharacterLevel() - TargetStats->GetCharacterLevel());
+    int32 LevelDifference = FMath::Abs(InstigatorStats->GetLevel() - TargetStats->GetLevel());
 
     if (LevelDifference >= 6 && LevelDifference <= 10)
     {
@@ -63,16 +63,16 @@ float UCombatStatics::CalculateStatusEffectDamage(const ACombatPawn* Instigator,
     }
 
     // 1. 기본 데미지 계산
-    float BaseDamage = InstigatorStats->GetAttackPower() * SubEffect.EffectMagnitude;
+    float BaseDamage = InstigatorStats->GetCurrentStats().fAttackPower * SubEffect.EffectMagnitude;
 
     // 2. 증감 계수 계산
-    float IncreaseDamage = (1.0f + InstigatorStats->GetDamageIncreaseMultiplier() - TargetStats->GetDamageReductionMultiplier());
+    float IncreaseDamage = (1.0f + InstigatorStats->GetCurrentStats().fDamageIncreaseMultiplier - TargetStats->GetCurrentStats().fDamageReductionMultiplier);
 
     // 3. 방어 계수 계산
-    float defenceCoefficient = 1.0f - (TargetStats->GetDefensePower() / (TargetStats->GetDefensePower() + 500.0f)) + InstigatorStats->GetArmorPenetration();
+    float defenceCoefficient = 1.0f - (TargetStats->GetCurrentStats().fDefensePower / (TargetStats->GetCurrentStats().fDefensePower + 500.0f)) + InstigatorStats->GetCurrentStats().fArmorPenetration;
 
     // 4. 모든 계수를 곱하여 최종 데미지 계산 (상태 이상 효과 배율 포함)
-    float FinalDamage = BaseDamage * IncreaseDamage * defenceCoefficient * LevelCoefficient * InstigatorStats->GetStatusEffectMultiplier();
+    float FinalDamage = BaseDamage * IncreaseDamage * defenceCoefficient * LevelCoefficient * InstigatorStats->GetCurrentStats().fStatusEffectMultiplier;
 
     return FMath::RoundToFloat(FinalDamage);
 }

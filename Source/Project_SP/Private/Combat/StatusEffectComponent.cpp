@@ -1,6 +1,6 @@
 ﻿#include "Combat/StatusEffectComponent.h"
 #include "Combat/CombatPawn.h"
-#include "Combat/CharacterStatsComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatStatics.h"
 
@@ -15,7 +15,7 @@ void UStatusEffectComponent::BeginPlay()
     OwnerPawn = Cast<ACombatPawn>(GetOwner());
     if (OwnerPawn)
     {
-        OwnerStatsComp = OwnerPawn->GetStatsComponent();
+        OwnerAttributesComp = OwnerPawn->GetAttributesComponent();
     }
 }
 
@@ -119,19 +119,7 @@ void UStatusEffectComponent::OnTurnStarted()
 
 void UStatusEffectComponent::RecalculateStatModifiers()
 {
-    if (!OwnerStatsComp) return;
-
-    // 현재 체력과 SP를 미리 변수에 저장
-    const float HealthBeforeRecalc = OwnerStatsComp->GetCurrentHealth();
-
-    // 데이터 테이블에서 원본 스탯을 다시 불러와 초기화
-    OwnerStatsComp->CurrentStats = OwnerStatsComp->BaseStats;
-
-    // 현재 레벨에 맞춰 스탯을 재계산
-    OwnerStatsComp->RecalculateStatsForLevelUp(OwnerStatsComp->GetCharacterLevel());
-
-    //미리 저장해 둔 체력 다시 설정
-    OwnerStatsComp->SetCurrentHealth(HealthBeforeRecalc);
+    if (!OwnerAttributesComp) return;
 
     // 2. 현재 걸려있는 모든 효과를 순회하며 스탯 변경
     for (const FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
@@ -145,8 +133,7 @@ void UStatusEffectComponent::RecalculateStatModifiers()
                 {
                     if (SubEffect.StatToModify == EStatToModify::DefensePower)
                     {
-                        float OriginalDefense = OwnerStatsComp->GetDefensePower();
-                        OwnerStatsComp->SetDefensePower(OriginalDefense * (1.0f + SubEffect.EffectMagnitude)); // Magnitude는 -0.25와 같은 음수값
+                        float OriginalDefense = OwnerAttributesComp->GetCurrentStats().fDefensePower;
                     }
                 }
             }

@@ -3,7 +3,7 @@
 #include "Equipment/Weapon.h"
 #include "Combat/PlayerCharacter.h"
 #include "Event/GameEventComponent.h"
-#include "Combat/CharacterStatsComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties
@@ -63,17 +63,17 @@ bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 {
 	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
 
-	UCharacterStatsComponent* StatsComp = OwnerPlayer->GetStatsComponent();
-	if (!StatsComp || StatsComp->GetCurrentSP() < 1)
+	UAttributesComponent* StatsComp = OwnerPlayer->GetAttributesComponent();
+	if (!StatsComp || StatsComp->GetSkillPoint() < 1)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SP 부족. 필요: 1"));
 		return false;
 	}
 
-	StatsComp->ModifySP(-1); // SP 100 소모
+	StatsComp->ApplySPChange(-1); // SP 100 소모
 
 	EParryResult Result;
-	if (WeaponTypeToSwitch == ParryAttacker->WeaknessType) // 성공 조건
+	if (true) // 성공 조건
 	{
 		Result = EParryResult::Success;
 		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
@@ -83,8 +83,6 @@ bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 		{
 			TArray<ACombatPawn*> CounterTarget;
 			CounterTarget.Add(ParryAttacker.Get());
-			OwnerPlayer->PlayerSelectAction(CurrentWeapon->SwitchSkillActionID);
-			OwnerPlayer->PlayerConfirmSelectedAction(); // 분리된 함수 호출
 		}
 	}
 	else // 부분 성공 (가드)
@@ -95,9 +93,9 @@ bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
 	}
 
 	bIsParryWindowOpen = false;
-	if (OwnerPlayer->GameEventComponent)
+	if (OwnerPlayer->GetGameEventComponent())
 	{
-		OwnerPlayer->GameEventComponent->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
+		OwnerPlayer->GetGameEventComponent()->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
 	}
 	return true;
 }

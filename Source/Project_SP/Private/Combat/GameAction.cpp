@@ -1,6 +1,6 @@
 #include "Combat/GameAction.h"
 #include "Combat/CombatPawn.h"
-#include "Combat/CharacterStatsComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "Combat/StatusEffectComponent.h" 
 #include "Core/BattleManager.h"
 #include "Kismet/GameplayStatics.h" 
@@ -14,20 +14,20 @@ UGameAction::UGameAction()
 
 void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& ActionData, ABattleManager* BattleManagerRef, ACombatPawn* TargetPawn, const TArray<ACombatPawn*>& TargetPawns)
 {
-    if (Instigator && Instigator->GetStatsComponent() && ActionData.CostType != ECostType::None)
+    if (Instigator && Instigator->GetAttributesComponent() && ActionData.CostType != ECostType::None)
     {
-        if (ActionData.CostType == ECostType::SP && Instigator->GetStatsComponent()->fCurrentSP >= ActionData.CostAmount)
+        if (ActionData.CostType == ECostType::SP && Instigator->GetAttributesComponent()->GetSkillPoint() >= ActionData.CostAmount)
         {
-            Instigator->GetStatsComponent()->SetCurrentSP(Instigator->GetStatsComponent()->GetCurrentSP() - ActionData.CostAmount);
+            Instigator->GetAttributesComponent()->ApplySPChange(Instigator->GetAttributesComponent()->GetSkillPoint() - ActionData.CostAmount);
         }
     }
 
     if (ActionData.ActionType == EActionType::Attack)
     {
-        if (Instigator && Instigator->GetStatsComponent())
+        if (Instigator && Instigator->GetAttributesComponent())
         {
             // ModifySP 함수는 최대 SP를 넘지 않도록 자동으로 값을 조절해줍니다.
-            Instigator->GetStatsComponent()->ModifySP(1.0f);
+            Instigator->GetAttributesComponent()->ApplySPChange(Instigator->GetAttributesComponent()->GetSkillPoint() + 1);
         }
     }
 
@@ -46,7 +46,7 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
         {
             for (ACombatPawn* Combatant : BattleManagerRef->AllCombatants)
             {
-                if (Combatant && Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
+                if (Combatant && Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
                     Combatant->GetFaction() != Instigator->GetFaction())
                 {
                     FinalTargets.Add(Combatant);
@@ -72,15 +72,15 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
         if (CurrentTarget && Instigator)
         {
             //---- 데미지 계산
-            UCharacterStatsComponent* AttackerStats = Instigator->GetStatsComponent();
-            UCharacterStatsComponent* TargetStats = CurrentTarget->GetStatsComponent();
+            UAttributesComponent* AttackerStats = Instigator->GetAttributesComponent();
+            UAttributesComponent* TargetStats = CurrentTarget->GetAttributesComponent();
             if (AttackerStats && TargetStats)
             {
                 for (int32 i = 0; i < ActionData.NumberOfHits; ++i)
                 {
                     float FinalDamage = UCombatStatics::CalculateDamage(
-                        Instigator->GetStatsComponent(),
-                        CurrentTarget->GetStatsComponent(),
+                        Instigator->GetAttributesComponent(),
+                        CurrentTarget->GetAttributesComponent(),
                         ActionData.SkillCoefficient
                     );
 
@@ -90,9 +90,9 @@ void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& Acti
                 }
                 if (ActionData.StatusEffectIDToApply != NAME_None && FMath::FRand() < ActionData.StatusEffectChance)
                 {
-                    if (CurrentTarget->StatusEffectComponent)
+                    if (CurrentTarget->GetStatusEffectComponent())
                     {
-                        CurrentTarget->StatusEffectComponent->ApplyStatusEffect(ActionData.StatusEffectIDToApply, Instigator);
+                        CurrentTarget->GetStatusEffectComponent()->ApplyStatusEffect(ActionData.StatusEffectIDToApply, Instigator);
                     }
                 }
             }
@@ -105,14 +105,14 @@ bool UGameAction::HasEnoughCost(ACombatPawn* Instigator, const FActionData& Acti
     if (ActionData.CostType == ECostType::None)
         return true;
 
-    if (!Instigator || !Instigator->GetStatsComponent())
+    if (!Instigator || !Instigator->GetAttributesComponent())
         return false;
 
-    UCharacterStatsComponent* StatsComp = Instigator->GetStatsComponent();
+    UAttributesComponent* StatsComp = Instigator->GetAttributesComponent();
 
     if (ActionData.CostType == ECostType::SP)
     {
-        return StatsComp->GetCurrentSP() >= ActionData.CostAmount;
+        return StatsComp->GetSkillPoint() >= ActionData.CostAmount;
     }
     return false;
 }

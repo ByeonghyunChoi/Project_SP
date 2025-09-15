@@ -2,7 +2,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatPawn.h"
 #include "Combat/BattleTurnComponent.h"
-#include "Combat/CharacterStatsComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "Combat/StatusEffectComponent.h"
 #include "Event/GameEventComponent.h"
 #include "Data/MonsterData.h"
@@ -63,14 +63,14 @@ void ABattleManager::StartBattle()
         if (PlayerCharacter)
         {
             AllCombatants.Add(PlayerCharacter);
-            if (PlayerCharacter->GameEventComponent)
+            if (PlayerCharacter->GetGameEventComponent())
             {
-                PlayerCharacter->GameEventComponent->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
-                PlayerCharacter->GameEventComponent->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
-                PlayerCharacter->GameEventComponent->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
-                PlayerCharacter->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
-                PlayerCharacter->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
-                PlayerCharacter->GameEventComponent->OnParryAttempted.AddDynamic(this, &ABattleManager::HandleParryAttempt);
+                PlayerCharacter->GetGameEventComponent()->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
+                //PlayerCharacter->GetGameEventComponent()->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
+                PlayerCharacter->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
+                PlayerCharacter->GetGameEventComponent()->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
+                PlayerCharacter->GetGameEventComponent()->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
+                PlayerCharacter->GetGameEventComponent()->OnParryAttempted.AddDynamic(this, &ABattleManager::HandleParryAttempt);
             }
         }
     }
@@ -103,33 +103,28 @@ void ABattleManager::StartBattle()
                 if (SpawnedMonster)
                 {
                     // 스탯 컴포넌트 초기화
-                    if (UCharacterStatsComponent* StatsComp = SpawnedMonster->GetStatsComponent())
+                    if (UAttributesComponent* StatsComp = SpawnedMonster->GetAttributesComponent())
                     {
-                        StatsComp->CharacterStatsDataTable = CharacterStatsDataTable;
-                        StatsComp->RowName = MonsterData.CharacterStatsRowName;
-                        StatsComp->InitializeStatsFromDataTable();
+
                     }
                     // 행동 테이블 및 ID 설정
-                    SpawnedMonster->AvailableActionsDataTable = ActionsDataTable;
-                    SpawnedMonster->MyActionIDs = MonsterData.AvailableActionIDs;
                     SpawnedMonster->SetFaction(EFaction::Enemy); // 몬스터 팩션 설정
                     AllCombatants.Add(SpawnedMonster); // 전투원 목록에 추가
 
                     // 몬스터 이벤트 바인딩
-                    if (SpawnedMonster->GameEventComponent)
+                    if (SpawnedMonster->GetGameEventComponent())
                     {
-                        SpawnedMonster->GameEventComponent->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
-                        SpawnedMonster->GameEventComponent->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
-                        SpawnedMonster->GameEventComponent->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
-                        SpawnedMonster->GameEventComponent->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
-                        SpawnedMonster->GameEventComponent->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
+                        SpawnedMonster->GetGameEventComponent()->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
+                        //SpawnedMonster->GetGameEventComponent()->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
+                        SpawnedMonster->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
+                        SpawnedMonster->GetGameEventComponent()->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
+                        SpawnedMonster->GetGameEventComponent()->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
                         if (PlayerCharacter->WeaponSystemComponent)
                         {
-                            SpawnedMonster->GameEventComponent->OnParryWindowChanged.AddDynamic(PlayerCharacter->WeaponSystemComponent, &UWeaponSystemComponent::HandleParryWindowChanged);
+                            SpawnedMonster->GetGameEventComponent()->OnParryWindowChanged.AddDynamic(PlayerCharacter->WeaponSystemComponent, &UWeaponSystemComponent::HandleParryWindowChanged);
                         }
                     }
 
-                    SpawnedMonster->WeaknessType = MonsterData.WeaknessType;
 
                 }
             }
@@ -190,7 +185,7 @@ void ABattleManager::ProcessTurn()
 void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 {
     // 타겟의 유효성 검사 (사망했거나 유효하지 않은 경우 턴 건너뜀)
-    if (!Target || !Target->IsValidLowLevel() || !Target->GetStatsComponent() || Target->GetStatsComponent()->GetCurrentHealth() <= 0)
+    if (!Target || !Target->IsValidLowLevel() || !Target->GetAttributesComponent() || Target->GetAttributesComponent()->GetCurrentStats().fCurrentHealth <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("Attempted to initiate turn for invalid or defeated target. Skipping."));
         return;
@@ -200,7 +195,7 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
     CurrentTurnParryResult = EParryResult::None; // 패링 결과 초기화
 
     //턴 시작 시 상태 이상 효과 처리
-    Target->StatusEffectComponent->OnTurnStarted();
+    Target->GetStatusEffectComponent()->OnTurnStarted();
 
     if (auto Turn = Target->GetBattleTurnComponent())
     {
@@ -221,9 +216,9 @@ void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
 
     // 턴을 받은 캐릭터의 UGameEventComponent를 통해 턴 시작 이벤트 브로드캐스트
     // 해당 캐릭터(플레이어/몬스터)는 이 이벤트를 받아 각자 행동 로직을 시작함
-    if (Target->GameEventComponent)
+    if (Target->GetGameEventComponent())
     {
-        Target->GameEventComponent->BroadcastTurnStarted(Target);
+        Target->GetGameEventComponent()->BroadcastTurnStarted(Target);
     }
 
     // UI에 새로운 턴 순서를 반영하도록 알림
@@ -263,7 +258,7 @@ TArray<ACombatPawn*> ABattleManager::GetReadyCombatants() const
     for (ACombatPawn* Combatant : AllCombatants)
     {
         if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
+            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
             Combatant != CurrentTurnCharacter && Combatant->GetBattleTurnComponent() && Combatant->GetBattleTurnComponent()->IsReadyForTurn())
         {
             ReadyCombatants.Add(Combatant);
@@ -280,7 +275,7 @@ float ABattleManager::GetMinTimeToNextTurn() const
     for (ACombatPawn* Combatant : AllCombatants)
     {
         if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
+            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
             Combatant->GetBattleTurnComponent() && !Combatant->GetBattleTurnComponent()->GetIsMyTurn())
         {
             float TimeToAct = Combatant->GetBattleTurnComponent()->GetTimeLeftToAct();
@@ -299,7 +294,7 @@ void ABattleManager::AdvanceAllActionValues(float DeltaTime)
     for (ACombatPawn* Combatant : AllCombatants)
     {
         if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0 &&
+            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
             Combatant->GetBattleTurnComponent() && !Combatant->GetBattleTurnComponent()->GetIsMyTurn())
         {
             Combatant->GetBattleTurnComponent()->AdvanceActionValue(DeltaTime);
@@ -316,7 +311,7 @@ bool ABattleManager::CheckBattleEndConditions() const
 
     for (ACombatPawn* Combatant : AllCombatants)
     {
-        if (Combatant && Combatant->IsValidLowLevel() && Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0)
+        if (Combatant && Combatant->IsValidLowLevel() && Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0)
         {
             if (Combatant->GetFaction() == EFaction::Player) PlayerCount++;
             else if (Combatant->GetFaction() == EFaction::Enemy) EnemyCount++;
@@ -333,8 +328,8 @@ bool ABattleManager::CombatantSortPredicate(const ACombatPawn* A, const ACombatP
     float TimeB = B->GetBattleTurnComponent()->GetTimeLeftToAct();
     if (!FMath::IsNearlyEqual(TimeA, TimeB)) return TimeA < TimeB;
 
-    float SpeedA = A->GetStatsComponent()->GetMovementSpeed();
-    float SpeedB = B->GetStatsComponent()->GetMovementSpeed();
+    float SpeedA = A->GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
+    float SpeedB = B->GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
     if (!FMath::IsNearlyEqual(SpeedA, SpeedB)) return SpeedA > SpeedB;
 
     if (A->GetFaction() != B->GetFaction()) return A->GetFaction() == EFaction::Player;
@@ -378,15 +373,12 @@ void ABattleManager::HandleCombatantHealthChanged(ACombatPawn* CombatPawn, float
     UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's health changed to %f"), *CombatPawn->GetName(), CurrentHealth);
 
     // 체력이 0 이하이고, 아직 사망 상태가 아닐 때만 실행
-    if (CombatPawn && CombatPawn->GetStatsComponent()->GetCurrentHealth() <= 0 && CombatPawn->GetCombatPawnState() != ECombatPawnState::Defeated)
+    if (CombatPawn && CombatPawn->GetAttributesComponent()->GetCurrentStats().fCurrentHealth <= 0 && CombatPawn->GetCombatPawnState() != ECombatPawnState::Defeated)
     {
         UE_LOG(LogTemp, Warning, TEXT("[BM Event] %s has been defeated."), *CombatPawn->GetName());
 
         // 1. 캐릭터의 내부 상태를 '사망'으로 변경
-        CombatPawn->InternalSetCombatPawnState(ECombatPawnState::Defeated);
-
-        // 2. 시각적 처리 (사망 애니메이션, 소멸 이펙트 등) 호출 -> 블루프린트에서 구현
-        CombatPawn->K2_OnDefeated();
+        CombatPawn->SetCombatPawnState(ECombatPawnState::Defeated);
 
         // 3. 충돌 비활성화 (더 이상 타겟팅되지 않도록)
         CombatPawn->SetActorEnableCollision(false);
@@ -437,7 +429,6 @@ void ABattleManager::HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPaw
         if (ParriedAttacker && ParriedAttacker == CurrentTurnCharacter)
         {
             // [수정] 공격자(몬스터)에게 패링 당했음을 알려 애니메이션을 중단/교체하도록 명령합니다.
-            ParriedAttacker->K2_OnParried();
             EndTurn(); // 턴을 즉시 종료합니다.
         }
     }

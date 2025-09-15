@@ -29,7 +29,7 @@ TArray<ACombatPawn*> UPredictOrder::GetPredictedTurnOrder() const
 	TArray<FSimulatedCombatantData> Simulated;
 	for (ACombatPawn* Combatant : BattleManagerRef->GetAllCombatants())
 	{
-		if (Combatant && Combatant->GetStatsComponent() && Combatant->GetStatsComponent()->GetCurrentHealth() > 0)
+		if (Combatant && Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0)
 		{
 			Simulated.Emplace(Combatant);
 		}

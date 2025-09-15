@@ -28,20 +28,15 @@ protected:
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
     TWeakObjectPtr<ACombatPawn> CurrentTarget;
 public:
-    // --- 몬스터 AI 행동 결정 함수 ---
-    UFUNCTION(BlueprintCallable, Category = "Monster|AI")
-    void DecideAction();
-
-    // --- SelectAction 오버라이드 ---
-    virtual void SelectAction(FName ActionID) override;
-
+ 
     // --- 몬스터 전용 이벤트 핸들러 ---
     UFUNCTION()
     void HandleThisMonsterTurnStarted(ACombatPawn* TurnPawn);
 
-    virtual void ResolveAction() override;
 
     UFUNCTION(BlueprintPure, Category = "Monster Group")
     UMonsterGroupObject* GetCombatMonsterGroup() const;
+
+    virtual void OnTurnBegin() override;
 
 };

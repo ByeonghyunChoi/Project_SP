@@ -13,7 +13,6 @@ enum class ECombatPawnState : uint8; // UENUM은 포워드 선언 가능 (자세한 내용은 
 
 // --- 델리게이트 선언들 ---
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnDamageReceived, class ACombatPawn*, DamagedPawn, float, DamageAmount, ACombatPawn*, InstigatorPawn, class UDamageType*, DamageType);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, class ACombatPawn*, CombatPawn, float, CurrentHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnStarted, class ACombatPawn*, TurnPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnEnded, class ACombatPawn*, TurnPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPerformed, class ACombatPawn*, PerformingPawn, FActionData, PerformedActionData);
@@ -39,8 +38,6 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnDamageReceived OnDamageReceived;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
-    FOnHealthChanged OnHealthChanged;
-    UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnTurnStarted OnTurnStarted;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnTurnEnded OnTurnEnded;
@@ -60,8 +57,6 @@ public:
     // --- 브로드캐스트 함수들 ---
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, ACombatPawn* InstigatorPawn, UDamageType* DamageType);
-    UFUNCTION(BlueprintCallable, Category = "Game Events")
-    void BroadcastHealthChanged(ACombatPawn* CombatPawn, float NewHealth);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastTurnStarted(ACombatPawn* TurnPawn);
     UFUNCTION(BlueprintCallable, Category = "Game Events")

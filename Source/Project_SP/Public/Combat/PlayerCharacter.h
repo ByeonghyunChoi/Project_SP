@@ -31,13 +31,7 @@ protected:
 	// --- 이벤트 핸들러 ---
 	// ACombatPawn의 GameEventComponent::OnTurnStarted 이벤트 구독
 	UFUNCTION()
-	void HandlePlayerTurnStarted(ACombatPawn* TurnPawn);
-	// ACombatPawn의 GameEventComponent::OnCombatPawnStateChanged 이벤트 구독
-	UFUNCTION()
 	void HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState);
-
-	// 레벨업 처리를 위한 함수
-	void LevelUp();
 
 	// 최대 레벨
 	const int32 iMaxLevel = 50;
@@ -56,23 +50,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Modes")
 	void EnterBattleMode();
 
-	// --- 플레이어 행동/타겟 선택 로직 ---
-   // UI에서 행동 선택 버튼 클릭 시 호출
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void PlayerSelectAction(FName ActionID); // FName으로 ActionID 받음
+	virtual void OnTurnBegin() override;
 
-	//실제 스킬 사용 로직
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void PlayerConfirmSelectedAction();
-	//현재 타겟 목록
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Player|Combat")
-	TArray<ACombatPawn*> SelectedTargetList;
-
-	//타겟 바꾸는 함수
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void PlayerSwitchTarget(bool bSwitchToNext);
-
-	//경험치를 획득하는 함수
-	UFUNCTION(BlueprintCallable, Category = "Player|Actions")
-	void GainEXP(int32 GainedEXP);
 };
