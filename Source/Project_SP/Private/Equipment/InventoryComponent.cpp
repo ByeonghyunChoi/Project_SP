@@ -2,132 +2,59 @@
 
 
 #include "Equipment/InventoryComponent.h"
-#include "Equipment/ArtifactSystemComponent.h"
+#include "Equipment/ItemBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UInventoryComponent::BeginPlay()
+void UInventoryComponent::AddItem(FName ItemID, int32 Count)
 {
-    Super::BeginPlay();
+	// 데이터 테이블에서 해당 아이템의 중첩 가능 여부를 확인
+	static ConstructorHelpers::FObjectFinder<UDataTable> ItemDataTableFinder(TEXT("/Game/DataTable/DT_ItemData.DT_ItemData")); // 데이터 테이블 경로
+	if (!ItemDataTableFinder.Succeeded()) return;
 
-    ArtifactSystem = GetOwner()->FindComponentByClass<UArtifactSystemComponent>();
-    if (!ArtifactSystem)
-    {
-        UE_LOG(LogTemp, Error, TEXT("ArtifactSystemComponent not found on owner!"));
-    }
+	UDataTable* ItemDataTable = ItemDataTableFinder.Object;
+	FItemData* FoundData = ItemDataTable->FindRow<FItemData>(ItemID, TEXT(""));
+
+	if (FoundData && FoundData->bCanStack)
+	{
+		// 중첩 가능한 아이템일 경우, 인벤토리에서 이미 존재하는지 확인
+		for (UItemBase* ExistingItem : Items)
+		{
+			if (ExistingItem->ItemID == ItemID)
+			{
+				// 이미 존재하는 아이템이 있다면, 개수를 증가
+				ExistingItem->ItemCount += Count;
+				OnInventoryUpdated.Broadcast();
+				return;
+			}
+		}
+	}
+
+	// 중첩 불가능하거나, 인벤토리에 없는 아이템일 경우 새로 추가
+	UItemBase* NewItem = NewObject<UItemBase>(this);
+	NewItem->InitializeItem(ItemID, Count);
+	Items.Add(NewItem);
+
+	//UI 업데이트를 위해 델리게이트를 호출
+	OnInventoryUpdated.Broadcast();
 }
 
-// 휙득
-void UInventoryComponent::AddArtifact(const FArtifactData& NewArtifact)
+void UInventoryComponent::RemoveItem(UItemBase* ItemToRemove)
 {
-    ArtifactInventory.Add(NewArtifact);
-    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("Added Artifact: %s"));
-}
+	// 아이템이 유효한지 확인
+	if (ItemToRemove)
+	{
+		// 인벤토리에서 아이템 제거
+		Items.Remove(ItemToRemove);
 
-void UInventoryComponent::AddOrparts(const FOrpartsData& NewOrparts)
-{
-    OrpartsInventory.Add(NewOrparts);
-}
+		// 제거된 아이템의 객체 메모리 해제
+		ItemToRemove->ConditionalBeginDestroy();
 
-
-// 장착
-bool UInventoryComponent::EquipArtifact(FName ArtifactID)
-{
-    if (!ArtifactSystem) return false;
-
-    int32 Index = ArtifactInventory.IndexOfByPredicate([&](const FArtifactData& A) {
-        return A.ID == ArtifactID;
-    });
-
-	if (Index != INDEX_NONE) // 아티팩트가 인벤토리에 존재하는지 확인
-    {
-        FArtifactData ArtifactToEquip = ArtifactInventory[Index];
-        ArtifactInventory.RemoveAt(Index);
-
-        // 기존 장착된 아티팩트를 인벤토리에 다시 넣기
-        FArtifactData OldEquipped = ArtifactSystem->GetEquippedArtifact(ArtifactToEquip.Type);
-        if (!OldEquipped.ID.IsNone())
-        {
-            AddArtifact(OldEquipped);
-        }
-
-        ArtifactSystem->EquipArtifact(ArtifactToEquip);
-        return true;
-    }
-
-    return false;
-}
-
-bool UInventoryComponent::EquipOrparts(FName OrpartsID)
-{
-    if (!ArtifactSystem) return false;
-
-    int32 Index = OrpartsInventory.IndexOfByPredicate([&](const FOrpartsData& O) {
-        return O.ID == OrpartsID;
-    });
-
-	if (Index != INDEX_NONE) // 오파츠가 인벤토리에 존재하는지 확인
-    {
-        FOrpartsData OrpartsToEquip = OrpartsInventory[Index];
-        OrpartsInventory.RemoveAt(Index);
-
-        // 기존 장착된 오파츠를 인벤토리에 다시 넣기
-        FOrpartsData OldOrparts = ArtifactSystem->GetEquippedOrparts();
-        if (!OldOrparts.ID.IsNone())
-        {
-            AddOrparts(OldOrparts);
-        }
-
-        ArtifactSystem->EquipOrparts(OrpartsToEquip);
-        return true;
-    }
-
-    return false;
-}
-
-// 해제
-void UInventoryComponent::UnequipArtifact(EArtifactType Type)
-{
-    if (!ArtifactSystem) return;
-
-    FArtifactData Equipped = ArtifactSystem->GetEquippedArtifact(Type);
-    if (!Equipped.ID.IsNone())
-    {
-        AddArtifact(Equipped);
-    }
-
-    ArtifactSystem->UnequipArtifact(Type);
-}
-
-void UInventoryComponent::UnequipOrparts()
-{
-    if (!ArtifactSystem) return;
-
-    FOrpartsData Equipped = ArtifactSystem->GetEquippedOrparts();
-    if (!Equipped.ID.IsNone())
-    {
-        AddOrparts(Equipped);
-    }
-
-    ArtifactSystem->UnequipOrparts();
-}
-
-// 조회
-const FArtifactData* UInventoryComponent::FindArtifactByID(FName ArtifactID) const
-{
-    return ArtifactInventory.FindByPredicate([&](const FArtifactData& Artifact)
-        {
-            return Artifact.ID == ArtifactID;
-        });
-}
-
-const FOrpartsData* UInventoryComponent::FindOrpartsByID(FName OrpartsID) const
-{
-    return OrpartsInventory.FindByPredicate([&](const FOrpartsData& Orparts)
-        {
-            return Orparts.ID == OrpartsID;
-        });
+		// UI 업데이트를 위해 델리게이트를 호출
+		OnInventoryUpdated.Broadcast();
+	}
 }
