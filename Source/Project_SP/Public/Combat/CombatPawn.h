@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Combat/CombatTypes.h" 
 #include "CombatPawn.generated.h"
 
 // 컴포넌트들에 대한 전방 선언
@@ -13,25 +14,6 @@ class UBattleTurnComponent;
 class UStatusEffectComponent;
 class UGameEventComponent;
 
-// 캐릭터의 현재 행동 상태
-UENUM(BlueprintType)
-enum class ECombatPawnState : uint8
-{
-    Idle            UMETA(DisplayName = "대기"),
-    SelectingAction UMETA(DisplayName = "행동 선택 중"),
-    SelectingTarget UMETA(DisplayName = "타겟 선택 중"),
-    PerformingAction UMETA(DisplayName = "행동 수행 중"),
-    Defeated        UMETA(DisplayName = "사망"),
-};
-
-// 캐릭터의 소속 진영
-UENUM(BlueprintType)
-enum class EFaction : uint8
-{
-    Player  UMETA(DisplayName = "플레이어"),
-    Enemy   UMETA(DisplayName = "적"),
-    None    UMETA(DisplayName = "없음")
-};
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ACombatPawn : public ACharacter

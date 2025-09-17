@@ -1,22 +1,14 @@
 ﻿#include "Core/BattleManager.h"
-#include "Kismet/GameplayStatics.h"
 #include "Combat/CombatPawn.h"
 #include "Combat/BattleTurnComponent.h"
 #include "Combat/AttributesComponent.h"
-#include "Combat/StatusEffectComponent.h"
 #include "Event/GameEventComponent.h"
-#include "Data/MonsterData.h"
-#include "Core/MyGameInstance.h"
-#include "Equipment/WeaponSystemComponent.h" 
-#include "Combat/MonsterCharacter.h" 
-#include "Combat/PlayerCharacter.h"
+#include "Kismet/GameplayStatics.h"
 
 
 ABattleManager::ABattleManager()
 {
     PrimaryActorTick.bCanEverTick = true;
-    CurrentTurnCharacter = nullptr;
-    SetCurrentBattleState(EBattleState::Setup);
 }
 
 void ABattleManager::BeginPlay()
@@ -30,406 +22,122 @@ void ABattleManager::Tick(float DeltaTime)
 
     if (CurrentBattleState == EBattleState::InProgress)
     {
-        ProcessTurn();
+        ProcessTurnFlow(DeltaTime);
     }
 }
 
-void ABattleManager::SetCurrentBattleState(EBattleState NewState)
+void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
 {
-    if (CurrentBattleState != NewState)
-    {
-        CurrentBattleState = NewState;
-        OnBattleStateChanged.Broadcast(NewState); // 상태 변경 시 브로드캐스트
-    }
-}
-
-void ABattleManager::StartBattle()
-{
-    for (ACombatPawn* Combatant : AllCombatants)
-    {
-        if (Combatant && Combatant->IsValidLowLevel())
-        {
-            Combatant->Destroy();
-        }
-    }
     AllCombatants.Empty();
-
-    APlayerCharacter* PlayerCharacter = nullptr;
-
-    // 1. 플레이어 전투원 추가 및 이벤트 바인딩
-    if (APawn* PlayerPawnBase = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
-    {
-        PlayerCharacter = Cast<APlayerCharacter>(PlayerPawnBase);
-        if (PlayerCharacter)
-        {
-            AllCombatants.Add(PlayerCharacter);
-            if (PlayerCharacter->GetGameEventComponent())
-            {
-                PlayerCharacter->GetGameEventComponent()->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
-                //PlayerCharacter->GetGameEventComponent()->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
-                PlayerCharacter->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
-                PlayerCharacter->GetGameEventComponent()->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
-                PlayerCharacter->GetGameEventComponent()->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
-                PlayerCharacter->GetGameEventComponent()->OnParryAttempted.AddDynamic(this, &ABattleManager::HandleParryAttempt);
-            }
-        }
-    }
-
-    if (!PlayerCharacter)
-    {
-        UE_LOG(LogTemp, Error, TEXT("StartBattle: PlayerCharacter not found!"));
-        return;
-    }
-
-    // 2. 몬스터 스폰 및 이벤트 바인딩
-    UMyGameInstance* MyGameInstance = GetGameInstance<UMyGameInstance>();
-    if (MyGameInstance && MyGameInstance->PendingMonsterGroup)
-    {
-        TArray<FMonsterData> MonstersToSpawn = MyGameInstance->PendingMonsterGroup->GetAllMonsterDataInGroup();
-        FVector SpawnLocationBase = GetActorLocation() + FVector(500.0f, 0.0f, 0.0f); // 몬스터 시작 스폰 위치
-        float MonsterSpacing = 200.0f; // 몬스터 간 간격
-
-        for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
-        {
-            const FMonsterData& MonsterData = MonstersToSpawn[i];
-            if (MonsterData.MonsterClass)
-            {
-                FActorSpawnParameters SpawnParams;
-                SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-                FVector SpawnLocation = SpawnLocationBase + FVector(0.0f, i * MonsterSpacing, 0.0f);
-                AMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActor<AMonsterCharacter>(MonsterData.MonsterClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
-
-                if (SpawnedMonster)
-                {
-                    // 스탯 컴포넌트 초기화
-                    if (UAttributesComponent* StatsComp = SpawnedMonster->GetAttributesComponent())
-                    {
-
-                    }
-                    // 행동 테이블 및 ID 설정
-                    SpawnedMonster->SetFaction(EFaction::Enemy); // 몬스터 팩션 설정
-                    AllCombatants.Add(SpawnedMonster); // 전투원 목록에 추가
-
-                    // 몬스터 이벤트 바인딩
-                    if (SpawnedMonster->GetGameEventComponent())
-                    {
-                        SpawnedMonster->GetGameEventComponent()->OnDamageReceived.AddDynamic(this, &ABattleManager::HandleCombatantDamageReceived);
-                        //SpawnedMonster->GetGameEventComponent()->OnHealthChanged.AddDynamic(this, &ABattleManager::HandleCombatantHealthChanged);
-                        SpawnedMonster->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleCombatantActionFinished);
-                        SpawnedMonster->GetGameEventComponent()->OnTurnStarted.AddDynamic(this, &ABattleManager::HandleCombatantTurnStarted);
-                        SpawnedMonster->GetGameEventComponent()->OnTurnEnded.AddDynamic(this, &ABattleManager::HandleCombatantTurnEnded);
-                        if (PlayerCharacter->WeaponSystemComponent)
-                        {
-                            SpawnedMonster->GetGameEventComponent()->OnParryWindowChanged.AddDynamic(PlayerCharacter->WeaponSystemComponent, &UWeaponSystemComponent::HandleParryWindowChanged);
-                        }
-                    }
-
-
-                }
-            }
-        }
-    }
-
-    // 3. 전투 시작 상태로 전환
-    SetCurrentBattleState(EBattleState::InProgress); // 전투 관리자는 현재 상태만 변경
-    OnTurnOrderChanged.Broadcast(); // UI 업데이트용 (초기 턴 순서 표시)
-}
-
-void ABattleManager::EndBattle()
-{
-    SetCurrentBattleState(EBattleState::Ended); // 전투 종료 상태로 변경
-    UE_LOG(LogTemp, Warning, TEXT("Battle Ended!"));
-
-    UMyGameInstance* MyGameInstance = GetGameInstance<UMyGameInstance>();
-    if (MyGameInstance)
-    {
-        MyGameInstance->ReturnToFieldTransition();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("EndBattle: MyGameInstance not found!"));
-    }
-}
-
-void ABattleManager::ProcessTurn()
-{
-    if (CheckBattleEndConditions()) // 전투 종료 조건 확인
-    {
-        EndBattle(); // 전투 종료
-        return;
-    }
-
-    if (CurrentBattleState == EBattleState::InProgress) // InProgress 상태일 때만 새로운 턴 탐색
-    {
-        TArray<ACombatPawn*> Ready = GetReadyCombatants(); // 턴을 잡을 준비가 된 캐릭터 목록
-        if (Ready.Num() > 0)
-        {
-            // 정렬 기준에 따라 가장 먼저 턴을 잡을 캐릭터 선택
-            Ready.Sort([](const ACombatPawn& A, const ACombatPawn& B) {
-                return ABattleManager::CombatantSortPredicate(&A, &B);
-                });
-            InitiateTurnFor(Ready[0]); // 해당 캐릭터에게 턴 부여
-        }
-        else // 아무도 턴을 잡을 준비가 되지 않았으면, ActionValue를 증가시켜 다음 턴을 기다립니다.
-        {
-            float WaitTime = GetMinTimeToNextTurn();
-            if (WaitTime <= 0.001f) WaitTime = 0.001f; // 무한 루프 방지 및 최소 시간 보장
-
-            GlobalTime += WaitTime; // 전역 시간 증가
-            AdvanceAllActionValues(WaitTime); // 모든 전투원의 ActionValue 증가
-        }
-    }
-}
-
-void ABattleManager::InitiateTurnFor(ACombatPawn* Target)
-{
-    // 타겟의 유효성 검사 (사망했거나 유효하지 않은 경우 턴 건너뜀)
-    if (!Target || !Target->IsValidLowLevel() || !Target->GetAttributesComponent() || Target->GetAttributesComponent()->GetCurrentStats().fCurrentHealth <= 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Attempted to initiate turn for invalid or defeated target. Skipping."));
-        return;
-    }
-
-    CurrentTurnCharacter = Target; // 현재 턴 캐릭터 설정
-    CurrentTurnParryResult = EParryResult::None; // 패링 결과 초기화
-
-    //턴 시작 시 상태 이상 효과 처리
-    Target->GetStatusEffectComponent()->OnTurnStarted();
-
-    if (auto Turn = Target->GetBattleTurnComponent())
-    {
-        Turn->StartTurn(); // 턴 컴포넌트에 턴 시작 알림 (ActionValue 리셋 등)
-    }
-
-    EFaction TargetFaction = Target->GetFaction();
-    // 턴을 받은 캐릭터의 진영에 따라 BattleManager의 상태 변경
-    // 플레이어 입력 제어는 BattleStateChanged 이벤트를 구독하는 PlayerController에서 처리합니다.
-    if (TargetFaction == EFaction::Player)
-    {
-        SetCurrentBattleState(EBattleState::PlayerTurn); // 플레이어의 행동 선택을 기다리는 상태
-    }
-    else // Enemy
-    {
-        SetCurrentBattleState(EBattleState::EnemyTurn); // 몬스터 AI가 행동을 결정하는 상태
-    }
-
-    // 턴을 받은 캐릭터의 UGameEventComponent를 통해 턴 시작 이벤트 브로드캐스트
-    // 해당 캐릭터(플레이어/몬스터)는 이 이벤트를 받아 각자 행동 로직을 시작함
-    if (Target->GetGameEventComponent())
-    {
-        Target->GetGameEventComponent()->BroadcastTurnStarted(Target);
-    }
-
-    // UI에 새로운 턴 순서를 반영하도록 알림
-    OnTurnOrderChanged.Broadcast();
-}
-
-void ABattleManager::EndTurn()
-{
-    UE_LOG(LogTemp, Log, TEXT("EndTurn_Implementation called for %s"), CurrentTurnCharacter ? *CurrentTurnCharacter->GetName() : TEXT("N/A"));
-
-    // 현재 턴 캐릭터의 턴 종료 처리 (ActionValue 리셋, bIsMyTurn = false 등)
-    if (CurrentTurnCharacter && CurrentTurnCharacter->GetBattleTurnComponent())
-    {
-        CurrentTurnCharacter->GetBattleTurnComponent()->EndTurn();
-    }
-
-    // 현재 턴 캐릭터 초기화
-    CurrentTurnCharacter = nullptr;
-    // 상태를 InProgress로 변경하여 ProcessTurn이 다음 턴을 탐색하도록 함
-    SetCurrentBattleState(EBattleState::InProgress);
-
-    // UI에 턴이 완전히 넘어갔음을 알림 (턴 순서 업데이트)
-    OnTurnOrderChanged.Broadcast();
-}
-
-void ABattleManager::AddCombatant(ACombatPawn* NewCombatant)
-{
-    if (NewCombatant)
-    {
-        AllCombatants.AddUnique(NewCombatant);
-    }
-}
-
-TArray<ACombatPawn*> ABattleManager::GetReadyCombatants() const
-{
-    TArray<ACombatPawn*> ReadyCombatants;
-    for (ACombatPawn* Combatant : AllCombatants)
-    {
-        if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
-            Combatant != CurrentTurnCharacter && Combatant->GetBattleTurnComponent() && Combatant->GetBattleTurnComponent()->IsReadyForTurn())
-        {
-            ReadyCombatants.Add(Combatant);
-        }
-    }
-    return ReadyCombatants;
-}
-
-float ABattleManager::GetMinTimeToNextTurn() const
-{
-    float MinTime = MAX_FLT;
-    bool bFoundAnyReady = false;
+    AllCombatants.Append(PlayerParty);
+    AllCombatants.Append(EnemyParty);
 
     for (ACombatPawn* Combatant : AllCombatants)
     {
-        if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
-            Combatant->GetBattleTurnComponent() && !Combatant->GetBattleTurnComponent()->GetIsMyTurn())
+        if (Combatant && Combatant->GetGameEventComponent())
         {
-            float TimeToAct = Combatant->GetBattleTurnComponent()->GetTimeLeftToAct();
-            if (TimeToAct < MinTime)
-            {
-                MinTime = TimeToAct;
-                bFoundAnyReady = true;
-            }
+            // 각 전투원의 이벤트에 핸들러 함수들을 바인딩합니다.
+            Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
+            // TODO: OnInterruptRequest 델리게이트를 GameEventComponent에 만들고 여기에 바인딩
+            // Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
+            Combatant->GetAttributesComponent()->OnHealthDepleted.AddDynamic(this, &ABattleManager::HandleCombatantDied);
         }
     }
-    return bFoundAnyReady ? MinTime : 0.0f;
+    CurrentBattleState = EBattleState::InProgress;
+}
+
+void ABattleManager::ProcessTurnFlow(float DeltaTime)
+{
+    // 스택이 비어 있을 때만 다음 턴을 찾습니다.
+    if (TurnStack.IsEmpty())
+    {
+        TArray<ACombatPawn*> ReadyCombatants;
+        for (ACombatPawn* Combatant : AllCombatants)
+        {
+            if (Combatant &&
+                Combatant->GetCombatPawnState() != ECombatPawnState::Defeated &&
+                Combatant->GetBattleTurnComponent()->IsReadyForTurn())
+            {
+                ReadyCombatants.Add(Combatant);
+            }
+        }
+
+        if (ReadyCombatants.Num() > 0)
+        {
+            // TODO: 속도 등에 따라 우선순위 정렬
+            PushAndStartTurn(ReadyCombatants[0], ETurnType::Normal);
+        }
+        else
+        {
+            AdvanceAllActionValues(DeltaTime);
+        }
+    }
+}
+
+void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
+{
+    if (!Combatant || Combatant->GetCombatPawnState() == ECombatPawnState::Defeated) return;
+
+    TurnStack.Emplace(Combatant, Type);
+    Combatant->GetBattleTurnComponent()->StartTurn();
+    Combatant->OnTurnBegin();
+}
+
+void ABattleManager::EndCurrentTurn()
+{
+    if (TurnStack.IsEmpty()) return;
+
+    ACombatPawn* EndedTurnCombatant = TurnStack.Last().Combatant;
+    TurnStack.Pop();
+
+    EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
+
+    // TODO: 전투 종료 조건 확인 (CheckBattleEndConditions)
+}
+
+ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
+{
+    return TurnStack.IsEmpty() ? nullptr : TurnStack.Last().Combatant;
+}
+
+void ABattleManager::HandleActionFinished(ACombatPawn* FinishedPawn)
+{
+    if (GetCurrentTurnCharacter() == FinishedPawn)
+    {
+        EndCurrentTurn();
+    }
+}
+
+void ABattleManager::HandleInterruptRequest(ACombatPawn* InInstigator)
+{
+    UE_LOG(LogTemp, Warning, TEXT("Interrupt Turn Requested by %s!"), *InInstigator->GetName());
+    PushAndStartTurn(InInstigator, ETurnType::Interrupt);
+}
+
+void ABattleManager::HandleCombatantDied(AActor* InInstigator)
+{
+    ACombatPawn* DeadPawn = Cast<ACombatPawn>(InInstigator);
+    if (DeadPawn)
+    {
+        // 전투원 목록에서 제거하거나, 전투 불능 상태로 만듭니다.
+        // AllCombatants.Remove(DeadPawn);
+    }
 }
 
 void ABattleManager::AdvanceAllActionValues(float DeltaTime)
 {
     for (ACombatPawn* Combatant : AllCombatants)
     {
-        if (Combatant && Combatant->IsValidLowLevel() &&
-            Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
-            Combatant->GetBattleTurnComponent() && !Combatant->GetBattleTurnComponent()->GetIsMyTurn())
+        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
         {
             Combatant->GetBattleTurnComponent()->AdvanceActionValue(DeltaTime);
         }
     }
 }
 
-
-
-bool ABattleManager::CheckBattleEndConditions() const
+void ABattleManager::EndBattle()
 {
-    int32 PlayerCount = 0;
-    int32 EnemyCount = 0;
-
-    for (ACombatPawn* Combatant : AllCombatants)
-    {
-        if (Combatant && Combatant->IsValidLowLevel() && Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0)
-        {
-            if (Combatant->GetFaction() == EFaction::Player) PlayerCount++;
-            else if (Combatant->GetFaction() == EFaction::Enemy) EnemyCount++;
-        }
-    }
-    return PlayerCount == 0 || EnemyCount == 0;
-}
-
-
-
-bool ABattleManager::CombatantSortPredicate(const ACombatPawn* A, const ACombatPawn* B)
-{
-    float TimeA = A->GetBattleTurnComponent()->GetTimeLeftToAct();
-    float TimeB = B->GetBattleTurnComponent()->GetTimeLeftToAct();
-    if (!FMath::IsNearlyEqual(TimeA, TimeB)) return TimeA < TimeB;
-
-    float SpeedA = A->GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
-    float SpeedB = B->GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
-    if (!FMath::IsNearlyEqual(SpeedA, SpeedB)) return SpeedA > SpeedB;
-
-    if (A->GetFaction() != B->GetFaction()) return A->GetFaction() == EFaction::Player;
-
-    return A->GetUniqueID() < B->GetUniqueID();
-}
-
-const TArray<ACombatPawn*>& ABattleManager::GetAllCombatants() const
-{
-    return AllCombatants;
-}
-
-ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
-{
-    return CurrentTurnCharacter;
-}
-
-// --- 이벤트 핸들러 구현 ---
-void ABattleManager::HandleCombatantActionFinished(ACombatPawn* FinishedPawn)
-{
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] Action finished for %s."), FinishedPawn ? *FinishedPawn->GetName() : TEXT("N/A"));
-    if (FinishedPawn == CurrentTurnCharacter)
-    {
-        EndTurn();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[BM Event] Action finished for %s, but they are not the current turn character (%s)."),
-            FinishedPawn ? *FinishedPawn->GetName() : TEXT("N/A"),
-            CurrentTurnCharacter ? *CurrentTurnCharacter->GetName() : TEXT("N/A"));
-    }
-}
-
-void ABattleManager::HandleCombatantDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, ACombatPawn* InstigatorPawn, UDamageType* DamageType)
-{
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s took %f damage from %s."), *DamagedPawn->GetName(), DamageAmount, InstigatorPawn ? *InstigatorPawn->GetName() : TEXT("Environment"));
-}
-
-void ABattleManager::HandleCombatantHealthChanged(ACombatPawn* CombatPawn, float CurrentHealth)
-{
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's health changed to %f"), *CombatPawn->GetName(), CurrentHealth);
-
-    // 체력이 0 이하이고, 아직 사망 상태가 아닐 때만 실행
-    if (CombatPawn && CombatPawn->GetAttributesComponent()->GetCurrentStats().fCurrentHealth <= 0 && CombatPawn->GetCombatPawnState() != ECombatPawnState::Defeated)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[BM Event] %s has been defeated."), *CombatPawn->GetName());
-
-        // 1. 캐릭터의 내부 상태를 '사망'으로 변경
-        CombatPawn->SetCombatPawnState(ECombatPawnState::Defeated);
-
-        // 3. 충돌 비활성화 (더 이상 타겟팅되지 않도록)
-        CombatPawn->SetActorEnableCollision(false);
-
-        // 4. 현재 턴을 진행 중인 캐릭터가 사망했다면 즉시 턴 종료
-        if (CombatPawn == CurrentTurnCharacter)
-        {
-            EndTurn();
-        }
-
-        // 5. 전투 종료 조건 확인 (모든 적 또는 모든 플레이어가 사망했는지)
-        if (CheckBattleEndConditions())
-        {
-            EndBattle();
-        }
-    }
-}
-
-void ABattleManager::HandleCombatantTurnStarted(ACombatPawn* TurnPawn)
-{
-
-}
-
-void ABattleManager::HandleCombatantTurnEnded(ACombatPawn* TurnPawn)
-{
-    UE_LOG(LogTemp, Log, TEXT("[BM Event] %s's turn has ended."), TurnPawn ? *TurnPawn->GetName() : TEXT("N/A"));
-}
-
-void ABattleManager::HandleParryAttempt(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
-{
-    CurrentTurnParryResult = ParryResult;
-
-    switch (ParryResult)
-    {
-    case EParryResult::Success:
-        UE_LOG(LogTemp, Warning, TEXT("Parry Result: SUCCESS!"));
-        break;
-    case EParryResult::PartialSuccess:
-        UE_LOG(LogTemp, Log, TEXT("Parry Result: GUARD! (Partial Success)"));
-        break;
-    case EParryResult::None:
-        UE_LOG(LogTemp, Error, TEXT("Parry Result received as None, this should not happen here."));
-        break;
-    }
-
-    if (ParryResult == EParryResult::Success) // 성공한 경우에만
-    {
-        if (ParriedAttacker && ParriedAttacker == CurrentTurnCharacter)
-        {
-            // [수정] 공격자(몬스터)에게 패링 당했음을 알려 애니메이션을 중단/교체하도록 명령합니다.
-            EndTurn(); // 턴을 즉시 종료합니다.
-        }
-    }
+    CurrentBattleState = EBattleState::Ended;
+    TurnStack.Empty();
+    // TODO: 전투 종료 처리 로직 (결과 창 표시, 필드로 전환 등)
 }

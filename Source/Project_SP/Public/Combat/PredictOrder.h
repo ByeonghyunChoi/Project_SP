@@ -2,91 +2,36 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "CombatPawn.h"
-#include "Combat/AttributesComponent.h"
-#include "Combat/BattleTurnComponent.h"
-#include "Core/BattleManager.h"
 #include "PredictOrder.generated.h"
 
-USTRUCT(BlueprintType)
-struct FSimulatedCombatantData
-{
-	GENERATED_BODY()
+class ABattleManager;
+class ACombatPawn;
 
-	UPROPERTY(BlueprintReadWrite)
-	TWeakObjectPtr<ACombatPawn> OriginalCombatant;
-
-	UPROPERTY(BlueprintReadWrite)
-	float SimulatedActionValue;
-
-	UPROPERTY(BlueprintReadWrite)
-	float OriginalSpeed;
-
-	UPROPERTY(BlueprintReadWrite)
-	EFaction OriginalFaction;
-
-	UPROPERTY(BlueprintReadWrite)
-	bool bIsAlive;
-
-	FSimulatedCombatantData()
-		: SimulatedActionValue(0.0f), OriginalSpeed(0.0f), OriginalFaction(EFaction::Player), bIsAlive(false) {
-	}
-
-	FSimulatedCombatantData(ACombatPawn* InCombatant)
-		: OriginalCombatant(InCombatant), SimulatedActionValue(0.0f), OriginalSpeed(0.0f), OriginalFaction(EFaction::Player), bIsAlive(false)
-	{
-		if (InCombatant)
-		{
-			UAttributesComponent* Stats = InCombatant->GetAttributesComponent();
-			UBattleTurnComponent* TurnComp = InCombatant->FindComponentByClass<UBattleTurnComponent>();
-
-			if (Stats && TurnComp)
-			{
-				SimulatedActionValue = TurnComp->GetActionValue();
-				OriginalSpeed = Stats->GetCurrentStats().fMovementSpeed;
-				OriginalFaction = InCombatant->GetFaction();
-				bIsAlive = Stats->GetCurrentStats().fCurrentHealth > 0;
-			}
-		}
-	}
-
-	float GetSimulatedTimeLeftToAct() const
-	{
-		if (OriginalSpeed <= 0.0f) return 99999.0f;
-		return FMath::Max(0.0f, (10000.0f - SimulatedActionValue) / OriginalSpeed);
-	}
-};
-
+/**
+ * @class UPredictOrder
+ * @brief BattleManager의 '턴 스택'과 캐릭터들의 '행동 게이지'를 종합하여
+ * 미래의 턴 순서를 예측하는 컴포넌트입니다.
+ */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UPredictOrder : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UPredictOrder();
+    UPredictOrder();
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
+
+    UPROPERTY()
+    TObjectPtr<ABattleManager> BattleManagerRef;
 
 public:
-	UPROPERTY(BlueprintAssignable, Category = "PredictOrder|Events")
-	FOnTurnOrderChanged OnTurnOrderChanged;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PredictOrder")
-	ABattleManager* BattleManagerRef;
-
-	UFUNCTION(BlueprintCallable, Category = "PredictOrder")
-	void RequestTurnOrderUpdate();
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "PredictOrder")
-	TArray<ACombatPawn*> GetPredictedTurnOrder() const;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure)
-	bool IsMyOnTurnOrderChangedBound() const;
-
-private:
-	struct FCompareSimulatedCombatantData
-	{
-		bool operator()(const FSimulatedCombatantData& A, const FSimulatedCombatantData& B) const;
-	};
+    /**
+     * @brief 현재 턴 스택과 미래 시뮬레이션을 조합하여 정확한 턴 순서를 예측합니다.
+     * @param MaxPredictionCount 예측할 최대 턴 수
+     * @return 예측된 ACombatPawn의 배열
+     */
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "PredictOrder")
+    TArray<ACombatPawn*> GetPredictedTurnOrder(int32 MaxPredictionCount = 5) const;
 };

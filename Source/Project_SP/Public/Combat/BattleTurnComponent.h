@@ -4,8 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "BattleTurnComponent.generated.h"
 
-class UCharacterStatsComponent;
-class ABattleManager;
+class UAttributesComponent;
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UBattleTurnComponent : public UActorComponent
@@ -20,47 +19,36 @@ protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	// 현재 턴 상태
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
-	bool bIsMyTurn;
+	// 현재 자신의 턴인지 여부
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Turn")
+	bool bIsMyTurn = false;
 
-	// 속도 기반 액션 값
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turn", meta = (AllowPrivateAccess = "true"))
-	float ActionValue;
+	// 현재 행동 게이지 값
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Turn")
+	float ActionValue = 0.0f;
 
-	// 캐릭터 스탯 컴포넌트
+	// 턴을 얻기 위해 도달해야 하는 행동 게이지 목표치
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Turn")
+	float ActionThreshold = 10000.0f;
+
+	// 속도 값을 가져오기 위한 AttributesComponent 참조
 	UPROPERTY()
-	UCharacterStatsComponent* StatsComp;
-
-	// 목표 액션 값 (턴이 돌아오는 기준 값)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turn", meta = (AllowPrivateAccess = "true"))
-	float ActionThreshold;
+	TObjectPtr<UAttributesComponent> AttributesComp;
 
 public:
-	// 상태 확인
-	UFUNCTION(BlueprintCallable, Category = "Turn")
-	bool GetIsMyTurn() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Turn")
-	float GetActionValue() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Turn")
-	bool IsReadyForTurn() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Turn")
-	float GetTimeLeftToAct() const;
-
-	// 상태 제어
-	UFUNCTION(BlueprintCallable, Category = "Turn")
+	/** @brief 턴을 시작할 때 BattleManager에 의해 호출됩니다. 행동 게이지를 리셋합니다. */
 	void StartTurn();
 
-	UFUNCTION(BlueprintCallable, Category = "Turn")
+	/** @brief 턴을 종료할 때 BattleManager에 의해 호출됩니다. */
 	void EndTurn();
 
-	UFUNCTION(BlueprintCallable, Category = "Turn")
+	/** @brief 매 프레임 또는 일정 시간마다 호출되어 행동 게이지를 증가시킵니다. */
 	void AdvanceActionValue(float DeltaTime);
 
-	UPROPERTY()
-	ABattleManager* BattleManagerRef;
+	float GetActionValue();
+
+	/** @brief 행동 게이지가 목표치에 도달했는지 확인합니다. */
+	UFUNCTION(BlueprintPure, Category = "Turn")
+	bool IsReadyForTurn() const;
 
 };

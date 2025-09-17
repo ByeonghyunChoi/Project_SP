@@ -1,6 +1,5 @@
 #include "Combat/BattleTurnComponent.h"
-#include "Combat/CharacterStatsComponent.h"
-#include "Core/BattleManager.h"
+#include "Combat/AttributesComponent.h"
 #include "EngineUtils.h"
 
 
@@ -10,12 +9,6 @@ UBattleTurnComponent::UBattleTurnComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
-
-	BattleManagerRef = nullptr;
-	bIsMyTurn = false;
-	ActionValue = 0.0f;
-	ActionThreshold = 10000.0f;
-	StatsComp = nullptr;
 }
 
 
@@ -24,56 +17,35 @@ void UBattleTurnComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	StatsComp = GetOwner()->FindComponentByClass<UCharacterStatsComponent>();
-
-	for (TActorIterator<ABattleManager> It(GetWorld()); It; ++It)
-	{
-		BattleManagerRef = *It;
-		break;
-	}
-}
-
-bool UBattleTurnComponent::GetIsMyTurn() const
-{
-	return bIsMyTurn;
-}
-
-float UBattleTurnComponent::GetActionValue() const
-{
-	return ActionValue;
-}
-
-bool UBattleTurnComponent::IsReadyForTurn() const
-{
-	return ActionValue >= ActionThreshold;
-}
-
-float UBattleTurnComponent::GetTimeLeftToAct() const
-{
-	if (!StatsComp || StatsComp->GetMovementSpeed() <= 0.f)
-	{
-		return 99999.f;
-	}
-
-	float Remaining = ActionThreshold - ActionValue;
-	return FMath::Max(0.f, Remaining / StatsComp->GetMovementSpeed());
+	AttributesComp = GetOwner()->FindComponentByClass<UAttributesComponent>();
 }
 
 void UBattleTurnComponent::StartTurn()
 {
-	bIsMyTurn = true;
-	ActionValue = 0.f;
+    bIsMyTurn = true;
+    ActionValue = 0.f; // 턴을 가졌으므로 행동 게이지를 0으로 초기화
 }
 
 void UBattleTurnComponent::EndTurn()
 {
-	bIsMyTurn = false;
+    bIsMyTurn = false;
 }
 
 void UBattleTurnComponent::AdvanceActionValue(float DeltaTime)
 {
-	if (bIsMyTurn || !StatsComp)
-		return;
+    if (bIsMyTurn || !AttributesComp) return;
 
-	ActionValue += StatsComp->GetMovementSpeed() * DeltaTime;
+    // 자신의 속도에 비례하여 행동 게이지 증가
+    const float Speed = AttributesComp->GetCurrentStats().fMovementSpeed;
+    ActionValue += Speed * DeltaTime;
+}
+
+float UBattleTurnComponent::GetActionValue()
+{
+    return ActionValue;
+}
+
+bool UBattleTurnComponent::IsReadyForTurn() const
+{
+    return ActionValue >= ActionThreshold;
 }
