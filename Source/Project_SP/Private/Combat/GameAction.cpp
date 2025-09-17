@@ -1,118 +1,67 @@
 #include "Combat/GameAction.h"
-#include "Combat/CombatPawn.h"
+#include "Combat/ActionComponent.h"
 #include "Combat/AttributesComponent.h"
-#include "Combat/StatusEffectComponent.h" 
-#include "Core/BattleManager.h"
-#include "Kismet/GameplayStatics.h" 
-#include "Data/ActionData.h"
-#include "Combat/CombatStatics.h"
+#include "Combat/CombatPawn.h"
+#include "Event/GameEventComponent.h"
 
-UGameAction::UGameAction()
+void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InActionID)
 {
-}
+    OwningComponent = InOwningComponent;
+    ActionID = InActionID;
 
-
-void UGameAction::ExecuteAction(ACombatPawn* Instigator, const FActionData& ActionData, ABattleManager* BattleManagerRef, ACombatPawn* TargetPawn, const TArray<ACombatPawn*>& TargetPawns)
-{
-    if (Instigator && Instigator->GetAttributesComponent() && ActionData.CostType != ECostType::None)
+    // 데이터 테이블에서 ActionID에 해당하는 데이터를 찾아 'Data' 변수에 저장
+    if (OwningComponent && OwningComponent->GetActionDataTable())
     {
-        if (ActionData.CostType == ECostType::SP && Instigator->GetAttributesComponent()->GetSkillPoint() >= ActionData.CostAmount)
+        const FActionData* FoundRow = OwningComponent->GetActionDataTable()->FindRow<FActionData>(ActionID, TEXT(""));
+        if (FoundRow)
         {
-            Instigator->GetAttributesComponent()->ApplySPChange(Instigator->GetAttributesComponent()->GetSkillPoint() - ActionData.CostAmount);
-        }
-    }
-
-    if (ActionData.ActionType == EActionType::Attack)
-    {
-        if (Instigator && Instigator->GetAttributesComponent())
-        {
-            // ModifySP 함수는 최대 SP를 넘지 않도록 자동으로 값을 조절해줍니다.
-            Instigator->GetAttributesComponent()->ApplySPChange(Instigator->GetAttributesComponent()->GetSkillPoint() + 1);
-        }
-    }
-
-
-    TArray<ACombatPawn*> FinalTargets;
-
-    if (BattleManagerRef) // BattleManagerRef를 통해 모든 전투원 목록에 접근
-    {
-        if (ActionData.TargetingType == ETargetingType::Single)
-        {
-            // TargetPawns (UI에서 확정된 타겟) 사용 또는 TargetPawn (AI에서 결정한 타겟) 사용
-            if (TargetPawns.Num() > 0 && TargetPawns[0]) FinalTargets.Add(TargetPawns[0]);
-            else if (TargetPawn) FinalTargets.Add(TargetPawn);
-        }
-        else if (ActionData.TargetingType == ETargetingType::All)
-        {
-            for (ACombatPawn* Combatant : BattleManagerRef->AllCombatants)
-            {
-                if (Combatant && Combatant->GetAttributesComponent() && Combatant->GetAttributesComponent()->GetCurrentStats().fCurrentHealth > 0 &&
-                    Combatant->GetFaction() != Instigator->GetFaction())
-                {
-                    FinalTargets.Add(Combatant);
-                }
-            }
-        }
-        else if (ActionData.TargetingType == ETargetingType::Dual) // 2인 타겟팅
-        {
-            // 여기서는 UI에서 확정된 ConfirmedTargetPawns를 그대로 FinalTargets로 사용
-            FinalTargets = TargetPawns;
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("[UGameAction] BattleManagerRef is null. Cannot determine targets for %s."), *ActionData.DisplayName.ToString());
-        return; // BattleManager 없으면 타겟 결정 불가
-    }
-
-
-    // ----- 최종 타겟에 효과 적용 -----
-    for (ACombatPawn* CurrentTarget : FinalTargets)
-    {
-        if (CurrentTarget && Instigator)
-        {
-            //---- 데미지 계산
-            UAttributesComponent* AttackerStats = Instigator->GetAttributesComponent();
-            UAttributesComponent* TargetStats = CurrentTarget->GetAttributesComponent();
-            if (AttackerStats && TargetStats)
-            {
-                for (int32 i = 0; i < ActionData.NumberOfHits; ++i)
-                {
-                    float FinalDamage = UCombatStatics::CalculateDamage(
-                        Instigator->GetAttributesComponent(),
-                        CurrentTarget->GetAttributesComponent(),
-                        ActionData.SkillCoefficient
-                    );
-
-                    UE_LOG(LogTemp, Log, TEXT("Final Calculated Damage: %f"), FinalDamage);
-                    // UGameplayStatics::ApplyDamage를 호출하여 TakeDamage 함수를 통해 데미지 적용
-                    UGameplayStatics::ApplyDamage(CurrentTarget, FinalDamage, Instigator ? Instigator->GetController() : nullptr, Instigator, UDamageType::StaticClass());
-                }
-                if (ActionData.StatusEffectIDToApply != NAME_None && FMath::FRand() < ActionData.StatusEffectChance)
-                {
-                    if (CurrentTarget->GetStatusEffectComponent())
-                    {
-                        CurrentTarget->GetStatusEffectComponent()->ApplyStatusEffect(ActionData.StatusEffectIDToApply, Instigator);
-                    }
-                }
-            }
+            Data = *FoundRow;
         }
     }
 }
 
-bool UGameAction::HasEnoughCost(ACombatPawn* Instigator, const FActionData& ActionData) const
+bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 {
-    if (ActionData.CostType == ECostType::None)
+    if (!Instigator) return false;
+
+    // 비용이 0이면 항상 실행 가능
+    if (Data.CostSP <= 0)
+    {
         return true;
-
-    if (!Instigator || !Instigator->GetAttributesComponent())
-        return false;
-
-    UAttributesComponent* StatsComp = Instigator->GetAttributesComponent();
-
-    if (ActionData.CostType == ECostType::SP)
-    {
-        return StatsComp->GetSkillPoint() >= ActionData.CostAmount;
     }
+
+    // 시전자의 AttributesComponent를 가져와 SP가 충분한지 확인
+    UAttributesComponent* AttributesComp = Instigator->GetAttributesComponent();
+    if (AttributesComp && AttributesComp->GetSkillPoint() >= Data.CostSP)
+    {
+        return true;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("SP가 부족하여 '%s'을(를) 사용할 수 없습니다."), *Data.DisplayName.ToString());
     return false;
+}
+
+void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArray<ACombatPawn*>& Targets)
+{
+    UE_LOG(LogTemp, Log, TEXT("'%s' 액션 시작. 시전자: %s"), *Data.DisplayName.ToString(), *Instigator->GetName());
+
+    if (Data.CostSP > 0)
+    {
+        UAttributesComponent* AttributesComp = Instigator->GetAttributesComponent();
+        if (AttributesComp)
+        {
+            AttributesComp->ApplySPChange(-Data.CostSP);
+        }
+    }
+
+    EndAction(Instigator);
+}
+
+void UGameAction::EndAction(ACombatPawn* Instigator)
+{
+    if (Instigator && Instigator->GetGameEventComponent())
+    {
+        // GameEventComponent를 통해 "액션 실행이 끝났다"고 방송함.
+        Instigator->GetGameEventComponent()->BroadcastActionExecutionFinished(Instigator);
+    }
 }

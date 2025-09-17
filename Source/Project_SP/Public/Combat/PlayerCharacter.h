@@ -6,7 +6,6 @@
 #include "Data/ActionData.h"
 #include "PlayerCharacter.generated.h"
 
-class ABattleManager;
 class UWeaponSystemComponent;
 
 UCLASS()
@@ -23,7 +22,7 @@ public:
 	UFieldModeComponent* FieldModeComp;
 	// 무기 관리 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UWeaponSystemComponent* WeaponSystemComponent;
+	TObjectPtr<UWeaponSystemComponent> WeaponSystemComponent;
 
 protected:
 	// Called when the game starts or when spawned
@@ -33,16 +32,14 @@ protected:
 	UFUNCTION()
 	void HandleMyPawnStateChanged(ACombatPawn* Pawn, ECombatPawnState NewState);
 
-	// 최대 레벨
-	const int32 iMaxLevel = 50;
+	//현재 타겟
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadWrite, Category = "Combat")
+	TArray<TObjectPtr<ACombatPawn>> CurrentTargets;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Stats")
-	int32 iCurrentEXP;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Stats")
-	int32 iNextLevelEXP;
 
 public:
+	virtual void OnTurnBegin() override;
+
 	// 모드 전환 함수
 	UFUNCTION(BlueprintCallable, Category = "Modes")
 	void EnterFieldMode();
@@ -50,6 +47,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Modes")
 	void EnterBattleMode();
 
-	virtual void OnTurnBegin() override;
+	//무기 교체 함수
+	UFUNCTION(BlueprintCallable, Category = "Player|Input")
+	void RequestSwitchWeapon(EDamageType WeaponType);
+
+	//지정된 행동 실행 시도 함수
+	UFUNCTION(BlueprintCallable, Category = "Player|Input")
+	void RequestStartAction(FName ActionID);
+
+	//현재 타겟 목록 설정
+	UFUNCTION(BlueprintCallable, Category = "Player|Input")
+	void SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets);
 
 };

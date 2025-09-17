@@ -1,101 +1,58 @@
+// Equipment/WeaponSystemComponent.cpp
+
 #include "Equipment/WeaponSystemComponent.h"
-#include "Core/BattleManager.h"
-#include "Equipment/Weapon.h"
-#include "Combat/PlayerCharacter.h"
-#include "Event/GameEventComponent.h"
-#include "Combat/AttributesComponent.h"
-#include "Kismet/GameplayStatics.h"
+#include "Data/WeaponData.h"
+#include "Combat/ActionComponent.h"
+#include "GameFramework/Actor.h"
 
-// Sets default values for this component's properties
-UWeaponSystemComponent::UWeaponSystemComponent()
-{
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
-
-
-	// ...
-}
-
-
-// Called when the game starts
 void UWeaponSystemComponent::BeginPlay()
 {
-	Super::BeginPlay();
-	OwnerPlayer = Cast<APlayerCharacter>(GetOwner());
-
-	if (!CurrentWeapon && Weapons.Contains(EDamageType::Fenrir))
-	{
-		// 'Fenrir'를 기본 무기로 장착시킨다.
-		EquipWeapon(EDamageType::Fenrir);
-	}
-	// ...	
+    Super::BeginPlay();
+    ActionComponent = GetOwner()->FindComponentByClass<UActionComponent>();
 }
 
-void UWeaponSystemComponent::EquipWeapon(EDamageType WeaponTypeToEquip)
+void UWeaponSystemComponent::AcquireWeapon(EDamageType NewWeaponType)
 {
-	if (Weapons.Contains(WeaponTypeToEquip))
-	{
-		CurrentWeapon = Weapons[WeaponTypeToEquip];
-		UE_LOG(LogTemp, Log, TEXT("Weapon Switched to: %s"), *UEnum::GetValueAsString(WeaponTypeToEquip));
+    if (PossessedWeaponTypes.Contains(NewWeaponType)) return;
 
-		// --- 이 줄을 추가하여 신호를 보냅니다 ---
-		OnWeaponEquipped.Broadcast(CurrentWeapon);
-	}
+    PossessedWeaponTypes.Add(NewWeaponType);
+    OnWeaponAcquired.Broadcast(NewWeaponType);
+    UE_LOG(LogTemp, Warning, TEXT("%s 무기를 획득했습니다!"), *UEnum::GetValueAsString(NewWeaponType));
+
+    if (PossessedWeaponTypes.Num() == 1)
+    {
+        SwitchWeapon(NewWeaponType);
+    }
 }
 
-void UWeaponSystemComponent::HandleParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen)
+void UWeaponSystemComponent::SwitchWeapon(EDamageType WeaponTypeToSwitch)
 {
-	bIsParryWindowOpen = bIsWindowOpen;
-	if (bIsWindowOpen)
-	{
-		ParryAttacker = Attacker;
-		ParryAttackType = AttackType;
-		UE_LOG(LogTemp, Log, TEXT("Parry window OPENED. Attacker: %s, Type: %s"), *Attacker->GetName(), *UEnum::GetValueAsString(AttackType));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("Parry window CLOSED."));
-	}
+    if (!ActionComponent || !PossessedWeaponTypes.Contains(WeaponTypeToSwitch)) return;
+    if (CurrentWeapon && CurrentWeapon->WeaponType == WeaponTypeToSwitch) return;
+
+    if (CurrentWeapon)
+    {
+        ActionComponent->RemoveAction(CurrentWeapon->BasicAttackActionID);
+        ActionComponent->RemoveAction(CurrentWeapon->SpecialSkillActionID);
+        ActionComponent->RemoveAction(CurrentWeapon->ParrySkillActionID);
+    }
+
+    if (WeaponDataAssets.Contains(WeaponTypeToSwitch))
+    {
+        CurrentWeapon = WeaponDataAssets[WeaponTypeToSwitch];
+        if (CurrentWeapon)
+        {
+            ActionComponent->GrantAction(CurrentWeapon->BasicAttackActionID);
+            ActionComponent->GrantAction(CurrentWeapon->SpecialSkillActionID);
+            ActionComponent->GrantAction(CurrentWeapon->ParrySkillActionID);
+
+            OnWeaponSwitched.Broadcast(CurrentWeapon);
+            UE_LOG(LogTemp, Log, TEXT("%s 무기로 교체!"), *UEnum::GetValueAsString(WeaponTypeToSwitch));
+        }
+    }
 }
 
-bool UWeaponSystemComponent::AttemptParry(EDamageType WeaponTypeToSwitch)
+bool UWeaponSystemComponent::HasWeapon(EDamageType WeaponType) const
 {
-	if (!bIsParryWindowOpen || !OwnerPlayer || !ParryAttacker.IsValid()) return false;
-
-	UAttributesComponent* StatsComp = OwnerPlayer->GetAttributesComponent();
-	if (!StatsComp || StatsComp->GetSkillPoint() < 1)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SP 부족. 필요: 1"));
-		return false;
-	}
-
-	StatsComp->ApplySPChange(-1); // SP 100 소모
-
-	EParryResult Result;
-	if (true) // 성공 조건
-	{
-		Result = EParryResult::Success;
-		UE_LOG(LogTemp, Warning, TEXT("Parry SUCCESS!"));
-
-		EquipWeapon(WeaponTypeToSwitch);
-		if (CurrentWeapon && CurrentWeapon->SwitchSkillActionID != NAME_None)
-		{
-			TArray<ACombatPawn*> CounterTarget;
-			CounterTarget.Add(ParryAttacker.Get());
-		}
-	}
-	else // 부분 성공 (가드)
-	{
-		Result = EParryResult::PartialSuccess;
-		UE_LOG(LogTemp, Log, TEXT("Parry Partial Success (Guard)."));
-		EquipWeapon(WeaponTypeToSwitch);
-	}
-
-	bIsParryWindowOpen = false;
-	if (OwnerPlayer->GetGameEventComponent())
-	{
-		OwnerPlayer->GetGameEventComponent()->BroadcastParryAttempted(ParryAttacker.Get(), OwnerPlayer, Result);
-	}
-	return true;
+    return PossessedWeaponTypes.Contains(WeaponType);
 }

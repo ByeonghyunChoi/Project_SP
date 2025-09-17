@@ -1,0 +1,38 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Data/ActionData.h"
+#include "WeaponData.generated.h"
+
+/**
+ * 
+ */
+UCLASS(BlueprintType)
+class PROJECT_SP_API UWeaponData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+    // --- 로직용 데이터 ---
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
+    EDamageType WeaponType;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
+    FName BasicAttackActionID;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
+    FName SpecialSkillActionID;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
+    FName ParrySkillActionID;
+
+    // --- UI용 데이터 ---
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+    FText DisplayName;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+    FText Description;
+	
+};
