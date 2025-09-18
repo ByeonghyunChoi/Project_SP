@@ -1,10 +1,11 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
-#include "CombatPawn.h"
+#include "Combat/CombatPawn.h"
 #include "Combat/MonsterGroupObject.h"
 #include "MonsterCharacter.generated.h"
+
+class UAnimMontage;
 
 UCLASS()
 class PROJECT_SP_API AMonsterCharacter : public ACombatPawn
@@ -21,21 +22,25 @@ protected:
 
     UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Monster Group")
     UMonsterGroupObject* CombatMonsterGroup;
-    // 몬스터 애니메이션 액션과 연결함
+
+    UPROPERTY(EditDefaultsOnly, Category = "AI|Actions")
+    TArray<FName> DefaultActionIDs;
+
+    // 몬스터 애니메이션 목록
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|Animations")
     TMap<FName, TSoftObjectPtr<UAnimMontage>> ActionMontageMap;
-    // 공격할 타겟
-    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
-    TWeakObjectPtr<ACombatPawn> CurrentTarget;
+
+    // 약점 속성
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
+    EDamageType WeaknessType;
 public:
  
-    // --- 몬스터 전용 이벤트 핸들러 ---
-    UFUNCTION()
-    void HandleThisMonsterTurnStarted(ACombatPawn* TurnPawn);
-
+    void PlayActionMontage(FName ActionID);
 
     UFUNCTION(BlueprintPure, Category = "Monster Group")
     UMonsterGroupObject* GetCombatMonsterGroup() const;
+
+    void SetWeaknessType(EDamageType NewType);
 
     virtual void OnTurnBegin() override;
 

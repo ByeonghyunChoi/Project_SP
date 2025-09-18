@@ -148,6 +148,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Attributes")
     int32 GetSkillPoint() const { return SkillPoints; }
 
+    UFUNCTION(BlueprintPure, Category = "Attributes")
+    FName GetCharacterID() const { return CharacterID; }
+
     // ... 기타 필요한 Getter들 ...
 
 private:

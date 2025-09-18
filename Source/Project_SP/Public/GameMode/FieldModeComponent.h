@@ -6,7 +6,6 @@
 
 class APlayerCharacter;
 class AMonsterCharacter;
-class ACombatPawn;
 
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
@@ -33,10 +32,28 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FieldMode")
 	bool bIsMoving = true;
 
+	// 블루프린트에서 스트리밍할 전투 맵의 이름을 지정합니다.
+	UPROPERTY(EditAnywhere, Category = "Battle Transition")
+	FName BattleArenaMapName;
+
+	// 필드 맵에 배치된 '전투 무대' Target Point 액터에 지정할 태그입니다.
+	UPROPERTY(EditAnywhere, Category = "Battle Transition")
+	FName BattleStageTag;
+
+	// 전투 시작 전 플레이어의 위치를 저장할 변수
+	UPROPERTY()
+	FVector LastFieldLocation;
+
+	// 전투 중인지 상태를 나타내는 플래그
+	UPROPERTY()
+	bool bIsInBattle = false;
+
+	// 전투를 시작할 몬스터 정보를 임시로 저장할 변수
+	UPROPERTY()
+	TWeakObjectPtr<AMonsterCharacter> MonsterToBattle;
+
 
 public:
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void StartAttackSequence();
@@ -45,11 +62,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	AMonsterCharacter* PerformAttackHitDetection();
 
-	//레벨 전환 로직 분리
+	//전투 시작
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void StartBattleTransition(AMonsterCharacter* HitMonster);
+
+	//전투 종료
+	UFUNCTION(BlueprintCallable, Category = "FieldMode")
+	void EndBattleTransition();
 
 	// 공격 애니메이션 종료 시 호출될 함수 (애니메이션 노티파이에서 호출)
 	UFUNCTION(BlueprintCallable, Category = "FieldMode")
 	void OnAttackAnimationFinished();
+
+protected:
+	// 전투 맵 로딩이 완료되면 호출될 콜백 함수
+	UFUNCTION()
+	void OnBattleArenaLoaded();
+
+	// 전투 맵 언로딩이 완료되면 호출될 콜백 함수
+	UFUNCTION()
+	void OnBattleArenaUnloaded();
 };

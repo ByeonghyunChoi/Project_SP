@@ -1,9 +1,11 @@
 ﻿#include "GameMode/FieldModeComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Core/MyGameInstance.h"
 #include "Combat/PlayerCharacter.h" 
 #include "Combat/MonsterCharacter.h"
-#include "Combat/CombatPawn.h"
+#include "Core/BattleManager.h"
+#include "Engine/TargetPoint.h"
+#include "Combat/ActionComponent.h"
+#include "Combat/AttributesComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -24,12 +26,6 @@ void UFieldModeComponent::BeginPlay()
 
 }
 
-
-// Called every frame
-void UFieldModeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-}
 
 void UFieldModeComponent::StartAttackSequence()
 {
@@ -88,36 +84,6 @@ AMonsterCharacter* UFieldModeComponent::PerformAttackHitDetection()
     return nullptr; // 몬스터와 충돌하지 않음
 }
 
-void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
-{
-
-    UMyGameInstance* MyGameInstance = nullptr;
-    if (GetWorld()) // 컴포넌트가 유효한 월드에 속해 있는지 확인
-    {
-        MyGameInstance = Cast<UMyGameInstance>(GetWorld()->GetGameInstance());
-    }
-
-    if (MyGameInstance)
-    {
-        UMonsterGroupObject* MonsterGroup = HitMonster->GetCombatMonsterGroup();
-        if (!MonsterGroup)
-        {
-            UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: HitMonster->GetMonsterGroup()이 NULL입니다. 전투 시작 실패."));
-            return;
-        }
-
-        FName CurrentLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld()));
-        MyGameInstance->StartBattleTransitionWithGroup(
-            MonsterGroup,
-            CurrentLevelName
-        );
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("UFieldModeComponent: UMyGameInstance를 찾을 수 없습니다!"));
-    }
-}
-
 void UFieldModeComponent::OnAttackAnimationFinished()
 {
     APlayerCharacter* OwningPlayer = Cast<APlayerCharacter>(GetOwner());
@@ -131,3 +97,141 @@ void UFieldModeComponent::OnAttackAnimationFinished()
         UE_LOG(LogTemp, Log, TEXT("공격 애니메이션 종료, 이동 방향 회전 복귀."));
     }
 }
+
+void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
+{
+
+    if (bIsInBattle || !HitMonster) return;
+    bIsInBattle = true;
+
+    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+    if (!OwnerCharacter) return;
+
+    // 전투할 몬스터 정보와 플레이어의 현재 위치를 저장
+    MonsterToBattle = HitMonster;
+    LastFieldLocation = OwnerCharacter->GetActorLocation();
+
+    // 필드에 있는 플레이어 캐릭터 숨기기
+    OwnerCharacter->SetActorHiddenInGame(true);
+    OwnerCharacter->SetActorEnableCollision(false);
+    OwnerCharacter->GetCharacterMovement()->StopMovementImmediately();
+
+    // TODO: 화면 전환 연출 시작 (예: UMG로 화면을 검게 암전)
+
+    // 전투 맵(서브레벨)을 비동기적으로 로딩 시작
+    FLatentActionInfo LatentInfo;
+    LatentInfo.CallbackTarget = this;
+    LatentInfo.ExecutionFunction = FName("OnBattleArenaLoaded");
+    LatentInfo.Linkage = 0;
+    LatentInfo.UUID = FMath::Rand();
+
+    UGameplayStatics::LoadStreamLevel(this, BattleArenaMapName, true, false, LatentInfo);
+}
+
+void UFieldModeComponent::OnBattleArenaLoaded()
+{
+    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+    if (!OwnerCharacter) return;
+
+    // 태그를 이용해 '전투 무대' Target Point 액터 찾기
+    TArray<AActor*> BattleStageActors;
+    UGameplayStatics::GetAllActorsWithTag(this, BattleStageTag, BattleStageActors);
+
+    if (BattleStageActors.Num() > 0)
+    {
+        // 플레이어를 전투 무대로 순간이동시키고 다시 보이게 함
+        OwnerCharacter->SetActorLocation(BattleStageActors[0]->GetActorLocation());
+        OwnerCharacter->SetActorHiddenInGame(false);
+    }
+
+    // BattleManager를 찾아 전투 시작 명령
+    ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(this, ABattleManager::StaticClass()));
+    if (BattleManager && MonsterToBattle.IsValid())
+    {
+        // 플레이어 파티와 몬스터 파티 정보를 구성하여 전달
+        TArray<ACombatPawn*> PlayerParty = { Cast<ACombatPawn>(OwnerCharacter) };
+        TArray<ACombatPawn*> EnemyParty;
+        UMonsterGroupObject* MonsterGroup = MonsterToBattle->GetCombatMonsterGroup();
+        if (MonsterGroup)
+        {
+            // 1. 몬스터 그룹에서 스폰할 모든 몬스터 데이터를 가져옵니다.
+            TArray<FMonsterData> MonstersToSpawn = MonsterGroup->GetAllMonsterDataInGroup();
+
+            // 2. 전투 무대를 기준으로 몬스터들을 배치할 위치를 계산합니다.
+            FVector SpawnOrigin = BattleStageActors[0]->GetActorLocation();
+            FRotator SpawnRotation = OwnerCharacter->GetActorRotation().GetInverse(); // 플레이어를 바라보도록
+
+            for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
+            {
+                FVector SpawnLocation = SpawnOrigin + FVector(500.f, i * 200.f - 100.f, 0.f); // 예시 위치
+
+                // 3. 몬스터를 월드에 스폰합니다.
+                AMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActor<AMonsterCharacter>(MonstersToSpawn[i].MonsterClass, SpawnLocation, SpawnRotation);
+                if (SpawnedMonster)
+                {
+                    // 1. AttributesComponent 초기화
+                    if (UAttributesComponent* AttrComp = SpawnedMonster->GetAttributesComponent())
+                    {
+                        // 데이터 테이블에서 읽어올 RowName을 지정
+                        AttrComp->GetCharacterID() = MonstersToSpawn[i].CharacterStatsRowName;
+                        // AttributesComponent가 스스로 데이터를 로드하도록 초기화 함수 호출
+                        AttrComp->InitializeAttributes();
+                    }
+
+                    // 2. ActionComponent 초기화
+                    if (UActionComponent* ActionComp = SpawnedMonster->GetActionComponent())
+                    {
+                        // 몬스터 데이터에 정의된 스킬 목록으로 ActionComponent를 초기화
+                        ActionComp->InitializeDefaultActions(MonstersToSpawn[i].AvailableActionIDs);
+                    }
+
+                    // 3. 기타 몬스터 데이터 설정
+                    SpawnedMonster->SetWeaknessType(MonstersToSpawn[i].WeaknessType);
+
+                    EnemyParty.Add(SpawnedMonster);
+                }
+            }
+        }
+
+        BattleManager->StartBattle(PlayerParty, EnemyParty);
+    }
+}
+
+void UFieldModeComponent::EndBattleTransition()
+{
+    if (!bIsInBattle) return;
+
+    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+    if (!OwnerCharacter) return;
+
+    // 전투 공간에 있는 플레이어 캐릭터 다시 숨기기
+    OwnerCharacter->SetActorHiddenInGame(true);
+
+    // TODO: 필드 복귀 연출 시작 (예: UMG 화면 암전)
+
+    // 전투 맵(서브레벨)을 언로딩 시작
+    FLatentActionInfo LatentInfo;
+    LatentInfo.CallbackTarget = this;
+    LatentInfo.ExecutionFunction = FName("OnBattleArenaUnloaded");
+    LatentInfo.Linkage = 0;
+    LatentInfo.UUID = FMath::Rand();
+
+    UGameplayStatics::UnloadStreamLevel(this, BattleArenaMapName, LatentInfo, false);
+}
+
+void UFieldModeComponent::OnBattleArenaUnloaded()
+{
+    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+    if (!OwnerCharacter) return;
+
+    // 플레이어를 원래 위치로 복귀
+    OwnerCharacter->SetActorLocation(LastFieldLocation);
+
+    // 필드의 플레이어 캐릭터 다시 표시 및 조작 가능하게 설정
+    OwnerCharacter->SetActorHiddenInGame(false);
+    OwnerCharacter->SetActorEnableCollision(true);
+
+    bIsInBattle = false;
+    MonsterToBattle = nullptr;
+}
+
