@@ -3,7 +3,6 @@
 
 #include "Equipment/InventoryComponent.h"
 #include "Equipment/ItemBase.h"
-#include "UObject/ConstructorHelpers.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -13,10 +12,16 @@ UInventoryComponent::UInventoryComponent()
 void UInventoryComponent::AddItem(FName ItemID, int32 Count)
 {
 	// 데이터 테이블에서 해당 아이템의 중첩 가능 여부를 확인
-	static ConstructorHelpers::FObjectFinder<UDataTable> ItemDataTableFinder(TEXT("/Game/DataTable/DT_ItemData.DT_ItemData")); // 데이터 테이블 경로
-	if (!ItemDataTableFinder.Succeeded()) return;
+	const FString ItemDataTablePath = TEXT("/Game/DataTable/DT_ItemData.DT_ItemData"); // 데이터 테이블 경로
+	UDataTable* ItemDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ItemDataTablePath));
 
-	UDataTable* ItemDataTable = ItemDataTableFinder.Object;
+	if (!ItemDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Can't Load Item Data Table"));
+		return;
+	}
+
+	// 데이터 테이블에서 해당 아이템의 중첩 가능 여부를 확인
 	FItemData* FoundData = ItemDataTable->FindRow<FItemData>(ItemID, TEXT(""));
 
 	if (FoundData && FoundData->bCanStack)

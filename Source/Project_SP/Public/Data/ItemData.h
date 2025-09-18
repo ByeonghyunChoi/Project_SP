@@ -11,6 +11,7 @@ enum class EItemType : uint8
 {
 	EIT_None UMETA(DisplayName = "None"),
 	EIT_Artifact UMETA(DisplayName = "Artifact"),
+	EIT_Material UMETA(DisplayName = "Material"),
 	// 향후 추가될 아이템이 있으면 이 부분에 추가
 };
 
