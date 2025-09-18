@@ -173,7 +173,7 @@ void UFieldModeComponent::OnBattleArenaLoaded()
                     if (UAttributesComponent* AttrComp = SpawnedMonster->GetAttributesComponent())
                     {
                         // 데이터 테이블에서 읽어올 RowName을 지정
-                        AttrComp->GetCharacterID() = MonstersToSpawn[i].CharacterStatsRowName;
+                        AttrComp->SetCharacterID(MonstersToSpawn[i].CharacterStatsRowName);
                         // AttributesComponent가 스스로 데이터를 로드하도록 초기화 함수 호출
                         AttrComp->InitializeAttributes();
                     }

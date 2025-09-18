@@ -21,6 +21,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCombatPawnStateChanged, class AC
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetListChanged, const TArray<ACombatPawn*>&, NewTargets);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryWindowChanged, ACombatPawn*, Attacker, EDamageType, AttackType, bool, bIsWindowOpen);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryAttempted, ACombatPawn*, ParriedAttacker, ACombatPawn*, ParryingPlayer, EParryResult, ParryResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInterruptRequest, ACombatPawn*, Instigator);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UGameEventComponent : public UActorComponent
@@ -54,6 +55,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnParryAttempted OnParryAttempted;
 
+    UPROPERTY(BlueprintAssignable, Category = "Game Events")
+    FOnInterruptRequest OnInterruptRequest;
+
     // --- 브로드캐스트 함수들 ---
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, ACombatPawn* InstigatorPawn, UDamageType* DamageType);
@@ -73,4 +77,6 @@ public:
     void BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
+    UFUNCTION(BlueprintCallable, Category = "Game Events")
+    void BroadcastInterruptRequest(ACombatPawn* Instigator);
 };

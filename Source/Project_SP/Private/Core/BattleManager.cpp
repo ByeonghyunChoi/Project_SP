@@ -38,9 +38,7 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
         {
             // 각 전투원의 이벤트에 핸들러 함수들을 바인딩합니다.
             Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
-            // TODO: OnInterruptRequest 델리게이트를 GameEventComponent에 만들고 여기에 바인딩
-            // Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
-            Combatant->GetAttributesComponent()->OnHealthDepleted.AddDynamic(this, &ABattleManager::HandleCombatantDied);
+            Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
         }
     }
     CurrentBattleState = EBattleState::InProgress;
@@ -64,8 +62,29 @@ void ABattleManager::ProcessTurnFlow(float DeltaTime)
 
         if (ReadyCombatants.Num() > 0)
         {
-            // TODO: 속도 등에 따라 우선순위 정렬
-            PushAndStartTurn(ReadyCombatants[0], ETurnType::Normal);
+            //준비된 캐릭터들을 속도(내림차순)에 따라 정렬합니다.
+            ReadyCombatants.Sort([](const ACombatPawn& A, const ACombatPawn& B) {
+
+                // 1. 속도 비교 (내림차순)
+                const float SpeedA = A.GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
+                const float SpeedB = B.GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
+                if (!FMath::IsNearlyEqual(SpeedA, SpeedB))
+                {
+                    return SpeedA > SpeedB;
+                }
+
+                // 2. 속도가 같으면 진영 비교 (플레이어 우선)
+                const EFaction FactionA = A.GetFaction();
+                const EFaction FactionB = B.GetFaction();
+                if (FactionA != FactionB)
+                {
+                    // A가 플레이어면 true가 되어 A가 앞으로, B가 플레이어면 false가 되어 B가 앞으로 정렬됨
+                    return FactionA == EFaction::Player;
+                }
+
+                // 3. 속도와 진영이 모두 같으면 먼저 생성된 액터 우선
+                return A.GetUniqueID() < B.GetUniqueID();
+                });
         }
         else
         {

@@ -151,7 +151,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Attributes")
     FName GetCharacterID() const { return CharacterID; }
 
-    // ... 기타 필요한 Getter들 ...
+    // --- 설정자(Setter) ---
+    UFUNCTION(BlueprintCallable, Category = "Attributes")
+    void SetCharacterID(const FName& InID) { CharacterID = InID; }
 
 private:
     // --- 내부 헬퍼 함수 ---

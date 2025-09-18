@@ -16,3 +16,5 @@ void UGameEventComponent::BroadcastCombatPawnStateChanged(ACombatPawn* Pawn, ECo
 void UGameEventComponent::BroadcastTargetListChanged(const TArray<ACombatPawn*>& NewTargets){ OnTargetListChanged.Broadcast(NewTargets); }
 void UGameEventComponent::BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen) { OnParryWindowChanged.Broadcast(Attacker, AttackType, bIsWindowOpen); }
 void UGameEventComponent::BroadcastParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult) { OnParryAttempted.Broadcast(ParriedAttacker, ParryingPlayer, ParryResult); }
+void UGameEventComponent::BroadcastInterruptRequest(ACombatPawn* Instigator){ OnInterruptRequest.Broadcast(Instigator); }
+
