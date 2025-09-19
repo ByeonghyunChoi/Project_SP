@@ -9,7 +9,7 @@ UInventoryComponent::UInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UInventoryComponent::AddItem(FName ItemID, int32 Count)
+void UInventoryComponent::AddItem(FName ItemID, int32 Count)// TArray로 수정해서 받아서 한번에 추가
 {
 	// 데이터 테이블에서 해당 아이템의 중첩 가능 여부를 확인
 	const FString ItemDataTablePath = TEXT("/Game/DataTable/DT_ItemData.DT_ItemData"); // 데이터 테이블 경로
