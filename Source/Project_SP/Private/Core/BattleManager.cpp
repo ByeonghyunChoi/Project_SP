@@ -1,8 +1,8 @@
 ﻿#include "Core/BattleManager.h"
-#include "Combat/CombatPawn.h"
-#include "Combat/BattleTurnComponent.h"
-#include "Combat/AttributesComponent.h"
-#include "Event/GameEventComponent.h"
+#include "Character/CombatPawn.h"
+#include "Component/BattleTurnComponent.h"
+#include "Component/AttributesComponent.h"
+#include "Component/GameEventComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 

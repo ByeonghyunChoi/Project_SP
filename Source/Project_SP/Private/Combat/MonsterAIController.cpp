@@ -2,8 +2,8 @@
 
 
 #include "Combat/MonsterAIController.h"
-#include "Combat/MonsterCharacter.h"
-#include "Combat/ActionComponent.h"
+#include "Character/MonsterCharacter.h"
+#include "Component/ActionComponent.h"
 #include "Combat/GameAction.h" 
 #include "Core/BattleManager.h"
 #include "Kismet/GameplayStatics.h"

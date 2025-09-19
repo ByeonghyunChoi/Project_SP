@@ -1,6 +1,6 @@
 #include "Combat/CombatStatics.h"
-#include "Combat/AttributesComponent.h"
-#include "Combat/CombatPawn.h"
+#include "Component/AttributesComponent.h"
+#include "Character/CombatPawn.h"
 
 float UCombatStatics::CalculateDamage(const UAttributesComponent* AttackerStats, const UAttributesComponent* TargetStats, float SkillCoefficient)
 {

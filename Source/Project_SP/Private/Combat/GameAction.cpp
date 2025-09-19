@@ -1,8 +1,8 @@
 #include "Combat/GameAction.h"
-#include "Combat/ActionComponent.h"
-#include "Combat/AttributesComponent.h"
-#include "Combat/CombatPawn.h"
-#include "Event/GameEventComponent.h"
+#include "Component/ActionComponent.h"
+#include "Component/AttributesComponent.h"
+#include "Character/CombatPawn.h"
+#include "Component/GameEventComponent.h"
 
 void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InActionID)
 {

@@ -1,5 +1,5 @@
-#include "Combat/BattleTurnComponent.h"
-#include "Combat/AttributesComponent.h"
+#include "Component/BattleTurnComponent.h"
+#include "Component/AttributesComponent.h"
 #include "EngineUtils.h"
 
 

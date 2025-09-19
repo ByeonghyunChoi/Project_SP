@@ -1,8 +1,8 @@
 // Equipment/WeaponSystemComponent.cpp
 
-#include "Equipment/WeaponSystemComponent.h"
+#include "Component/WeaponSystemComponent.h"
 #include "Data/WeaponData.h"
-#include "Combat/ActionComponent.h"
+#include "Component/ActionComponent.h"
 #include "GameFramework/Actor.h"
 
 void UWeaponSystemComponent::BeginPlay()

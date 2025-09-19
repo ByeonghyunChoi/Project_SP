@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "GameMode/FieldModeComponent.h"
-#include "CombatPawn.h"
+#include "Component/FieldModeComponent.h"
+#include "Character/CombatPawn.h"
 #include "Data/ActionData.h"
 #include "PlayerCharacter.generated.h"
 

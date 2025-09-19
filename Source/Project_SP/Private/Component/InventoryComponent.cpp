@@ -1,8 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Equipment/InventoryComponent.h"
-#include "Equipment/ItemBase.h"
+#include "Component/InventoryComponent.h"
+#include "Items/ItemBase.h"
 
 UInventoryComponent::UInventoryComponent()
 {

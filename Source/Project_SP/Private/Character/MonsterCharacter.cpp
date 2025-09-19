@@ -1,6 +1,6 @@
-﻿#include "Combat/MonsterCharacter.h"
-#include "Combat/ActionComponent.h"
-#include "Event/GameEventComponent.h"
+﻿#include "Character/MonsterCharacter.h"
+#include "Component/ActionComponent.h"
+#include "Component/GameEventComponent.h"
 #include "Combat/MonsterAIController.h" 
 #include "Animation/AnimMontage.h"
 

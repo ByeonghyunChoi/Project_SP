@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Equipment/ItemBase.h"
+#include "Items/ItemBase.h"
 #include "Engine/DataTable.h"
 #include "Data/ItemData.h"
 

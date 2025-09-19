@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Equipment/ItemBase.h"
+#include "Items/ItemBase.h"
 #include "Data/ArtifactData.h"
 #include "ArtifactItem.generated.h"
 

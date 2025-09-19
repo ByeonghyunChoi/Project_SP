@@ -1,6 +1,6 @@
-﻿#include "Combat/StatusEffectComponent.h"
-#include "Combat/CombatPawn.h"
-#include "Combat/AttributesComponent.h"
+﻿#include "Component/StatusEffectComponent.h"
+#include "Character/CombatPawn.h"
+#include "Component/AttributesComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatStatics.h"
 

@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Combat/CombatPawn.h"
+#include "Character/CombatPawn.h"
 #include "Combat/MonsterGroupObject.h"
 #include "MonsterCharacter.generated.h"
 

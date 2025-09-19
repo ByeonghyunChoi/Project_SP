@@ -1,5 +1,5 @@
-#include "Event/GameEventComponent.h"
-#include "Combat/CombatPawn.h" 
+#include "Component/GameEventComponent.h"
+#include "Character/CombatPawn.h" 
 #include "Data/ActionData.h" 
 
 

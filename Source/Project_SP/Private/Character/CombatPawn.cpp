@@ -1,11 +1,11 @@
 ﻿// CombatPawn.cpp
 
-#include "Combat/CombatPawn.h"
-#include "Combat/AttributesComponent.h"
-#include "Combat/ActionComponent.h"
-#include "Combat/BattleTurnComponent.h"
-#include "Combat/StatusEffectComponent.h"
-#include "Event/GameEventComponent.h"
+#include "Character/CombatPawn.h"
+#include "Component/AttributesComponent.h"
+#include "Component/ActionComponent.h"
+#include "Component/BattleTurnComponent.h"
+#include "Component/StatusEffectComponent.h"
+#include "Component/GameEventComponent.h"
 
 ACombatPawn::ACombatPawn()
 {

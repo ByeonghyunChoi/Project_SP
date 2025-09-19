@@ -1,9 +1,9 @@
-﻿#include "Combat/PlayerCharacter.h"
+﻿#include "Character/PlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Event/GameEventComponent.h"
-#include "Equipment/WeaponSystemComponent.h"
-#include "GameMode/FieldModeComponent.h"
-#include "Combat/ActionComponent.h"
+#include "Component/GameEventComponent.h"
+#include "Component/WeaponSystemComponent.h"
+#include "Component/FieldModeComponent.h"
+#include "Component/ActionComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values

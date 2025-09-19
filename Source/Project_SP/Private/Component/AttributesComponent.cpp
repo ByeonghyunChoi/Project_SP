@@ -1,6 +1,6 @@
 // AttributesComponent.cpp
 
-#include "Combat/AttributesComponent.h"
+#include "Component/AttributesComponent.h"
 
 UAttributesComponent::UAttributesComponent()
 {

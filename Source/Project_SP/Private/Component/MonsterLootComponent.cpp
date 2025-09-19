@@ -1,11 +1,11 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Equipment/MonsterLootComponent.h"
+#include "Component/MonsterLootComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Equipment/InventoryComponent.h"
-#include "Equipment/ItemBase.h"
-#include "Equipment/ArtifactItem.h"
+#include "Component/InventoryComponent.h"
+#include "Items/ItemBase.h"
+#include "Items/ArtifactItem.h"
 #include "Data/ArtifactData.h"
 #include "Data/MonsterDropRate.h"
 

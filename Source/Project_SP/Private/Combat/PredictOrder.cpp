@@ -2,9 +2,9 @@
 
 #include "Combat/PredictOrder.h"
 #include "Core/BattleManager.h"
-#include "Combat/CombatPawn.h"
-#include "Combat/BattleTurnComponent.h"
-#include "Combat/AttributesComponent.h"
+#include "Character/CombatPawn.h"
+#include "Component/BattleTurnComponent.h"
+#include "Component/AttributesComponent.h"
 
 // 턴 예측 시뮬레이션을 위한 임시 데이터 구조체
 struct FSimulatedPawnData

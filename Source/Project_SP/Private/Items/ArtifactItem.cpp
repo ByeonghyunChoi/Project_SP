@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Equipment/ArtifactItem.h"
+#include "Items/ArtifactItem.h"
 #include "Engine/DataTable.h"
 #include "Data/ArtifactData.h"
 

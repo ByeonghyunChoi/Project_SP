@@ -1,10 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Combat/ActionComponent.h"
+#include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
 #include "Data/ActionData.h"
-#include "Combat/CombatPawn.h"
+#include "Character/CombatPawn.h"
 
 // Sets default values for this component's properties
 UActionComponent::UActionComponent()
