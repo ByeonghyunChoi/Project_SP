@@ -3,6 +3,8 @@
 #include "Component/AttributesComponent.h"
 #include "Character/CombatPawn.h"
 #include "Component/GameEventComponent.h"
+#include "Combat/CombatStatics.h"
+#include "Kismet/GameplayStatics.h"
 
 void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InActionID)
 {
@@ -51,6 +53,29 @@ void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArr
         if (AttributesComp)
         {
             AttributesComp->ApplySPChange(-Data.CostSP);
+        }
+    }
+
+    //데미지 적용 로직
+    UAttributesComponent* InstigatorStats = Instigator->GetAttributesComponent();
+    if (InstigatorStats)
+    {
+        for (ACombatPawn* Target : Targets)
+        {
+            if (Target && Target->GetCombatPawnState() != ECombatPawnState::Defeated)
+            {
+                UAttributesComponent* TargetStats = Target->GetAttributesComponent();
+                if (TargetStats)
+                {
+                    // 1. 데미지 계산
+                    float FinalDamage = UCombatStatics::CalculateDamage(InstigatorStats, TargetStats, Data.SkillCoefficient);
+
+                    UE_LOG(LogTemp, Log, TEXT("%s attacks %s for %.1f damage."), *Instigator->GetName(), *Target->GetName(), FinalDamage);
+
+                    // 2. 데미지 적용
+                    UGameplayStatics::ApplyDamage(Target, FinalDamage, Instigator->GetController(), Instigator, UDamageType::StaticClass());
+                }
+            }
         }
     }
 

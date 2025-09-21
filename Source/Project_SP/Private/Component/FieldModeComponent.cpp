@@ -9,6 +9,10 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Blueprint/UserWidget.h" 
+#include "Animation/WidgetAnimation.h" 
+#include "TimerManager.h" 
+#include "Blueprint/WidgetBlueprintGeneratedClass.h" 
 
 // Sets default values for this component's properties
 UFieldModeComponent::UFieldModeComponent()
@@ -98,38 +102,84 @@ void UFieldModeComponent::OnAttackAnimationFinished()
     }
 }
 
+// FieldModeComponent.cpp
+
 void UFieldModeComponent::StartBattleTransition(AMonsterCharacter* HitMonster)
 {
-
     if (bIsInBattle || !HitMonster) return;
     bIsInBattle = true;
+    MonsterToBattle = HitMonster;
 
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     if (!OwnerCharacter) return;
-
-    // 전투할 몬스터 정보와 플레이어의 현재 위치를 저장
-    MonsterToBattle = HitMonster;
     LastFieldLocation = OwnerCharacter->GetActorLocation();
-
-    // 필드에 있는 플레이어 캐릭터 숨기기
     OwnerCharacter->SetActorHiddenInGame(true);
     OwnerCharacter->SetActorEnableCollision(false);
     OwnerCharacter->GetCharacterMovement()->StopMovementImmediately();
 
-    // TODO: 화면 전환 연출 시작 (예: UMG로 화면을 검게 암전)
+    if (TransitionWidgetClass)
+    {
+        TransitionWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), TransitionWidgetClass);
+        if (TransitionWidgetInstance)
+        {
+            TransitionWidgetInstance->AddToViewport();
 
-    // 전투 맵(서브레벨)을 비동기적으로 로딩 시작
-    FLatentActionInfo LatentInfo;
-    LatentInfo.CallbackTarget = this;
-    LatentInfo.ExecutionFunction = FName("OnBattleArenaLoaded");
-    LatentInfo.Linkage = 0;
-    LatentInfo.UUID = FMath::Rand();
+            UWidgetAnimation* FadeInAnimation = nullptr;
+            UWidgetBlueprintGeneratedClass* WidgetClass = Cast<UWidgetBlueprintGeneratedClass>(TransitionWidgetInstance->GetClass());
 
-    UGameplayStatics::LoadStreamLevel(this, BattleArenaMapName, true, false, LatentInfo);
+            // --- 디버깅 코드 시작 ---
+            if (WidgetClass)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("--- Checking Animations in WBP_BattleTransition ---"));
+
+                // 위젯에 있는 모든 애니메이션의 이름을 출력합니다.
+                for (UWidgetAnimation* Anim : WidgetClass->Animations)
+                {
+                    if (Anim)
+                    {
+                        UE_LOG(LogTemp, Display, TEXT("Found Animation in Widget: [%s]"), *Anim->GetFName().ToString());
+                    }
+                }
+                UE_LOG(LogTemp, Warning, TEXT("--- Finished Checking Animations ---"));
+
+                // 기존의 애니메이션 찾는 로직
+                for (UWidgetAnimation* Anim : WidgetClass->Animations)
+                {
+                    if (Anim && Anim->GetFName().ToString().StartsWith(TEXT("FadeIn")))
+                    {
+                        FadeInAnimation = Anim;
+                        break;
+                    }
+                }
+            }
+            // --- 디버깅 코드 끝 ---
+
+            if (FadeInAnimation)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("FadeIn Animation FOUND! Playing animation."));
+                TransitionWidgetInstance->PlayAnimation(FadeInAnimation);
+                FTimerHandle TimerHandle;
+                GetWorld()->GetTimerManager().SetTimer(
+                    TimerHandle, this, &UFieldModeComponent::StartLoadingBattleMap, FadeInAnimation->GetEndTime(), false
+                );
+                return;
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("CRITICAL ERROR: 'FadeIn' Animation NOT FOUND in WBP_BattleTransition!"));
+                StartLoadingBattleMap();
+            }
+        }
+    }
+    else
+    {
+        StartLoadingBattleMap();
+    }
 }
 
 void UFieldModeComponent::OnBattleArenaLoaded()
 {
+    UE_LOG(LogTemp, Warning, TEXT("======= OnBattleArenaLoaded HAS BEEN CALLED! ======="));
     ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
     if (!OwnerCharacter) return;
 
@@ -141,6 +191,9 @@ void UFieldModeComponent::OnBattleArenaLoaded()
     {
         // 플레이어를 전투 무대로 순간이동시키고 다시 보이게 함
         OwnerCharacter->SetActorLocation(BattleStageActors[0]->GetActorLocation());
+        const FRotator TargetRotation = FRotator::ZeroRotator;
+
+        OwnerCharacter->SetActorRotation(TargetRotation);
         OwnerCharacter->SetActorHiddenInGame(false);
     }
 
@@ -163,7 +216,7 @@ void UFieldModeComponent::OnBattleArenaLoaded()
 
             for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
             {
-                FVector SpawnLocation = SpawnOrigin + FVector(500.f, i * 200.f - 100.f, 0.f); // 예시 위치
+                FVector SpawnLocation = SpawnOrigin + FVector(500.f, i * 200.f - 200.f, 0.f); // 예시 위치
 
                 // 3. 몬스터를 월드에 스폰합니다.
                 AMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActor<AMonsterCharacter>(MonstersToSpawn[i].MonsterClass, SpawnLocation, SpawnRotation);
@@ -192,9 +245,17 @@ void UFieldModeComponent::OnBattleArenaLoaded()
                 }
             }
         }
-
-        BattleManager->StartBattle(PlayerParty, EnemyParty);
+        if (BattleManager && MonsterToBattle.IsValid())
+        {
+            // ...
+            BattleManager->StartBattle(PlayerParty, EnemyParty);
+        }
     }
+
+    FTimerHandle TimerHandle;
+    GetWorld()->GetTimerManager().SetTimer(
+        TimerHandle, this, &UFieldModeComponent::StartFadeOut, 2.0f, false
+    );
 }
 
 void UFieldModeComponent::EndBattleTransition()
@@ -207,16 +268,43 @@ void UFieldModeComponent::EndBattleTransition()
     // 전투 공간에 있는 플레이어 캐릭터 다시 숨기기
     OwnerCharacter->SetActorHiddenInGame(true);
 
-    // TODO: 필드 복귀 연출 시작 (예: UMG 화면 암전)
+    if (TransitionWidgetClass)
+    {
+        TransitionWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), TransitionWidgetClass);
+        if (TransitionWidgetInstance)
+        {
+            TransitionWidgetInstance->AddToViewport();
 
-    // 전투 맵(서브레벨)을 언로딩 시작
-    FLatentActionInfo LatentInfo;
-    LatentInfo.CallbackTarget = this;
-    LatentInfo.ExecutionFunction = FName("OnBattleArenaUnloaded");
-    LatentInfo.Linkage = 0;
-    LatentInfo.UUID = FMath::Rand();
+            UWidgetAnimation* FadeInAnimation = nullptr;
+            UWidgetBlueprintGeneratedClass* WidgetClass = Cast<UWidgetBlueprintGeneratedClass>(TransitionWidgetInstance->GetClass());
+            if (WidgetClass)
+            {
+                for (UWidgetAnimation* Anim : WidgetClass->Animations)
+                {
+                    if (Anim && Anim->GetFName().ToString().StartsWith(TEXT("FadeIn")))
+                    {
+                        FadeInAnimation = Anim;
+                        break;
+                    }
+                }
+            }
 
-    UGameplayStatics::UnloadStreamLevel(this, BattleArenaMapName, LatentInfo, false);
+            if (FadeInAnimation)
+            {
+                TransitionWidgetInstance->PlayAnimation(FadeInAnimation);
+
+                // 애니메이션이 끝날 때까지 기다린 후 레벨 언로딩 시작
+                FTimerHandle TimerHandle;
+                GetWorld()->GetTimerManager().SetTimer(
+                    TimerHandle, this, &UFieldModeComponent::UnloadBattleMap, FadeInAnimation->GetEndTime(), false
+                );
+                return; // 타이머가 설정되었으므로 함수를 빠져나감
+            }
+        }
+    }
+
+    // 2. 위젯이 없다면 즉시 언로딩 시작
+    UnloadBattleMap();
 }
 
 void UFieldModeComponent::OnBattleArenaUnloaded()
@@ -233,5 +321,110 @@ void UFieldModeComponent::OnBattleArenaUnloaded()
 
     bIsInBattle = false;
     MonsterToBattle = nullptr;
+
+    if (TransitionWidgetInstance)
+    {
+        UWidgetAnimation* FadeOutAnimation = nullptr;
+        UWidgetBlueprintGeneratedClass* WidgetClass = Cast<UWidgetBlueprintGeneratedClass>(TransitionWidgetInstance->GetClass());
+        if (WidgetClass)
+        {
+            for (UWidgetAnimation* Anim : WidgetClass->Animations)
+            {
+                if (Anim && Anim->GetFName().ToString().StartsWith(TEXT("FadeOut")))
+                {
+                    FadeOutAnimation = Anim;
+                    break;
+                }
+            }
+        }
+
+        if (FadeOutAnimation)
+        {
+            TransitionWidgetInstance->PlayAnimation(FadeOutAnimation);
+
+            // 애니메이션이 끝나면 위젯을 제거
+            FTimerHandle TimerHandle;
+            GetWorld()->GetTimerManager().SetTimer(
+                TimerHandle,
+                [this]() {
+                    if (TransitionWidgetInstance)
+                    {
+                        TransitionWidgetInstance->RemoveFromParent();
+                        TransitionWidgetInstance = nullptr;
+                    }
+                },
+                FadeOutAnimation->GetEndTime(),
+                false
+            );
+        }
+    }
+}
+
+void UFieldModeComponent::StartLoadingBattleMap()
+{
+    FLatentActionInfo LatentInfo;
+    LatentInfo.CallbackTarget = this;
+    LatentInfo.ExecutionFunction = FName("OnBattleArenaLoaded");
+    LatentInfo.Linkage = 0;
+    LatentInfo.UUID = FMath::Rand();
+
+    UGameplayStatics::LoadStreamLevel(this, BattleArenaMapName, true, false, LatentInfo);
+}
+
+void UFieldModeComponent::UnloadBattleMap()
+{
+    FLatentActionInfo LatentInfo;
+    LatentInfo.CallbackTarget = this;
+    LatentInfo.ExecutionFunction = FName("OnBattleArenaUnloaded");
+    LatentInfo.Linkage = 0;
+    LatentInfo.UUID = FMath::Rand();
+
+    UGameplayStatics::UnloadStreamLevel(this, BattleArenaMapName, LatentInfo, false);
+}
+
+void UFieldModeComponent::StartFadeOut()
+{
+    if (TransitionWidgetInstance)
+    {
+        UWidgetAnimation* FadeOutAnimation = nullptr;
+        UWidgetBlueprintGeneratedClass* WidgetClass = Cast<UWidgetBlueprintGeneratedClass>(TransitionWidgetInstance->GetClass());
+        if (WidgetClass)
+        {
+            for (UWidgetAnimation* Anim : WidgetClass->Animations)
+            {
+                if (Anim && Anim->GetFName().ToString().StartsWith(TEXT("FadeOut")))
+                {
+                    FadeOutAnimation = Anim;
+                    break;
+                }
+            }
+        }
+
+        if (FadeOutAnimation)
+        {
+            TransitionWidgetInstance->PlayAnimation(FadeOutAnimation);
+
+            // 애니메이션이 끝나면 위젯을 제거
+            FTimerHandle TimerHandle;
+            GetWorld()->GetTimerManager().SetTimer(
+                TimerHandle,
+                [this]() {
+                    if (TransitionWidgetInstance)
+                    {
+                        TransitionWidgetInstance->RemoveFromParent();
+                        TransitionWidgetInstance = nullptr;
+                    }
+                },
+                FadeOutAnimation->GetEndTime(),
+                false
+            );
+        }
+        // 만약 FadeOut 애니메이션을 못찾으면, 위젯을 즉시 제거합니다.
+        else if (TransitionWidgetInstance)
+        {
+            TransitionWidgetInstance->RemoveFromParent();
+            TransitionWidgetInstance = nullptr;
+        }
+    }
 }
 

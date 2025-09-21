@@ -32,13 +32,21 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
     AllCombatants.Append(PlayerParty);
     AllCombatants.Append(EnemyParty);
 
-    for (ACombatPawn* Combatant : AllCombatants)
+   for (ACombatPawn* Combatant : AllCombatants)
     {
-        if (Combatant && Combatant->GetGameEventComponent())
+        if (Combatant)
         {
-            // 각 전투원의 이벤트에 핸들러 함수들을 바인딩합니다.
-            Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
-            Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
+            // --- MODIFIED ---: GameEventComponent와 AttributesComponent 이벤트에 핸들러 함수들을 바인딩합니다.
+            if (Combatant->GetGameEventComponent())
+            {
+                Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
+                Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
+            }
+            if (Combatant->GetAttributesComponent())
+            {
+                // 캐릭터가 죽을 때마다 전투 종료 조건을 확인하도록 바인딩
+                Combatant->GetAttributesComponent()->OnHealthDepleted.AddDynamic(this, &ABattleManager::HandleCombatantDied);
+            }
         }
     }
     CurrentBattleState = EBattleState::InProgress;
@@ -84,7 +92,13 @@ void ABattleManager::ProcessTurnFlow(float DeltaTime)
 
                 // 3. 속도와 진영이 모두 같으면 먼저 생성된 액터 우선
                 return A.GetUniqueID() < B.GetUniqueID();
-                });
+            });
+
+            ACombatPawn* CurrentTurnPawn = ReadyCombatants[0];
+            if (CurrentTurnPawn)
+            {
+                PushAndStartTurn(CurrentTurnPawn, ETurnType::Normal);
+            }
         }
         else
         {
@@ -111,7 +125,42 @@ void ABattleManager::EndCurrentTurn()
 
     EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
 
-    // TODO: 전투 종료 조건 확인 (CheckBattleEndConditions)
+}
+
+void ABattleManager::CheckBattleEndConditions()
+{
+    if (CurrentBattleState != EBattleState::InProgress) return;
+
+    bool bAllPlayersDefeated = true;
+    bool bAllEnemiesDefeated = true;
+
+    for (const ACombatPawn* Combatant : AllCombatants)
+    {
+        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
+        {
+            if (Combatant->GetFaction() == EFaction::Player)
+            {
+                bAllPlayersDefeated = false;
+            }
+            else if (Combatant->GetFaction() == EFaction::Enemy)
+            {
+                bAllEnemiesDefeated = false;
+            }
+        }
+    }
+
+    if (bAllPlayersDefeated)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - DEFEAT ======="));
+        EndBattle();
+        // TODO: 패배 처리 로직 호출 (ex: 게임 오버 창, 필드로 돌아가기)
+    }
+    else if (bAllEnemiesDefeated)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - VICTORY ======="));
+        EndBattle();
+        // TODO: 승리 처리 로직 호출 (ex: 결과 창, 보상 획득)
+    }
 }
 
 ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
@@ -138,8 +187,7 @@ void ABattleManager::HandleCombatantDied(AActor* InInstigator)
     ACombatPawn* DeadPawn = Cast<ACombatPawn>(InInstigator);
     if (DeadPawn)
     {
-        // 전투원 목록에서 제거하거나, 전투 불능 상태로 만듭니다.
-        // AllCombatants.Remove(DeadPawn);
+       AllCombatants.Remove(DeadPawn);
     }
 }
 
@@ -158,5 +206,4 @@ void ABattleManager::EndBattle()
 {
     CurrentBattleState = EBattleState::Ended;
     TurnStack.Empty();
-    // TODO: 전투 종료 처리 로직 (결과 창 표시, 필드로 전환 등)
 }

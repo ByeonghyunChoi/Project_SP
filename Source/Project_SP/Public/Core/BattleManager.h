@@ -50,12 +50,16 @@ protected:
 	TArray<TObjectPtr<ACombatPawn>> AllCombatants;
 
 public:
+	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndBattle();
 
 	void ProcessTurnFlow(float DeltaTime);
 	void PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type);
 	void EndCurrentTurn();
+	void CheckBattleEndConditions();
 
 	UFUNCTION(BlueprintPure, Category = "Battle Flow")
 	ACombatPawn* GetCurrentTurnCharacter() const;

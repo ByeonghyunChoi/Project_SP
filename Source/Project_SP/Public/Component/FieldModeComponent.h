@@ -22,7 +22,7 @@ protected:
 
 	// 공격 범위
 	UPROPERTY(EditAnywhere, Category = "FieldMode")
-	float AttackRange = 200.0f;
+	float AttackRange = 300.0f;
 
 	//공격 중인지 여부
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FieldMode")
@@ -51,6 +51,14 @@ protected:
 	// 전투를 시작할 몬스터 정보를 임시로 저장할 변수
 	UPROPERTY()
 	TWeakObjectPtr<AMonsterCharacter> MonsterToBattle;
+
+	// 블루프린트에서 지정할 전환 효과 위젯 클래스
+	UPROPERTY(EditAnywhere, Category = "Battle Transition")
+	TSubclassOf<UUserWidget> TransitionWidgetClass;
+
+	// 생성된 전환 효과 위젯의 인스턴스를 저장할 변수
+	UPROPERTY()
+	TObjectPtr<UUserWidget> TransitionWidgetInstance;
 
 
 public:
@@ -82,4 +90,8 @@ protected:
 	// 전투 맵 언로딩이 완료되면 호출될 콜백 함수
 	UFUNCTION()
 	void OnBattleArenaUnloaded();
+private:
+	void StartLoadingBattleMap();
+	void UnloadBattleMap();
+	void StartFadeOut();
 };
