@@ -6,6 +6,7 @@
 #include "BattleManager.generated.h"
 
 class ACombatPawn;
+class UCombatCameraComponent;
 enum class EBattleState : uint8;
 
 
@@ -49,6 +50,9 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, Category = "Battle Flow")
 	TArray<TObjectPtr<ACombatPawn>> AllCombatants;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UCombatCameraComponent> CameraComponent;
+
 public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
@@ -67,6 +71,8 @@ public:
 	// PredictOrder 클래스가 사용할 수 있도록 Getter 제공
 	const TArray<FTurnContext>& GetTurnStack() const { return TurnStack; }
 	const TArray<TObjectPtr<ACombatPawn>>& GetAllCombatants() const { return AllCombatants; }
+
+	FORCEINLINE UCombatCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
 protected:
 	// --- 이벤트 핸들러 ---

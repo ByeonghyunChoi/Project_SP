@@ -13,6 +13,8 @@
 #include "Animation/WidgetAnimation.h" 
 #include "TimerManager.h" 
 #include "Blueprint/WidgetBlueprintGeneratedClass.h" 
+#include "Component/CombatCameraComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values for this component's properties
 UFieldModeComponent::UFieldModeComponent()
@@ -201,6 +203,13 @@ void UFieldModeComponent::OnBattleArenaLoaded()
     ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(this, ABattleManager::StaticClass()));
     if (BattleManager && MonsterToBattle.IsValid())
     {
+        if (UCombatCameraComponent* CameraComp = BattleManager->GetCameraComponent())
+        {
+            // 1. "Battle_Default_Cam" 태그를 가진 카메라를 찾아 제어권을 넘겨받으라고 명령
+            CameraComp->InitializeCamera(TEXT("Battle_Default_Cam"));
+            CameraComp->PlayDefaultShot(OwnerCharacter, MonsterToBattle.Get());
+        }
+
         // 플레이어 파티와 몬스터 파티 정보를 구성하여 전달
         TArray<ACombatPawn*> PlayerParty = { Cast<ACombatPawn>(OwnerCharacter) };
         TArray<ACombatPawn*> EnemyParty;
@@ -212,14 +221,25 @@ void UFieldModeComponent::OnBattleArenaLoaded()
 
             // 2. 전투 무대를 기준으로 몬스터들을 배치할 위치를 계산합니다.
             FVector SpawnOrigin = BattleStageActors[0]->GetActorLocation();
-            FRotator SpawnRotation = OwnerCharacter->GetActorRotation().GetInverse(); // 플레이어를 바라보도록
+
+            //몬스터 배치 숫자를 계산하여 중심 인덱스 위치를 구함.
+            const int32 TotalMonsters = MonstersToSpawn.Num();
+            const float CenterIndex = (TotalMonsters - 1) / 2.0f;
+
+            const float SideSpacing = 300.0f;       // 몬스터 간의 '좌우' 간격
+            const float DepthSpacing = 50.0f;      // 몬스터 간의 '앞뒤' 간격
+            const float BaseForwardDistance = 650.0f; // 기본 전방 거리
 
             for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
             {
-                FVector SpawnLocation = SpawnOrigin + FVector(500.f, i * 200.f - 200.f, 0.f); // 예시 위치
+                const float Y_Offset = (i - CenterIndex) * SideSpacing;
+                const float X_Offset = BaseForwardDistance + FMath::Abs(i - CenterIndex) * DepthSpacing;
+
+                FVector SpawnLocation = SpawnOrigin + FVector(X_Offset, Y_Offset, 0.f);
 
                 // 3. 몬스터를 월드에 스폰합니다.
-                AMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActor<AMonsterCharacter>(MonstersToSpawn[i].MonsterClass, SpawnLocation, SpawnRotation);
+                const FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(SpawnLocation, OwnerCharacter->GetActorLocation());
+                AMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActor<AMonsterCharacter>(MonstersToSpawn[i].MonsterClass, SpawnLocation, LookAtRotation);
                 if (SpawnedMonster)
                 {
                     // 1. AttributesComponent 초기화

@@ -39,7 +39,7 @@ void APlayerCharacter::BeginPlay()
         ActionComponent->InitializeDefaultActions({});
     }
 
-    OnEnterFieldMode();
+    this->OnEnterFieldMode();
 }
 
 

@@ -3,12 +3,14 @@
 #include "Component/BattleTurnComponent.h"
 #include "Component/AttributesComponent.h"
 #include "Component/GameEventComponent.h"
+#include "Component/CombatCameraComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 
 ABattleManager::ABattleManager()
 {
     PrimaryActorTick.bCanEverTick = true;
+    CameraComponent = CreateDefaultSubobject<UCombatCameraComponent>(TEXT("CameraComponent"));
 }
 
 void ABattleManager::BeginPlay()
