@@ -41,11 +41,11 @@ public:
 	virtual void OnTurnBegin() override;
 
 	// 모드 전환 함수
-	UFUNCTION(BlueprintCallable, Category = "Modes")
-	void EnterFieldMode();
+	UFUNCTION(BlueprintImplementableEvent, Category = "Modes")
+	void OnEnterFieldMode();
 
-	UFUNCTION(BlueprintCallable, Category = "Modes")
-	void EnterBattleMode();
+	UFUNCTION(BlueprintImplementableEvent, Category = "Modes")
+	void OnEnterBattleMode();
 
 	//무기 교체 함수
 	UFUNCTION(BlueprintCallable, Category = "Player|Input")

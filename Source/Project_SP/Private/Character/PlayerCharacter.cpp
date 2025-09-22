@@ -38,27 +38,10 @@ void APlayerCharacter::BeginPlay()
     {
         ActionComponent->InitializeDefaultActions({});
     }
+
+    OnEnterFieldMode();
 }
 
-void APlayerCharacter::EnterFieldMode()
-{
-    // 필드 모드 컴포넌트 활성화
-    if (FieldModeComp)
-    {
-        FieldModeComp->SetComponentTickEnabled(true);
-        UE_LOG(LogTemp, Log, TEXT("플레이어 필드 모드 진입."));
-    }
-}
-
-void APlayerCharacter::EnterBattleMode()
-{
-    // 전투 진입 시 필드 모드 컴포넌트 비활성화
-    if (FieldModeComp)
-    {
-        FieldModeComp->SetComponentTickEnabled(false);
-        UE_LOG(LogTemp, Log, TEXT("필드 모드 비활성화."));
-    }
-}
 
 void APlayerCharacter::OnTurnBegin()
 {

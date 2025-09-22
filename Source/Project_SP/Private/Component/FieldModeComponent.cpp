@@ -252,6 +252,11 @@ void UFieldModeComponent::OnBattleArenaLoaded()
         }
     }
 
+    if (APlayerCharacter* PlayerChar = Cast<APlayerCharacter>(OwnerCharacter))
+    {
+        PlayerChar->OnEnterBattleMode();
+    }
+
     FTimerHandle TimerHandle;
     GetWorld()->GetTimerManager().SetTimer(
         TimerHandle, this, &UFieldModeComponent::StartFadeOut, 2.0f, false
@@ -336,6 +341,11 @@ void UFieldModeComponent::OnBattleArenaUnloaded()
                     break;
                 }
             }
+        }
+
+        if (APlayerCharacter* PlayerChar = Cast<APlayerCharacter>(OwnerCharacter))
+        {
+            PlayerChar->OnEnterFieldMode();
         }
 
         if (FadeOutAnimation)
