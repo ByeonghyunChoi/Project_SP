@@ -233,7 +233,7 @@ void UFieldModeComponent::OnBattleArenaLoaded()
             for (int32 i = 0; i < MonstersToSpawn.Num(); ++i)
             {
                 const float Y_Offset = (i - CenterIndex) * SideSpacing;
-                const float X_Offset = BaseForwardDistance + FMath::Abs(i - CenterIndex) * DepthSpacing;
+                const float X_Offset = BaseForwardDistance + (i - CenterIndex) * DepthSpacing;
 
                 FVector SpawnLocation = SpawnOrigin + FVector(X_Offset, Y_Offset, 0.f);
 
