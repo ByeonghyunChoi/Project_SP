@@ -51,6 +51,16 @@ float ACombatPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEven
     return ActualDamage;
 }
 
+FText ACombatPawn::GetCharacterDisplayName() const
+{
+    return DisplayName;
+}
+
+void ACombatPawn::SetCharacterDisplayName(const FText& NewName)
+{
+    DisplayName = NewName;
+}
+
 void ACombatPawn::HandleOwnerHealthDepleted(AActor* InInstigator)
 {
     if (CurrentPawnState != ECombatPawnState::Defeated)

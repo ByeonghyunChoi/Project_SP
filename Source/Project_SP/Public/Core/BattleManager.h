@@ -17,10 +17,10 @@ struct FTurnContext
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<ACombatPawn> Combatant;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	ETurnType TurnType;
 
 	FTurnContext(ACombatPawn* InCombatant = nullptr, ETurnType InType = ETurnType::Normal)
@@ -41,7 +41,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Battle Flow")
+	UPROPERTY(VisibleAnywhere, Category = "Battle Flow")
 	TArray<FTurnContext> TurnStack;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Battle Flow")
@@ -60,6 +60,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndBattle();
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void OnTurnOrderChanged();
+
 	void ProcessTurnFlow(float DeltaTime);
 	void PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type);
 	void EndCurrentTurn();
@@ -69,6 +72,7 @@ public:
 	ACombatPawn* GetCurrentTurnCharacter() const;
 
 	// PredictOrder 클래스가 사용할 수 있도록 Getter 제공
+	UFUNCTION(BlueprintPure, Category = "Battle Turn")
 	const TArray<FTurnContext>& GetTurnStack() const { return TurnStack; }
 	const TArray<TObjectPtr<ACombatPawn>>& GetAllCombatants() const { return AllCombatants; }
 
@@ -87,4 +91,5 @@ protected:
 
 private:
 	void AdvanceAllActionValues(float DeltaTime);
+	void DecideNextTurn();
 };

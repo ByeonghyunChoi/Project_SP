@@ -1,52 +1,52 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "CombatTypes.generated.h"
 
-// Ä³¸¯ÅÍÀÇ ÇöÀç Çàµ¿ »óÅÂ
+// ìºë¦­í„°ì˜ í˜„ì¬ í–‰ë™ ìƒíƒœ
 UENUM(BlueprintType)
 enum class ECombatPawnState : uint8
 {
-    Idle            UMETA(DisplayName = "´ë±â"),
-    SelectingAction UMETA(DisplayName = "Çàµ¿ ¼±ÅÃ Áß"),
-    SelectingTarget UMETA(DisplayName = "Å¸°Ù ¼±ÅÃ Áß"),
-    PerformingAction UMETA(DisplayName = "Çàµ¿ ¼öÇà Áß"),
-    Defeated        UMETA(DisplayName = "»ç¸Á"),
+    Idle            UMETA(DisplayName = "ëŒ€ê¸°"),
+    SelectingAction UMETA(DisplayName = "í–‰ë™ ì„ íƒ ì¤‘"),
+    SelectingTarget UMETA(DisplayName = "íƒ€ê²Ÿ ì„ íƒ ì¤‘"),
+    PerformingAction UMETA(DisplayName = "í–‰ë™ ìˆ˜í–‰ ì¤‘"),
+    Defeated        UMETA(DisplayName = "ì‚¬ë§"),
 };
 
-// Ä³¸¯ÅÍÀÇ ¼Ò¼Ó Áø¿µ
+// ìºë¦­í„°ì˜ ì†Œì† ì§„ì˜
 UENUM(BlueprintType)
 enum class EFaction : uint8
 {
-    Player  UMETA(DisplayName = "ÇÃ·¹ÀÌ¾î"),
-    Enemy   UMETA(DisplayName = "Àû"),
-    None    UMETA(DisplayName = "¾øÀ½")
+    Player  UMETA(DisplayName = "í”Œë ˆì´ì–´"),
+    Enemy   UMETA(DisplayName = "ì "),
+    None    UMETA(DisplayName = "ì—†ìŒ")
 };
 
-// ÅÏÀÇ Á¾·ù
+// í„´ì˜ ì¢…ë¥˜
 UENUM(BlueprintType)
 enum class ETurnType : uint8
 {
-    Normal      UMETA(DisplayName = "ÀÏ¹İ ÅÏ"),
-    Interrupt   UMETA(DisplayName = "Áß´Ü ÅÏ")
+    Normal      UMETA(DisplayName = "ì¼ë°˜ í„´"),
+    Interrupt   UMETA(DisplayName = "ì¤‘ë‹¨ í„´")
 };
 
-// ÆĞ¸µ °á°ú
+// íŒ¨ë§ ê²°ê³¼
 UENUM(BlueprintType)
 enum class EParryResult : uint8
 {
-    None,           // ÆĞ¸µ ½Ãµµ ¾øÀ½
-    Success,        // ÆĞ¸µ ¼º°ø (¾àÁ¡ ÀÏÄ¡)
-    PartialSuccess  // ºÎºĞ ¼º°ø (¾àÁ¡ ºÒÀÏÄ¡)
+    None,           // íŒ¨ë§ ì‹œë„ ì—†ìŒ
+    Success,        // íŒ¨ë§ ì„±ê³µ (ì•½ì  ì¼ì¹˜)
+    PartialSuccess  // ë¶€ë¶„ ì„±ê³µ (ì•½ì  ë¶ˆì¼ì¹˜)
 };
 
-// ÀüÅõÀÇ ÀüÃ¼ÀûÀÎ »óÅÂ
+// ì „íˆ¬ì˜ ì „ì²´ì ì¸ ìƒíƒœ
 UENUM(BlueprintType)
 enum class EBattleState : uint8
 {
-    Setup UMETA(DisplayName = "ÀüÅõ ÁØºñ"),
-    InProgress UMETA(DisplayName = "ÀüÅõ ÁøÇà Áß"),
-    Ended UMETA(DisplayName = "ÀüÅõ Á¾·á")
+    Setup UMETA(DisplayName = "ì „íˆ¬ ì¤€ë¹„"),
+    InProgress UMETA(DisplayName = "ì „íˆ¬ ì§„í–‰ ì¤‘"),
+    Ended UMETA(DisplayName = "ì „íˆ¬ ì¢…ë£Œ")
 };

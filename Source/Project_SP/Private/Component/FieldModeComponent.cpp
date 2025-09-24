@@ -203,6 +203,11 @@ void UFieldModeComponent::OnBattleArenaLoaded()
     ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(this, ABattleManager::StaticClass()));
     if (BattleManager && MonsterToBattle.IsValid())
     {
+        if (APlayerCharacter* PlayerChar = Cast<APlayerCharacter>(OwnerCharacter))
+        {
+            PlayerChar->OnEnterBattleMode();
+        }
+
         if (UCombatCameraComponent* CameraComp = BattleManager->GetCameraComponent())
         {
             // 1. "Battle_Default_Cam" 태그를 가진 카메라를 찾아 제어권을 넘겨받으라고 명령
@@ -261,20 +266,19 @@ void UFieldModeComponent::OnBattleArenaLoaded()
                     // 3. 기타 몬스터 데이터 설정
                     SpawnedMonster->SetWeaknessType(MonstersToSpawn[i].WeaknessType);
 
+                    if (MonstersToSpawn.IsValidIndex(i))
+                    {
+                        SpawnedMonster->SetCharacterDisplayName(MonstersToSpawn[i].DisplayName);
+                    }
+
                     EnemyParty.Add(SpawnedMonster);
                 }
             }
         }
         if (BattleManager && MonsterToBattle.IsValid())
         {
-            // ...
             BattleManager->StartBattle(PlayerParty, EnemyParty);
         }
-    }
-
-    if (APlayerCharacter* PlayerChar = Cast<APlayerCharacter>(OwnerCharacter))
-    {
-        PlayerChar->OnEnterBattleMode();
     }
 
     FTimerHandle TimerHandle;

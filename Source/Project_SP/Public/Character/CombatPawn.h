@@ -26,6 +26,10 @@ public:
 protected:
     virtual void BeginPlay() override;
 
+    //캐릭터 이름
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Info")
+    FText DisplayName;
+
     // --- 핵심 컴포넌트 ---
     // 모든 수치(체력, SP, 공격력 등)를 관리합니다.
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -58,6 +62,12 @@ public:
     // --- 공통 기능 ---
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
     virtual void OnTurnBegin() PURE_VIRTUAL(ACombatPawn::OnTurnBegin, );
+
+    // --- 이름Getter함수 --- 
+    UFUNCTION(BlueprintPure, Category = "Character Info")
+    FText GetCharacterDisplayName() const;
+    // --- 이름Setter함수 ---
+    void SetCharacterDisplayName(const FText& NewName);
 
     // --- 접근자(Getter) 함수 ---
     FORCEINLINE UAttributesComponent* GetAttributesComponent() const { return AttributesComponent; }

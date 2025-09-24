@@ -45,6 +45,11 @@ float UBattleTurnComponent::GetActionValue()
     return ActionValue;
 }
 
+float UBattleTurnComponent::GetActionThreshold()
+{
+    return ActionThreshold;
+}
+
 bool UBattleTurnComponent::IsReadyForTurn() const
 {
     return ActionValue >= ActionThreshold;

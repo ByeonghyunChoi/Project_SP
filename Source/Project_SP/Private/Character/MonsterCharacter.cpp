@@ -24,9 +24,6 @@ void AMonsterCharacter::BeginPlay()
     }
 }
 
-
-
-
 UMonsterGroupObject* AMonsterCharacter::GetCombatMonsterGroup() const
 {
     return CombatMonsterGroup;

@@ -9,7 +9,7 @@
 
 ABattleManager::ABattleManager()
 {
-    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = false;
     CameraComponent = CreateDefaultSubobject<UCombatCameraComponent>(TEXT("CameraComponent"));
 }
 
@@ -21,11 +21,6 @@ void ABattleManager::BeginPlay()
 void ABattleManager::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
-    if (CurrentBattleState == EBattleState::InProgress)
-    {
-        ProcessTurnFlow(DeltaTime);
-    }
 }
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
@@ -52,6 +47,8 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
         }
     }
     CurrentBattleState = EBattleState::InProgress;
+
+    DecideNextTurn();
 }
 
 void ABattleManager::ProcessTurnFlow(float DeltaTime)
@@ -116,6 +113,7 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
     TurnStack.Emplace(Combatant, Type);
     Combatant->GetBattleTurnComponent()->StartTurn();
     Combatant->OnTurnBegin();
+    OnTurnOrderChanged();
 }
 
 void ABattleManager::EndCurrentTurn()
@@ -126,7 +124,8 @@ void ABattleManager::EndCurrentTurn()
     TurnStack.Pop();
 
     EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
-
+    OnTurnOrderChanged();
+    DecideNextTurn();
 }
 
 void ABattleManager::CheckBattleEndConditions()
@@ -201,6 +200,95 @@ void ABattleManager::AdvanceAllActionValues(float DeltaTime)
         {
             Combatant->GetBattleTurnComponent()->AdvanceActionValue(DeltaTime);
         }
+    }
+}
+
+void ABattleManager::DecideNextTurn()
+{
+    // 중단 턴 등 스택에 이미 처리할 턴이 있다면 먼저 처리
+    if (!TurnStack.IsEmpty())
+    {
+        const FTurnContext NextTurnContext = TurnStack.Pop();
+        ACombatPawn* NextInStack = NextTurnContext.Combatant;
+        PushAndStartTurn(NextInStack, NextTurnContext.TurnType);
+        return;
+    }
+
+    // --- 로직 수정 시작 ---
+
+    // 1. 이미 행동 게이지가 가득 찬 캐릭터가 있는지 확인
+    TArray<ACombatPawn*> ReadyCombatants;
+    for (ACombatPawn* Combatant : AllCombatants)
+    {
+        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
+        {
+            if (Combatant->GetBattleTurnComponent()->IsReadyForTurn())
+            {
+                ReadyCombatants.Add(Combatant);
+            }
+        }
+    }
+
+    // 2. 만약 준비된 캐릭터가 있다면, 그중 가장 우선순위가 높은 캐릭터의 턴을 시작
+    if (ReadyCombatants.Num() > 0)
+    {
+        // 준비된 캐릭터들을 속도 > 진영 순으로 정렬
+        ReadyCombatants.Sort([](const ACombatPawn& A, const ACombatPawn& B) {
+            // ... (이전에 사용했던 Sort 로직과 동일)
+            const float SpeedA = A.GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
+            const float SpeedB = B.GetAttributesComponent()->GetCurrentStats().fMovementSpeed;
+            if (!FMath::IsNearlyEqual(SpeedA, SpeedB))
+            {
+                return SpeedA > SpeedB;
+            }
+            return A.GetFaction() == EFaction::Player; // 간단한 예시
+            });
+
+        PushAndStartTurn(ReadyCombatants[0], ETurnType::Normal);
+        return; // 턴을 시작했으므로 함수 종료
+    }
+
+    // 3. 준비된 캐릭터가 아무도 없다면, 이제 누가 가장 먼저 준비될지 계산
+    ACombatPawn* NextCombatant = nullptr;
+    float MinTimeToAct = MAX_FLT;
+
+    for (ACombatPawn* Combatant : AllCombatants)
+    {
+        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
+        {
+            // ... (기존의 TimeToReachThreshold 계산 로직은 동일)
+            UBattleTurnComponent* TurnComp = Combatant->GetBattleTurnComponent();
+            UAttributesComponent* AttrComp = Combatant->GetAttributesComponent();
+            if (TurnComp && AttrComp)
+            {
+                const float Speed = AttrComp->GetCurrentStats().fMovementSpeed;
+                if (Speed <= 0) continue;
+
+                const float TimeToReachThreshold = (TurnComp->GetActionThreshold() - TurnComp->GetActionValue()) / Speed;
+
+                // 음수 시간은 무시 (이미 준비된 캐릭터는 위에서 처리했으므로)
+                if (TimeToReachThreshold >= 0 && TimeToReachThreshold < MinTimeToAct)
+                {
+                    MinTimeToAct = TimeToReachThreshold;
+                    NextCombatant = Combatant;
+                }
+            }
+        }
+    }
+
+    // 4. 다음 턴 주자를 찾았다면, 시간 경과 및 턴 시작
+    if (NextCombatant)
+    {
+        // 찾은 시간만큼 모든 캐릭터의 게이지를 증가
+        for (ACombatPawn* Combatant : AllCombatants)
+        {
+            if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
+            {
+                Combatant->GetBattleTurnComponent()->AdvanceActionValue(MinTimeToAct);
+            }
+        }
+
+        PushAndStartTurn(NextCombatant, ETurnType::Normal);
     }
 }
 

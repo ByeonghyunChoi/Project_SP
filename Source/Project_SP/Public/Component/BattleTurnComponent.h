@@ -47,6 +47,8 @@ public:
 
 	float GetActionValue();
 
+	float GetActionThreshold();
+
 	/** @brief 행동 게이지가 목표치에 도달했는지 확인합니다. */
 	UFUNCTION(BlueprintPure, Category = "Turn")
 	bool IsReadyForTurn() const;
