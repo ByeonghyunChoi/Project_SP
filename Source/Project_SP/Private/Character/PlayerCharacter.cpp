@@ -5,6 +5,8 @@
 #include "Component/FieldModeComponent.h"
 #include "Component/ActionComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 
 // Sets default values
 APlayerCharacter::APlayerCharacter()
@@ -18,6 +20,55 @@ APlayerCharacter::APlayerCharacter()
     bUseControllerRotationYaw = false;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
+
+    // 입력 액션 설정
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionSelectBasicAttackRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_SelectBasicAttack.IA_SelectBasicAttack'"));
+    if (nullptr != InputActionSelectBasicAttackRef.Object)
+    {
+        SelectBasicAttackAction = InputActionSelectBasicAttackRef.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionSelectMainSkillRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_SelectMainSkill.IA_SelectMainSkill'"));
+    if (nullptr != InputActionSelectMainSkillRef.Object)
+    {
+        SelectMainSkillAction = InputActionSelectMainSkillRef.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionWeapon1Ref(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_Weapon1.IA_Weapon1'"));
+    if (nullptr != InputActionWeapon1Ref.Object)
+    {
+        Weapon1Action = InputActionWeapon1Ref.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionWeapon2Ref(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_Weapon2.IA_Weapon2'"));
+    if (nullptr != InputActionWeapon2Ref.Object)
+    {
+        Weapon2Action = InputActionWeapon2Ref.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionWeapon3Ref(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_Weapon3.IA_Weapon3'"));
+    if (nullptr != InputActionWeapon3Ref.Object)
+    {
+        Weapon3Action = InputActionWeapon3Ref.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionConfirmActionRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_ConfirmAction.IA_ConfirmAction'"));
+    if (nullptr != InputActionConfirmActionRef.Object)
+    {
+        ConfirmActionAction = InputActionConfirmActionRef.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionSelectTargetRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_SelectTargetMouse.IA_SelectTargetMouse'"));
+    if (nullptr != InputActionSelectTargetRef.Object)
+    {
+        SelectTargetAction = InputActionSelectTargetRef.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UInputAction> InputActionCycleTargetRef(TEXT("/Script/EnhancedInput.InputAction'/Game/Battle/Actions/IA_CycleTarget.IA_CycleTarget'"));
+    if (nullptr != InputActionCycleTargetRef.Object)
+    {
+        CycleTargetAction = InputActionCycleTargetRef.Object;
+    }
 }
 
 // Called when the game starts or when spawned
@@ -99,3 +150,38 @@ void APlayerCharacter::SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets)
     SetCombatPawnState(ECombatPawnState::SelectingTarget);
 }
 
+void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+}
+
+void APlayerCharacter::SelectBasicAttack(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::SelectMainSkill(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::Weapon1(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::Weapon2(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::Weapon3(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::ConfirmAction(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::CycleTarget(const FInputActionValue& Value)
+{
+}
+
+void APlayerCharacter::SelectTargetMouse(const FInputActionValue& Value)
+{
+}
