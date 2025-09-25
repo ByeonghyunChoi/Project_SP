@@ -54,9 +54,8 @@ TArray<ACombatPawn*> UPredictOrder::GetPredictedTurnOrder(int32 MaxPredictionCou
     TArray<ACombatPawn*> PredictedOrder;
     if (!BattleManagerRef) return PredictedOrder;
 
-    // --- 1단계: "확정된 현재" - 턴 스택에 있는 캐릭터들을 먼저 추가 ---
+    // --- 1단계: 턴 스택 처리 ---
     const TArray<FTurnContext>& TurnStack = BattleManagerRef->GetTurnStack();
-    // 스택의 맨 위(Top)가 현재 턴이므로, 역순으로 순회하여 예측 목록에 추가합니다.
     for (int32 i = TurnStack.Num() - 1; i >= 0; --i)
     {
         if (TurnStack[i].Combatant)
@@ -64,72 +63,80 @@ TArray<ACombatPawn*> UPredictOrder::GetPredictedTurnOrder(int32 MaxPredictionCou
             PredictedOrder.Add(TurnStack[i].Combatant);
         }
     }
-
-    // 예측 목록이 꽉 찼으면 여기서 바로 반환
     if (PredictedOrder.Num() >= MaxPredictionCount)
     {
         PredictedOrder.SetNum(MaxPredictionCount);
         return PredictedOrder;
     }
 
-    // --- 2단계: "예측된 미래" - 행동 게이지 시뮬레이션 ---
-
+    // --- 2단계: 시뮬레이션 준비 ---
     TArray<FSimulatedPawnData> SimPawns;
     for (ACombatPawn* Combatant : BattleManagerRef->GetAllCombatants())
     {
-        // 살아있고, 아직 예측 목록에 없는 캐릭터만 시뮬레이션 대상으로 추가
-        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated && !PredictedOrder.Contains(Combatant))
+        if (Combatant && Combatant->GetCombatPawnState() != ECombatPawnState::Defeated)
         {
-            SimPawns.Emplace(Combatant);
+            FSimulatedPawnData SimData(Combatant);
+            if (PredictedOrder.Contains(Combatant))
+            {
+                SimData.SimulatedActionValue = 0.f;
+            }
+            SimPawns.Add(SimData);
         }
     }
 
-    // 시뮬레이션 루프: 예측 목록이 찰 때까지 반복
+    // --- 시뮬레이션 루프 ---
     while (PredictedOrder.Num() < MaxPredictionCount && SimPawns.Num() > 0)
     {
-        // 1. 다음 턴을 잡는 데 걸리는 최소 시간 계산
+        // 1. 최소 시간 계산
         float MinTimeToAct = MAX_FLT;
         for (const FSimulatedPawnData& SimPawn : SimPawns)
         {
-            MinTimeToAct = FMath::Min(MinTimeToAct, SimPawn.GetTimeToReachThreshold(10000.f));
+            const float TimeToReach = SimPawn.GetTimeToReachThreshold(10000.f);
+            MinTimeToAct = FMath::Min(MinTimeToAct, FMath::Max(0.f, TimeToReach));
         }
 
-        if (MinTimeToAct >= MAX_FLT || MinTimeToAct < 0.f)
-        {
-            break; // 더 이상 진행할 캐릭터가 없으면 종료
-        }
+        if (MinTimeToAct >= MAX_FLT) break;
 
-        // 2. 모든 시뮬레이션 캐릭터의 행동 게이지를 최소 시간만큼 진행
+        // 2. 시간 진행
         for (FSimulatedPawnData& SimPawn : SimPawns)
         {
             SimPawn.SimulatedActionValue += SimPawn.MovementSpeed * MinTimeToAct;
         }
 
-        // 3. 준비가 된 캐릭터들을 모두 찾음
+        // 3. 준비된 캐릭터 찾기
         TArray<FSimulatedPawnData*> ReadyPawns;
         for (FSimulatedPawnData& SimPawn : SimPawns)
         {
-            if (SimPawn.SimulatedActionValue >= 10000.f)
+            if (SimPawn.SimulatedActionValue >= 10000.f - KINDA_SMALL_NUMBER)
             {
                 ReadyPawns.Add(&SimPawn);
             }
         }
 
-        if (ReadyPawns.Num() == 0) break;
+        if (ReadyPawns.Num() == 0) continue;
 
+        // --- 이 부분을 수정합니다 ---
         // 4. 준비된 캐릭터들을 우선순위(속도 등)에 따라 정렬
         ReadyPawns.Sort([](const FSimulatedPawnData& A, const FSimulatedPawnData& B) {
+            // 속도가 같을 경우를 대비해 ActionValue도 비교
+            if (FMath::IsNearlyEqual(A.MovementSpeed, B.MovementSpeed))
+            {
+                return A.SimulatedActionValue > B.SimulatedActionValue;
+            }
             return A.MovementSpeed > B.MovementSpeed;
             });
+        // -------------------------
 
-        // 5. 가장 우선순위 높은 캐릭터를 예측 목록에 추가하고, 시뮬레이션 목록에서 제거 준비
-        ACombatPawn* NextPawn = ReadyPawns[0]->Pawn.Get();
-        if (NextPawn)
+        // 5. 예측 목록에 추가
+        for (FSimulatedPawnData* ReadyPawnPtr : ReadyPawns)
         {
-            PredictedOrder.Add(NextPawn);
-            SimPawns.RemoveAll([NextPawn](const FSimulatedPawnData& SimPawn) {
-                return SimPawn.Pawn == NextPawn;
-                });
+            if (PredictedOrder.Num() >= MaxPredictionCount) break;
+            ACombatPawn* NextPawn = ReadyPawnPtr->Pawn.Get();
+            if (NextPawn)
+            {
+                PredictedOrder.Add(NextPawn);
+                ReadyPawnPtr->SimulatedActionValue -= 10000.f;
+            }
         }
     }
 
