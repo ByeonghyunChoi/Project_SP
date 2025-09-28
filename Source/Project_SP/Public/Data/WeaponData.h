@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Ôªø// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -15,7 +15,7 @@ class PROJECT_SP_API UWeaponData : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
-    // --- ∑Œ¡˜øÎ µ•¿Ã≈Õ ---
+    // --- Î°úÏßÅÏö© Îç∞Ïù¥ÌÑ∞ ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
     EDamageType WeaponType;
 
@@ -28,7 +28,7 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
     FName ParrySkillActionID;
 
-    // --- UIøÎ µ•¿Ã≈Õ ---
+    // --- UIÏö© Îç∞Ïù¥ÌÑ∞ ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
     FText DisplayName;
 

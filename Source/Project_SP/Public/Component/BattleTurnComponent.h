@@ -53,4 +53,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Turn")
 	bool IsReadyForTurn() const;
 
+	UFUNCTION(BlueprintPure, Category = "Turn")
+	bool IsMyTurn() const { return bIsMyTurn; }
+
 };

@@ -61,7 +61,7 @@ protected:
 public:
     // --- 공통 기능 ---
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
-    virtual void OnTurnBegin() PURE_VIRTUAL(ACombatPawn::OnTurnBegin, );
+    virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) PURE_VIRTUAL(ACombatPawn::OnTurnBegin, );
 
     // --- 이름Getter함수 --- 
     UFUNCTION(BlueprintPure, Category = "Character Info")

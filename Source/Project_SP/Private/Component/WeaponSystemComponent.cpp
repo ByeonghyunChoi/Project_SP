@@ -47,6 +47,10 @@ void UWeaponSystemComponent::SwitchWeapon(EDamageType WeaponTypeToSwitch)
             ActionComponent->GrantAction(CurrentWeapon->ParrySkillActionID);
 
             OnWeaponSwitched.Broadcast(CurrentWeapon);
+            if (ActionComponent)
+            {
+                ActionComponent->OnActionListChanged.Broadcast(ActionComponent);
+            }
             UE_LOG(LogTemp, Log, TEXT("%s 무기로 교체!"), *UEnum::GetValueAsString(WeaponTypeToSwitch));
         }
     }

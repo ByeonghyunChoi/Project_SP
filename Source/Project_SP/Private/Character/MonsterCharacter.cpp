@@ -34,7 +34,7 @@ void AMonsterCharacter::SetWeaknessType(EDamageType NewType)
     WeaknessType = NewType;
 }
 
-void AMonsterCharacter::OnTurnBegin()
+void AMonsterCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {
     if (GetCombatPawnState() == ECombatPawnState::Defeated) return;
 

@@ -3,30 +3,13 @@
 
 #include "Character/MyPlayerController.h"
 #include "Blueprint/UserWidget.h"
-#include "InputMappingContext.h"
+#include "EnhancedInputSubsystems.h"
 
 void AMyPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputMappingContextFieldRef(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/Field/Actions/IMC_Field.IMC_Field'"));
-    if (nullptr != InputMappingContextFieldRef.Object)
-    {
-        FieldIMC = InputMappingContextFieldRef.Object;
-    }
-
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputMappingContextPlayerTurnRef(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/Battle/Actions/IMC_PlayerTurn.IMC_PlayerTurn'"));
-    if (nullptr != InputMappingContextPlayerTurnRef.Object)
-    {
-        PlayerTurnIMC = InputMappingContextPlayerTurnRef.Object;
-    }
-
-    static ConstructorHelpers::FObjectFinder<UInputMappingContext> InputMappingContextEnemyTurnRef(TEXT("/Script/EnhancedInput.InputMappingContext'/Game/Battle/Actions/IMC_EnemyTurn.IMC_EnemyTurn'"));
-    if (nullptr != InputMappingContextEnemyTurnRef.Object)
-    {
-        EnemyTurnIMC = InputMappingContextEnemyTurnRef.Object;
-    }
-
+    SetFieldInputMode();
 }
 
 void AMyPlayerController::ShowFieldHUD()
@@ -66,12 +49,27 @@ void AMyPlayerController::ClearCurrentHUD()
 
 void AMyPlayerController::SetFieldInputMode()
 {
+    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+    {
+        Subsystem->ClearAllMappings();
+        Subsystem->AddMappingContext(FieldIMC, 0);
+    }
 }
 
 void AMyPlayerController::SetPlayerTurnInputMode()
 {
+    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+    {
+        Subsystem->ClearAllMappings();
+        Subsystem->AddMappingContext(PlayerTurnIMC, 0);
+    }
 }
 
 void AMyPlayerController::SetEnemyTurnInputMode()
 {
+    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+    {
+        Subsystem->ClearAllMappings();
+        Subsystem->AddMappingContext(EnemyTurnIMC, 0);
+    }
 }

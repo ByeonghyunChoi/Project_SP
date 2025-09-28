@@ -42,6 +42,6 @@ public:
 
     void SetWeaknessType(EDamageType NewType);
 
-    virtual void OnTurnBegin() override;
+    virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;
 
 };

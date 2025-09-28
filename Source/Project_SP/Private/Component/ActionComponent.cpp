@@ -92,5 +92,11 @@ void UActionComponent::EndActiveAction(ACombatPawn* Instigator)
 	}
 }
 
+const FActionData* UActionComponent::GetActionData(FName ActionID) const
+{
+	if (!ActionDataTable) return nullptr;
+	return ActionDataTable->FindRow<FActionData>(ActionID, TEXT(""));
+}
+
 
 

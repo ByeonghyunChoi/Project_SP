@@ -9,6 +9,7 @@
 class UGameAction;
 class UDataTable;
 class ACombatPawn;
+struct FActionData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionListChanged, UActionComponent*, ActionComp);
 
@@ -54,6 +55,7 @@ public:
 	const TArray<TObjectPtr<UGameAction>>& GetGrantedActions() const { return GrantedActions; }
 	UDataTable* GetActionDataTable() const { return ActionDataTable; }
 	UGameAction* GetActiveAction() const { return ActiveAction; }
+	const FActionData* GetActionData(FName ActionID) const;
 
 	// 행동 목록이 변경되었음을 알리는 이벤트 
 	UPROPERTY(BlueprintAssignable)

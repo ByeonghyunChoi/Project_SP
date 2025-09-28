@@ -112,7 +112,16 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 
     TurnStack.Emplace(Combatant, Type);
     Combatant->GetBattleTurnComponent()->StartTurn();
-    Combatant->OnTurnBegin();
+    TArray<ACombatPawn*> Targets;
+    const EFaction TargetFaction = (Combatant->GetFaction() == EFaction::Player) ? EFaction::Enemy : EFaction::Player;
+    for (ACombatPawn* Pawn : AllCombatants)
+    {
+        if (Pawn && Pawn->GetFaction() == TargetFaction && Pawn->GetCombatPawnState() != ECombatPawnState::Defeated)
+        {
+            Targets.Add(Pawn);
+        }
+    }
+    Combatant->OnTurnBegin(Targets);
     OnTurnOrderChanged();
 }
 
