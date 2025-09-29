@@ -21,6 +21,6 @@ public:
 
 	// 아티팩트 아이템을 초기화하고 데이터를 설정하는 함수
 	UFUNCTION(BlueprintCallable, Category = "Artifact")
-	void InitializeArtifact(FName InItemID, int32 InCount);
+	void InitializeArtifactData(const FArtifactData& InData);
 
 };

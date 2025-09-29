@@ -9,27 +9,25 @@ UArtifactItem::UArtifactItem()
 {
 }
 
-void UArtifactItem::InitializeArtifact(FName InItemID, int32 InCount)
+void UArtifactItem::InitializeArtifactData(const FArtifactData& InData)
 {
-	// 부모클래스의 InitialLizeItem 함수를 호출하여 기본 아이템 데이터를 설정
-    InitializeItem(InItemID, InCount);
+    ArtifactData = InData;
 
-    // StaticLoadObject를 사용하여 데이터 테이블을 로드합니다.
-    const FString ArtifactDataTablePath = TEXT("/Game/DataTable/DT_ArtifactData.DT_ArtifactData");
-    UDataTable* ArtifactDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *ArtifactDataTablePath));
+    // 부모 클래스의 ItemID를 조합하여 고유한 ID를 생성합니다.
+    FString ItemIDString =
+        UEnum::GetValueAsString(InData.ArtifactGrade) + "_" +
+        UEnum::GetValueAsString(InData.ArtifactType) + "_" +
+        UEnum::GetValueAsString(InData.ArtifactKinds);
 
-    if (!ArtifactDataTable)
+    // 특수 옵션이 있는 경우 ID에 추가 (선택 사항, 데이터 테이블에서 찾기 위해)
+    if (InData.SpecialOptionType != ESpecialOptionType::ESOT_None)
     {
-        UE_LOG(LogTemp, Error, TEXT("아티팩트 데이터 테이블을 로드할 수 없습니다!"));
-        return;
+        ItemIDString += "_" + UEnum::GetValueAsString(InData.SpecialOptionType);
     }
 
-    // 아이템 ID를 기반으로 아티팩트 데이터를 찾습니다.
-    FArtifactData* FoundArtifactData = ArtifactDataTable->FindRow<FArtifactData>(InItemID, TEXT(""));
+    FName FinalItemID = FName(*ItemIDString);
 
-    if (FoundArtifactData)
-    {
-        // 찾은 데이터를 ArtifactData 변수에 복사합니다.
-        ArtifactData = *FoundArtifactData;
-    }
+    // ItemBase의 기본 데이터를 설정합니다. (ItemID와 ItemCount=1)
+    // 이 FinalItemID를 사용하여 DT_ItemData에서 아티팩트의 이름, 아이콘 등을 로드합니다.
+    InitializeItem(FinalItemID, 1);
 }
