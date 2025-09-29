@@ -17,13 +17,13 @@ class PROJECT_SP_API UWeaponSystemComponent : public UActorComponent
     GENERATED_BODY()
 
 protected:
-    UPROPERTY(EditDefaultsOnly, Category = "Weapons")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapons")
     TMap<EDamageType, TObjectPtr<UWeaponData>> WeaponDataAssets;
 
-    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapons")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapons")
     TSet<EDamageType> PossessedWeaponTypes;
 
-    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapons")
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapons")
     TObjectPtr<UWeaponData> CurrentWeapon;
 
     UPROPERTY()

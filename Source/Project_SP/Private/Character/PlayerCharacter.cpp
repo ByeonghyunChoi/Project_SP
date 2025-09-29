@@ -143,7 +143,7 @@ void APlayerCharacter::SelectAction(FName ActionID)
         SetCombatPawnState(ECombatPawnState::SelectingTarget);
 
         // UI에 신호 보내기
-        OnActionSelectedForTargeting.Broadcast(*FoundData);
+        OnActionSelected.Broadcast(ActionID);
 
         // 타겟 선택 시작
         BeginTargetSelection();
@@ -183,7 +183,7 @@ void APlayerCharacter::CycleTarget(float Direction)
     SetCurrentTargets({ AllEnemyTargets[CurrentTargetIndex] });
 
     // 타겟이 변경되었음을 UI에 알림
-    OnTargetChanged.Broadcast(AllEnemyTargets[CurrentTargetIndex]);
+    OnTargetChanged.Broadcast(CurrentTargets[0]);
 }
 
 void APlayerCharacter::SelectTargetWithMouse()

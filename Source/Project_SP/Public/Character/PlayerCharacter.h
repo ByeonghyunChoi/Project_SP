@@ -9,7 +9,7 @@
 class UWeaponSystemComponent;
 class UFieldModeComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionSelectedForTargeting, const FActionData&, ActionData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionSelected, FName, SelectedActionID);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChanged, ACombatPawn*, NewTarget);
 
 UCLASS()
@@ -22,7 +22,7 @@ public:
 	APlayerCharacter();
 
 	UPROPERTY(BlueprintAssignable)
-	FOnActionSelectedForTargeting OnActionSelectedForTargeting;
+	FOnActionSelected OnActionSelected;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnTargetChanged OnTargetChanged;
@@ -93,7 +93,9 @@ protected:
 	void HandleSelectTargetMouse(const FInputActionValue& Value);
 
 	//로직 처리 함수
+	UFUNCTION(BlueprintCallable)
 	void SelectAction(FName ActionID);
+
 	void ConfirmAndExecuteAction();
 	void BeginTargetSelection();
 	void CycleTarget(float Direction);
