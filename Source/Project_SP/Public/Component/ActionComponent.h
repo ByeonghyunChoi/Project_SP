@@ -28,7 +28,7 @@ protected:
 	TObjectPtr<UDataTable> ActionDataTable;
 
 	// 캐릭터 생성 시 기본적으로 부여할 행동	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Actions")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TArray<TObjectPtr<UGameAction>> GrantedActions;
 
 	// 사용하고 있는 행동

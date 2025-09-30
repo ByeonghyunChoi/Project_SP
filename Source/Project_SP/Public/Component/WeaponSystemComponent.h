@@ -20,10 +20,10 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapons")
     TMap<EDamageType, TObjectPtr<UWeaponData>> WeaponDataAssets;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapons")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapons")
     TSet<EDamageType> PossessedWeaponTypes;
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapons")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapons")
     TObjectPtr<UWeaponData> CurrentWeapon;
 
     UPROPERTY()
