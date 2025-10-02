@@ -1,17 +1,16 @@
 ﻿#include "Character/MonsterCharacter.h"
-#include "Component/ActionComponent.h"
-#include "Component/GameEventComponent.h"
 #include "Combat/MonsterAIController.h" 
+#include "Component/ActionComponent.h"
 #include "Animation/AnimMontage.h"
+#include "Components/WidgetComponent.h" 
+#include "Combat/MonsterGroupObject.h"
 
 
-// Sets default values
 AMonsterCharacter::AMonsterCharacter()
 {
     AIControllerClass = AMonsterAIController::StaticClass();
 }
 
-// Called when the game starts or when spawned
 void AMonsterCharacter::BeginPlay()
 {
     Super::BeginPlay();
@@ -24,28 +23,17 @@ void AMonsterCharacter::BeginPlay()
     }
 }
 
-UMonsterGroupObject* AMonsterCharacter::GetCombatMonsterGroup() const
-{
-    return CombatMonsterGroup;
-}
-
-void AMonsterCharacter::SetWeaknessType(EDamageType NewType)
-{
-    WeaknessType = NewType;
-}
-
 void AMonsterCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {
     if (GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
-    UE_LOG(LogTemp, Log, TEXT("Monster '%s' Turn Began."), *GetName());
+    UE_LOG(LogTemp, Log, TEXT("Monster '%s' Turn Began."), *GetCharacterDisplayName().ToString());
     SetCombatPawnState(ECombatPawnState::PerformingAction);
 
-    // 자신을 조종하는 AI 컨트롤러를 찾아 턴이 시작되었음을 알립니다.
     AMonsterAIController* AICon = GetController<AMonsterAIController>();
     if (AICon)
     {
-        AICon->OnTurnBegan();
+        AICon->OnTurnBegan(PotentialTargets);
     }
 }
 

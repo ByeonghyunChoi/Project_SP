@@ -1,19 +1,13 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// Component/ActionComponent.cpp
 
 #include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
 #include "Data/ActionData.h"
 #include "Character/CombatPawn.h"
 
-// Sets default values for this component's properties
 UActionComponent::UActionComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
-
-	// ...
 }
 
 void UActionComponent::InitializeDefaultActions(const TArray<FName>& DefaultActionIDs)
@@ -28,7 +22,7 @@ void UActionComponent::GrantAction(FName ActionID)
 {
 	if (!ActionDataTable) return;
 
-	for (UGameAction* Action : GrantedActions)
+	for (const UGameAction* Action : GrantedActions)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
@@ -36,7 +30,7 @@ void UActionComponent::GrantAction(FName ActionID)
 		}
 	}
 
-	const FActionData* FoundRow = ActionDataTable->FindRow<FActionData>(ActionID, TEXT("GrantAction"));
+	const FActionData* FoundRow = ActionDataTable->FindRow<FActionData>(ActionID, TEXT(""));
 	if (FoundRow && FoundRow->GameActionClass)
 	{
 		UGameAction* NewAction = NewObject<UGameAction>(GetOwner(), FoundRow->GameActionClass);
@@ -44,7 +38,6 @@ void UActionComponent::GrantAction(FName ActionID)
 		{
 			NewAction->Initialize(this, ActionID);
 			GrantedActions.Add(NewAction);
-			OnActionListChanged.Broadcast(this); // UI 업데이트를 위해 이벤트 방송
 		}
 	}
 }
@@ -56,7 +49,6 @@ void UActionComponent::RemoveAction(FName ActionID)
 		if (GrantedActions[i] && GrantedActions[i]->GetActionID() == ActionID)
 		{
 			GrantedActions.RemoveAt(i);
-			OnActionListChanged.Broadcast(this); // UI 업데이트를 위해 이벤트 방송
 			return;
 		}
 	}
@@ -64,39 +56,35 @@ void UActionComponent::RemoveAction(FName ActionID)
 
 bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, const TArray<ACombatPawn*>& Targets)
 {
-	if (ActiveAction) return false;
-
 	for (UGameAction* Action : GrantedActions)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
 			if (Action->CanStartAction(Instigator))
 			{
-				ActiveAction = Action;
-				ActiveAction->StartAction(Instigator, Targets);
+				Action->StartAction(Instigator, Targets);
 				return true;
 			}
-			return false;
+			return false; // 조건이 맞지 않아 실행 실패
 		}
 	}
-	return false;
+	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'를 찾을 수 없습니다."), *ActionID.ToString());
+	return false; // 해당 ID의 액션을 찾지 못함
 }
 
-void UActionComponent::EndActiveAction(ACombatPawn* Instigator)
+bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData) const
 {
-	if (ActiveAction)
+	if (!ActionDataTable)
 	{
-		UGameAction* ActionToEnd = ActiveAction;
-		ActiveAction = nullptr;
-		ActionToEnd->EndAction(Instigator);
+		return false; 
 	}
+
+	const FActionData* FoundRow = ActionDataTable->FindRow<FActionData>(ActionID, TEXT(""));
+	if (FoundRow)
+	{
+		OutActionData = *FoundRow;
+		return true;
+	}
+
+	return false; 
 }
-
-const FActionData* UActionComponent::GetActionData(FName ActionID) const
-{
-	if (!ActionDataTable) return nullptr;
-	return ActionDataTable->FindRow<FActionData>(ActionID, TEXT(""));
-}
-
-
-

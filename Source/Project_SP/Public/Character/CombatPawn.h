@@ -70,6 +70,7 @@ public:
     void SetCharacterDisplayName(const FText& NewName);
 
     // --- 접근자(Getter) 함수 ---
+    UFUNCTION(BlueprintPure)
     FORCEINLINE UAttributesComponent* GetAttributesComponent() const { return AttributesComponent; }
     FORCEINLINE UActionComponent* GetActionComponent() const { return ActionComponent; }
     FORCEINLINE UBattleTurnComponent* GetBattleTurnComponent() const { return BattleTurnComponent; }

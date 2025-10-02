@@ -10,8 +10,7 @@ UENUM(BlueprintType)
 enum class ECombatPawnState : uint8
 {
     Idle            UMETA(DisplayName = "대기"),
-    SelectingAction UMETA(DisplayName = "행동 선택 중"),
-    SelectingTarget UMETA(DisplayName = "타겟 선택 중"),
+    AwaitingInput UMETA(DisplayName = "입력 대기 중"),
     PerformingAction UMETA(DisplayName = "행동 수행 중"),
     Defeated        UMETA(DisplayName = "사망"),
 };

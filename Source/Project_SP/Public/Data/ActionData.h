@@ -15,7 +15,7 @@ enum class ETargetingType : uint8
 {
     Self UMETA(DisplayName = "자기 자신"),
     Single UMETA(DisplayName = "단일"),
-    Dual UMETA(DisplayName = "2인"),
+    Multi UMETA(DisplayName = "다수"),
     All UMETA(DisplayName = "모든 적/아군")
 };
 
@@ -55,6 +55,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     int32 NumberOfHits = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (ClampMin = "1"))
+    int32 NumberOfTargets = 1;
 
     // --- 상태 이상 (Status Effect) ---
     // 이 행동이 적용할 상태 이상의 ID (DT_StatusEffects의 Row Name)

@@ -2,10 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Character/CombatPawn.h"
-#include "Combat/MonsterGroupObject.h"
+#include "Data/ActionData.h"
 #include "MonsterCharacter.generated.h"
 
 class UAnimMontage;
+class UMonsterGroupObject;
 
 UCLASS()
 class PROJECT_SP_API AMonsterCharacter : public ACombatPawn
@@ -13,12 +14,12 @@ class PROJECT_SP_API AMonsterCharacter : public ACombatPawn
     GENERATED_BODY()
 
 public:
-    // Sets default values for this character's properties
     AMonsterCharacter();
 
 protected:
-    // Called when the game starts or when spawned
     virtual void BeginPlay() override;
+
+    // --- 몬스터 고유 데이터 ---
 
     UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Monster Group")
     UMonsterGroupObject* CombatMonsterGroup;
@@ -26,22 +27,21 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "AI|Actions")
     TArray<FName> DefaultActionIDs;
 
-    // 몬스터 애니메이션 목록
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat|Animations")
     TMap<FName, TSoftObjectPtr<UAnimMontage>> ActionMontageMap;
 
-    // 약점 속성
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
     EDamageType WeaknessType;
 public:
- 
+    // --- 외부(주로 AIController)에서 호출하는 함수 ---
+
     void PlayActionMontage(FName ActionID);
-
-    UFUNCTION(BlueprintPure, Category = "Monster Group")
-    UMonsterGroupObject* GetCombatMonsterGroup() const;
-
-    void SetWeaknessType(EDamageType NewType);
 
     virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;
 
+    // Getter 및 Setter 함수
+    UFUNCTION(BlueprintPure, Category = "Monster Group")
+    UMonsterGroupObject* GetCombatMonsterGroup() const { return CombatMonsterGroup; }
+
+    void SetWeaknessType(EDamageType NewType) { WeaknessType = NewType; }
 };
