@@ -19,6 +19,9 @@ struct FMonsterDropRate : public FTableRowBase
 {
     GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster Grade")
+	EMonsterGrade MonsterGrade;
+
     // 몬스터 등급에 따른 드랍 확률
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drop Rate")
     float NoDropChance;

@@ -3,11 +3,10 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
-#include "Data/ArtifactData.h" 
-#include "Data/MonsterDropRate.h"
+#include "Data/ArtifactData.h" // FArtifactData, EArtifactKinds 등 포함
+#include "Data/MonsterDropRate.h" // EMonsterGrade, FMonsterDropRate 포함
 #include "MonsterLootComponent.generated.h"
 
-// 몬스터 드랍 정보 데이터 구조체입니다.
 USTRUCT(BlueprintType)
 struct FMonsterDropInfo : public FTableRowBase
 {
@@ -26,6 +25,8 @@ struct FMonsterDropInfo : public FTableRowBase
     FInt32Range DropCount;
 };
 
+class UArtifactItem;
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UMonsterLootComponent : public UActorComponent
 {
@@ -34,7 +35,7 @@ class PROJECT_SP_API UMonsterLootComponent : public UActorComponent
 public:
     UMonsterLootComponent();
 
-    // 몬스터가 처치되었을 때 호출될 함수
+    // 몬스터가 처치되었을 때 호출될 함수 (아티팩트 생성만 수행)
     UFUNCTION(BlueprintCallable, Category = "Loot")
     void OnMonsterDefeated(EMonsterGrade MonsterGrade);
 
@@ -43,8 +44,19 @@ public:
     TObjectPtr<class UDataTable> LootTable;
 
 private:
-	// 몬스터 등급에 따라 드랍 확률을 가져오는 함수
+    // 몬스터 등급에 따라 드랍 확률을 가져와 아티팩트 등급을 결정하는 함수
     EArtifactGrade DetermineArtifactGrade(const FMonsterDropRate& DropRates);
-    // 등급과 유형에 따라 아티팩트의 스탯을 계산하고 설정합니다.
-    void CalculateArtifactStats(class UArtifactItem* Artifact, EArtifactGrade ArtifactGrade, EArtifactType ArtifactType);
+
+    // 아티팩트 종류를 5가지 중 20% 균등 확률로 결정
+    EArtifactKinds DetermineArtifactKind(UDataTable* KindWeightsTable);
+
+    // 특수 옵션 8가지 중 하나를 균등 확률로 랜덤 선택
+    ESpecialOptionType DetermineSpecialOptionType();
+
+    // DT_ArtifactBaseStats를 사용해 최종 아티팩트 스탯을 계산하고 FArtifactData에 채움
+    bool CalculateAndPopulateArtifactData(FArtifactData& OutArtifactData, EArtifactGrade Grade, EArtifactType Type, EArtifactKinds Kind, UDataTable* BaseStatsTable);
+
+    // 데이터 테이블 경로
+    const FString DropRatesTablePath = TEXT("/Game/DataTable/DT_MonsterDropRates.DT_MonsterDropRates");
+    const FString ArtifactStatsTablePath = TEXT("/Game/DataTable/DT_ArtifactStats.DT_ArtifactStats");
 };

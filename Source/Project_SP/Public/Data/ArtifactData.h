@@ -6,6 +6,15 @@
 #include "Engine/DataTable.h"
 #include "ArtifactData.generated.h"
 
+UENUM(BlueprintType)
+enum class EArtifactKinds : uint8
+{
+	EAK_Health UMETA(DisplayName = "Health"),
+	EAK_Attack UMETA(DisplayName = "Attack"),
+	EAK_Defense UMETA(DisplayName = "Defense"),
+	EAK_Speed UMETA(DisplayName = "Speed"),
+	EAK_Special UMETA(DisplayName = "Special")
+};
 
 // 아티팩트의 등급을 정의하는 열거형
 UENUM(BlueprintType)
@@ -34,8 +43,8 @@ enum class ESpecialOptionType : uint8
     ESOT_None UMETA(DisplayName = "None"),
     ESOT_CritChance UMETA(DisplayName = "Critical Hit Chance"),
     ESOT_CritDamage UMETA(DisplayName = "Critical Hit Damage"),
-    // ESOT_StatusAccuracy UMETA(DisplayName = "Status Accuracy"), // 상태적중은 추후 추가
-    //ESOT_DefensePenetration UMETA(DisplayName = "Defense Penetration"), // 방어력 무시도 나중에 추가
+    ESOT_StatusAccuracy UMETA(DisplayName = "Status Accuracy"),
+    ESOT_DefensePenetration UMETA(DisplayName = "Defense Penetration"),
     ESOT_Attack UMETA(DisplayName = "Attack"),
     ESOT_Defense UMETA(DisplayName = "Defense"),
     ESOT_Health UMETA(DisplayName = "Health"),
@@ -43,39 +52,73 @@ enum class ESpecialOptionType : uint8
 };
 
 USTRUCT(BlueprintType)
-struct FArtifactData : public FTableRowBase
+struct FArtifactStats : public FTableRowBase // 아티팩트의 기본 능력치 + 등급에 따른 증가치
 {
     GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	EArtifactKinds ArtifactKinds;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float BaseValue;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float RareMultiplier;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float UniqueMultiplier;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float LegendaryMultiplier;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float MythicMultiplier;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+    ESpecialOptionType SpecialOptionType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	float BaseSpecialValue;
+};
+
+USTRUCT(BlueprintType)
+struct FArtifactData
+{
+    GENERATED_BODY()
+
+    // 아티팩트의 종류
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Data")
+    EArtifactKinds ArtifactKinds;
 
     // 아티팩트의 유형
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Data")
     EArtifactType ArtifactType;
 
-    // 아티팩트의 등급
+	// 아티팩트의 등급
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Data")
     EArtifactGrade ArtifactGrade;
 
-    // 아티팩트가 부여하는 기본 능력치 (체력, 공격력, 방어력, 속도)
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
-    float AttackBonus = 0.0f;
+    // 계산된 최종 능력치
+    // 아티팩트의 종류에 따라 이 중 하나만 0이 아닌 값을 가진다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Data")
+	FArtifactStats ArtifactStats;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
-    float DefenseBonus = 0.0f;
+    float FinalAttack = 0.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
-    float HealthBonus = 0.0f;
+    float FinalDefense = 0.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
-    float SpeedBonus = 0.0f;
+    float FinalHealth = 0.0f;
 
-    // 아티팩트의 특수 옵션 유형과 값
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
+    float FinalSpeed = 0.0f;
+
+    // 계산된 최종 특수 옵션 유형과 값
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
     ESpecialOptionType SpecialOptionType = ESpecialOptionType::ESOT_None;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
     float SpecialOptionValue = 0.0f;
-
-    // 아티팩트가 속한 세트의 이름을 지정합니다. (세트 효과 구현 시 사용)
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Artifact Stats")
-    FName SetName;
 };
