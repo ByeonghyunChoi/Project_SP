@@ -1,4 +1,4 @@
-// Component/ActionComponent.cpp
+ï»¿// Component/ActionComponent.cpp
 
 #include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
@@ -26,7 +26,7 @@ void UActionComponent::GrantAction(FName ActionID)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
-			return; // ÀÌ¹Ì ÀÖÀ¸¸é Ãß°¡ÇÏÁö ¾ÊÀ½
+			return; // ì´ë¯¸ ìˆìœ¼ë©´ ì¶”ê°€í•˜ì§€ ì•ŠìŒ
 		}
 	}
 
@@ -65,11 +65,11 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 				Action->StartAction(Instigator, Targets);
 				return true;
 			}
-			return false; // Á¶°ÇÀÌ ¸ÂÁö ¾Ê¾Æ ½ÇÇà ½ÇÆĞ
+			return false; // ì¡°ê±´ì´ ë§ì§€ ì•Šì•„ ì‹¤í–‰ ì‹¤íŒ¨
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù."), *ActionID.ToString());
-	return false; // ÇØ´ç IDÀÇ ¾×¼ÇÀ» Ã£Áö ¸øÇÔ
+	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."), *ActionID.ToString());
+	return false; // í•´ë‹¹ IDì˜ ì•¡ì…˜ì„ ì°¾ì§€ ëª»í•¨
 }
 
 bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData) const

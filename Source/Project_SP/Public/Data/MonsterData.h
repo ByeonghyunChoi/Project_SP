@@ -35,4 +35,8 @@ public:
 	//몬스터의 약점 속성
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
 	EDamageType WeaknessType;
+
+	//해당 몬스터의 행동을 위해 미리 로드해야 할 애셋들의 묶음
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Loading")
+	TArray<TSoftObjectPtr<UObject>> CriticalAssets;
 };

@@ -5,7 +5,7 @@
 #include "PlayerCharacter.generated.h"
 
 class UWeaponSystemComponent;
-class UFieldModeComponent;
+class UFieldActionComponent;
 class UPlayerCombatControlComponent;
 
 
@@ -25,7 +25,7 @@ protected:
 
 	// 필드 모드 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Modes")
-	UFieldModeComponent* FieldModeComp;
+	UFieldActionComponent* FieldActionComp;
 	// 무기 관리 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UWeaponSystemComponent> WeaponSystemComponent;

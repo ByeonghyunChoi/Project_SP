@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Character/MyPlayerController.h"
@@ -14,7 +14,7 @@ void AMyPlayerController::BeginPlay()
 
 void AMyPlayerController::ShowFieldHUD()
 {
-    ClearCurrentHUD(); // ±âÁ¸ HUD Á¦°Å
+    ClearCurrentHUD(); // ê¸°ì¡´ HUD ì œê±°
     if (FieldHUDClass)
     {
         CurrentHUD = CreateWidget<UUserWidget>(this, FieldHUDClass);
@@ -27,7 +27,7 @@ void AMyPlayerController::ShowFieldHUD()
 
 void AMyPlayerController::ShowBattleHUD()
 {
-    ClearCurrentHUD(); // ±âÁ¸ HUD Á¦°Å
+    ClearCurrentHUD(); // ê¸°ì¡´ HUD ì œê±°
     if (BattleHUDClass)
     {
         CurrentHUD = CreateWidget<UUserWidget>(this, BattleHUDClass);

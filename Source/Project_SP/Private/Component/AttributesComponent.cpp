@@ -1,4 +1,4 @@
-// AttributesComponent.cpp
+ï»¿// AttributesComponent.cpp
 
 #include "Component/AttributesComponent.h"
 
@@ -17,7 +17,7 @@ void UAttributesComponent::InitializeAttributes()
 {
     if (!AttributesDataTable)
     {
-        UE_LOG(LogTemp, Error, TEXT("%s: AttributesDataTableÀÌ ÁöÁ¤µÇÁö ¾Ê¾Ò½À´Ï´Ù!"), *GetName());
+        UE_LOG(LogTemp, Error, TEXT("%s: AttributesDataTableì´ ì§€ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤!"), *GetName());
         return;
     }
 
@@ -27,11 +27,11 @@ void UAttributesComponent::InitializeAttributes()
         BaseStats = *FoundRow;
         CurrentStats = *FoundRow;
         CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth;
-        SkillPoints = MAX_SP;
+        SkillPoints = 3;
 
-        UE_LOG(LogTemp, Log, TEXT("%s°¡ %sÀÇ ½ºÅÈÀ¸·Î ÃÊ±âÈ­µÇ¾ú½À´Ï´Ù."), *GetOwner()->GetName(), *CharacterID.ToString());
+        UE_LOG(LogTemp, Log, TEXT("%sê°€ %sì˜ ìŠ¤íƒ¯ìœ¼ë¡œ ì´ˆê¸°í™”ë˜ì—ˆìŠµë‹ˆë‹¤."), *GetOwner()->GetName(), *CharacterID.ToString());
 
-        // ÃÊ±âÈ­µÈ °ªµéÀ» ¿ÜºÎ¿¡ ºê·ÎµåÄ³½ºÆ®
+        // ì´ˆê¸°í™”ëœ ê°’ë“¤ì„ ì™¸ë¶€ì— ë¸Œë¡œë“œìºìŠ¤íŠ¸
         OnHealthChanged.Broadcast(CurrentStats.fCurrentHealth, 0.f, nullptr);
         OnSPChanged.Broadcast(SkillPoints, 0);
         OnExperienceChanged.Broadcast(Experience, NextLevelExperience);
@@ -40,7 +40,7 @@ void UAttributesComponent::InitializeAttributes()
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("AttributesDataTable¿¡¼­ ID '%s'¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù."), *CharacterID.ToString());
+        UE_LOG(LogTemp, Warning, TEXT("AttributesDataTableì—ì„œ ID '%s'ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."), *CharacterID.ToString());
     }
 }
 
@@ -80,20 +80,20 @@ void UAttributesComponent::GainExperience(int32 Amount)
     Experience += Amount;
     UE_LOG(LogTemp, Log, TEXT("%s gained %d EXP! (Current: %d / %d)"), *GetOwner()->GetName(), Amount, Experience, NextLevelExperience);
 
-    // ·¹º§¾÷¿¡ ÇÊ¿äÇÑ °æÇèÄ¡¸¦ ÃæÁ·Çß´ÂÁö ¹İº¹ÇØ¼­ È®ÀÎ (ÇÑ ¹ø¿¡ ¿©·¯ ·¹º§¾÷ °¡´É)
+    // ë ˆë²¨ì—…ì— í•„ìš”í•œ ê²½í—˜ì¹˜ë¥¼ ì¶©ì¡±í–ˆëŠ”ì§€ ë°˜ë³µí•´ì„œ í™•ì¸ (í•œ ë²ˆì— ì—¬ëŸ¬ ë ˆë²¨ì—… ê°€ëŠ¥)
     while (Experience >= NextLevelExperience && Level < MAX_LEVEL)
     {
         LevelUp();
     }
 
-    // °æÇèÄ¡ º¯°æ »çÇ× ºê·ÎµåÄ³½ºÆ® (·¹º§¾÷ ÈÄ ³²Àº °æÇèÄ¡ ¹İ¿µ)
+    // ê²½í—˜ì¹˜ ë³€ê²½ ì‚¬í•­ ë¸Œë¡œë“œìºìŠ¤íŠ¸ (ë ˆë²¨ì—… í›„ ë‚¨ì€ ê²½í—˜ì¹˜ ë°˜ì˜)
     OnExperienceChanged.Broadcast(Experience, NextLevelExperience);
 }
 
 void UAttributesComponent::ApplyMoneyChange(int32 Delta)
 {
     const int32 OldMoney = Money;
-    Money = FMath::Max(0, Money + Delta); // µ·ÀÌ À½¼ö°¡ µÇÁö ¾Êµµ·Ï ÇÔ
+    Money = FMath::Max(0, Money + Delta); // ëˆì´ ìŒìˆ˜ê°€ ë˜ì§€ ì•Šë„ë¡ í•¨
     const int32 ActualDelta = Money - OldMoney;
 
     if (ActualDelta != 0)
@@ -106,24 +106,24 @@ void UAttributesComponent::LevelUp()
 {
     if (Level >= MAX_LEVEL) return;
 
-    // ÇöÀç ·¹º§¿¡ ÇÊ¿äÇß´ø °æÇèÄ¡¸¸Å­ Â÷°¨
+    // í˜„ì¬ ë ˆë²¨ì— í•„ìš”í–ˆë˜ ê²½í—˜ì¹˜ë§Œí¼ ì°¨ê°
     Experience -= NextLevelExperience;
     Level++;
 
-    // ´ÙÀ½ ·¹º§¾÷¿¡ ÇÊ¿äÇÑ °æÇèÄ¡ Àç¼³Á¤ (¿¹: 1.2¹è¾¿ Áõ°¡)
+    // ë‹¤ìŒ ë ˆë²¨ì—…ì— í•„ìš”í•œ ê²½í—˜ì¹˜ ì¬ì„¤ì • (ì˜ˆ: 1.2ë°°ì”© ì¦ê°€)
     NextLevelExperience = FMath::RoundToInt(NextLevelExperience * 1.2f);
 
     UE_LOG(LogTemp, Warning, TEXT("%s Leveled Up to %d!"), *GetOwner()->GetName(), Level);
 
-    // ·¹º§¿¡ ¸ÂÃç ½ºÅÈ Àç°è»ê
+    // ë ˆë²¨ì— ë§ì¶° ìŠ¤íƒ¯ ì¬ê³„ì‚°
     RecalculateStatsForLevel(Level);
 
-    // ·¹º§¾÷ ½Ã Ã¼·ÂÀ» ¸ğµÎ È¸º¹
+    // ë ˆë²¨ì—… ì‹œ ì²´ë ¥ì„ ëª¨ë‘ íšŒë³µ
     CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth;
 
-    // ·¹º§¾÷ ÀÌº¥Æ® ºê·ÎµåÄ³½ºÆ®
+    // ë ˆë²¨ì—… ì´ë²¤íŠ¸ ë¸Œë¡œë“œìºìŠ¤íŠ¸
     OnLevelChanged.Broadcast(Level);
-    // Ã¼·Â º¯°æ ÀÌº¥Æ®µµ ºê·ÎµåÄ³½ºÆ®
+    // ì²´ë ¥ ë³€ê²½ ì´ë²¤íŠ¸ë„ ë¸Œë¡œë“œìºìŠ¤íŠ¸
     OnHealthChanged.Broadcast(CurrentStats.fCurrentHealth, 0.f, nullptr);
 }
 
@@ -135,13 +135,13 @@ void UAttributesComponent::RecalculateStatsForLevel(int32 NewLevel)
         return;
     }
 
-    // ·¹º§¾÷ ÁøÇàµµ (0.0 ~ 1.0)
+    // ë ˆë²¨ì—… ì§„í–‰ë„ (0.0 ~ 1.0)
     float Progress = static_cast<float>(NewLevel - 1) / (MAX_LEVEL - 1);
 
-    // ¼±Çü º¸°£(Lerp)À» »ç¿ëÇÏ¿© ½ºÅÈÀ» ºÎµå·´°Ô Áõ°¡½ÃÅ´
+    // ì„ í˜• ë³´ê°„(Lerp)ì„ ì‚¬ìš©í•˜ì—¬ ìŠ¤íƒ¯ì„ ë¶€ë“œëŸ½ê²Œ ì¦ê°€ì‹œí‚´
     CurrentStats.fMaxHealth = FMath::Lerp(BaseStats.fMaxHealth, BaseStats.MaxHealthCap, Progress);
     CurrentStats.fAttackPower = FMath::Lerp(BaseStats.fAttackPower, BaseStats.AttackPowerCap, Progress);
     CurrentStats.fDefensePower = FMath::Lerp(BaseStats.fDefensePower, BaseStats.DefensePowerCap, Progress);
 
-    // ´Ù¸¥ ½ºÅÈµéµµ °°Àº ¹æ½ÄÀ¸·Î Àç°è»ê...
+    // ë‹¤ë¥¸ ìŠ¤íƒ¯ë“¤ë„ ê°™ì€ ë°©ì‹ìœ¼ë¡œ ì¬ê³„ì‚°...
 }
