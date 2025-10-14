@@ -56,12 +56,16 @@ void UActionComponent::RemoveAction(FName ActionID)
 
 bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, const TArray<ACombatPawn*>& Targets)
 {
+	if (ActiveAction) return false;
+
 	for (UGameAction* Action : GrantedActions)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
 			if (Action->CanStartAction(Instigator))
 			{
+				// 액션이 시작되면 ActiveAction에 기록합니다.
+				ActiveAction = Action;
 				Action->StartAction(Instigator, Targets);
 				return true;
 			}
@@ -69,7 +73,20 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 		}
 	}
 	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'를 찾을 수 없습니다."), *ActionID.ToString());
-	return false; // 해당 ID의 액션을 찾지 못함
+	return false;
+}
+
+void UActionComponent::EndActiveAction(ACombatPawn* Instigator)
+{
+	if (ActiveAction)
+	{
+		// 임시 변수에 저장해두고 ActiveAction을 먼저 null로 만들어 중복 호출을 방지합니다.
+		UGameAction* ActionToEnd = ActiveAction;
+		ActiveAction = nullptr;
+
+		// 실제 액션 종료 로직(이벤트 방송)을 호출합니다.
+		ActionToEnd->EndAction(Instigator);
+	}
 }
 
 bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData) const

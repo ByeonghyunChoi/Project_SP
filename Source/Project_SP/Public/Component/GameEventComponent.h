@@ -19,9 +19,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPerformed, class ACombatPa
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionExecutionFinished, class ACombatPawn*, FinishedPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCombatPawnStateChanged, class ACombatPawn*, Pawn, ECombatPawnState, NewState); 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetListChanged, const TArray<ACombatPawn*>&, NewTargets);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryWindowChanged, ACombatPawn*, Attacker, EDamageType, AttackType, bool, bIsWindowOpen);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryAttempted, ACombatPawn*, ParriedAttacker, ACombatPawn*, ParryingPlayer, EParryResult, ParryResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInterruptRequest, ACombatPawn*, Instigator);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnParryWindowOpened, ACombatPawn*, Attacker, EDamageType, AttackType, float, Duration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnParryWindowClosed, ACombatPawn*, Attacker);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UGameEventComponent : public UActorComponent
@@ -51,12 +52,15 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnTargetListChanged OnTargetListChanged;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
-    FOnParryWindowChanged OnParryWindowChanged;
-    UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnParryAttempted OnParryAttempted;
 
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnInterruptRequest OnInterruptRequest;
+
+    UPROPERTY(BlueprintAssignable, Category = "Game Events | Parry")
+    FOnParryWindowOpened OnParryWindowOpened;
+    UPROPERTY(BlueprintAssignable, Category = "Game Events | Parry")
+    FOnParryWindowClosed OnParryWindowClosed;
 
     // --- 브로드캐스트 함수들 ---
     UFUNCTION(BlueprintCallable, Category = "Game Events")
@@ -74,9 +78,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastTargetListChanged(const TArray<ACombatPawn*>& NewTargets);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
-    void BroadcastParryWindowChanged(ACombatPawn* Attacker, EDamageType AttackType, bool bIsWindowOpen);
-    UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastInterruptRequest(ACombatPawn* Instigator);
+    UFUNCTION(BlueprintCallable, Category = "Game Events | Parry")
+    void BroadcastParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration);
+    UFUNCTION(BlueprintCallable, Category = "Game Events | Parry")
+    void BroadcastParryWindowClosed(ACombatPawn* Attacker);
 };

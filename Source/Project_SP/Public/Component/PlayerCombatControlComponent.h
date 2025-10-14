@@ -101,5 +101,6 @@ private:
 	void BeginTargetSelection();
 	void CycleTarget(float Direction);
 	void SelectTargetByMouse();
-	void SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets);		
+	void SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets);	
+
 };

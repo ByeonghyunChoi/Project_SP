@@ -8,6 +8,7 @@
 #include "Data/ActionData.h"
 #include "Data/WeaponData.h"
 #include "EnhancedInputComponent.h"
+#include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties

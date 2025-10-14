@@ -42,6 +42,4 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Modes")
 	void OnEnterBattleMode();
-
-
 };

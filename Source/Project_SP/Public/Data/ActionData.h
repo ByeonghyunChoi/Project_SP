@@ -78,6 +78,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect|Overrides")
     float StatusEffectMagnitudeOverride = 0.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    float ParryWindowDuration = 0.0f;
+
     // --- 로직 (Logic) ---
     // 이 행동의 실제 로직을 담고 있는 UGameAction 클래스
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Logic")
