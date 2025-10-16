@@ -7,6 +7,7 @@
 #include "Component/GameEventComponent.h"
 #include "Component/CombatCameraComponent.h"
 #include "Component/TurnSchedulerComponent.h"
+#include "Combat/CombatTask.h"
 #include "Kismet/GameplayStatics.h"
 
 ABattleManager::ABattleManager()
@@ -33,6 +34,8 @@ void ABattleManager::Tick(float DeltaTime)
 	{
 		DecideAndStartNextTurn();
 	}
+
+	ProcessTaskQueue();
 }
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
@@ -178,4 +181,42 @@ void ABattleManager::DecideAndStartNextTurn()
 	{
 		CheckBattleEndConditions();
 	}
+}
+
+void ABattleManager::QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks)
+{
+	TaskQueue.Append(Tasks);
+}
+
+void ABattleManager::ClearTaskQueue()
+{
+	// 현재 진행중인 Task가 있다면 종료 델리게이트 바인딩을 해제
+	if (CurrentTask && CurrentTask->OnTaskFinished.IsBound())
+	{
+		CurrentTask->OnTaskFinished.RemoveDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+	}
+	CurrentTask = nullptr;
+	bIsProcessingTask = false;
+	TaskQueue.Empty();
+}
+
+void ABattleManager::ProcessTaskQueue()
+{
+	if (bIsProcessingTask || TaskQueue.Num() == 0) return;
+
+	CurrentTask = TaskQueue[0];
+	TaskQueue.RemoveAt(0);
+
+	if (CurrentTask)
+	{
+		bIsProcessingTask = true;
+		CurrentTask->OnTaskFinished.AddDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+		CurrentTask->ExecuteTask();
+	}
+}
+
+void ABattleManager::OnCurrentTaskFinished()
+{
+	bIsProcessingTask = false;
+	CurrentTask = nullptr;
 }

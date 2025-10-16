@@ -5,6 +5,8 @@
 #include "Component/GameEventComponent.h"
 #include "Combat/CombatStatics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Core/BattleManager.h"
+#include "Combat/CombatTask.h"
 #include "TimerManager.h"
 
 void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InActionID)
@@ -86,39 +88,28 @@ bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 
 void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArray<ACombatPawn*>& Targets)
 {
-    UE_LOG(LogTemp, Log, TEXT("'%s' 액션 시작. 시전자: %s"), *Data.DisplayName.ToString(), *Instigator->GetName());
+    UE_LOG(LogTemp, Log, TEXT("'%s' action sequence started by %s."), *Data.DisplayName.ToString(), *Instigator->GetName());
 
-  
-    UAttributesComponent* AttributesComp = Instigator->GetAttributesComponent();
-    if (AttributesComp)
+    ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+    if (!BattleManager)
     {
-        AttributesComp->ApplySPChange(-Data.CostSP);
+        EndAction(Instigator);
+        return;
     }
-    
 
-    //데미지 적용 로직
-    UAttributesComponent* InstigatorStats = Instigator->GetAttributesComponent();
-    if (InstigatorStats)
+    TArray<UCombatTask*> TaskInstances;
+    for (UCombatTask* TaskTemplate : Tasks)
     {
-        for (ACombatPawn* Target : Targets)
+        if (TaskTemplate)
         {
-            if (Target && Target->GetCombatPawnState() != ECombatPawnState::Defeated)
-            {
-                UAttributesComponent* TargetStats = Target->GetAttributesComponent();
-                if (TargetStats)
-                {
-                    // 1. 데미지 계산
-                    float FinalDamage = UCombatStatics::CalculateDamage(InstigatorStats, TargetStats, Data.SkillCoefficient);
-
-                    UE_LOG(LogTemp, Log, TEXT("%s attacks %s for %.1f damage."), *Instigator->GetName(), *Target->GetName(), FinalDamage);
-
-                    // 2. 데미지 적용
-                    UGameplayStatics::ApplyDamage(Target, FinalDamage, Instigator->GetController(), Instigator, UDamageType::StaticClass());
-                }
-            }
+            // Duplicate the template object to create a runtime instance
+            UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
+            NewTask->Initialize(BattleManager, Instigator, Targets);
+            TaskInstances.Add(NewTask);
         }
     }
-    EndAction(Instigator);
+
+    BattleManager->QueueUpCombatTasks(TaskInstances);
 }
 
 void UGameAction::EndAction(ACombatPawn* Instigator)

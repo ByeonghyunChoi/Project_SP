@@ -9,6 +9,7 @@
 
 class UActionComponent;
 class ACombatPawn;
+class UCombatTask;
 
 /**
  * @class UGameAction
@@ -58,6 +59,10 @@ protected:
 	// 자신의 ID (데이터 테이블의 Row Name)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Action")
 	FName ActionID;
+
+	//실행할 작업 순서
+	UPROPERTY(EditDefaultsOnly, Instanced, BlueprintReadOnly, Category = "Action Sequence")
+	TArray<TObjectPtr<UCombatTask>> Tasks;
 
 private:
 	FTimerHandle ParryWindowTimerHandle;

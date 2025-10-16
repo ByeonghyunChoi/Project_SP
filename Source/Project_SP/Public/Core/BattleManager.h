@@ -10,6 +10,7 @@
 class ACombatPawn;
 class UCombatCameraComponent;
 class UTurnSchedulerComponent;
+class UCombatTask;
 enum class EBattleState : uint8;
 
 USTRUCT(BlueprintType)
@@ -74,6 +75,10 @@ public:
 
 	FORCEINLINE UCombatCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
+	void QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks);
+
+	void ClearTaskQueue();
+
 protected:
 	UFUNCTION()
 	void HandleActionFinished(ACombatPawn* FinishedPawn);
@@ -87,4 +92,17 @@ private:
 	void EndCurrentTurn();
 	void CheckBattleEndConditions();
 	void DecideAndStartNextTurn();
+
+	UPROPERTY()
+	TArray<TObjectPtr<UCombatTask>> TaskQueue;
+
+	UPROPERTY()
+	TObjectPtr<UCombatTask> CurrentTask;
+
+	bool bIsProcessingTask;
+
+	void ProcessTaskQueue();
+
+	UFUNCTION()
+	void OnCurrentTaskFinished();
 };
