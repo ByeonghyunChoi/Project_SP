@@ -7,7 +7,7 @@
 #include "Component/GameEventComponent.h"
 #include "Component/CombatCameraComponent.h"
 #include "Component/TurnSchedulerComponent.h"
-#include "Combat/CombatTask.h"
+#include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
 
 ABattleManager::ABattleManager()
@@ -219,4 +219,19 @@ void ABattleManager::OnCurrentTaskFinished()
 {
 	bIsProcessingTask = false;
 	CurrentTask = nullptr;
+}
+
+void ABattleManager::SignalCurrentTaskFinished()
+{
+	OnCurrentTaskFinished();
+}
+
+void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
+{
+	// 현재 작업이 WaitForAnimNotify 타입인지 확인합니다.
+	if (UTask_WaitForAnimNotify* WaitTask = Cast<UTask_WaitForAnimNotify>(CurrentTask))
+	{
+		// 대기 중인 작업에게 신호를 전달합니다.
+		WaitTask->OnNotifyReceived(NotifyName);
+	}
 }

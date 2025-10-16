@@ -79,6 +79,11 @@ public:
 
 	void ClearTaskQueue();
 
+	UFUNCTION(BlueprintCallable, Category = "Sequencer")
+	void SignalCurrentTaskFinished();
+
+	void SignalTaskByNotifyName(FName NotifyName);
+
 protected:
 	UFUNCTION()
 	void HandleActionFinished(ACombatPawn* FinishedPawn);
