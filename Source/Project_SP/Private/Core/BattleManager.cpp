@@ -7,6 +7,7 @@
 #include "Component/GameEventComponent.h"
 #include "Component/CombatCameraComponent.h"
 #include "Component/TurnSchedulerComponent.h"
+#include "Combat/CombatTask.h"
 #include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -167,6 +168,10 @@ void ABattleManager::HandleCombatantDied(AActor* InInstigator)
 	CheckBattleEndConditions();
 }
 
+void ABattleManager::HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
+{
+}
+
 void ABattleManager::DecideAndStartNextTurn()
 {
 	if (CurrentBattleState != EBattleState::InProgress) return;
@@ -188,16 +193,37 @@ void ABattleManager::QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks)
 	TaskQueue.Append(Tasks);
 }
 
+void ABattleManager::InjectCombatTasks(const TArray<UCombatTask*>& Tasks)
+{
+	TaskQueue.Insert(Tasks, 0);
+}
+
 void ABattleManager::ClearTaskQueue()
 {
-	// 현재 진행중인 Task가 있다면 종료 델리게이트 바인딩을 해제
-	if (CurrentTask && CurrentTask->OnTaskFinished.IsBound())
+	if (CurrentTask)
 	{
-		CurrentTask->OnTaskFinished.RemoveDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+		ACombatPawn* InInstigator = CurrentTask->GetInstigator();
+		if (InInstigator)
+		{
+			InInstigator->StopAnimMontage();
+		}
+		if (CurrentTask->OnTaskFinished.IsBound())
+		{
+			CurrentTask->OnTaskFinished.RemoveDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+		}
 	}
 	CurrentTask = nullptr;
 	bIsProcessingTask = false;
 	TaskQueue.Empty();
+}
+
+void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
+{
+	if (UTask_WaitForAnimNotify* WaitTask = Cast<UTask_WaitForAnimNotify>(CurrentTask))
+	{
+		// 대기 중인 작업에게 신호를 전달합니다.
+		WaitTask->OnNotifyReceived(NotifyName);
+	}
 }
 
 void ABattleManager::ProcessTaskQueue()
@@ -221,17 +247,3 @@ void ABattleManager::OnCurrentTaskFinished()
 	CurrentTask = nullptr;
 }
 
-void ABattleManager::SignalCurrentTaskFinished()
-{
-	OnCurrentTaskFinished();
-}
-
-void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
-{
-	// 현재 작업이 WaitForAnimNotify 타입인지 확인합니다.
-	if (UTask_WaitForAnimNotify* WaitTask = Cast<UTask_WaitForAnimNotify>(CurrentTask))
-	{
-		// 대기 중인 작업에게 신호를 전달합니다.
-		WaitTask->OnNotifyReceived(NotifyName);
-	}
-}

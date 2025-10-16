@@ -11,34 +11,32 @@ class ACombatPawn;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTaskFinished);
 
-/**
- * 
- */
 UCLASS(Blueprintable, Abstract, EditInlineNew, DefaultToInstanced)
 class PROJECT_SP_API UCombatTask : public UObject
 {
-	GENERATED_BODY()
-
+    GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintAssignable)
-	FOnTaskFinished OnTaskFinished;
+    UPROPERTY(BlueprintAssignable)
+    FOnTaskFinished OnTaskFinished;
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Combat Task")
-	void ExecuteTask();
-	virtual void ExecuteTask_Implementation();
+    UFUNCTION(BlueprintNativeEvent, Category = "Combat Task")
+    void ExecuteTask();
+    virtual void ExecuteTask_Implementation();
 
-	virtual void Initialize(ABattleManager* InBattleManager, ACombatPawn* InInstigator, const TArray<ACombatPawn*>& InTargets);
+    virtual void Initialize(ABattleManager* InBattleManager, ACombatPawn* InInstigator, const TArray<ACombatPawn*>& InTargets);
+
+    ACombatPawn* GetInstigator() const { return Instigator; }
 
 protected:
-	UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
-	TObjectPtr<ABattleManager> BattleManager;
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
+    TObjectPtr<ABattleManager> BattleManager;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
-	TObjectPtr<ACombatPawn> Instigator;
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
+    TObjectPtr<ACombatPawn> Instigator;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
-	TArray<TObjectPtr<ACombatPawn>> Targets;
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
+    TArray<TObjectPtr<ACombatPawn>> Targets;
 
-	UFUNCTION(BlueprintCallable, Category = "Combat Task")
-	virtual void FinishTask();
+    UFUNCTION(BlueprintCallable, Category = "Combat Task")
+    virtual void FinishTask();
 };

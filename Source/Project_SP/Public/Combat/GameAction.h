@@ -11,11 +11,8 @@ class UActionComponent;
 class ACombatPawn;
 class UCombatTask;
 
-/**
- * @class UGameAction
- * @brief FActionData라는 '설계도'를 바탕으로 만들어진 '제품'입니다.
- * 스킬 하나의 실제 실행 로직을 캡슐화하며, 다른 구체적인 스킬들의 부모 클래스가 됩니다.
- */
+DECLARE_DELEGATE_OneParam(FOnCombatEvent, FName);
+
 UCLASS(Blueprintable, Abstract)
 class PROJECT_SP_API UGameAction : public UObject
 {
@@ -47,6 +44,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Action")
 	const FActionData& GetData() const { return Data; }
 
+	FOnCombatEvent OnCombatEvent;
 protected:
 	// 자신을 소유한 '공장' 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Action")

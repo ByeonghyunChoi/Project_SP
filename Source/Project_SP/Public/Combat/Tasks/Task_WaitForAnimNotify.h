@@ -1,4 +1,4 @@
-// Combat/Tasks/Task_WaitForAnimNotify.h
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -6,15 +6,18 @@
 #include "Combat/CombatTask.h"
 #include "Task_WaitForAnimNotify.generated.h"
 
+/**
+ * 
+ */
 UCLASS()
 class PROJECT_SP_API UTask_WaitForAnimNotify : public UCombatTask
 {
 	GENERATED_BODY()
-
+	
 public:
 	virtual void ExecuteTask_Implementation() override;
 
-	// BattleManager가 직접 호출할 수 있도록 public으로 변경합니다.
+	// BattleManager가 신호를 받았을 때 이 함수를 호출합니다.
 	void OnNotifyReceived(FName ReceivedNotifyName);
 
 protected:

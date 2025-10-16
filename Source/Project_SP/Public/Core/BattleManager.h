@@ -77,10 +77,9 @@ public:
 
 	void QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks);
 
-	void ClearTaskQueue();
+	void InjectCombatTasks(const TArray<UCombatTask*>& Tasks);
 
-	UFUNCTION(BlueprintCallable, Category = "Sequencer")
-	void SignalCurrentTaskFinished();
+	void ClearTaskQueue();
 
 	void SignalTaskByNotifyName(FName NotifyName);
 
@@ -91,6 +90,8 @@ protected:
 	void HandleInterruptRequest(ACombatPawn* InInstigator);
 	UFUNCTION()
 	void HandleCombatantDied(AActor* InInstigator);
+	UFUNCTION()
+	void HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
 
 private:
 	void PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type);
@@ -100,14 +101,11 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UCombatTask>> TaskQueue;
-
 	UPROPERTY()
 	TObjectPtr<UCombatTask> CurrentTask;
-
 	bool bIsProcessingTask;
 
 	void ProcessTaskQueue();
-
 	UFUNCTION()
 	void OnCurrentTaskFinished();
 };

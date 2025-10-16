@@ -88,8 +88,6 @@ bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 
 void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArray<ACombatPawn*>& Targets)
 {
-    UE_LOG(LogTemp, Log, TEXT("'%s' action sequence started by %s."), *Data.DisplayName.ToString(), *Instigator->GetName());
-
     ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
     if (!BattleManager)
     {
@@ -102,7 +100,6 @@ void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArr
     {
         if (TaskTemplate)
         {
-            // Duplicate the template object to create a runtime instance
             UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
             NewTask->Initialize(BattleManager, Instigator, Targets);
             TaskInstances.Add(NewTask);
@@ -120,3 +117,4 @@ void UGameAction::EndAction(ACombatPawn* Instigator)
         Instigator->GetGameEventComponent()->BroadcastActionExecutionFinished(Instigator);
     }
 }
+
