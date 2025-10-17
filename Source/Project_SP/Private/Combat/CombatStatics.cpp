@@ -1,4 +1,4 @@
-#include "Combat/CombatStatics.h"
+ï»¿#include "Combat/CombatStatics.h"
 #include "Component/AttributesComponent.h"
 #include "Character/CombatPawn.h"
 
@@ -33,10 +33,10 @@ float UCombatStatics::CalculateDamage(const UAttributesComponent* AttackerStats,
     {
         BaseDamage *= AttackerStats->GetCurrentStats().fCriticalDamageMultiplier;
     }
-    // ÃÖÁ¾ µ¥¹ÌÁö
+    // ìµœì¢… ë°ë¯¸ì§€
     float FinalDamage = BaseDamage * DamageMultiCoef * DefendCoef * LevelCoefficient;
 
-    // ÃÖÁ¾ µ¥¹ÌÁö¸¦ ¹Ý¿Ã¸²ÇÏ¿© ¹ÝÈ¯
+    // ìµœì¢… ë°ë¯¸ì§€ë¥¼ ë°˜ì˜¬ë¦¼í•˜ì—¬ ë°˜í™˜
     return FMath::RoundToFloat(FinalDamage);
 }
 
@@ -62,16 +62,16 @@ float UCombatStatics::CalculateStatusEffectDamage(const ACombatPawn* Instigator,
         LevelCoefficient = 0.5f;
     }
 
-    // 1. ±âº» µ¥¹ÌÁö °è»ê
+    // 1. ê¸°ë³¸ ë°ë¯¸ì§€ ê³„ì‚°
     float BaseDamage = InstigatorStats->GetCurrentStats().fAttackPower * SubEffect.EffectMagnitude;
 
-    // 2. Áõ°¨ °è¼ö °è»ê
+    // 2. ì¦ê° ê³„ìˆ˜ ê³„ì‚°
     float IncreaseDamage = (1.0f + InstigatorStats->GetCurrentStats().fDamageIncreaseMultiplier - TargetStats->GetCurrentStats().fDamageReductionMultiplier);
 
-    // 3. ¹æ¾î °è¼ö °è»ê
+    // 3. ë°©ì–´ ê³„ìˆ˜ ê³„ì‚°
     float defenceCoefficient = 1.0f - (TargetStats->GetCurrentStats().fDefensePower / (TargetStats->GetCurrentStats().fDefensePower + 500.0f)) + InstigatorStats->GetCurrentStats().fArmorPenetration;
 
-    // 4. ¸ðµç °è¼ö¸¦ °öÇÏ¿© ÃÖÁ¾ µ¥¹ÌÁö °è»ê (»óÅÂ ÀÌ»ó È¿°ú ¹èÀ² Æ÷ÇÔ)
+    // 4. ëª¨ë“  ê³„ìˆ˜ë¥¼ ê³±í•˜ì—¬ ìµœì¢… ë°ë¯¸ì§€ ê³„ì‚° (ìƒíƒœ ì´ìƒ íš¨ê³¼ ë°°ìœ¨ í¬í•¨)
     float FinalDamage = BaseDamage * IncreaseDamage * defenceCoefficient * LevelCoefficient * InstigatorStats->GetCurrentStats().fStatusEffectMultiplier;
 
     return FMath::RoundToFloat(FinalDamage);

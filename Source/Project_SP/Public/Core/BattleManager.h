@@ -10,6 +10,7 @@
 class ACombatPawn;
 class UCombatCameraComponent;
 class UTurnSchedulerComponent;
+class UCombatTask;
 enum class EBattleState : uint8;
 
 USTRUCT(BlueprintType)
@@ -74,6 +75,14 @@ public:
 
 	FORCEINLINE UCombatCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
+	void QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks);
+
+	void InjectCombatTasks(const TArray<UCombatTask*>& Tasks);
+
+	void ClearTaskQueue();
+
+	void SignalTaskByNotifyName(FName NotifyName);
+
 protected:
 	UFUNCTION()
 	void HandleActionFinished(ACombatPawn* FinishedPawn);
@@ -81,10 +90,22 @@ protected:
 	void HandleInterruptRequest(ACombatPawn* InInstigator);
 	UFUNCTION()
 	void HandleCombatantDied(AActor* InInstigator);
+	UFUNCTION()
+	void HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
 
 private:
 	void PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type);
 	void EndCurrentTurn();
 	void CheckBattleEndConditions();
 	void DecideAndStartNextTurn();
+
+	UPROPERTY()
+	TArray<TObjectPtr<UCombatTask>> TaskQueue;
+	UPROPERTY()
+	TObjectPtr<UCombatTask> CurrentTask;
+	bool bIsProcessingTask;
+
+	void ProcessTaskQueue();
+	UFUNCTION()
+	void OnCurrentTaskFinished();
 };

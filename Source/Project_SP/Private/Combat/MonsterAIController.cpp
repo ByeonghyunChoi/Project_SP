@@ -1,4 +1,4 @@
-// Combat/MonsterAIController.cpp
+ï»¿// Combat/MonsterAIController.cpp
 
 #include "Combat/MonsterAIController.h"
 #include "Character/MonsterCharacter.h"
@@ -14,7 +14,7 @@ void AMonsterAIController::OnPossess(APawn* InPawn)
 
 void AMonsterAIController::OnTurnBegan(const TArray<ACombatPawn*>& PotentialTargets)
 {
-    // ¹Ù·Î Çàµ¿ÇÏ¸é ³Ê¹« ±â°èÀûÀÌ¹Ç·Î, 0.5ÃÊ Á¤µµ µô·¹ÀÌ¸¦ Áİ´Ï´Ù.
+    // ë°”ë¡œ í–‰ë™í•˜ë©´ ë„ˆë¬´ ê¸°ê³„ì ì´ë¯€ë¡œ, 0.5ì´ˆ ì •ë„ ë”œë ˆì´ë¥¼ ì¤ë‹ˆë‹¤.
     FTimerHandle TimerHandle;
 
     FTimerDelegate TimerDelegate;
@@ -31,17 +31,17 @@ void AMonsterAIController::DecideAction(TArray<ACombatPawn*> PlayerPawns)
     UActionComponent* ActionComp = ControlledMonster->GetActionComponent();
     if (!ActionComp || ActionComp->GetGrantedActions().Num() == 0) return;
 
-    // 1. »ç¿ëÇÒ ¾×¼ÇÀ» ·£´ıÀ¸·Î ¼±ÅÃÇÕ´Ï´Ù. (³ªÁß¿¡ ´õ º¹ÀâÇÑ ·ÎÁ÷À¸·Î ±³Ã¼ °¡´É)
+    // 1. ì‚¬ìš©í•  ì•¡ì…˜ì„ ëœë¤ìœ¼ë¡œ ì„ íƒí•©ë‹ˆë‹¤. (ë‚˜ì¤‘ì— ë” ë³µì¡í•œ ë¡œì§ìœ¼ë¡œ êµì²´ ê°€ëŠ¥)
     const TArray<TObjectPtr<UGameAction>>& Actions = ActionComp->GetGrantedActions();
     const FName ActionIDToUse = Actions[FMath::RandRange(0, Actions.Num() - 1)]->GetActionID();
 
-    // 2. °ø°İÇÒ Å¸°ÙÀ» ·£´ıÀ¸·Î ¼±ÅÃÇÕ´Ï´Ù.
+    // 2. ê³µê²©í•  íƒ€ê²Ÿì„ ëœë¤ìœ¼ë¡œ ì„ íƒí•©ë‹ˆë‹¤.
     TArray<ACombatPawn*> Targets;
     Targets.Add(PlayerPawns[FMath::RandRange(0, PlayerPawns.Num() - 1)]);
 
-    // 3. '¸ö'¿¡°Ô ¾Ö´Ï¸ŞÀÌ¼Ç Àç»ıÀ» Áö½ÃÇÕ´Ï´Ù.
+    // 3. 'ëª¸'ì—ê²Œ ì• ë‹ˆë©”ì´ì…˜ ì¬ìƒì„ ì§€ì‹œí•©ë‹ˆë‹¤.
     ControlledMonster->PlayActionMontage(ActionIDToUse);
 
-    // 4. '¸ö'ÀÇ ActionComponent¿¡°Ô ¾×¼Ç ½ÇÇàÀ» Á÷Á¢ ¸í·ÉÇÕ´Ï´Ù.
+    // 4. 'ëª¸'ì˜ ActionComponentì—ê²Œ ì•¡ì…˜ ì‹¤í–‰ì„ ì§ì ‘ ëª…ë ¹í•©ë‹ˆë‹¤.
     ActionComp->StartActionByID(ControlledMonster, ActionIDToUse, Targets);
 }

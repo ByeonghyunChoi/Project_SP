@@ -1,4 +1,4 @@
-// Equipment/WeaponSystemComponent.cpp
+Ôªø// Equipment/WeaponSystemComponent.cpp
 
 #include "Component/WeaponSystemComponent.h"
 #include "Data/WeaponData.h"
@@ -17,7 +17,7 @@ void UWeaponSystemComponent::AcquireWeapon(EDamageType NewWeaponType)
 
     PossessedWeaponTypes.Add(NewWeaponType);
     OnWeaponAcquired.Broadcast(NewWeaponType);
-    UE_LOG(LogTemp, Warning, TEXT("%s π´±‚∏¶ »πµÊ«ﬂΩ¿¥œ¥Ÿ!"), *UEnum::GetValueAsString(NewWeaponType));
+    UE_LOG(LogTemp, Warning, TEXT("%s Î¨¥Í∏∞Î•º ÌöçÎìùÌñàÏäµÎãàÎã§!"), *UEnum::GetValueAsString(NewWeaponType));
 
     if (PossessedWeaponTypes.Num() == 1)
     {
@@ -51,7 +51,7 @@ void UWeaponSystemComponent::SwitchWeapon(EDamageType WeaponTypeToSwitch)
             {
                 ActionComponent->OnActionListChanged.Broadcast(ActionComponent);
             }
-            UE_LOG(LogTemp, Log, TEXT("%s π´±‚∑Œ ±≥√º!"), *UEnum::GetValueAsString(WeaponTypeToSwitch));
+            UE_LOG(LogTemp, Log, TEXT("%s Î¨¥Í∏∞Î°ú ÍµêÏ≤¥!"), *UEnum::GetValueAsString(WeaponTypeToSwitch));
         }
     }
 }

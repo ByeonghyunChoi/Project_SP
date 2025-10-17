@@ -108,7 +108,7 @@ protected:
     int32 NextLevelExperience = 100;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Resources")
-    int32 SkillPoints = 0;
+    int32 SkillPoints = 3;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Resources")
     int32 Money = 0;

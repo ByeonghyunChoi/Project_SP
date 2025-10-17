@@ -7,6 +7,8 @@
 #include "Component/GameEventComponent.h"
 #include "Component/CombatCameraComponent.h"
 #include "Component/TurnSchedulerComponent.h"
+#include "Combat/CombatTask.h"
+#include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
 
 ABattleManager::ABattleManager()
@@ -33,6 +35,8 @@ void ABattleManager::Tick(float DeltaTime)
 	{
 		DecideAndStartNextTurn();
 	}
+
+	ProcessTaskQueue();
 }
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
@@ -164,6 +168,10 @@ void ABattleManager::HandleCombatantDied(AActor* InInstigator)
 	CheckBattleEndConditions();
 }
 
+void ABattleManager::HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
+{
+}
+
 void ABattleManager::DecideAndStartNextTurn()
 {
 	if (CurrentBattleState != EBattleState::InProgress) return;
@@ -179,3 +187,63 @@ void ABattleManager::DecideAndStartNextTurn()
 		CheckBattleEndConditions();
 	}
 }
+
+void ABattleManager::QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks)
+{
+	TaskQueue.Append(Tasks);
+}
+
+void ABattleManager::InjectCombatTasks(const TArray<UCombatTask*>& Tasks)
+{
+	TaskQueue.Insert(Tasks, 0);
+}
+
+void ABattleManager::ClearTaskQueue()
+{
+	if (CurrentTask)
+	{
+		ACombatPawn* InInstigator = CurrentTask->GetInstigator();
+		if (InInstigator)
+		{
+			InInstigator->StopAnimMontage();
+		}
+		if (CurrentTask->OnTaskFinished.IsBound())
+		{
+			CurrentTask->OnTaskFinished.RemoveDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+		}
+	}
+	CurrentTask = nullptr;
+	bIsProcessingTask = false;
+	TaskQueue.Empty();
+}
+
+void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
+{
+	if (UTask_WaitForAnimNotify* WaitTask = Cast<UTask_WaitForAnimNotify>(CurrentTask))
+	{
+		// 대기 중인 작업에게 신호를 전달합니다.
+		WaitTask->OnNotifyReceived(NotifyName);
+	}
+}
+
+void ABattleManager::ProcessTaskQueue()
+{
+	if (bIsProcessingTask || TaskQueue.Num() == 0) return;
+
+	CurrentTask = TaskQueue[0];
+	TaskQueue.RemoveAt(0);
+
+	if (CurrentTask)
+	{
+		bIsProcessingTask = true;
+		CurrentTask->OnTaskFinished.AddDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+		CurrentTask->ExecuteTask();
+	}
+}
+
+void ABattleManager::OnCurrentTaskFinished()
+{
+	bIsProcessingTask = false;
+	CurrentTask = nullptr;
+}
+

@@ -27,6 +27,8 @@ public:
     void PlayEnemyShot(AActor* Attacker, AActor* Target);
     void PlayParryShot(AActor* Parrier, AActor* Attacker);
 
+    void PlayShot(FName ShotName, AActor* Attacker = nullptr, AActor* Target = nullptr);
+
 protected:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
@@ -34,8 +36,6 @@ protected:
     TObjectPtr<UDataTable> ShotDataTable;
 
 private:
-    void PlayShot(FName ShotName, AActor* Attacker = nullptr, AActor* Target = nullptr);
-
     UPROPERTY()
     TObjectPtr<ACineCameraActor> ControlledCamera;
 

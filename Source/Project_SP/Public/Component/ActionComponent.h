@@ -33,6 +33,10 @@ public:
 	void GrantAction(FName ActionID);
 	void RemoveAction(FName ActionID);
 	bool StartActionByID(ACombatPawn* Instigator, FName ActionID, const TArray<ACombatPawn*>& Targets);
+	void EndActiveAction(ACombatPawn* Instigator);
+
+	UFUNCTION(BlueprintPure, Category = "Actions")
+	UGameAction* GetActiveAction() const { return ActiveAction; }
 
 	UDataTable* GetActionDataTable() const { return ActionDataTable; }
 
@@ -48,4 +52,8 @@ protected:
 	// '생산'해서 '보관'하고 있는 액션(제품) 목록
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Actions")
 	TArray<TObjectPtr<UGameAction>> GrantedActions;
+
+	//현재 사용하고 있는 행동을 보관할 변수
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Actions")
+	TObjectPtr<UGameAction> ActiveAction;
 };

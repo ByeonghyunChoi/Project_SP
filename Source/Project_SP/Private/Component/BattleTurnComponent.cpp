@@ -1,4 +1,4 @@
-#include "Component/BattleTurnComponent.h"
+ï»¿#include "Component/BattleTurnComponent.h"
 #include "Component/AttributesComponent.h"
 #include "EngineUtils.h"
 
@@ -23,7 +23,7 @@ void UBattleTurnComponent::BeginPlay()
 void UBattleTurnComponent::StartTurn()
 {
     bIsMyTurn = true;
-    ActionValue = 0.f; // ÅÏÀ» °¡Á³À¸¹Ç·Î Çàµ¿ °ÔÀÌÁö¸¦ 0À¸·Î ÃÊ±âÈ­
+    ActionValue = 0.f; // í„´ì„ ê°€ì¡Œìœ¼ë¯€ë¡œ í–‰ë™ ê²Œì´ì§€ë¥¼ 0ìœ¼ë¡œ ì´ˆê¸°í™”
 }
 
 void UBattleTurnComponent::EndTurn()
@@ -35,7 +35,7 @@ void UBattleTurnComponent::AdvanceActionValue(float DeltaTime)
 {
     if (bIsMyTurn || !AttributesComp) return;
 
-    // ÀÚ½ÅÀÇ ¼Óµµ¿¡ ºñ·ÊÇÏ¿© Çàµ¿ °ÔÀÌÁö Áõ°¡
+    // ìžì‹ ì˜ ì†ë„ì— ë¹„ë¡€í•˜ì—¬ í–‰ë™ ê²Œì´ì§€ ì¦ê°€
     const float Speed = AttributesComp->GetCurrentStats().fMovementSpeed;
     ActionValue += Speed * DeltaTime;
 }

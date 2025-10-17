@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Component/PlayerCombatControlComponent.h"
@@ -8,6 +8,7 @@
 #include "Data/ActionData.h"
 #include "Data/WeaponData.h"
 #include "EnhancedInputComponent.h"
+#include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties
@@ -107,17 +108,17 @@ void UPlayerCombatControlComponent::SelectAction(FName ActionID)
 	{
 		SelectedActionID = ActionID;
 
-		// "¾×¼Ç ¼±ÅÃµÊ!" ¹æ¼Û
+		// "ì•¡ì…˜ ì„ íƒë¨!" ë°©ì†¡
 		OnActionSelected.Broadcast(ActionID);
 
 		if (CurrentTargetIndex == -1)
 		{
-			// ¼±ÅÃµÈ Å¸°ÙÀÌ ¾ø¾úÀ» °æ¿ì¿¡¸¸ Ã³À½ºÎÅÍ Å¸°Ù ¼±ÅÃÀ» ½ÃÀÛÇÕ´Ï´Ù.
+			// ì„ íƒëœ íƒ€ê²Ÿì´ ì—†ì—ˆì„ ê²½ìš°ì—ë§Œ ì²˜ìŒë¶€í„° íƒ€ê²Ÿ ì„ íƒì„ ì‹œì‘í•©ë‹ˆë‹¤.
 			BeginTargetSelection();
 		}
 		else
 		{
-			// ÀÌ¹Ì Å¸°ÙÀÌ ÀÖ¾ú´Ù¸é, ±× Å¸°Ù(CurrentTargetIndex)À» ±âÁØÀ¸·Î ±×·ì¸¸ ´Ù½Ã °è»êÇÕ´Ï´Ù.
+			// ì´ë¯¸ íƒ€ê²Ÿì´ ìˆì—ˆë‹¤ë©´, ê·¸ íƒ€ê²Ÿ(CurrentTargetIndex)ì„ ê¸°ì¤€ìœ¼ë¡œ ê·¸ë£¹ë§Œ ë‹¤ì‹œ ê³„ì‚°í•©ë‹ˆë‹¤.
 			const int32 NumEnemies = AllEnemyTargets.Num();
 			const int32 NumberOfTargets = FMath::Min(FoundData.NumberOfTargets, NumEnemies);
 
@@ -170,14 +171,14 @@ void UPlayerCombatControlComponent::CycleTarget(float Direction)
 	UE_LOG(LogTemp, Warning, TEXT("CycleTarget called with Direction: %f"), Direction);
 	if (!OwningPlayerCharacter || OwningPlayerCharacter->GetCombatPawnState() != ECombatPawnState::AwaitingInput || AllEnemyTargets.Num() <= 1 || !ActionComponent) return;
 
-	// ÀÎµ¦½º ÀÌµ¿
+	// ì¸ë±ìŠ¤ ì´ë™
 	CurrentTargetIndex += FMath::RoundToInt(Direction);
 
-	// ÀÎµ¦½º°¡ ¹è¿­ ¹üÀ§¸¦ ¹ş¾î³ª¸é ¼øÈ¯½ÃÅ´ (À½¼ö Ã³¸® Æ÷ÇÔ)
+	// ì¸ë±ìŠ¤ê°€ ë°°ì—´ ë²”ìœ„ë¥¼ ë²—ì–´ë‚˜ë©´ ìˆœí™˜ì‹œí‚´ (ìŒìˆ˜ ì²˜ë¦¬ í¬í•¨)
 	const int32 NumEnemies = AllEnemyTargets.Num();
 	CurrentTargetIndex = (CurrentTargetIndex % NumEnemies + NumEnemies) % NumEnemies;
 
-	// »õ ¾ŞÄ¿ ÀÎµ¦½º¸¦ ±âÁØÀ¸·Î Å¸°Ù ±×·ì Àç±¸¼º
+	// ìƒˆ ì•µì»¤ ì¸ë±ìŠ¤ë¥¼ ê¸°ì¤€ìœ¼ë¡œ íƒ€ê²Ÿ ê·¸ë£¹ ì¬êµ¬ì„±
 	FActionData ActionData;
 	if (!ActionComponent->GetActionData(SelectedActionID, ActionData)) return;
 
@@ -208,10 +209,10 @@ void UPlayerCombatControlComponent::SelectTargetByMouse()
 			int32 FoundIndex;
 			if (AllEnemyTargets.Find(HitPawn, FoundIndex))
 			{
-				// Å¬¸¯µÈ ÀûÀ» »õ·Î¿î ¾ŞÄ¿ ÀÎµ¦½º·Î ¼³Á¤
+				// í´ë¦­ëœ ì ì„ ìƒˆë¡œìš´ ì•µì»¤ ì¸ë±ìŠ¤ë¡œ ì„¤ì •
 				CurrentTargetIndex = FoundIndex;
 
-				// »õ ¾ŞÄ¿ ÀÎµ¦½º¸¦ ±âÁØÀ¸·Î Å¸°Ù ±×·ì Àç±¸¼º
+				// ìƒˆ ì•µì»¤ ì¸ë±ìŠ¤ë¥¼ ê¸°ì¤€ìœ¼ë¡œ íƒ€ê²Ÿ ê·¸ë£¹ ì¬êµ¬ì„±
 				FActionData ActionData;
 				if (!ActionComponent->GetActionData(SelectedActionID, ActionData)) return;
 
@@ -235,6 +236,6 @@ void UPlayerCombatControlComponent::SelectTargetByMouse()
 void UPlayerCombatControlComponent::SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets)
 {
 	CurrentTargets = NewTargets;
-	// "Å¸°Ù º¯°æµÊ!" ¹æ¼Û
+	// "íƒ€ê²Ÿ ë³€ê²½ë¨!" ë°©ì†¡
 	OnTargetsChanged.Broadcast(CurrentTargets);
 }

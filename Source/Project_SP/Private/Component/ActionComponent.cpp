@@ -1,4 +1,4 @@
-// Component/ActionComponent.cpp
+ï»¿// Component/ActionComponent.cpp
 
 #include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
@@ -26,7 +26,7 @@ void UActionComponent::GrantAction(FName ActionID)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
-			return; // ÀÌ¹Ì ÀÖÀ¸¸é Ãß°¡ÇÏÁö ¾ÊÀ½
+			return; // ì´ë¯¸ ìˆìœ¼ë©´ ì¶”ê°€í•˜ì§€ ì•ŠìŒ
 		}
 	}
 
@@ -56,20 +56,37 @@ void UActionComponent::RemoveAction(FName ActionID)
 
 bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, const TArray<ACombatPawn*>& Targets)
 {
+	if (ActiveAction) return false;
+
 	for (UGameAction* Action : GrantedActions)
 	{
 		if (Action && Action->GetActionID() == ActionID)
 		{
 			if (Action->CanStartAction(Instigator))
 			{
+				// ì•¡ì…˜ì´ ì‹œì‘ë˜ë©´ ActiveActionì— ê¸°ë¡í•©ë‹ˆë‹¤.
+				ActiveAction = Action;
 				Action->StartAction(Instigator, Targets);
 				return true;
 			}
-			return false; // Á¶°ÇÀÌ ¸ÂÁö ¾Ê¾Æ ½ÇÇà ½ÇÆĞ
+			return false; // ì¡°ê±´ì´ ë§ì§€ ì•Šì•„ ì‹¤í–‰ ì‹¤íŒ¨
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù."), *ActionID.ToString());
-	return false; // ÇØ´ç IDÀÇ ¾×¼ÇÀ» Ã£Áö ¸øÇÔ
+	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."), *ActionID.ToString());
+	return false;
+}
+
+void UActionComponent::EndActiveAction(ACombatPawn* Instigator)
+{
+	if (ActiveAction)
+	{
+		// ì„ì‹œ ë³€ìˆ˜ì— ì €ì¥í•´ë‘ê³  ActiveActionì„ ë¨¼ì € nullë¡œ ë§Œë“¤ì–´ ì¤‘ë³µ í˜¸ì¶œì„ ë°©ì§€í•©ë‹ˆë‹¤.
+		UGameAction* ActionToEnd = ActiveAction;
+		ActiveAction = nullptr;
+
+		// ì‹¤ì œ ì•¡ì…˜ ì¢…ë£Œ ë¡œì§(ì´ë²¤íŠ¸ ë°©ì†¡)ì„ í˜¸ì¶œí•©ë‹ˆë‹¤.
+		ActionToEnd->EndAction(Instigator);
+	}
 }
 
 bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData) const

@@ -1,4 +1,4 @@
-#include "Combat/MonsterGroupObject.h"
+ï»¿#include "Combat/MonsterGroupObject.h"
 
 TArray<FMonsterData> UMonsterGroupObject::GetAllMonsterDataInGroup() const
 {
@@ -34,7 +34,7 @@ FMonsterData UMonsterGroupObject::GetMonsterData(FName MonsterID) const
             return *FoundData;
         }
     }
-    return FMonsterData(); // µ¥ÀÌÅÍ ¾øÀ¸¸é ±âº» »ı¼ºÀÚ ¹İÈ¯
+    return FMonsterData(); // ë°ì´í„° ì—†ìœ¼ë©´ ê¸°ë³¸ ìƒì„±ì ë°˜í™˜
 }
 
 void UMonsterGroupObject::CopyMonterGroup(UMonsterGroupObject* OtherGroup)

@@ -9,12 +9,10 @@
 
 class UActionComponent;
 class ACombatPawn;
+class UCombatTask;
 
-/**
- * @class UGameAction
- * @brief FActionData라는 '설계도'를 바탕으로 만들어진 '제품'입니다.
- * 스킬 하나의 실제 실행 로직을 캡슐화하며, 다른 구체적인 스킬들의 부모 클래스가 됩니다.
- */
+DECLARE_DELEGATE_OneParam(FOnCombatEvent, FName);
+
 UCLASS(Blueprintable, Abstract)
 class PROJECT_SP_API UGameAction : public UObject
 {
@@ -24,6 +22,9 @@ public:
 	// '공장(ActionComponent)'이 '제품'을 만들 때 호출하여 필요한 정보를 주입합니다.
 	void Initialize(UActionComponent* InOwningComponent, FName InActionID);
 
+	UFUNCTION(BlueprintCallable, Category = "Action | Parry")
+	void OpenParryWindow();
+	void CloseParryWindow();
 	// 이 액션을 시작할 수 있는지 조건을 확인합니다. (예: SP가 충분한가?)
 	UFUNCTION(BlueprintNativeEvent, Category = "Action")
 	bool CanStartAction(ACombatPawn* Instigator);
@@ -43,6 +44,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Action")
 	const FActionData& GetData() const { return Data; }
 
+	FOnCombatEvent OnCombatEvent;
 protected:
 	// 자신을 소유한 '공장' 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Action")
@@ -55,4 +57,11 @@ protected:
 	// 자신의 ID (데이터 테이블의 Row Name)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Action")
 	FName ActionID;
+
+	//실행할 작업 순서
+	UPROPERTY(EditDefaultsOnly, Instanced, BlueprintReadOnly, Category = "Action Sequence")
+	TArray<TObjectPtr<UCombatTask>> Tasks;
+
+private:
+	FTimerHandle ParryWindowTimerHandle;
 };

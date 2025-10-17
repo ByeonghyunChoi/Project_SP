@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Component/CombatCameraComponent.h"
@@ -25,7 +25,7 @@ void UCombatCameraComponent::InitializeCamera(FName CameraTag)
         APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
         if (PC && ControlledCamera)
         {
-            PC->SetViewTargetWithBlend(ControlledCamera, 0.5f);
+            PC->SetViewTargetWithBlend(ControlledCamera, 0.0f);
         }
     }
 }
@@ -62,7 +62,7 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
         if (PC) PC->ClientStartCameraShake(ShotData->CameraShake);
     }
 
-    // ¸ñÇ¥ À§Ä¡/È¸Àü °è»ê
+    // ëª©í‘œ ìœ„ì¹˜/íšŒì „ ê³„ì‚°
     FVector BaseLocation = FVector::ZeroVector;
     AActor* LookAtTarget = nullptr;
 
@@ -77,7 +77,7 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
     case ECameraShotTarget::Midpoint:
         if (Attacker && Target) {
             BaseLocation = (Attacker->GetActorLocation() + Target->GetActorLocation()) / 2.0f;
-            LookAtTarget = nullptr; // Áß°£ ÁöÁ¡À» º¸µµ·Ï
+            LookAtTarget = nullptr; // ì¤‘ê°„ ì§€ì ì„ ë³´ë„ë¡
         }
         break;
     case ECameraShotTarget::World:

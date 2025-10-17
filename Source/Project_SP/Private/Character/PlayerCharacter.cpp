@@ -1,7 +1,7 @@
 ﻿// Character/PlayerCharacter.cpp
 
 #include "Character/PlayerCharacter.h"
-#include "Component/FieldModeComponent.h"
+#include "Component/FieldActionComponent.h"
 #include "Component/WeaponSystemComponent.h"
 #include "Component/PlayerCombatControlComponent.h" 
 #include "EnhancedInputComponent.h"
@@ -9,7 +9,7 @@
 
 APlayerCharacter::APlayerCharacter()
 {
-	FieldModeComp = CreateDefaultSubobject<UFieldModeComponent>(TEXT("FieldModeComponent"));
+	FieldActionComp = CreateDefaultSubobject<UFieldActionComponent>(TEXT("FieldActionComponent"));
 	WeaponSystemComponent = CreateDefaultSubobject<UWeaponSystemComponent>(TEXT("WeaponSystemComponent"));
 	CombatControlComponent = CreateDefaultSubobject<UPlayerCombatControlComponent>(TEXT("CombatControlComponent")); // 이름 변경
 

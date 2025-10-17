@@ -1,4 +1,4 @@
-// Combat/TurnSchedulerComponent.cpp
+ï»¿// Combat/TurnSchedulerComponent.cpp
 
 #include "Component/TurnSchedulerComponent.h"
 #include "Core/BattleManager.h"
@@ -6,7 +6,7 @@
 #include "Component/BattleTurnComponent.h"
 #include "Component/AttributesComponent.h"
 
-// FSimulatedPawnData »ı¼ºÀÚ ¹× ¸â¹ö ÇÔ¼ö ±¸Çö
+// FSimulatedPawnData ìƒì„±ì ë° ë©¤ë²„ í•¨ìˆ˜ êµ¬í˜„
 UTurnSchedulerComponent::FSimulatedPawnData::FSimulatedPawnData(ACombatPawn* InPawn)
 {
 	Pawn = InPawn;
@@ -31,7 +31,7 @@ float UTurnSchedulerComponent::FSimulatedPawnData::GetTimeToReachThreshold(float
 	return (Threshold - SimulatedActionValue) / MovementSpeed;
 }
 
-// UTurnSchedulerComponent »ı¼ºÀÚ ¹× ¸â¹ö ÇÔ¼ö ±¸Çö
+// UTurnSchedulerComponent ìƒì„±ì ë° ë©¤ë²„ í•¨ìˆ˜ êµ¬í˜„
 UTurnSchedulerComponent::UTurnSchedulerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -43,7 +43,7 @@ void UTurnSchedulerComponent::BeginPlay()
 	BattleManagerRef = Cast<ABattleManager>(GetOwner());
 	if (!BattleManagerRef)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TurnSchedulerComponent´Â ABattleManager ¾×ÅÍ¿¡¸¸ ºÎÂøÇØ¾ß ÇÕ´Ï´Ù!"));
+		UE_LOG(LogTemp, Error, TEXT("TurnSchedulerComponentëŠ” ABattleManager ì•¡í„°ì—ë§Œ ë¶€ì°©í•´ì•¼ í•©ë‹ˆë‹¤!"));
 	}
 }
 

@@ -1,17 +1,20 @@
-#include "Combat/GameAction.h"
+ï»¿#include "Combat/GameAction.h"
 #include "Component/ActionComponent.h"
 #include "Component/AttributesComponent.h"
 #include "Character/CombatPawn.h"
 #include "Component/GameEventComponent.h"
 #include "Combat/CombatStatics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Core/BattleManager.h"
+#include "Combat/CombatTask.h"
+#include "TimerManager.h"
 
 void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InActionID)
 {
     OwningComponent = InOwningComponent;
     ActionID = InActionID;
 
-    // µ¥ÀÌÅÍ Å×ÀÌºí¿¡¼­ ActionID¿¡ ÇØ´çÇÏ´Â µ¥ÀÌÅÍ¸¦ Ã£¾Æ 'Data' º¯¼ö¿¡ ÀúÀå
+    // ë°ì´í„° í…Œì´ë¸”ì—ì„œ ActionIDì— í•´ë‹¹í•˜ëŠ” ë°ì´í„°ë¥¼ ì°¾ì•„ 'Data' ë³€ìˆ˜ì— ì €ì¥
     if (OwningComponent && OwningComponent->GetActionDataTable())
     {
         const FActionData* FoundRow = OwningComponent->GetActionDataTable()->FindRow<FActionData>(ActionID, TEXT(""));
@@ -22,71 +25,96 @@ void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InAction
     }
 }
 
+void UGameAction::OpenParryWindow()
+{
+    ACombatPawn* Instigator = Cast<ACombatPawn>(GetOuter());
+    if (!Instigator) return;
+
+    if (Data.ParryWindowDuration > 0.f && Instigator->GetFaction() == EFaction::Enemy)
+    {
+        if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
+        {
+            // 1. "íŒ¨ë§ ì°½ ì—´ë¦¼!" ì´ë¼ê³  ì›”ë“œì— ë°©ì†¡í•©ë‹ˆë‹¤.
+            EventComp->BroadcastParryWindowOpened(Instigator, Data.DamageType, Data.ParryWindowDuration);
+
+            // --- ë°”ë¡œ ì´ ë¶€ë¶„ì´ í•µì‹¬ì…ë‹ˆë‹¤ ---
+            // 2. ì •í•´ì§„ ì‹œê°„(ParryWindowDuration) í›„ì— CloseParryWindow í•¨ìˆ˜ë¥¼ í˜¸ì¶œí•˜ë„ë¡ íƒ€ì´ë¨¸ë¥¼ ì„¤ì •í•©ë‹ˆë‹¤.
+            if (UWorld* World = Instigator->GetWorld())
+            {
+                World->GetTimerManager().SetTimer(ParryWindowTimerHandle, this, &UGameAction::CloseParryWindow, Data.ParryWindowDuration, false);
+            }
+        }
+    }
+}
+
+void UGameAction::CloseParryWindow()
+{
+    ACombatPawn* Instigator = Cast<ACombatPawn>(GetOuter());
+    if (!Instigator) return;
+
+    // íƒ€ì´ë¨¸ê°€ ì—¬ëŸ¬ ë²ˆ í˜¸ì¶œë˜ëŠ” ê²ƒì„ ë°©ì§€í•˜ê¸° ìœ„í•´ ì¦‰ì‹œ í´ë¦¬ì–´í•©ë‹ˆë‹¤.
+    if (UWorld* World = Instigator->GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(ParryWindowTimerHandle);
+    }
+
+    // 1. ë…¼ë¦¬ì ì¸ 'ë‹«í˜' ì‹ í˜¸ë¥¼ ë‹¤ë¥¸ C++ í´ë˜ìŠ¤(í”Œë ˆì´ì–´ ë“±)ì— ë°©ì†¡í•©ë‹ˆë‹¤.
+    if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
+    {
+        EventComp->BroadcastParryWindowClosed(Instigator);
+    }
+}
+
 bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 {
     if (!Instigator) return false;
 
-    // ºñ¿ëÀÌ 0ÀÌ¸é Ç×»ó ½ÇÇà °¡´É
+    // ë¹„ìš©ì´ 0ì´ë©´ í•­ìƒ ì‹¤í–‰ ê°€ëŠ¥
     if (Data.CostSP <= 0)
     {
         return true;
     }
 
-    // ½ÃÀüÀÚÀÇ AttributesComponent¸¦ °¡Á®¿Í SP°¡ ÃæºĞÇÑÁö È®ÀÎ
+    // ì‹œì „ìì˜ AttributesComponentë¥¼ ê°€ì ¸ì™€ SPê°€ ì¶©ë¶„í•œì§€ í™•ì¸
     UAttributesComponent* AttributesComp = Instigator->GetAttributesComponent();
     if (AttributesComp && AttributesComp->GetSkillPoint() >= Data.CostSP)
     {
         return true;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("SP°¡ ºÎÁ·ÇÏ¿© '%s'À»(¸¦) »ç¿ëÇÒ ¼ö ¾ø½À´Ï´Ù."), *Data.DisplayName.ToString());
+    UE_LOG(LogTemp, Warning, TEXT("SPê°€ ë¶€ì¡±í•˜ì—¬ '%s'ì„(ë¥¼) ì‚¬ìš©í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤."), *Data.DisplayName.ToString());
     return false;
 }
 
 void UGameAction::StartAction_Implementation(ACombatPawn* Instigator, const TArray<ACombatPawn*>& Targets)
 {
-    UE_LOG(LogTemp, Log, TEXT("'%s' ¾×¼Ç ½ÃÀÛ. ½ÃÀüÀÚ: %s"), *Data.DisplayName.ToString(), *Instigator->GetName());
-
-    if (Data.CostSP > 0)
+    ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+    if (!BattleManager)
     {
-        UAttributesComponent* AttributesComp = Instigator->GetAttributesComponent();
-        if (AttributesComp)
+        EndAction(Instigator);
+        return;
+    }
+
+    TArray<UCombatTask*> TaskInstances;
+    for (UCombatTask* TaskTemplate : Tasks)
+    {
+        if (TaskTemplate)
         {
-            AttributesComp->ApplySPChange(-Data.CostSP);
+            UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
+            NewTask->Initialize(BattleManager, Instigator, Targets);
+            TaskInstances.Add(NewTask);
         }
     }
 
-    //µ¥¹ÌÁö Àû¿ë ·ÎÁ÷
-    UAttributesComponent* InstigatorStats = Instigator->GetAttributesComponent();
-    if (InstigatorStats)
-    {
-        for (ACombatPawn* Target : Targets)
-        {
-            if (Target && Target->GetCombatPawnState() != ECombatPawnState::Defeated)
-            {
-                UAttributesComponent* TargetStats = Target->GetAttributesComponent();
-                if (TargetStats)
-                {
-                    // 1. µ¥¹ÌÁö °è»ê
-                    float FinalDamage = UCombatStatics::CalculateDamage(InstigatorStats, TargetStats, Data.SkillCoefficient);
-
-                    UE_LOG(LogTemp, Log, TEXT("%s attacks %s for %.1f damage."), *Instigator->GetName(), *Target->GetName(), FinalDamage);
-
-                    // 2. µ¥¹ÌÁö Àû¿ë
-                    UGameplayStatics::ApplyDamage(Target, FinalDamage, Instigator->GetController(), Instigator, UDamageType::StaticClass());
-                }
-            }
-        }
-    }
-
-    EndAction(Instigator);
+    BattleManager->QueueUpCombatTasks(TaskInstances);
 }
 
 void UGameAction::EndAction(ACombatPawn* Instigator)
 {
     if (Instigator && Instigator->GetGameEventComponent())
     {
-        // GameEventComponent¸¦ ÅëÇØ "¾×¼Ç ½ÇÇàÀÌ ³¡³µ´Ù"°í ¹æ¼ÛÇÔ.
+        // GameEventComponentë¥¼ í†µí•´ "ì•¡ì…˜ ì‹¤í–‰ì´ ëë‚¬ë‹¤"ê³  ë°©ì†¡í•¨.
         Instigator->GetGameEventComponent()->BroadcastActionExecutionFinished(Instigator);
     }
 }
+

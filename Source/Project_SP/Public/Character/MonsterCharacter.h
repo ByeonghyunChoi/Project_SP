@@ -32,6 +32,20 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "AI")
     EDamageType WeaknessType;
+
+    UFUNCTION()
+    void HandleParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration);
+
+    UFUNCTION()
+    void HandleParryWindowClosed(ACombatPawn* Attacker);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "VFX", meta = (DisplayName = "OnParryWindowOpenedVFX"))
+    void K2_OnParryWindowOpened();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "VFX", meta = (DisplayName = "OnParryWindowClosedVFX"))
+    void K2_OnParryWindowClosed();
+
+
 public:
     // --- 외부(주로 AIController)에서 호출하는 함수 ---
 
