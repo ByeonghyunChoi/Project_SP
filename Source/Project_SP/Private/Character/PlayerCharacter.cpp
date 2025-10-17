@@ -12,6 +12,7 @@ APlayerCharacter::APlayerCharacter()
 	FieldActionComp = CreateDefaultSubobject<UFieldActionComponent>(TEXT("FieldActionComponent"));
 	WeaponSystemComponent = CreateDefaultSubobject<UWeaponSystemComponent>(TEXT("WeaponSystemComponent"));
 	CombatControlComponent = CreateDefaultSubobject<UPlayerCombatControlComponent>(TEXT("CombatControlComponent")); // 이름 변경
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
