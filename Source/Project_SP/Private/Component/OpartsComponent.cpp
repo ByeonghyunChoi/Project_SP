@@ -7,4 +7,22 @@ UOpartsComponent::UOpartsComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UOpartsComponent::LevelUpOparts()
+{
+}
+
+void UOpartsComponent::ActiveSpecialAbility()
+{
+}
+
+int32 UOpartsComponent::GetCurrentLevel() const
+{
+	return int32();
+}
+
+int32 UOpartsComponent::GetRequiredSandForNextLevel() const
+{
+	return int32();
+}
+
 
