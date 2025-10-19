@@ -7,6 +7,7 @@
 class UWeaponSystemComponent;
 class UFieldActionComponent;
 class UPlayerCombatControlComponent;
+class UInventoryComponent;
 
 
 UCLASS()
@@ -32,6 +33,9 @@ protected:
 	// 전투 행동 제어 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Brain")
 	TObjectPtr<UPlayerCombatControlComponent> CombatControlComponent;
+	// 인벤토리 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UInventoryComponent> InventoryComponent;
 
 public:
 	virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;

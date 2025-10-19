@@ -4,6 +4,7 @@
 #include "Component/FieldActionComponent.h"
 #include "Component/WeaponSystemComponent.h"
 #include "Component/PlayerCombatControlComponent.h" 
+#include "Component/InventoryComponent.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -12,6 +13,7 @@ APlayerCharacter::APlayerCharacter()
 	FieldActionComp = CreateDefaultSubobject<UFieldActionComponent>(TEXT("FieldActionComponent"));
 	WeaponSystemComponent = CreateDefaultSubobject<UWeaponSystemComponent>(TEXT("WeaponSystemComponent"));
 	CombatControlComponent = CreateDefaultSubobject<UPlayerCombatControlComponent>(TEXT("CombatControlComponent")); // 이름 변경
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
