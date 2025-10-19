@@ -13,6 +13,7 @@ class UActionComponent;
 class UBattleTurnComponent;
 class UStatusEffectComponent;
 class UGameEventComponent;
+class UWidgetComponent;
 
 
 UCLASS(Abstract) 
@@ -51,6 +52,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UGameEventComponent> GameEventComponent;
 
+    //데미지 수치를 표시할 UI컴포넌트
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UWidgetComponent> DamageFloaterWidgetComponent;
+
     // --- 내부 상태 ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
     ECombatPawnState CurrentPawnState;
@@ -78,6 +83,7 @@ public:
     FORCEINLINE UGameEventComponent* GetGameEventComponent() const { return GameEventComponent; }
     FORCEINLINE ECombatPawnState GetCombatPawnState() const { return CurrentPawnState; }
     FORCEINLINE EFaction GetFaction() const { return CurrentFaction; }
+    FORCEINLINE UWidgetComponent* GetDamageFloaterWidgetComponent() const { return DamageFloaterWidgetComponent; }
 
     // --- 상태 변경자(Setter) 함수 ---
     UFUNCTION(BlueprintCallable, Category = "State")
@@ -88,4 +94,7 @@ public:
 
     UFUNCTION()
     void HandleOwnerHealthDepleted(AActor* InInstigator);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "UI", meta = (DisplayName = "ShowDamageFloaterVFX"))
+    void K2_ShowDamageFloater(float DamageAmount, EDamageFloaterType DamageType);
 };

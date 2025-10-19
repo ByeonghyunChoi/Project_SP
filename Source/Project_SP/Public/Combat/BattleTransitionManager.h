@@ -11,7 +11,7 @@ class UMonsterGroupObject;
 class UUserWidget;
 class ACombatPawn;
 
-UCLASS(Blueprintable, BlueprintType)
+UCLASS(Blueprintable, BlueprintType, Config = Game)
 class PROJECT_SP_API UBattleTransitionManager : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -36,7 +36,10 @@ protected:
 	TArray<TObjectPtr<ACombatPawn>> CachedEnemyParty;
 
 	TSubclassOf<UUserWidget> TransitionWidgetClass;
+
+	UPROPERTY(Config)
 	FName BattleArenaMapName;
+	UPROPERTY(Config)
 	FName BattleStageDirectorTag;
 
 private:
@@ -59,7 +62,8 @@ private:
 
 	void CheckAndFinalizeTransition();
 	void FinalizeBattleStart();
-
 	void UnloadBattleMap();
-	UFUNCTION() void OnBattleArenaUnloaded();
+
+	UFUNCTION()
+	void OnBattleArenaUnloaded();
 };

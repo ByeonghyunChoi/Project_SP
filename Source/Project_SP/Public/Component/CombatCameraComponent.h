@@ -35,6 +35,18 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Camera Director")
     TObjectPtr<UDataTable> ShotDataTable;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Config|Shot Names")
+    FName DefaultWideShotName = TEXT("Shot_DefaultWide");
+
+    UPROPERTY(EditDefaultsOnly, Category = "Config|Shot Names")
+    FName PlayerAttackShotName = TEXT("Shot_PlayerAttack");
+
+    UPROPERTY(EditDefaultsOnly, Category = "Config|Shot Names")
+    FName EnemyAttackShotName = TEXT("Shot_EnemyAttack");
+
+    UPROPERTY(EditDefaultsOnly, Category = "Config|Shot Names")
+    FName ParryImpactShotName = TEXT("Shot_ParryImpact");
+
 private:
     UPROPERTY()
     TObjectPtr<ACineCameraActor> ControlledCamera;

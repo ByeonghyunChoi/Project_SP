@@ -50,14 +50,32 @@ void UPlayerCombatControlComponent::SetupPlayerInput(UEnhancedInputComponent* Pl
 
 void UPlayerCombatControlComponent::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {
-	if (!OwningPlayerCharacter) return;
+	if (!OwningPlayerCharacter || !WeaponSystemComponent || !ActionComponent) return;
 
 	AllEnemyTargets = PotentialTargets;
-	OwningPlayerCharacter->SetCombatPawnState(ECombatPawnState::AwaitingInput);
-	SelectedActionID = NAME_None;
-	CurrentTargets.Empty();
-	CurrentTargetIndex = -1;
-	OnTargetsChanged.Broadcast(CurrentTargets);
+	OwningPlayerCharacter->SetCombatPawnState(ECombatPawnState::AwaitingInput); 
+
+	if (SelectedActionID.IsNone())
+	{
+		const EDamageType DefaultWeaponType = EDamageType::Fenrir;
+
+		WeaponSystemComponent->SwitchWeapon(DefaultWeaponType);
+
+		UWeaponData* CurrentWeaponData = WeaponSystemComponent->GetCurrentWeapon();
+		if (CurrentWeaponData)
+		{
+			const FName BasicAttackID = CurrentWeaponData->BasicAttackActionID;
+			SelectAction(BasicAttackID);
+		}
+		else
+		{
+			SelectedActionID = NAME_None;
+			CurrentTargets.Empty();
+			CurrentTargetIndex = -1;
+			OnActionSelected.Broadcast(NAME_None);
+			OnTargetsChanged.Broadcast(CurrentTargets);
+		}
+	}
 }
 
 void UPlayerCombatControlComponent::HandleSelectBasicAttack(const FInputActionValue& Value)
@@ -81,7 +99,37 @@ void UPlayerCombatControlComponent::HandleChangeWeapon(int32 WeaponIndex)
 	if (!WeaponSystemComponent) return;
 
 	EDamageType SelectedType = static_cast<EDamageType>(WeaponIndex - 1);
+
+	EDamageType OldWeaponType = EDamageType::Fenrir;
+	bool bIsAlreadyEquipped = false;
+	if (WeaponSystemComponent->GetCurrentWeapon())
+	{
+		OldWeaponType = WeaponSystemComponent->GetCurrentWeapon()->WeaponType;
+		if (OldWeaponType == SelectedType)
+		{
+			bIsAlreadyEquipped = true;
+		}
+	}
+	if (bIsAlreadyEquipped)
+	{
+		return;
+	}
+
 	WeaponSystemComponent->SwitchWeapon(SelectedType);
+	UWeaponData* NewWeaponData = WeaponSystemComponent->GetCurrentWeapon();
+	if (NewWeaponData)
+	{
+		const FName BasicAttackID = NewWeaponData->BasicAttackActionID;
+		SelectAction(BasicAttackID); 
+	}
+	else
+	{
+		SelectedActionID = NAME_None;
+		CurrentTargets.Empty();
+		CurrentTargetIndex = -1;
+		OnActionSelected.Broadcast(NAME_None);
+		OnTargetsChanged.Broadcast(CurrentTargets);
+	}
 }
 
 void UPlayerCombatControlComponent::HandleConfirmAction(const FInputActionValue& Value)
@@ -141,8 +189,6 @@ void UPlayerCombatControlComponent::ConfirmAndExecuteAction()
 	if (ActionComponent && ActionComponent->StartActionByID(OwningPlayerCharacter, SelectedActionID, CurrentTargets))
 	{
 		OwningPlayerCharacter->SetCombatPawnState(ECombatPawnState::PerformingAction);
-		SelectedActionID = NAME_None;
-		OnActionSelected.Broadcast(NAME_None);
 	}
 }
 

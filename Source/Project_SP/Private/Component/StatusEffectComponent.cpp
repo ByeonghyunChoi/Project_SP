@@ -3,6 +3,7 @@
 #include "Component/AttributesComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatStatics.h"
+#include "Component/GameEventComponent.h"
 
 UStatusEffectComponent::UStatusEffectComponent()
 {
@@ -82,7 +83,20 @@ void UStatusEffectComponent::OnTurnStarted()
                         SubEffect
                     );
 
-                    UGameplayStatics::ApplyDamage(OwnerPawn, FinalDamage, ActiveEffect.Instigator->GetController(), ActiveEffect.Instigator.Get(), UDamageType::StaticClass());
+                    ACombatPawn* InstigatorPawn = ActiveEffect.Instigator.Get();
+                    if (!InstigatorPawn) continue;
+
+                    if (OwnerAttributesComp)
+                    {
+                        OwnerAttributesComp->ApplyHealthChange(-FinalDamage, InstigatorPawn);
+                    }
+
+                    // 2. 새 이벤트(OnDamageFinalized)로 방송합니다.
+                    if (OwnerPawn->GetGameEventComponent())
+                    {
+                        OwnerPawn->GetGameEventComponent()->BroadcastDamageFinalized(OwnerPawn, FinalDamage, EDamageFloaterType::StatusEffect, InstigatorPawn);
+                    }
+
                     UE_LOG(LogTemp, Log, TEXT("상태 이상 데미지: %f"), FinalDamage);
 
                 }

@@ -32,22 +32,22 @@ void UCombatCameraComponent::InitializeCamera(FName CameraTag)
 
 void UCombatCameraComponent::PlayDefaultShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_DefaultWide"), Attacker, Target);
+    PlayShot(DefaultWideShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayAttackerShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_PlayerAttack"), Attacker, Target);
+    PlayShot(PlayerAttackShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayEnemyShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_EnemyAttack"), Attacker, Target);
+    PlayShot(EnemyAttackShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayParryShot(AActor* Parrier, AActor* Attacker)
 {
-    PlayShot(TEXT("Shot_ParryImpact"), Parrier, Attacker);
+    PlayShot(ParryImpactShotName, Parrier, Attacker);
 }
 
 void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* Target)

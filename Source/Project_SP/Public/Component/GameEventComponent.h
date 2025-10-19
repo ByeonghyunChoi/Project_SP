@@ -2,8 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Data/ActionData.h" // FActionData를 위해 포함
-#include "Delegates/DelegateCombinations.h" // 델리게이트 매크로를 위해 포함
+#include "Data/ActionData.h" 
+#include "Delegates/DelegateCombinations.h"
+#include "Combat/CombatTypes.h"
 #include "GameEventComponent.generated.h"
 
 // ACombatPawn과 ECombatPawnState에 대한 포워드 선언
@@ -12,7 +13,7 @@ enum class ECombatPawnState : uint8; // UENUM은 포워드 선언 가능 (자세한 내용은 
 
 
 // --- 델리게이트 선언들 ---
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnDamageReceived, class ACombatPawn*, DamagedPawn, float, DamageAmount, ACombatPawn*, InstigatorPawn, class UDamageType*, DamageType);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnDamageFinalized, ACombatPawn*, DamagedPawn, float, DamageAmount, EDamageFloaterType, DamageType, ACombatPawn*, InstigatorPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnStarted, class ACombatPawn*, TurnPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnEnded, class ACombatPawn*, TurnPawn);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActionPerformed, class ACombatPawn*, PerformingPawn, FActionData, PerformedActionData);
@@ -38,7 +39,7 @@ protected:
 public:
     // --- Event Dispatcher 인스턴스 ---
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
-    FOnDamageReceived OnDamageReceived;
+    FOnDamageFinalized OnDamageFinalized;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
     FOnTurnStarted OnTurnStarted;
     UPROPERTY(BlueprintAssignable, Category = "Game Events")
@@ -64,7 +65,7 @@ public:
 
     // --- 브로드캐스트 함수들 ---
     UFUNCTION(BlueprintCallable, Category = "Game Events")
-    void BroadcastDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, ACombatPawn* InstigatorPawn, UDamageType* DamageType);
+    void BroadcastDamageFinalized(ACombatPawn* DamagedPawn, float DamageAmount, EDamageFloaterType DamageType, ACombatPawn* InstigatorPawn);
     UFUNCTION(BlueprintCallable, Category = "Game Events")
     void BroadcastTurnStarted(ACombatPawn* TurnPawn);
     UFUNCTION(BlueprintCallable, Category = "Game Events")

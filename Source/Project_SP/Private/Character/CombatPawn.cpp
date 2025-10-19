@@ -6,6 +6,7 @@
 #include "Component/BattleTurnComponent.h"
 #include "Component/StatusEffectComponent.h"
 #include "Component/GameEventComponent.h"
+#include "Components/WidgetComponent.h"
 
 ACombatPawn::ACombatPawn()
 {
@@ -23,6 +24,13 @@ ACombatPawn::ACombatPawn()
     // --- 초기 상태 설정 ---
     CurrentPawnState = ECombatPawnState::Idle;
     CurrentFaction = EFaction::None;
+
+    // --- UI 컴포넌트 생성 ---
+    DamageFloaterWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("DamageFloaterWidgetComponent"));
+    DamageFloaterWidgetComponent->SetupAttachment(GetRootComponent());
+    DamageFloaterWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+    DamageFloaterWidgetComponent->SetVisibility(false);
+    DamageFloaterWidgetComponent->SetDrawSize(FVector2D(300.f, 300.f));
 }
 
 void ACombatPawn::BeginPlay()
@@ -43,9 +51,6 @@ float ACombatPawn::TakeDamage(float DamageAmount, FDamageEvent const& DamageEven
     {
         // 실제 피해 적용은 AttributesComponent에 위임합니다.
         AttributesComponent->ApplyHealthChange(-ActualDamage, DamageCauser);
-
-        // 피해 사실을 외부에 알리는 것은 GameEventComponent에 위임합니다.
-        GameEventComponent->BroadcastDamageReceived(this, ActualDamage, Cast<ACombatPawn>(DamageCauser), nullptr);
     }
 
     return ActualDamage;

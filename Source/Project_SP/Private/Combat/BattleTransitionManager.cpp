@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
+#include "Character/MyPlayerController.h"
 
 UBattleTransitionManager::UBattleTransitionManager()
 {
@@ -22,9 +23,6 @@ UBattleTransitionManager::UBattleTransitionManager()
 	{
 		TransitionWidgetClass = TransitionWidgetRef.Class;
 	}
-	BattleArenaMapName = FName("BattleMap_01");
-	BattleStageDirectorTag = FName("BattleStage");
-
 }
 
 void UBattleTransitionManager::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup)
@@ -160,6 +158,14 @@ void UBattleTransitionManager::CheckAndFinalizeTransition()
 void UBattleTransitionManager::FinalizeBattleStart()
 {
 	UE_LOG(LogTemp, Error, TEXT("[FLOW 7] Finalizing... Calling BattleManager->StartBattle() NOW!"));
+
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+		{
+			MyPC->ShowBattleHUD();
+		}
+	}
 	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
 	if (BattleManager)
 	{
@@ -201,5 +207,12 @@ void UBattleTransitionManager::OnBattleArenaUnloaded()
 		PlayerCharacterRef->SetActorHiddenInGame(false); 
 		PlayerCharacterRef->SetActorEnableCollision(true); 
 		PlayerCharacterRef->OnEnterFieldMode(); 
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(World->GetFirstPlayerController()))
+		{
+			MyPC->SetFieldInputMode();
+		}
 	}
 }

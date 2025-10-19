@@ -22,9 +22,6 @@ public:
 	// '공장(ActionComponent)'이 '제품'을 만들 때 호출하여 필요한 정보를 주입합니다.
 	void Initialize(UActionComponent* InOwningComponent, FName InActionID);
 
-	UFUNCTION(BlueprintCallable, Category = "Action | Parry")
-	void OpenParryWindow();
-	void CloseParryWindow();
 	// 이 액션을 시작할 수 있는지 조건을 확인합니다. (예: SP가 충분한가?)
 	UFUNCTION(BlueprintNativeEvent, Category = "Action")
 	bool CanStartAction(ACombatPawn* Instigator);
@@ -62,6 +59,4 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Instanced, BlueprintReadOnly, Category = "Action Sequence")
 	TArray<TObjectPtr<UCombatTask>> Tasks;
 
-private:
-	FTimerHandle ParryWindowTimerHandle;
 };

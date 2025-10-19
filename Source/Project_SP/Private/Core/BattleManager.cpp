@@ -10,6 +10,7 @@
 #include "Combat/CombatTask.h"
 #include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
+#include "Character/MyPlayerController.h"
 
 ABattleManager::ABattleManager()
 {
@@ -41,6 +42,8 @@ void ABattleManager::Tick(float DeltaTime)
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
 {
+	CachedPlayerController = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+
 	AllCombatants.Empty();
 	AllCombatants.Append(PlayerParty);
 	AllCombatants.Append(EnemyParty);
@@ -53,6 +56,7 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
 			{
 				Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
 				Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
+				Combatant->GetGameEventComponent()->OnDamageFinalized.AddDynamic(this, &ABattleManager::HandleDamageReceived);
 			}
 			if (Combatant->GetAttributesComponent())
 			{
@@ -90,6 +94,7 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 		}
 	}
 	Combatant->OnTurnBegin(Targets);
+	UpdateInputModeForTurn(Combatant);
 	OnTurnOrderChanged();
 }
 
@@ -105,9 +110,21 @@ void ABattleManager::EndCurrentTurn()
 		EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
 	}
 
-	OnTurnOrderChanged();
+	if (TurnStack.Num() > 0)
+	{
+		ACombatPawn* ResumedCombatant = TurnStack.Last().Combatant;
+		if (ResumedCombatant)
+		{
+			// 중단되었던 턴의 입력 모드(IMC)를 다시 활성화합니다.
+			UpdateInputModeForTurn(ResumedCombatant);
+		}
+	}
+	else
+	{
+		DecideAndStartNextTurn();
+	}
 
-	DecideAndStartNextTurn();
+	OnTurnOrderChanged();
 }
 
 void ABattleManager::CheckBattleEndConditions()
@@ -172,6 +189,16 @@ void ABattleManager::HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatP
 {
 }
 
+void ABattleManager::HandleDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, EDamageFloaterType DamageType, ACombatPawn* InstigatorPawn)
+{
+	if (!DamagedPawn || DamageAmount <= 0.f)
+	{
+		return;
+	}
+
+	DamagedPawn->K2_ShowDamageFloater(DamageAmount, DamageType);
+}
+
 void ABattleManager::DecideAndStartNextTurn()
 {
 	if (CurrentBattleState != EBattleState::InProgress) return;
@@ -185,6 +212,21 @@ void ABattleManager::DecideAndStartNextTurn()
 	else
 	{
 		CheckBattleEndConditions();
+	}
+}
+
+void ABattleManager::UpdateInputModeForTurn(ACombatPawn* TurnCombatant)
+{
+	if (CachedPlayerController && TurnCombatant)
+	{
+		if (TurnCombatant->GetFaction() == EFaction::Player)
+		{
+			CachedPlayerController->SetPlayerTurnInputMode(); 
+		}
+		else if (TurnCombatant->GetFaction() == EFaction::Enemy)
+		{
+			CachedPlayerController->SetEnemyTurnInputMode(); 
+		}
 	}
 }
 

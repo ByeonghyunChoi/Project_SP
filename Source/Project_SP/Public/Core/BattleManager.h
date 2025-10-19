@@ -11,6 +11,7 @@ class ACombatPawn;
 class UCombatCameraComponent;
 class UTurnSchedulerComponent;
 class UCombatTask;
+class AMyPlayerController;
 enum class EBattleState : uint8;
 
 USTRUCT(BlueprintType)
@@ -92,13 +93,18 @@ protected:
 	void HandleCombatantDied(AActor* InInstigator);
 	UFUNCTION()
 	void HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
+	UFUNCTION()
+	void HandleDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, EDamageFloaterType DamageType, ACombatPawn* InstigatorPawn);
 
 private:
 	void PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type);
 	void EndCurrentTurn();
 	void CheckBattleEndConditions();
 	void DecideAndStartNextTurn();
+	void UpdateInputModeForTurn(ACombatPawn* TurnCombatant);
 
+	UPROPERTY()
+	TObjectPtr<AMyPlayerController> CachedPlayerController;
 	UPROPERTY()
 	TArray<TObjectPtr<UCombatTask>> TaskQueue;
 	UPROPERTY()

@@ -25,46 +25,6 @@ void UGameAction::Initialize(UActionComponent* InOwningComponent, FName InAction
     }
 }
 
-void UGameAction::OpenParryWindow()
-{
-    ACombatPawn* Instigator = Cast<ACombatPawn>(GetOuter());
-    if (!Instigator) return;
-
-    if (Data.ParryWindowDuration > 0.f && Instigator->GetFaction() == EFaction::Enemy)
-    {
-        if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
-        {
-            // 1. "패링 창 열림!" 이라고 월드에 방송합니다.
-            EventComp->BroadcastParryWindowOpened(Instigator, Data.DamageType, Data.ParryWindowDuration);
-
-            // --- 바로 이 부분이 핵심입니다 ---
-            // 2. 정해진 시간(ParryWindowDuration) 후에 CloseParryWindow 함수를 호출하도록 타이머를 설정합니다.
-            if (UWorld* World = Instigator->GetWorld())
-            {
-                World->GetTimerManager().SetTimer(ParryWindowTimerHandle, this, &UGameAction::CloseParryWindow, Data.ParryWindowDuration, false);
-            }
-        }
-    }
-}
-
-void UGameAction::CloseParryWindow()
-{
-    ACombatPawn* Instigator = Cast<ACombatPawn>(GetOuter());
-    if (!Instigator) return;
-
-    // 타이머가 여러 번 호출되는 것을 방지하기 위해 즉시 클리어합니다.
-    if (UWorld* World = Instigator->GetWorld())
-    {
-        World->GetTimerManager().ClearTimer(ParryWindowTimerHandle);
-    }
-
-    // 1. 논리적인 '닫힘' 신호를 다른 C++ 클래스(플레이어 등)에 방송합니다.
-    if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
-    {
-        EventComp->BroadcastParryWindowClosed(Instigator);
-    }
-}
-
 bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 {
     if (!Instigator) return false;
