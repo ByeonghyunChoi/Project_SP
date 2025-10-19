@@ -7,7 +7,7 @@
 #include "OpartsBase.generated.h"
 
 USTRUCT(BlueprintType)
-struct FOpartStats
+struct FOpartStats : public FTableRowBase
 {
 	GENERATED_BODY()
 
@@ -47,6 +47,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual int32 GetRequiredSandForNextLevel() const;
 
+	// [1] 장착 시 호출 (스탯 적용 등)
+	virtual void OnEquip(AActor* Instigator);
+
+	// [2] 해제 시 호출 (스탯 제거 등)
+	virtual void OnUnequip(AActor* Instigator);
+
 
 protected:
 	// 시작함수
@@ -56,9 +62,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	int32 CurrentLevel;
 
-	//레벨별 스탯 정보(데이터 테이블로 관리하는 것이 좋아보임 아직 데이터 테이블로 만들지 않음)
-	UPROPERTY(EditDefaultsOnly, Category = "Oparts")
-	TArray<FOpartStats> LevelStats;
+	UPROPERTY(EditDefaultsOnly, Category = "Oparts Data")
+	class UDataTable* OpartsStatsDataTable;
 
 	//레벨업에 필요한 모래 양
 	UPROPERTY(EditDefaultsOnly, Category = "Oparts")
@@ -70,4 +75,6 @@ protected:
 		
 private:
 	TObjectPtr<class UInventoryComponent> inventoryRef;
+
+	bool GetStatsForLevel(int32 Level, FOpartStats& OutStats);
 };

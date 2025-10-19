@@ -11,7 +11,33 @@ UOpartsBase::UOpartsBase()
 	CurrentLevel = 1; // 초기 레벨 설정
 }
 
+//데이터 테이블에서 스탯을 가져오는 헬퍼 함수 구현
+bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
+{
+	if (!OpartsStatsDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OpartsStatsDataTable is null! Cannot load stats."));
+		return false;
+	}
 
+	// 데이터 테이블 RowName은 "LEVEL_X" 형태로 저장한다고 가정합니다.
+	FString RowName = FString::Printf(TEXT("LEVEL_%d"), Level);
+
+	// 데이터 테이블에서 해당 Row를 찾습니다.
+	FOpartStats* StatsRow = OpartsStatsDataTable->FindRow<FOpartStats>(FName(*RowName), TEXT(""));
+
+	if (StatsRow)
+	{
+		// 찾은 데이터를 CurrentStats 구조체에 복사
+		OutStats.Health = StatsRow->Health;
+		OutStats.Attack = StatsRow->Attack;
+		OutStats.Speed = StatsRow->Speed;
+		return true;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("Failed to find stats for Level %d (Row: %s) in DataTable."), Level, *RowName);
+	return false;
+}
 
 void UOpartsBase::BeginPlay()
 {
@@ -26,18 +52,12 @@ void UOpartsBase::BeginPlay()
 		}
 	}
 
-	// 초기 스탯 설정 (레벨 1의 스탯)
-	// LevelStats는 인덱스 0부터 시작하므로, 레벨 1의 스탯은 인덱스 1에 있을 것으로 가정
-	if (LevelStats.IsValidIndex(CurrentLevel)) // CurrentLevel은 현재 1
+	 //초기 스탯 설정 (레벨 1의 스탯)
+	 //LevelStats는 인덱스 0부터 시작하므로, 레벨 1의 스탯은 인덱스 1에 있을 것으로 가정
+	if (GetStatsForLevel(CurrentLevel, CurrentStats))
 	{
-		CurrentStats = LevelStats[CurrentLevel];
-
 		UE_LOG(LogTemp, Log, TEXT("Oparts Initialized. Level: %d, Health: %.1f, Attack: %.1f"),
 			CurrentLevel, CurrentStats.Health, CurrentStats.Attack);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("LevelStats array does not have stats for initial level %d! Check data table setup."), CurrentLevel);
 	}
 }
 
@@ -89,12 +109,8 @@ void UOpartsBase::LevelUpOparts()
 	CurrentLevel++;
 
 	// 6. 새 스탯 적용
-	// CurrentLevel은 이제 다음 레벨을 가리킴
-	if (LevelStats.IsValidIndex(CurrentLevel))
+	if (GetStatsForLevel(CurrentLevel, CurrentStats))
 	{
-		// 레벨스탯 배열에서 현재 레벨에 해당하는 스탯을 가져와 적용
-		CurrentStats = LevelStats[CurrentLevel];
-
 		UE_LOG(LogTemp, Log, TEXT("Oparts Level Up Success! New Level: %d, Health: %.1f, Attack: %.1f"),
 			CurrentLevel, CurrentStats.Health, CurrentStats.Attack);
 	}
@@ -127,3 +143,14 @@ int32 UOpartsBase::GetRequiredSandForNextLevel() const
 	return -1;
 }
 
+//  장착 시 호출 (스탯 적용 등)
+void UOpartsBase::OnEquip(AActor* Instigator)
+{
+	// 기본 로직 (필요하다면)
+}
+
+// 해제 시 호출 (스탯 제거 등)
+void UOpartsBase::OnUnequip(AActor* Instigator)
+{
+	// 기본 로직 (필요하다면)
+}
