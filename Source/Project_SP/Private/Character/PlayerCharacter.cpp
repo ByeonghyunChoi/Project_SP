@@ -49,7 +49,7 @@ void APlayerCharacter::BeginPlay()
 		);
 
 		// 초기 오파츠 활성화 (예시: 수정 해골로 시작)
-		EquipmentSystemComponent->ActivateCrystalSkull();
+		EquipmentSystemComponent->ActivateLastOparts();
 	}
 }
 

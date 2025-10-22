@@ -43,6 +43,7 @@ void UEquipmentSystemComponent::SetOpartsActiveState(UOpartsBase* Oparts, bool b
 
 void UEquipmentSystemComponent::ActivateCrystalSkull()
 {
+	ActiveOpartsIndex = 0;
 	// 수정 해골 활성화
 	SetOpartsActiveState(CrystalSkull, true);
 
@@ -74,6 +75,7 @@ void UEquipmentSystemComponent::ActivateCrystalSkull()
 
 void UEquipmentSystemComponent::ActivateJadeClock()
 {
+	ActiveOpartsIndex = 1;
 	SetOpartsActiveState(JadeClock, true);
 
 	// 나머지 두 개 비활성화
@@ -104,6 +106,7 @@ void UEquipmentSystemComponent::ActivateJadeClock()
 
 void UEquipmentSystemComponent::ActivateGoldBug()
 {
+	ActiveOpartsIndex = 2;
 	SetOpartsActiveState(GoldBug, true);
 
 	// 나머지 두 개 비활성화
@@ -129,6 +132,25 @@ void UEquipmentSystemComponent::ActivateGoldBug()
 	{
 		FString State = GoldBug->IsActive() ? TEXT("활성화됨 (Active)") : TEXT("비활성화됨 (Inactive)");
 		UE_LOG(LogTemp, Warning, TEXT("GoldBug Oparts State: %s"), *State);
+	}
+}
+
+void UEquipmentSystemComponent::ActivateLastOparts()
+{
+	switch (ActiveOpartsIndex)
+	{
+	case 0:
+		ActivateCrystalSkull();
+		break;
+	case 1:
+		ActivateJadeClock();
+		break;
+	case 2:
+		ActivateGoldBug();
+		break;
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("No previously active Oparts to activate."));
+		break;
 	}
 }
 

@@ -44,6 +44,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Oparts Control")
 	void ActivateGoldBug();
+
+	// UI구성시 마지막으로 설정한 아티팩트 불러오기
+	UFUNCTION(BlueprintCallable, Category = "Oparts Control")
+	void ActivateLastOparts();
+
+	// 활성화 시킨 오파츠의 번호 저장
+	UPROPERTY(BlueprintReadOnly, Category = "Oparts Control")
+	int32 ActiveOpartsIndex = 0;
 private:
 	// 특정 컴포넌트의 활성화 상태를 변경하는 헬퍼 함수
 	void SetOpartsActiveState(UOpartsBase* Oparts, bool bActive);
