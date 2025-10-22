@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -9,8 +9,8 @@
 UENUM(BlueprintType)
 enum class EMoveTargetType : uint8
 {
-	ToTarget    UMETA(DisplayName = "Å¸°Ù¿¡°Ô ÀÌµ¿"),
-	ToHome      UMETA(DisplayName = "¿ø·¡ À§Ä¡·Î º¹±Í")
+	ToTarget    UMETA(DisplayName = "íƒ€ê²Ÿì—ê²Œ ì´ë™"),
+	ToHome      UMETA(DisplayName = "ì›ë˜ ìœ„ì¹˜ë¡œ ë³µê·€")
 };
 
 UCLASS()
@@ -19,35 +19,37 @@ class PROJECT_SP_API UTask_MoveCharacter : public UCombatTask
 	GENERATED_BODY()
 
 public:
-    // UCombatTaskÀÇ °¡»ó ÇÔ¼öµéÀ» ¿À¹ö¶óÀÌµåÇÕ´Ï´Ù.
+    // UCombatTaskì˜ ê°€ìƒ í•¨ìˆ˜ë“¤ì„ ì˜¤ë²„ë¼ì´ë“œí•©ë‹ˆë‹¤.
     virtual bool IsLatent() const override { return true; }
     virtual void ExecuteTask_Implementation() override;
     virtual void TickTask(float DeltaTime) override;
 
 protected:
-    /** ÀÌµ¿ Å¸ÀÔÀ» °áÁ¤ÇÕ´Ï´Ù. */
+    /** ì´ë™ íƒ€ì…ì„ ê²°ì •í•©ë‹ˆë‹¤. */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
     EMoveTargetType MoveType = EMoveTargetType::ToTarget;
 
-    /** ÀÌµ¿ ¼Óµµ (ÃÊ´ç À¯´Ö) */
+    /** ì´ë™ ì†ë„ (ì´ˆë‹¹ ìœ ë‹›) */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
     float MoveSpeed = 2000.0f;
 
-    /** Å¸°Ù¿¡°Ô ÀÌµ¿ ½Ã, ÀÌ °Å¸®¸¸Å­ ¾Õ¿¡¼­ ¸ØÃä´Ï´Ù. */
+    /** íƒ€ê²Ÿì—ê²Œ ì´ë™ ì‹œ, ì´ ê±°ë¦¬ë§Œí¼ ì•ì—ì„œ ë©ˆì¶¥ë‹ˆë‹¤. */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
     float AttackOffset = 50.0f;
 
-    /** È¸Àü ¼Óµµ (RInterpToÀÇ ¼Óµµ°ª) */
+    /** íšŒì „ ì†ë„ (RInterpToì˜ ì†ë„ê°’) */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
     float RotationSpeed = 10.0f;
 
 private:
-    /** ÀÌµ¿ÇØ¾ß ÇÒ ÃÖÁ¾ ¸ñÀûÁö À§Ä¡ */
+    /** ì´ë™í•´ì•¼ í•  ìµœì¢… ëª©ì ì§€ ìœ„ì¹˜ */
     FVector TargetLocation;
-    /** µµ´ŞÇØ¾ß ÇÒ ÃÖÁ¾ È¸Àü°ª */
+    /** ë„ë‹¬í•´ì•¼ í•  ìµœì¢… íšŒì „ê°’ */
     FRotator TargetRotation;
 
-    /** ÀÌµ¿ÀÌ ¿Ï·áµÇ¾ú´ÂÁö È®ÀÎÇÏ±â À§ÇÑ ÇÃ·¡±× */
+    /** ì´ë™ì´ ì™„ë£Œë˜ì—ˆëŠ”ì§€ í™•ì¸í•˜ê¸° ìœ„í•œ í”Œë˜ê·¸ */
     bool bIsMoveComplete = false;
 	
+    //ìºë¦­í„°ì˜ ìµœëŒ€ ì´ë™ ì†ë„
+    float OriginalMaxWalkSpeed = 0.0f;
 };

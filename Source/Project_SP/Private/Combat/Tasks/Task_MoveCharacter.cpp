@@ -1,13 +1,17 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Combat/Tasks/Task_MoveCharacter.h"
 #include "Character/CombatPawn.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Core/BattleManager.h"
+#include "Component/BattleTurnComponent.h"
 
 void UTask_MoveCharacter::ExecuteTask_Implementation()
 {
     bIsMoveComplete = false;
+    OriginalMaxWalkSpeed = 0.0f;
 
     if (!Instigator)
     {
@@ -15,18 +19,56 @@ void UTask_MoveCharacter::ExecuteTask_Implementation()
         return;
     }
 
+    UCharacterMovementComponent* MovementComponent = Instigator->GetCharacterMovement();
+    if (MovementComponent)
+    {
+        // ì›ë˜ ì†ë„ë¥¼ ì €ì¥í•©ë‹ˆë‹¤.
+        OriginalMaxWalkSpeed = MovementComponent->MaxWalkSpeed;
+        // ì´ íƒœìŠ¤í¬ì— ì„¤ì •ëœ MoveSpeed ê°’ìœ¼ë¡œ ìµœëŒ€ ì†ë„ë¥¼ ë³€ê²½í•©ë‹ˆë‹¤.
+        MovementComponent->MaxWalkSpeed = MoveSpeed;
+    }
+    else
+    {
+        FinishTask();
+    }
+
     if (MoveType == EMoveTargetType::ToHome)
     {
-        // "ÁıÀ¸·Î º¹±Í"¸¦ ¼±ÅÃÇÑ °æ¿ì
-        TargetLocation = Instigator->GetHomeTransform().GetLocation();
-        TargetRotation = Instigator->GetHomeTransform().GetRotation().Rotator();
+        TargetLocation = Instigator->GetHomeTransform().GetLocation(); 
+
+        FVector AverageOpponentLocation = FVector::ZeroVector;
+        int32 OpponentCount = 0;
+        if (BattleManager)
+        {
+            const EFaction MyFaction = Instigator->GetFaction();
+            for (ACombatPawn* Pawn : BattleManager->GetAllCombatants())
+            {
+                if (Pawn && Pawn->GetFaction() != MyFaction && Pawn->GetCombatPawnState() != ECombatPawnState::Defeated)
+                {
+                    AverageOpponentLocation += Pawn->GetActorLocation();
+                    OpponentCount++;
+                }
+            }
+        }
+
+        if (OpponentCount > 0)
+        {
+            AverageOpponentLocation /= OpponentCount;
+            TargetRotation = UKismetMathLibrary::FindLookAtRotation(TargetLocation, AverageOpponentLocation);
+        }
+        else
+        {
+            TargetRotation = Instigator->GetHomeTransform().GetRotation().Rotator();
+            UE_LOG(LogTemp, Warning, TEXT("UTask_MoveCharacter (ToHome): No opponents found to look at, using Home rotation."));
+        }
+        UE_LOG(LogTemp, Warning, TEXT("UTask_MoveCharacter ExecuteTask: TargetLocation = %s, TargetRotation = %s"), *TargetLocation.ToString(), *TargetRotation.ToString());
     }
     else // (MoveType == EMoveTargetType::ToTarget)
     {
-        // "Å¸°Ù¿¡°Ô ÀÌµ¿"À» ¼±ÅÃÇÑ °æ¿ì
+        // "íƒ€ê²Ÿì—ê²Œ ì´ë™"ì„ ì„ íƒí•œ ê²½ìš°
         if (Targets.Num() == 0 || !Targets[0])
         {
-            FinishTask(); // Å¸°ÙÀÌ ¾øÀ¸¸é Áï½Ã Á¾·á
+            FinishTask(); // íƒ€ê²Ÿì´ ì—†ìœ¼ë©´ ì¦‰ì‹œ ì¢…ë£Œ
             return;
         }
 
@@ -42,49 +84,46 @@ void UTask_MoveCharacter::ExecuteTask_Implementation()
         TargetRotation = UKismetMathLibrary::FindLookAtRotation(TargetLocation, TargetPawnLocation);
     }
 
-    // ExecuteTask´Â ¸ñÀûÁö¸¸ ¼³Á¤ÇÒ »Ó, FinishTask()¸¦ È£ÃâÇÏÁö ¾Ê½À´Ï´Ù.
-    // ½ÇÁ¦ ÀÌµ¿Àº TickTask()¿¡¼­ Ã³¸®µË´Ï´Ù.
+    // ExecuteTaskëŠ” ëª©ì ì§€ë§Œ ì„¤ì •í•  ë¿, FinishTask()ë¥¼ í˜¸ì¶œí•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.
+    // ì‹¤ì œ ì´ë™ì€ TickTask()ì—ì„œ ì²˜ë¦¬ë©ë‹ˆë‹¤.
 }
 
 void UTask_MoveCharacter::TickTask(float DeltaTime)
 {
-    // ÀÌ¹Ì ¿Ï·áµÇ¾ú°Å³ª ½ÃÀüÀÚ°¡ ¾øÀ¸¸é ´õ ÀÌ»ó Ã³¸®ÇÏÁö ¾ÊÀ½
-    if (bIsMoveComplete || !Instigator)
+    
+
+    if (bIsMoveComplete || !Instigator) return;
+    UCharacterMovementComponent* MovementComponent = Instigator->GetCharacterMovement();
+    if (!MovementComponent)
     {
-        return;
+        UE_LOG(LogTemp, Error, TEXT("ë¬´ë¸Œë¨¼íŠ¸ ì»´í¬ë„ŒíŠ¸ ì—†ìŒ"));
+        FinishTask();
     }
 
     FVector CurrentLocation = Instigator->GetActorLocation();
 
-    // 1. ¸ñÀûÁö±îÁö ³²Àº °Å¸® °è»ê
-    float DistanceToTarget = FVector::Dist(CurrentLocation, TargetLocation);
+    FVector DirectionToTarget = TargetLocation - CurrentLocation;
+    DirectionToTarget.Normalize();
+    MovementComponent->AddInputVector(DirectionToTarget * 1.0f, true);
 
-    // 2. ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ ÀÌµ¿ÇÒ ÃÖ´ë °Å¸®
-    float MoveDistance = MoveSpeed * DeltaTime;
+    FRotator CurrentRotation = Instigator->GetActorRotation();
+    FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, RotationSpeed);
+    Instigator->GetController()->SetControlRotation(NewRotation); 
 
-    FVector NewLocation;
-
-    if (DistanceToTarget <= MoveDistance)
+    if (FVector::DistSquaredXY(CurrentLocation, TargetLocation) < FMath::Square(10.0f)) 
     {
-        // 3a. ³²Àº °Å¸®°¡ ÀÌµ¿ °Å¸®º¸´Ù ÂªÀ¸¸é, ¸ñÀûÁö¿¡ Á¤È®È÷ µµÂø½ÃÅ´
-        NewLocation = TargetLocation;
-        bIsMoveComplete = true; // ÀÌµ¿ ¿Ï·á!
+        MovementComponent->StopMovementImmediately(); 
+        if (OriginalMaxWalkSpeed > 0.0f)
+        {
+            MovementComponent->MaxWalkSpeed = OriginalMaxWalkSpeed;
+        }
+        bIsMoveComplete = true;
+        UE_LOG(LogTemp, Warning, TEXT("UTask_MoveCharacter: ëª©í‘œ ë„ë‹¬ ì¡°ê±´ ì¶©ì¡±! (DistXY)"));
     }
-    else
-    {
-        // 3b. ¾ÆÁ÷ ¸Ö¾úÀ¸¸é, ¸ñÀûÁö ¹æÇâÀ¸·Î ÀÌµ¿ (ÀÏÁ¤ÇÑ ¼Óµµ)
-        NewLocation = FMath::VInterpConstantTo(CurrentLocation, TargetLocation, DeltaTime, MoveSpeed);
-    }
 
-    // 4. È¸Àü°ªÀº ºÎµå·´°Ô º¸°£
-    FRotator NewRotation = FMath::RInterpTo(Instigator->GetActorRotation(), TargetRotation, DeltaTime, RotationSpeed);
-
-    // 5. Ä³¸¯ÅÍÀÇ À§Ä¡¿Í È¸ÀüÀ» ¾÷µ¥ÀÌÆ®
-    Instigator->SetActorLocationAndRotation(NewLocation, NewRotation);
-
-    // 6. ÀÌµ¿ÀÌ ¿Ï·áµÇ¾úÀ¸¸é BattleManager¿¡°Ô ÅÂ½ºÅ© Á¾·á¸¦ ¾Ë¸²
     if (bIsMoveComplete)
     {
+        UE_LOG(LogTemp, Warning, TEXT("UTask_MoveCharacter: ì´ë™ ì™„ë£Œ! FinishTask() í˜¸ì¶œ ì‹œë„."));
         FinishTask();
     }
 }

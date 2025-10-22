@@ -9,7 +9,7 @@
 class ACombatPawn;
 class UCombatCameraComponent;
 
-UCLASS()
+UCLASS(Blueprintable, BlueprintType)
 class PROJECT_SP_API UCombatCameraShotDirector : public UObject
 {
 	GENERATED_BODY()

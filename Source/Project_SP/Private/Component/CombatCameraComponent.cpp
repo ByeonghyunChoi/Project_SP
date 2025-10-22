@@ -8,7 +8,6 @@
 #include "Data/CameraShotTypes.h"
 #include "Combat/CombatCameraShotDirector.h"
 #include "Character/CombatPawn.h"
-#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values for this component's properties
 UCombatCameraComponent::UCombatCameraComponent()
@@ -56,30 +55,45 @@ void UCombatCameraComponent::PlayParryShot(AActor* Parrier, AActor* Attacker)
 void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* Target)
 {
     if (!ShotDataTable || !ControlledCamera) return;
-    FCameraShotData* ShotData = ShotDataTable->FindRow<FCameraShotData>(ShotName, TEXT(""));
-    if (!ShotData) return;
 
+    const FCameraShotData* ShotData = ShotDataTable->FindRow<FCameraShotData>(ShotName, TEXT(""));
+    if (!ShotData || !ShotData->DirectorClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': ShotData not found or DirectorClass is not set."), *ShotName.ToString());
+        return;
+    }
+
+    // --- 카메라 쉐이크 ---
     if (ShotData->CameraShake)
     {
         APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
         if (PC) PC->ClientStartCameraShake(ShotData->CameraShake);
     }
 
-    // 목표 위치/회전 계산
-    FVector FinalTargetLocation = FVector::ZeroVector;
-    FRotator FinalTargetRotation = FRotator::ZeroRotator;
+    // --- Transform 계산 ---
+    UCombatCameraShotDirector* Director = NewObject<UCombatCameraShotDirector>(this, ShotData->DirectorClass);
+    if (!Director) return;
 
-    if (!Attacker)
+    ACombatPawn* AttackerPawn = Cast<ACombatPawn>(Attacker);
+    ACombatPawn* TargetPawn = Cast<ACombatPawn>(Target);
+
+    if (Director->bRequiresTarget && !TargetPawn) // Target 유효성 검사 추가
     {
-        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Attacker is required but missing."), *ShotName.ToString());
-        return; // Attacker 없이는 샷 실행 불가
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Director requires a Target, but none provided or invalid."), *ShotName.ToString());
+        return;
+    }
+    // Attacker는 항상 필요하다고 가정 (필요시 bRequiresAttacker 추가 가능)
+    if (!AttackerPawn) {
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Attacker is required but missing or invalid."), *ShotName.ToString());
+        return;
     }
 
-    FVector BaseLocation = Attacker->GetActorLocation();
 
-    AActor* LookAtActor = Target ? Target : Attacker;
-    FinalTargetRotation = UKismetMathLibrary::FindLookAtRotation(FinalTargetLocation, LookAtActor->GetActorLocation());
+    FTransform FinalTargetTransform = Director->CalculateCameraTransform(AttackerPawn, TargetPawn, this);
+    FVector FinalTargetLocation = FinalTargetTransform.GetLocation();
+    FRotator FinalTargetRotation = FinalTargetTransform.GetRotation().Rotator();
 
+    // --- 카메라 이동 (Instant Cut 또는 보간) ---
     if (ShotData->bInstantCut)
     {
         SetComponentTickEnabled(false);
@@ -91,8 +105,8 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
     }
     else
     {
-        TargetLocation = FinalTargetLocation; 
-        TargetRotation = FinalTargetRotation; 
+        TargetLocation = FinalTargetLocation;
+        TargetRotation = FinalTargetRotation;
         TargetFieldOfView = ShotData->FieldOfView;
         CurrentInterpolationSpeed = ShotData->InterpolationSpeed;
         SetComponentTickEnabled(true);
@@ -113,12 +127,15 @@ void UCombatCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, CurrentInterpolationSpeed);
         ControlledCamera->SetActorRotation(NewRotation);
 
-        UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent();
-        float CurrentFOV = CineComponent->FieldOfView;
-        float NewFOV = FMath::FInterpTo(CurrentFOV, TargetFieldOfView, DeltaTime, CurrentInterpolationSpeed);
-        CineComponent->SetFieldOfView(NewFOV);
+        if (UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent())
+        {
+            float CurrentFOV = CineComponent->FieldOfView;
+            float NewFOV = FMath::FInterpTo(CurrentFOV, TargetFieldOfView, DeltaTime, CurrentInterpolationSpeed);
+            CineComponent->SetFieldOfView(NewFOV);
+        }
 
-        if (CurrentLocation.Equals(TargetLocation, 1.0f))
+        // 목적지 도달 시 틱 비활성화 (약간의 허용 오차 포함)
+        if (CurrentLocation.Equals(TargetLocation, 1.0f) && CurrentRotation.Equals(TargetRotation, 1.0f))
         {
             SetComponentTickEnabled(false);
         }
