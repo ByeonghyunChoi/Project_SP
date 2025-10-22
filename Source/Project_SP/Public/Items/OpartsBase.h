@@ -22,7 +22,10 @@ struct FOpartStats : public FTableRowBase
 
 };
 
-UCLASS()
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCalculateMaterial);
+
+// 나중에 델리게이트 이벤트 추가해서 무슨 함수 실행하면 UI에 뭐 띄우기 ex) 최대 레벨 도달 알림 등 등
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UOpartsBase : public UActorComponent
 {
 	GENERATED_BODY()
@@ -34,6 +37,10 @@ public:
 	// 오파츠 레벨업 함수
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void LevelUpOparts();
+
+	// 아티팩트 해금 함수
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	virtual void UnlockArtifact();
 
 	// 특수 능력 함수(나중에 같이 구현)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
@@ -47,12 +54,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual int32 GetRequiredSandForNextLevel() const;
 
+	// 다음 아티팩트 해금에 필요한 불완전한 기운 반환
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	virtual int32 GetRequiredIncompleteEnergy() const;
+
 	// [1] 장착 시 호출 (스탯 적용 등)
 	virtual void OnEquip(AActor* Instigator);
 
 	// [2] 해제 시 호출 (스탯 제거 등)
 	virtual void OnUnequip(AActor* Instigator);
 
+public:
+	UPROPERTY(BlueprintAssignable) FCalculateMaterial CalculateMaterial;
 
 protected:
 	// 시작함수
@@ -62,6 +75,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	int32 CurrentLevel;
 
+	// 아티팩트 해금 제한 설정
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
+	TArray<bool> bIsArtifactUnlocked;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Oparts Data")
 	class UDataTable* OpartsStatsDataTable;
 
@@ -69,12 +86,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Oparts")
 	TArray<int32> RequiredSand;
 
+	// 다음 해금에 필요한 불완전한 기운
+	UPROPERTY(EditDefaultsOnly, Category = "Oparts")
+	TArray<int32> RequiredIncompleteEnergy;
+
 	//오파츠의 현재 스탯
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	FOpartStats CurrentStats;
+
+	// 스탯이 현재 플레이어에게 적용(Add)된 상태인지 추적하는 플래그
+	UPROPERTY(VisibleInstanceOnly, Category = "Oparts State")
+	bool bStatsCurrentlyApplied = false; // 기본값은 false
 		
 private:
 	TObjectPtr<class UInventoryComponent> inventoryRef;
 
 	bool GetStatsForLevel(int32 Level, FOpartStats& OutStats);
+
+	int32 ArtifactUnlockedNumber;
 };

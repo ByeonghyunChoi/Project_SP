@@ -14,6 +14,7 @@ UEquipmentSystemComponent::UEquipmentSystemComponent()
 
 }
 
+// PlayerCharacter에서 시작 시 포인터를 설정하는 함수
 void UEquipmentSystemComponent::InitializeOpartsPointers(UCrystalSkullOparts* Skull, UJadeClockOparts* Clock, UGoldBugOparts* Bug)
 {
 	CrystalSkull = Skull;

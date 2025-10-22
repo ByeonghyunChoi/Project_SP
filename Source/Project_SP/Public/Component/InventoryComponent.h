@@ -41,6 +41,9 @@ public:
 	void SetCurrentIncompleteEnergy(int32 NewAmount);
 
 protected:
+
+	virtual void BeginPlay() override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material")
 	FPlayerMaterial PlayerMaterials;
 };

@@ -1,17 +1,27 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Items/OpartsBase.h"
 #include "Component/InventoryComponent.h"
+#include "Component/AttributesComponent.h"
 
-//»ı¼ºÀÚ
+//ìƒì„±ì
 UOpartsBase::UOpartsBase()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	CurrentLevel = 1; // ÃÊ±â ·¹º§ ¼³Á¤
+	CurrentLevel = 1; // ì´ˆê¸° ë ˆë²¨ ì„¤ì •
+
+	// ë ˆë²¨ì—…ì— í•„ìš”í•œ ëª¨ë˜ ì–‘ ì„¤ì • 0ë ˆë²¨ì€ í•„ìš”ì—†ìœ¼ë¯€ë¡œ 0ìœ¼ë¡œ ë‘ 
+	RequiredSand = { 0, 100, 150, 250, 400};
+	// ë‹¤ìŒ í•´ê¸ˆì— í•„ìš”í•œ ë¶ˆì™„ì „í•œ ê¸°ìš´ ì„¤ì •
+	RequiredIncompleteEnergy = { 1, 2, 3, 3, 4 };
+	// ì•„í‹°íŒ©íŠ¸ í•´ê¸ˆ ìƒíƒœ ì´ˆê¸°í™” (ìµœëŒ€ 5ê°œ)
+	//bIsArtifactUnlocked.Init(false, 5);
+	ArtifactUnlockedNumber = 0;
+	bIsArtifactUnlocked = { false, false, false, false, false };
 }
 
-//µ¥ÀÌÅÍ Å×ÀÌºí¿¡¼­ ½ºÅÈÀ» °¡Á®¿À´Â ÇïÆÛ ÇÔ¼ö ±¸Çö
+//ë°ì´í„° í…Œì´ë¸”ì—ì„œ ìŠ¤íƒ¯ì„ ê°€ì ¸ì˜¤ëŠ” í—¬í¼ í•¨ìˆ˜ êµ¬í˜„
 bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 {
 	if (!OpartsStatsDataTable)
@@ -20,15 +30,15 @@ bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 		return false;
 	}
 
-	// µ¥ÀÌÅÍ Å×ÀÌºí RowNameÀº "LEVEL_X" ÇüÅÂ·Î ÀúÀåÇÑ´Ù°í °¡Á¤ÇÕ´Ï´Ù.
+	// ë°ì´í„° í…Œì´ë¸” RowNameì€ "LEVEL_X" í˜•íƒœë¡œ ì €ì¥í•œë‹¤ê³  ê°€ì •í•©ë‹ˆë‹¤.
 	FString RowName = FString::Printf(TEXT("LEVEL_%d"), Level);
 
-	// µ¥ÀÌÅÍ Å×ÀÌºí¿¡¼­ ÇØ´ç Row¸¦ Ã£½À´Ï´Ù.
+	// ë°ì´í„° í…Œì´ë¸”ì—ì„œ í•´ë‹¹ Rowë¥¼ ì°¾ìŠµë‹ˆë‹¤.
 	FOpartStats* StatsRow = OpartsStatsDataTable->FindRow<FOpartStats>(FName(*RowName), TEXT(""));
 
 	if (StatsRow)
 	{
-		// Ã£Àº µ¥ÀÌÅÍ¸¦ CurrentStats ±¸Á¶Ã¼¿¡ º¹»ç
+		// ì°¾ì€ ë°ì´í„°ë¥¼ CurrentStats êµ¬ì¡°ì²´ì— ë³µì‚¬
 		OutStats.Health = StatsRow->Health;
 		OutStats.Attack = StatsRow->Attack;
 		OutStats.Speed = StatsRow->Speed;
@@ -42,7 +52,7 @@ bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 void UOpartsBase::BeginPlay()
 {
 	Super::BeginPlay();
-	// InventoryComponent ÂüÁ¶ Ã£±â
+	// InventoryComponent ì°¸ì¡° ì°¾ê¸°
 	if (GetOwner())
 	{
 		inventoryRef = GetOwner()->FindComponentByClass<UInventoryComponent>();
@@ -52,8 +62,8 @@ void UOpartsBase::BeginPlay()
 		}
 	}
 
-	 //ÃÊ±â ½ºÅÈ ¼³Á¤ (·¹º§ 1ÀÇ ½ºÅÈ)
-	 //LevelStats´Â ÀÎµ¦½º 0ºÎÅÍ ½ÃÀÛÇÏ¹Ç·Î, ·¹º§ 1ÀÇ ½ºÅÈÀº ÀÎµ¦½º 1¿¡ ÀÖÀ» °ÍÀ¸·Î °¡Á¤
+	 //ì´ˆê¸° ìŠ¤íƒ¯ ì„¤ì • (ë ˆë²¨ 1ì˜ ìŠ¤íƒ¯)
+	 //LevelStatsëŠ” ì¸ë±ìŠ¤ 0ë¶€í„° ì‹œì‘í•˜ë¯€ë¡œ, ë ˆë²¨ 1ì˜ ìŠ¤íƒ¯ì€ ì¸ë±ìŠ¤ 1ì— ìˆì„ ê²ƒìœ¼ë¡œ ê°€ì •
 	if (GetStatsForLevel(CurrentLevel, CurrentStats))
 	{
 		UE_LOG(LogTemp, Log, TEXT("Oparts Initialized. Level: %d, Health: %.1f, Attack: %.1f"),
@@ -64,93 +74,176 @@ void UOpartsBase::BeginPlay()
 
 void UOpartsBase::LevelUpOparts()
 {
-	// 1. ·¹º§ Á¦ÇÑ Ã¼Å©
+	// 1. ë ˆë²¨ ì œí•œ ì²´í¬
 	if (CurrentLevel >= 5)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Oparts LevelUp failed: Max Level Reached. CurrentLevel: %d"), CurrentLevel);
 		return;
 	}
 
-	// 2. InventoryComponent ÂüÁ¶ Ã¼Å©
+	// 2. InventoryComponent ì°¸ì¡° ì²´í¬
 	if (!inventoryRef)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Oparts LevelUp failed: InventoryComponent is NULL. Cannot check/spend Sand."));
 		return;
 	}
 
-	// 3. ÇÊ¿ä ¸ğ·¡ ¿ä±¸·® Ã¼Å©
+	// 3. í•„ìš” ëª¨ë˜ ìš”êµ¬ëŸ‰ ì²´í¬
 	int32 Required = GetRequiredSandForNextLevel();
 
-	// ¿ä±¸Ä¡°¡ 0º¸´Ù ÀÛÀ¸¸é
+	// ìš”êµ¬ì¹˜ê°€ 0ë³´ë‹¤ ì‘ìœ¼ë©´
 	if (Required < 0)
 	{
-		// GetRequiredSandForNextLevel()¿¡¼­ -1 ¹İÈ¯Àº µ¥ÀÌÅÍ ¿À·ù³ª ÃÖ´ë ·¹º§ µµ´ŞÀ» ÀÇ¹Ì
+		// GetRequiredSandForNextLevel()ì—ì„œ -1 ë°˜í™˜ì€ ë°ì´í„° ì˜¤ë¥˜ë‚˜ ìµœëŒ€ ë ˆë²¨ ë„ë‹¬ì„ ì˜ë¯¸
 		UE_LOG(LogTemp, Error, TEXT("Oparts LevelUp failed: Required Sand data not found for next level (%d -> %d)."), CurrentLevel, CurrentLevel + 1);
 		return;
 	}
 
-	// ÇöÀç ¸ğ·¡ ¼ÒÀ¯·® °¡Á®¿À±â
+	// í˜„ì¬ ëª¨ë˜ ì†Œìœ ëŸ‰ ê°€ì ¸ì˜¤ê¸°
 	int32 CurrentSand = inventoryRef->GetCurrentSand();
 
-	// 4. ¸ğ·¡ ¼ÒÀ¯·® Ã¼Å© - ºÎÁ· ½Ã ·¹º§¾÷ ½ÇÆĞ
+	// 4. ëª¨ë˜ ì†Œìœ ëŸ‰ ì²´í¬ - ë¶€ì¡± ì‹œ ë ˆë²¨ì—… ì‹¤íŒ¨
 	if (CurrentSand < Required)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Oparts LevelUp failed: Not enough Sand. Current Sand: %d, Required: %d"), CurrentSand, Required);
 		return;
 	}
 
-	// 5. ·¹º§¾÷ ÁøÇà
+	// 5. ë ˆë²¨ì—… ì§„í–‰
 
-	// ¸ğ·¡ ¼Ò¸ğ
+	// ëª¨ë˜ ì†Œëª¨
 	int32 NewSandAmount = CurrentSand - Required;
 	inventoryRef->SetCurrentSand(NewSandAmount);
 
-	// ·¹º§ Áõ°¡
+	// ë ˆë²¨ ì¦ê°€
 	CurrentLevel++;
 
-	// 6. »õ ½ºÅÈ Àû¿ë
+	// 6. ìƒˆ ìŠ¤íƒ¯ ì ìš©
 	if (GetStatsForLevel(CurrentLevel, CurrentStats))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Oparts Level Up Success! New Level: %d, Health: %.1f, Attack: %.1f"),
-			CurrentLevel, CurrentStats.Health, CurrentStats.Attack);
+		OnUnequip(GetOwner());
+		OnEquip(GetOwner());
+
+		UE_LOG(LogTemp, Log, TEXT("Oparts Level Up Success! New Level: %d, Health: %.1f, Attack: %.1f"),CurrentLevel, CurrentStats.Health, CurrentStats.Attack);
 	}
 	else
 	{
-		// µ¥ÀÌÅÍ ¼¼ÆÃ ¿À·ù
+		// ë°ì´í„° ì„¸íŒ… ì˜¤ë¥˜
 		UE_LOG(LogTemp, Error, TEXT("Oparts Level Up Success, but failed to apply stats! LevelStats array does not have stats for level %d."), CurrentLevel);
 	}
+
+	CalculateMaterial.Broadcast();
 }
 
-// Æ¯¼ö ´É·Â ÇÔ¼ö(³ªÁß¿¡ °°ÀÌ ±¸Çö)
+// ì•„í‹°íŒ©íŠ¸ í•´ê¸ˆ í•¨ìˆ˜ ë‚˜ì¤‘ì— ë” ì¶”ê°€
+void UOpartsBase::UnlockArtifact()
+{
+	// 1. ìµœëŒ€ í•´ê¸ˆ íšŸìˆ˜ ì²´í¬ (5ê°œ í•´ê¸ˆ ì™„ë£Œ ì‹œ)
+	if (ArtifactUnlockedNumber >= bIsArtifactUnlocked.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Artifact UnLock failed: Max Artifact Slots already unlocked. Count: %d"), ArtifactUnlockedNumber);
+		return;
+	}
+
+	//InventoryComponent ì°¸ì¡° ì²´í¬
+	if (!inventoryRef)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Oparts LevelUp failed: InventoryComponent is NULL. Cannot check/spend Sand."));
+		return;
+	}
+
+	// 3. í•„ìš” ë¶ˆì™„ì „í•œ ê¸°ìš´ ìš”êµ¬ëŸ‰ ì²´í¬ (í˜„ì¬ í•´ê¸ˆ íšŸìˆ˜ë¥¼ ì¸ë±ìŠ¤ë¡œ ì‚¬ìš©)
+	int32 RequiredEnergy = GetRequiredIncompleteEnergy();
+	// ìš”êµ¬ì¹˜ê°€ 0ë³´ë‹¤ ì‘ìœ¼ë©´
+	if (RequiredEnergy < 0)
+	{
+		// GetRequiredIncompleteEnergy()ì—ì„œ -1 ë°˜í™˜ì€ ë°ì´í„° ì˜¤ë¥˜ë¥¼ ì˜ë¯¸
+		UE_LOG(LogTemp, Error, TEXT("Artifact UnLock failed: Required Energy data not found for slot %d."), ArtifactUnlockedNumber + 1);
+		return;
+	}
+
+	// í˜„ì¬ ê¸°ìš´ ì†Œìœ ëŸ‰ ì²´í¬
+	int32 CurrentIncompleteEnergy = inventoryRef->GetCurrentIncompleteEnergy();
+
+	// 4. ì¬í™” ì†Œìœ ëŸ‰ ì²´í¬ - ë¶€ì¡± ì‹œ í•´ê¸ˆ ì‹¤íŒ¨
+	if (CurrentIncompleteEnergy < RequiredEnergy)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Artifact Unlock failed: Not enough Energy. Current Energy: %d, Required: %d"), CurrentIncompleteEnergy, RequiredEnergy);
+		return;
+	}
+	// ì¬í™” ì†Œëª¨
+	int32 NewEnergyAmount = CurrentIncompleteEnergy - RequiredEnergy;
+	inventoryRef->SetCurrentIncompleteEnergy(NewEnergyAmount);
+
+	// ì•„í‹°íŒ©íŠ¸ ìŠ¬ë¡¯ í•´ê¸ˆ ìƒíƒœ ê¸°ë¡ (í˜„ì¬ ArtifactUnlockedNumber ì¸ë±ìŠ¤)
+	if (bIsArtifactUnlocked.IsValidIndex(ArtifactUnlockedNumber))
+	{
+		bIsArtifactUnlocked[ArtifactUnlockedNumber] = true;
+	}
+
+	ArtifactUnlockedNumber++;
+
+	CalculateMaterial.Broadcast();
+}
+
+// íŠ¹ìˆ˜ ëŠ¥ë ¥ í•¨ìˆ˜(ë‚˜ì¤‘ì— ê°™ì´ êµ¬í˜„)
 void UOpartsBase::ActiveSpecialAbility()
 {
-
+	
 }
 
 int32 UOpartsBase::GetOpartsCurrentLevel() const
 {
-	return CurrentLevel; // ¿ÀÆÄÃ÷¿¡ ¶ç¿ì±â À§ÇÑ ¹İÈ¯°ª
+	return CurrentLevel; // ì˜¤íŒŒì¸ ì— ë„ìš°ê¸° ìœ„í•œ ë°˜í™˜ê°’
 }
 
 int32 UOpartsBase::GetRequiredSandForNextLevel() const
 {
 	if (RequiredSand.IsValidIndex(CurrentLevel))
 	{
-		// RequiredSand ¹è¿­Àº [Lv0 -> Lv1], [Lv1 -> Lv2] ... ·¹º§¾÷¿¡ ÇÊ¿äÇÑ ¸ğ·¡ ¾çÀ» ´ã°í ÀÖ¾î¾ß ÇÕ´Ï´Ù.
+		// RequiredSand ë°°ì—´ì€ [Lv0 -> Lv1], [Lv1 -> Lv2] ... ë ˆë²¨ì—…ì— í•„ìš”í•œ ëª¨ë˜ ì–‘ì„ ë‹´ê³  ìˆì–´ì•¼ í•©ë‹ˆë‹¤.
 		return RequiredSand[CurrentLevel];
 	}
-	// ´ÙÀ½ ·¹º§¿¡ ÇÊ¿äÇÑ ¸ğ·¡ µ¥ÀÌÅÍ°¡ ¾ø´Â °æ¿ì (ÃÖ´ë ·¹º§ µµ´Ş È¤Àº µ¥ÀÌÅÍ ¿À·ù)
+	// ë‹¤ìŒ ë ˆë²¨ì— í•„ìš”í•œ ëª¨ë˜ ë°ì´í„°ê°€ ì—†ëŠ” ê²½ìš° (ìµœëŒ€ ë ˆë²¨ ë„ë‹¬ í˜¹ì€ ë°ì´í„° ì˜¤ë¥˜)
 	return -1;
 }
 
-//  ÀåÂø ½Ã È£Ãâ (½ºÅÈ Àû¿ë µî)
-void UOpartsBase::OnEquip(AActor* Instigator)
+int32 UOpartsBase::GetRequiredIncompleteEnergy() const
 {
-	// ±âº» ·ÎÁ÷ (ÇÊ¿äÇÏ´Ù¸é)
+	// ArtifactUnlockedNumberê°€ ë°°ì—´ì˜ ìœ íš¨í•œ ì¸ë±ìŠ¤ì¸ì§€ í™•ì¸
+	if (RequiredIncompleteEnergy.IsValidIndex(ArtifactUnlockedNumber))
+	{
+		// ArtifactUnlockedNumber (0ë¶€í„° ì‹œì‘)ë¥¼ ì¸ë±ìŠ¤ë¡œ ì‚¬ìš©
+		return RequiredIncompleteEnergy[ArtifactUnlockedNumber];
+	}
+	// í•´ê¸ˆ ë°ì´í„°ê°€ ì—†ê±°ë‚˜ ëª¨ë‘ í•´ê¸ˆí•œ ê²½ìš°
+	return -1;
 }
 
-// ÇØÁ¦ ½Ã È£Ãâ (½ºÅÈ Á¦°Å µî)
+//  ì¥ì°© ì‹œ í˜¸ì¶œ (ìŠ¤íƒ¯ ì ìš© ë“±)
+void UOpartsBase::OnEquip(AActor* Instigator)
+{
+	// AttributesComponent ì°¸ì¡° ì°¾ê¸°
+	UAttributesComponent* AttributesComp = Instigator->FindComponentByClass<UAttributesComponent>();
+
+	if (AttributesComp && !bStatsCurrentlyApplied)
+	{
+		// ì˜¤íŒŒì¸ ì˜ í˜„ì¬ ìŠ¤íƒ¯ (CurrentStats)ì„ AttributesComponentì— ì ìš© ìš”ì²­
+		AttributesComp->ApplyOpartsStats(CurrentStats);
+		bStatsCurrentlyApplied = true;
+	}
+}
+
+// í•´ì œ ì‹œ í˜¸ì¶œ (ìŠ¤íƒ¯ ì œê±° ë“±)
 void UOpartsBase::OnUnequip(AActor* Instigator)
 {
-	// ±âº» ·ÎÁ÷ (ÇÊ¿äÇÏ´Ù¸é)
+	// AttributesComponent ì°¸ì¡° ì°¾ê¸°
+	UAttributesComponent* AttributesComp = Instigator->FindComponentByClass<UAttributesComponent>();
+
+	// ìŠ¤íƒ¯ì´ í˜„ì¬ ì ìš©ëœ ìƒíƒœì¼ ë•Œë§Œ ì œê±° ë¡œì§ ì‹¤í–‰
+	if (AttributesComp && bStatsCurrentlyApplied)
+	{
+		AttributesComp->RemoveOpartsStats(CurrentStats);
+		bStatsCurrentlyApplied = false; // ìŠ¤íƒ¯ ì œê±° ì™„ë£Œ
+	}
 }

@@ -8,6 +8,15 @@ UInventoryComponent::UInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UInventoryComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 테스트용 초기값
+	PlayerMaterials.Sand = 9999;
+	PlayerMaterials.IncompleteEnergy = 999; // 테스트용 초기값
+}
+
 // 현재 모래 가져오기
 int32 UInventoryComponent::GetCurrentSand() const
 {
