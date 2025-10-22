@@ -17,6 +17,8 @@ class PROJECT_SP_API UTask_WaitForAnimNotify : public UCombatTask
 public:
 	virtual void ExecuteTask_Implementation() override;
 
+	virtual bool IsLatent() const override { return true; }
+
 	// BattleManager가 신호를 받았을 때 이 함수를 호출합니다.
 	void OnNotifyReceived(FName ReceivedNotifyName);
 

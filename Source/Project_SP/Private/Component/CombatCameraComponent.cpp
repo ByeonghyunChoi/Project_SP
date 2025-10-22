@@ -63,38 +63,37 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
     }
 
     // 목표 위치/회전 계산
-    FVector BaseLocation = FVector::ZeroVector;
-    AActor* LookAtTarget = nullptr;
+    FVector FinalTargetLocation = FVector::ZeroVector;
+    FRotator FinalTargetRotation = FRotator::ZeroRotator;
 
-    switch (ShotData->TargetType)
+    if (!Attacker)
     {
-    case ECameraShotTarget::Attacker:
-        if (Attacker) { BaseLocation = Attacker->GetActorLocation(); LookAtTarget = Attacker; }
-        break;
-    case ECameraShotTarget::Target:
-        if (Target) { BaseLocation = Target->GetActorLocation(); LookAtTarget = Target; }
-        break;
-    case ECameraShotTarget::Midpoint:
-        if (Attacker && Target) {
-            BaseLocation = (Attacker->GetActorLocation() + Target->GetActorLocation()) / 2.0f;
-            LookAtTarget = nullptr; // 중간 지점을 보도록
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Attacker is required but missing."), *ShotName.ToString());
+        return; // Attacker 없이는 샷 실행 불가
+    }
+
+    FVector BaseLocation = Attacker->GetActorLocation();
+
+    AActor* LookAtActor = Target ? Target : Attacker;
+    FinalTargetRotation = UKismetMathLibrary::FindLookAtRotation(FinalTargetLocation, LookAtActor->GetActorLocation());
+
+    if (ShotData->bInstantCut)
+    {
+        SetComponentTickEnabled(false);
+        ControlledCamera->SetActorLocationAndRotation(FinalTargetLocation, FinalTargetRotation);
+        if (UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent())
+        {
+            CineComponent->SetFieldOfView(ShotData->FieldOfView);
         }
-        break;
-    case ECameraShotTarget::World:
-        TargetLocation = ShotData->WorldTransform.GetLocation();
-        TargetRotation = ShotData->WorldTransform.GetRotation().Rotator();
-        break;
     }
-
-    if (ShotData->TargetType != ECameraShotTarget::World)
+    else
     {
-        TargetLocation = BaseLocation + ShotData->CameraOffset;
-        TargetRotation = UKismetMathLibrary::FindLookAtRotation(TargetLocation, LookAtTarget ? LookAtTarget->GetActorLocation() : BaseLocation);
+        TargetLocation = FinalTargetLocation; 
+        TargetRotation = FinalTargetRotation; 
+        TargetFieldOfView = ShotData->FieldOfView;
+        CurrentInterpolationSpeed = ShotData->InterpolationSpeed;
+        SetComponentTickEnabled(true);
     }
-
-    TargetFieldOfView = ShotData->FieldOfView;
-    CurrentInterpolationSpeed = ShotData->InterpolationSpeed;
-    SetComponentTickEnabled(true);
 }
 
 void UCombatCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

@@ -25,6 +25,10 @@ public:
 
     virtual void Initialize(ABattleManager* InBattleManager, ACombatPawn* InInstigator, const TArray<ACombatPawn*>& InTargets);
 
+    virtual bool IsLatent() const { return false; }
+
+    virtual void TickTask(float DeltaTime) {}
+    
     ACombatPawn* GetInstigator() const { return Instigator; }
 
 protected:

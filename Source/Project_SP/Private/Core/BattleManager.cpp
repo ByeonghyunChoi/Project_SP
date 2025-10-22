@@ -11,6 +11,9 @@
 #include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
 #include "Character/MyPlayerController.h"
+#include "TimerManager.h"
+#include "Combat/BattleTransitionManager.h"
+#include "Component/StatusEffectComponent.h"
 
 ABattleManager::ABattleManager()
 {
@@ -31,6 +34,11 @@ void ABattleManager::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	if (CurrentBattleState != EBattleState::InProgress) return;
+
+	if (bIsProcessingTask && CurrentTask && CurrentTask->IsLatent())
+	{
+		CurrentTask->TickTask(DeltaTime);
+	}
 
 	if (TurnStack.IsEmpty())
 	{
@@ -75,6 +83,13 @@ void ABattleManager::EndBattle()
 	CurrentBattleState = EBattleState::Ended;
 	TurnStack.Empty();
 	SetActorTickEnabled(false);
+
+	GetWorldTimerManager().SetTimer(
+		BattleEndTimerHandle,
+		this,
+		&ABattleManager::TriggerFieldTransition,
+		BattleEndDelay,
+		false);
 }
 
 void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
@@ -84,6 +99,47 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 	TurnStack.Emplace(Combatant, Type);
 	Combatant->GetBattleTurnComponent()->StartTurn();
 
+	bool bHasDoT = false;
+	if (Combatant->GetStatusEffectComponent())
+	{
+		bHasDoT = Combatant->GetStatusEffectComponent()->HasDamageOverTimeEffect();
+	}
+
+	if (CameraComponent)
+	{
+		if (bHasDoT)
+		{
+			CameraComponent->PlayShot(StatusEffectFocusShotName, Combatant, nullptr);
+		}
+	}
+
+	if (Combatant->GetStatusEffectComponent())
+	{
+		Combatant->GetStatusEffectComponent()->OnTurnStarted();
+	}
+
+	GetWorldTimerManager().SetTimer(
+		TurnStartSequenceTimerHandle,
+		this,
+		&ABattleManager::OnTurnStartSequenceFinished,
+		TurnStartSequenceDelay,
+		false
+	);
+
+	
+	OnTurnOrderChanged();
+}
+
+void ABattleManager::OnTurnStartSequenceFinished()
+{
+	// 1. 현재 턴인 캐릭터를 가져옵니다.
+	ACombatPawn* Combatant = GetCurrentTurnCharacter();
+	if (!Combatant || Combatant->GetCombatPawnState() == ECombatPawnState::Defeated)
+	{
+		EndCurrentTurn();
+		return;
+	}
+	// 이 시점부터 플레이어가 입력을 할 수 있게 됩니다.
 	TArray<ACombatPawn*> Targets;
 	const EFaction TargetFaction = (Combatant->GetFaction() == EFaction::Player) ? EFaction::Enemy : EFaction::Player;
 	for (ACombatPawn* Pawn : AllCombatants)
@@ -93,9 +149,8 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 			Targets.Add(Pawn);
 		}
 	}
-	Combatant->OnTurnBegin(Targets);
 	UpdateInputModeForTurn(Combatant);
-	OnTurnOrderChanged();
+	Combatant->OnTurnBegin(Targets);
 }
 
 void ABattleManager::EndCurrentTurn()
@@ -152,11 +207,13 @@ void ABattleManager::CheckBattleEndConditions()
 	if (bAllPlayersDefeated)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - DEFEAT ======="));
+		bPlayerWonBattle = false;
 		EndBattle();
 	}
 	else if (bAllEnemiesDefeated)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - VICTORY ======="));
+		bPlayerWonBattle = true;
 		EndBattle();
 	}
 }
@@ -287,5 +344,16 @@ void ABattleManager::OnCurrentTaskFinished()
 {
 	bIsProcessingTask = false;
 	CurrentTask = nullptr;
+}
+
+void ABattleManager::TriggerFieldTransition()
+{
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>())
+		{
+			TransitionManager->RequestExitBattle(bPlayerWonBattle);
+		}
+	}
 }
 

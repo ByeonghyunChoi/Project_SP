@@ -56,6 +56,18 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, Category = "Battle Flow")
 	TArray<TObjectPtr<ACombatPawn>> AllCombatants;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Battle Flow")
+	float BattleEndDelay = 3.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Battle Flow")
+	bool bPlayerWonBattle = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle Flow|Camera")
+	FName StatusEffectFocusShotName = TEXT("Shot_StatusEffectFocus");
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle Flow|Timing")
+	float TurnStartSequenceDelay = 1.5f;
+
 public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
@@ -114,4 +126,12 @@ private:
 	void ProcessTaskQueue();
 	UFUNCTION()
 	void OnCurrentTaskFinished();
+
+	void TriggerFieldTransition();
+
+	FTimerHandle BattleEndTimerHandle;
+
+	void OnTurnStartSequenceFinished();
+
+	FTimerHandle TurnStartSequenceTimerHandle;
 };

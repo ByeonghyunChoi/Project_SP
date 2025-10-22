@@ -63,6 +63,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
     EFaction CurrentFaction;
 
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "State")
+    FTransform HomeTransform;
+
 public:
     // --- 공통 기능 ---
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -97,4 +100,10 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "UI", meta = (DisplayName = "ShowDamageFloaterVFX"))
     void K2_ShowDamageFloater(float DamageAmount, EDamageFloaterType DamageType);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Combat", meta = (DisplayName = "OnDied_VFX"))
+    void K2_OnDied();
+
+    void SetHomeTransform(const FTransform& NewHomeTransform) { HomeTransform = NewHomeTransform; }
+    FTransform GetHomeTransform() const { return HomeTransform; }
 };

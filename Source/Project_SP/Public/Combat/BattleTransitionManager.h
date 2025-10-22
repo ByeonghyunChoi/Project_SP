@@ -19,7 +19,7 @@ class PROJECT_SP_API UBattleTransitionManager : public UGameInstanceSubsystem
 public:
 	UBattleTransitionManager();
 	void RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup);
-	void RequestExitBattle();
+	void RequestExitBattle(bool bPlayerWon);
 	void NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
 
 protected:
@@ -41,6 +41,8 @@ protected:
 	FName BattleArenaMapName;
 	UPROPERTY(Config)
 	FName BattleStageDirectorTag;
+
+	bool bPlayerWonLastBattle = false;
 
 private:
 	bool bLevelStreamingComplete;

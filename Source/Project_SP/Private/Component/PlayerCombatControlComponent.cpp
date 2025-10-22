@@ -76,6 +76,33 @@ void UPlayerCombatControlComponent::OnTurnBegin(const TArray<ACombatPawn*>& Pote
 			OnTargetsChanged.Broadcast(CurrentTargets);
 		}
 	}
+	else
+	{
+		// 살아있는 적이 아무도 없으면 타겟팅을 중지합니다.
+		if (AllEnemyTargets.Num() == 0)
+		{
+			CurrentTargets.Empty();
+			CurrentTargetIndex = -1;
+			OnTargetsChanged.Broadcast(CurrentTargets);
+			return;
+		}
+		FActionData ActionData;
+		if (!ActionComponent->GetActionData(SelectedActionID, ActionData))
+		{
+			SelectAction(NAME_None); 
+			return;
+		}
+		CurrentTargetIndex = 0;
+		const int32 NumEnemies = AllEnemyTargets.Num();
+		const int32 NumberOfTargets = FMath::Min(ActionData.NumberOfTargets, NumEnemies);
+
+		TArray<ACombatPawn*> NewTargets;
+		for (int32 i = 0; i < NumberOfTargets; ++i)
+		{
+			NewTargets.Add(AllEnemyTargets[(CurrentTargetIndex + i) % NumEnemies]);
+		}
+		SetCurrentTargets(NewTargets);
+	}
 }
 
 void UPlayerCombatControlComponent::HandleSelectBasicAttack(const FInputActionValue& Value)

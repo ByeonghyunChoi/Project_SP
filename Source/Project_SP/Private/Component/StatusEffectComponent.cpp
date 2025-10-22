@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatStatics.h"
 #include "Component/GameEventComponent.h"
+#include "Data/StatusEffectData.h"
 
 UStatusEffectComponent::UStatusEffectComponent()
 {
@@ -86,18 +87,20 @@ void UStatusEffectComponent::OnTurnStarted()
                     ACombatPawn* InstigatorPawn = ActiveEffect.Instigator.Get();
                     if (!InstigatorPawn) continue;
 
+                    const float RoundedDamage = FMath::RoundToFloat(FinalDamage);
+
                     if (OwnerAttributesComp)
                     {
-                        OwnerAttributesComp->ApplyHealthChange(-FinalDamage, InstigatorPawn);
+                        OwnerAttributesComp->ApplyHealthChange(-RoundedDamage, InstigatorPawn);
                     }
 
                     // 2. 새 이벤트(OnDamageFinalized)로 방송합니다.
                     if (OwnerPawn->GetGameEventComponent())
                     {
-                        OwnerPawn->GetGameEventComponent()->BroadcastDamageFinalized(OwnerPawn, FinalDamage, EDamageFloaterType::StatusEffect, InstigatorPawn);
+                        OwnerPawn->GetGameEventComponent()->BroadcastDamageFinalized(OwnerPawn, RoundedDamage, EDamageFloaterType::StatusEffect, InstigatorPawn);
                     }
 
-                    UE_LOG(LogTemp, Log, TEXT("상태 이상 데미지: %f"), FinalDamage);
+                    UE_LOG(LogTemp, Log, TEXT("상태 이상 데미지: %f"), RoundedDamage);
 
                 }
                 // '혼절' 같은 행동 불가 로직도 여기서 처리 가능
@@ -129,6 +132,36 @@ void UStatusEffectComponent::OnTurnStarted()
     {
         RecalculateStatModifiers();
     }
+}
+
+bool UStatusEffectComponent::HasDamageOverTimeEffect() const
+{
+    if (!StatusEffectDataTable)
+    {
+        return false;
+    }
+
+    // 1. 현재 활성화된 모든 효과를 순회합니다.
+    for (const FActiveStatusEffect& ActiveEffect : ActiveStatusEffects)
+    {
+        // 2. 효과 데이터를 가져옵니다.
+        const FStatusEffectData* EffectData = StatusEffectDataTable->FindRow<FStatusEffectData>(ActiveEffect.EffectID, TEXT(""));
+        if (EffectData)
+        {
+            // 3. 세부 효과(SubEffects)를 순회합니다.
+            for (const FStatusSubEffect& SubEffect : EffectData->SubEffects)
+            {
+                // 4. 'DamageOverTime' 타입이 발견되면 즉시 true를 반환합니다.
+                if (SubEffect.EffectType == EStatusEffectType::DamageOverTime)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 5. 루프가 끝날 때까지 못 찾았다면 false를 반환합니다.
+    return false;
 }
 
 void UStatusEffectComponent::RecalculateStatModifiers()

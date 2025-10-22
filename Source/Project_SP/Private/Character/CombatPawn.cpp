@@ -73,6 +73,8 @@ void ACombatPawn::HandleOwnerHealthDepleted(AActor* InInstigator)
         SetCombatPawnState(ECombatPawnState::Defeated);
         // 더 이상 타겟팅되지 않도록 충돌 비활성화
         SetActorEnableCollision(false);
+
+        K2_OnDied();
     }
 }
 

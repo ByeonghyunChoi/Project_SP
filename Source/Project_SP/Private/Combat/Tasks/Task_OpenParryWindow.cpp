@@ -17,11 +17,10 @@ void UTask_OpenParryWindow::ExecuteTask_Implementation()
 		{
 			if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
 			{
-				// 1. "패링 창 열림!" 이라고 월드에 방송합니다.
 				EventComp->BroadcastParryWindowOpened(Instigator, ActionData.DamageType, ActionData.ParryWindowDuration);
 
 				// 2. 정해진 시간 후에 OnParryWindowTimerEnd 함수를 호출하도록 타이머를 설정합니다.
-				if (UWorld* World = GetWorld()) // UObject는 GetWorld()를 직접 호출할 수 있습니다.
+				if (UWorld* World = GetWorld())
 				{
 					World->GetTimerManager().SetTimer(
 						ParryWindowTimerHandle,
@@ -31,7 +30,6 @@ void UTask_OpenParryWindow::ExecuteTask_Implementation()
 						false
 					);
 				}
-				// FinishTask()를 여기서 호출하지 않고, 타이머가 만료될 때까지 기다립니다.
 				return;
 			}
 		}
