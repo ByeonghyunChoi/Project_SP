@@ -6,25 +6,32 @@
 #include "Engine/DataTable.h"
 #include "CameraShotTypes.generated.h"
 
+class UCombatCameraShotDirector;
+
 // 데이터 테이블의 한 행을 구성할 구조체
 USTRUCT(BlueprintType)
 struct FCameraShotData : public FTableRowBase
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot")
-    FVector CameraOffset = FVector(-500.f, 0.f, 200.f);
+    /** 이 샷의 카메라 Transform을 계산할 Director 클래스입니다. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Logic", meta = (AllowAbstract = "false"))
+    TSubclassOf<UCombatCameraShotDirector> DirectorClass;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot")
+    // --- 공통 설정 ---
+    /** 보간 이동 시 속도 (bInstantCut이 false일 때 사용) */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Common")
     float InterpolationSpeed = 5.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot")
+    /** 목표 카메라 시야각 (Field of View) */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Common")
     float FieldOfView = 90.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot")
+    /** true이면 보간 없이 즉시 이 샷으로 카메라를 설정합니다. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Common")
     bool bInstantCut = false;
 
-    // 이 샷이 재생될 때 함께 재생할 카메라 쉐이크
+    /** 이 샷이 재생될 때 함께 재생할 카메라 쉐이크 */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Effects")
     TSubclassOf<class UCameraShakeBase> CameraShake;
 };

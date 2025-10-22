@@ -5,6 +5,9 @@
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Data/CameraShotTypes.h"
+#include "Combat/CombatCameraShotDirector.h"
+#include "Character/CombatPawn.h"
 #include "Kismet/KismetMathLibrary.h"
 
 // Sets default values for this component's properties

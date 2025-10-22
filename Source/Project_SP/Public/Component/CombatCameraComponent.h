@@ -9,6 +9,7 @@
 
 class ACineCameraActor;
 class UDataTable;
+class UCombatCameraShotDirector;
 
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
