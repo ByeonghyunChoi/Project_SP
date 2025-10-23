@@ -14,6 +14,8 @@
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Combat/CombatTask.h"
+#include "Combat/Tasks/Task_EndTurn.h"
+#include "Combat/Tasks/Task_RequestPlayerInterrupt.h"
 
 // Sets default values for this component's properties
 UPlayerCombatControlComponent::UPlayerCombatControlComponent()
@@ -285,7 +287,42 @@ void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 	// 1. 적 행동 취소 요청
 	BattleManager->ClearTaskQueue();
 
-	// 2. 패링 비주얼 태스크 주입 (선택 사항 - 이건 즉시 실행)
+	// 2. 몬스터 행동 마무리
+	FName MonsterReturnActionID = TEXT("StormFang_ReturnHome"); // DT_ActionData Row Name
+	FActionData ReturnData;
+	if (ActionComponent->GetActionData(MonsterReturnActionID, ReturnData) && ReturnData.GameActionClass)
+	{
+		UGameAction* ReturnAction = NewObject<UGameAction>(OwningPlayerCharacter, ReturnData.GameActionClass); // Outer는 임시
+		if (ReturnAction)
+		{
+			ReturnAction->Initialize(ActionComponent, MonsterReturnActionID);
+			TArray<UCombatTask*> ReturnTasks;
+			for (UCombatTask* TaskTemplate : ReturnAction->GetTasks())
+			{
+				if (TaskTemplate)
+				{
+					UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, BattleManager);
+					// 중요: 각 태스크의 Instigator를 올바르게 설정해야 함
+					if (Cast<UTask_RequestPlayerInterrupt>(NewTask)) {
+						// 인터럽트 요청 태스크의 Instigator는 '플레이어'
+						NewTask->Initialize(BattleManager, OwningPlayerCharacter, {});
+					}
+					else {
+						// 몬스터 복귀 애니메이션/이동 태스크의 Instigator는 '몬스터'
+						NewTask->Initialize(BattleManager, ParriedAttacker, {});
+					}
+					ReturnTasks.Add(NewTask);
+				}
+			}
+			BattleManager->InjectCombatTasks(ReturnTasks); // 비주얼 다음 순서로 주입
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find Monster_ReturnHome_AfterParry action! Parry skill might not execute."));
+	}
+
+	// 3. 패링 비주얼 태스크 주입 (선택 사항 - 이건 즉시 실행)
 	FName ParryVisualActionID = TEXT("Parry_Visuals");
 	FActionData ParryVisualData;
 	if (ActionComponent->GetActionData(ParryVisualActionID, ParryVisualData) && ParryVisualData.GameActionClass)
@@ -308,7 +345,7 @@ void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 		}
 	}
 
-	// 3. 추가 턴 정보 저장
+	// 4. 추가 턴 정보 저장
 	FName ParrySkillActionID = NAME_None;
 	if (WeaponSystemComponent->GetCurrentWeapon())
 	{
@@ -328,12 +365,6 @@ void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 		// 이 경우 BattleManager는 다음 일반 턴을 결정하게 됨
 	}
 
-	// 4. BattleManager에게 플레이어 인터럽트 턴 요청
-	// (BattleManager에 RequestPlayerInterruptTurn 함수 추가 필요 - 아래 참조)
-	if (bPendingParryInterrupt) // 스킬이 있을 때만 요청
-	{
-		BattleManager->RequestPlayerInterruptTurn(OwningPlayerCharacter);
-	}
 
 	// 5. 패링 성공 이벤트 방송
 	if (OwningPlayerCharacter->GetGameEventComponent())

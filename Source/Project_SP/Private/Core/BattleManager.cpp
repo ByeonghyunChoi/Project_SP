@@ -177,32 +177,50 @@ void ABattleManager::EndCurrentTurn()
 {
 	if (TurnStack.IsEmpty()) return;
 
+	// 1. 현재 턴 정보 가져오기 (Pop 전에!)
 	ACombatPawn* EndedTurnCombatant = TurnStack.Last().Combatant;
-	TurnStack.Pop();
+	ETurnType EndedTurnType = TurnStack.Last().TurnType; // << 끝나는 턴의 타입을 저장
+	TurnStack.Pop(); // 스택에서 제거
 
+	// 2. 끝난 턴 처리
 	if (EndedTurnCombatant)
 	{
 		EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
 	}
 
-	if (TurnStack.Num() > 0)
+	// --- [수정된 다음 행동 결정 로직] ---
+	// 3. 끝난 턴이 'Interrupt'였거나 스택이 비었으면 다음 턴 결정
+	if (EndedTurnType == ETurnType::Interrupt || TurnStack.IsEmpty())
 	{
+		if (EndedTurnType == ETurnType::Interrupt) {
+			UE_LOG(LogTemp, Log, TEXT("Interrupt turn ended. Deciding next normal turn."));
+		}
+		else {
+			UE_LOG(LogTemp, Log, TEXT("Normal turn ended and stack is empty. Deciding next normal turn."));
+		}
+		DecideAndStartNextTurn(); // 다음 일반 턴 시작
+	}
+	else
+	{
+		// 4. (예외적 상황) 스택에 남은 턴이 있고, 끝난 턴이 Interrupt가 아니었을 경우
+		//    (현재 설계에서는 이 분기가 거의 실행되지 않아야 함)
 		ACombatPawn* ResumedCombatant = TurnStack.Last().Combatant;
 		if (ResumedCombatant && ResumedCombatant->GetCombatPawnState() != ECombatPawnState::Defeated)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Resuming turn for %s"), *ResumedCombatant->GetName());
+			// 이전 턴 재개 (이 경우는 중첩 인터럽트 등 복잡한 상황)
+			UE_LOG(LogTemp, Log, TEXT("Resuming previous turn for %s (Non-interrupt end)"), *ResumedCombatant->GetName());
 			UpdateInputModeForTurn(ResumedCombatant);
 		}
 		else
 		{
+			// 재개할 턴의 캐릭터가 죽었으면 다음 턴 결정
+			UE_LOG(LogTemp, Warning, TEXT("Resumed combatant %s is defeated or invalid after non-interrupt end. Deciding next turn."), ResumedCombatant ? *ResumedCombatant->GetName() : TEXT("nullptr"));
 			DecideAndStartNextTurn();
 		}
 	}
-	else
-	{
-		DecideAndStartNextTurn();
-	}
+	// --- [수정된 로직 끝] ---
 
+	// 5. 턴 순서 UI 갱신 (항상 호출)
 	OnTurnOrderChanged();
 }
 
