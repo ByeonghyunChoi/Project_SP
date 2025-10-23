@@ -41,8 +41,8 @@ bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
     {
         return true;
     }
-
-    UE_LOG(LogTemp, Warning, TEXT("SP가 부족하여 '%s'을(를) 사용할 수 없습니다."), *Data.DisplayName.ToString());
+    FString DebugMessage = FString::Printf(TEXT("SP가 부족하여 '%s'을(를) 사용할 수 없습니다."), *Data.DisplayName.ToString());
+    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, DebugMessage);
     return false;
 }
 
