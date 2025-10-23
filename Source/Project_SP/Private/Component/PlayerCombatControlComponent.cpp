@@ -3,13 +3,17 @@
 
 #include "Component/PlayerCombatControlComponent.h"
 #include "Character/PlayerCharacter.h"
+#include "Component/GameEventComponent.h"
 #include "Component/ActionComponent.h"
+#include "Combat/GameAction.h"
 #include "Component/WeaponSystemComponent.h"
 #include "Data/ActionData.h"
 #include "Data/WeaponData.h"
+#include "Core/BattleManager.h"
 #include "EnhancedInputComponent.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Combat/CombatTask.h"
 
 // Sets default values for this component's properties
 UPlayerCombatControlComponent::UPlayerCombatControlComponent()
@@ -51,6 +55,22 @@ void UPlayerCombatControlComponent::SetupPlayerInput(UEnhancedInputComponent* Pl
 void UPlayerCombatControlComponent::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {
 	if (!OwningPlayerCharacter || !WeaponSystemComponent || !ActionComponent) return;
+
+	if (bPendingParryInterrupt && !PendingParrySkillID.IsNone() && PendingParryTarget.IsValid())
+	{
+		ACombatPawn* Target = PendingParryTarget.Get(); 
+
+		bPendingParryInterrupt = false;
+		PendingParryTarget = nullptr;
+		FName SkillToUse = PendingParrySkillID; 
+		PendingParrySkillID = NAME_None;
+
+		UE_LOG(LogTemp, Log, TEXT("Parry Interrupt Turn: Auto-executing skill %s against %s"), *SkillToUse.ToString(), *Target->GetName());
+
+		OwningPlayerCharacter->SetCombatPawnState(ECombatPawnState::PerformingAction);
+		ActionComponent->StartActionByID(OwningPlayerCharacter, SkillToUse, { Target });
+		return; 
+	}
 
 	AllEnemyTargets = PotentialTargets;
 	OwningPlayerCharacter->SetCombatPawnState(ECombatPawnState::AwaitingInput); 
@@ -121,41 +141,87 @@ void UPlayerCombatControlComponent::HandleSelectMainSkill(const FInputActionValu
 	}
 }
 
+void UPlayerCombatControlComponent::OnReceiveParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration)
+{
+	// 유효성 검사 및 중복 방지
+	if (bIsParryWindowOpen || !Attacker || Attacker->GetFaction() == EFaction::Player) return;
+
+	// 패링 상태 저장
+	bIsParryWindowOpen = true;
+	RequiredParryType = AttackType;
+	CurrentParryAttacker = Attacker;
+	UE_LOG(LogTemp, Log, TEXT("Parry Window Opened! Attacker: %s, Required Type: %s"), *Attacker->GetName(), *UEnum::GetValueAsString(AttackType));
+	// TODO: UI에 패링 가능 알림 표시 (예: 델리게이트 방송)
+}
+
+void UPlayerCombatControlComponent::OnReceiveParryWindowClosed(ACombatPawn* Attacker)
+{
+	// 올바른 Attacker가 닫았는지 확인
+	if (bIsParryWindowOpen && CurrentParryAttacker == Attacker)
+	{
+		bIsParryWindowOpen = false;
+		CurrentParryAttacker = nullptr;
+		UE_LOG(LogTemp, Log, TEXT("Parry Window Closed for %s"), *Attacker->GetName());
+		// TODO: UI 패링 알림 제거
+	}
+}
+
 void UPlayerCombatControlComponent::HandleChangeWeapon(int32 WeaponIndex)
 {
-	if (!WeaponSystemComponent) return;
+	if (!WeaponSystemComponent || !OwningPlayerCharacter) return;
 
 	EDamageType SelectedType = static_cast<EDamageType>(WeaponIndex - 1);
 
-	EDamageType OldWeaponType = EDamageType::Fenrir;
-	bool bIsAlreadyEquipped = false;
-	if (WeaponSystemComponent->GetCurrentWeapon())
+	// 1. [순서 변경] 실제 무기 교체를 먼저 시도 (SwitchWeapon은 중복 방지 기능 있음)
+	WeaponSystemComponent->SwitchWeapon(SelectedType);
+
+	// 2. 패링 시도 확인 (이제 교체된 무기 기준으로 판단)
+	bool bIsPlayerTurnActive = (OwningPlayerCharacter->GetCombatPawnState() == ECombatPawnState::AwaitingInput);
+	bool bParryCheckPerformed = false;
+	bool bParrySucceeded = false;
+
+	if (!bIsPlayerTurnActive && bIsParryWindowOpen && CurrentParryAttacker.IsValid())
 	{
-		OldWeaponType = WeaponSystemComponent->GetCurrentWeapon()->WeaponType;
-		if (OldWeaponType == SelectedType)
+		bParryCheckPerformed = true;
+		ACombatPawn* ParriedAttacker = CurrentParryAttacker.Get();
+
+		// 현재 *교체된* 무기의 타입과 RequiredParryType 비교
+		if (WeaponSystemComponent->GetCurrentWeapon() && WeaponSystemComponent->GetCurrentWeapon()->WeaponType == RequiredParryType)
 		{
-			bIsAlreadyEquipped = true;
+			OnParrySuccess(ParriedAttacker); // 성공 처리
+			bParrySucceeded = true;
+			// 패링 성공 시에는 여기서 함수 종료 (아래 자동 선택 로직 건너뛰기)
+			return;
 		}
-	}
-	if (bIsAlreadyEquipped)
-	{
-		return;
+		else
+		{
+			OnParryFailure(ParriedAttacker, EParryResult::PartialSuccess); // 실패 처리
+		}
+
+		// 패링 시도 후 창 닫기
+		bIsParryWindowOpen = false;
+		CurrentParryAttacker = nullptr;
 	}
 
-	WeaponSystemComponent->SwitchWeapon(SelectedType);
-	UWeaponData* NewWeaponData = WeaponSystemComponent->GetCurrentWeapon();
-	if (NewWeaponData)
+	// 3. 일반적인 무기 교체 후 기본 공격 자동 선택 (플레이어 턴일 때만)
+	if (bIsPlayerTurnActive) // 패링 시도가 아니었거나 실패했을 때만 실행됨
 	{
-		const FName BasicAttackID = NewWeaponData->BasicAttackActionID;
-		SelectAction(BasicAttackID); 
-	}
-	else
-	{
-		SelectedActionID = NAME_None;
-		CurrentTargets.Empty();
-		CurrentTargetIndex = -1;
-		OnActionSelected.Broadcast(NAME_None);
-		OnTargetsChanged.Broadcast(CurrentTargets);
+		// 이미 장착된 무기 버튼을 다시 누른 경우도 처리
+		bool bIsAlreadyEquipped = false;
+		if (WeaponSystemComponent->GetCurrentWeapon() && WeaponSystemComponent->GetCurrentWeapon()->WeaponType == SelectedType) {
+			bIsAlreadyEquipped = true;
+		}
+
+		if (bIsAlreadyEquipped && WeaponSystemComponent->GetCurrentWeapon()) {
+			SelectAction(WeaponSystemComponent->GetCurrentWeapon()->BasicAttackActionID);
+		}
+		else
+		{
+			// 다른 무기로 교체된 경우
+			UWeaponData* NewWeaponData = WeaponSystemComponent->GetCurrentWeapon();
+			if (NewWeaponData) SelectAction(NewWeaponData->BasicAttackActionID);
+			else SelectAction(NAME_None);
+		}
 	}
 }
 
@@ -205,6 +271,87 @@ void UPlayerCombatControlComponent::SelectAction(FName ActionID)
 			}
 			SetCurrentTargets(NewTargets);
 		}
+	}
+}
+
+void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
+{
+	if (!ParriedAttacker || !OwningPlayerCharacter || !ActionComponent || !WeaponSystemComponent) return;
+	UE_LOG(LogTemp, Warning, TEXT("!!! PARRY SUCCESS vs %s !!!"), *ParriedAttacker->GetName());
+
+	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
+	if (!BattleManager) return;
+
+	// 1. 적 행동 취소 요청
+	BattleManager->ClearTaskQueue();
+
+	// 2. 패링 비주얼 태스크 주입 (선택 사항 - 이건 즉시 실행)
+	FName ParryVisualActionID = TEXT("Parry_Visuals");
+	FActionData ParryVisualData;
+	if (ActionComponent->GetActionData(ParryVisualActionID, ParryVisualData) && ParryVisualData.GameActionClass)
+	{
+		UGameAction* VisualAction = NewObject<UGameAction>(OwningPlayerCharacter, ParryVisualData.GameActionClass);
+		if (VisualAction)
+		{
+			VisualAction->Initialize(ActionComponent, ParryVisualActionID);
+			TArray<UCombatTask*> VisualTasks;
+			for (UCombatTask* TaskTemplate : VisualAction->GetTasks()) // GetTasks() 사용
+			{
+				if (TaskTemplate)
+				{
+					UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, BattleManager);
+					NewTask->Initialize(BattleManager, OwningPlayerCharacter, {});
+					VisualTasks.Add(NewTask);
+				}
+			}
+			BattleManager->InjectCombatTasks(VisualTasks); // 비주얼 태스크만 먼저 주입
+		}
+	}
+
+	// 3. 추가 턴 정보 저장
+	FName ParrySkillActionID = NAME_None;
+	if (WeaponSystemComponent->GetCurrentWeapon())
+	{
+		ParrySkillActionID = WeaponSystemComponent->GetCurrentWeapon()->ParrySkillActionID;
+	}
+
+	if (!ParrySkillActionID.IsNone())
+	{
+		bPendingParryInterrupt = true; // 추가 턴 필요 플래그 설정
+		PendingParrySkillID = ParrySkillActionID; // 사용할 스킬 ID 저장
+		PendingParryTarget = ParriedAttacker; // 스킬 대상 저장
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Parry Success but no ParrySkillActionID found for current weapon! Skipping interrupt turn request."));
+		// 패링 스킬이 없으면 추가 턴을 요청하지 않음 (선택적: EndTurn만 주입?)
+		// 이 경우 BattleManager는 다음 일반 턴을 결정하게 됨
+	}
+
+	// 4. BattleManager에게 플레이어 인터럽트 턴 요청
+	// (BattleManager에 RequestPlayerInterruptTurn 함수 추가 필요 - 아래 참조)
+	if (bPendingParryInterrupt) // 스킬이 있을 때만 요청
+	{
+		BattleManager->RequestPlayerInterruptTurn(OwningPlayerCharacter);
+	}
+
+	// 5. 패링 성공 이벤트 방송
+	if (OwningPlayerCharacter->GetGameEventComponent())
+	{
+		OwningPlayerCharacter->GetGameEventComponent()->BroadcastParryAttempted(ParriedAttacker, OwningPlayerCharacter, EParryResult::Success);
+	}
+}
+
+void UPlayerCombatControlComponent::OnParryFailure(ACombatPawn* ParriedAttacker, EParryResult Result)
+{
+	if (!OwningPlayerCharacter || !ParriedAttacker) return;
+	UE_LOG(LogTemp, Warning, TEXT("Parry Failed / Partial Success vs %s"), *ParriedAttacker->GetName());
+	// 적 행동은 계속됨. 부분 성공 시 데미지 감소 등의 로직 추가 가능.
+
+	// 패링 실패 이벤트 방송
+	if (OwningPlayerCharacter->GetGameEventComponent())
+	{
+		OwningPlayerCharacter->GetGameEventComponent()->BroadcastParryAttempted(ParriedAttacker, OwningPlayerCharacter, Result);
 	}
 }
 

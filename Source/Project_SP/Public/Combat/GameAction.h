@@ -41,6 +41,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Action")
 	const FActionData& GetData() const { return Data; }
 
+	const TArray<TObjectPtr<UCombatTask>>& GetTasks() const { return Tasks; }
+
 	FOnCombatEvent OnCombatEvent;
 protected:
 	// 자신을 소유한 '공장' 컴포넌트
