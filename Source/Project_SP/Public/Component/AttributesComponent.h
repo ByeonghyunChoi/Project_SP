@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
+#include "Items/OpartsBase.h"
 #include "AttributesComponent.generated.h"
 
 
@@ -98,6 +99,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Stats")
     FCombatStats CurrentStats; // 현재 레벨 및 버프/디버프가 적용된 실제 스탯
 
+	// 오파츠로부터 얻은 추가 스탯 보너스
+    UPROPERTY(VisibleAnywhere, Category = "Attributes|Oparts")
+    FCombatStats OpartsBonusStats;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Growth")
     int32 Level = 1;
 
@@ -138,6 +143,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Attributes")
     void ApplyMoneyChange(int32 Delta);
 
+    // 오파츠 스탯 적용 함수
+	UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
+    void ApplyOpartsStats(const FOpartStats& OpartsStats);
+
+    UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
+    void RemoveOpartsStats(const FOpartStats& OpartsStats);
+
     // --- 접근자(Getter) ---
     UFUNCTION(BlueprintPure, Category = "Attributes")
     const FCombatStats& GetCurrentStats() const { return CurrentStats; }
@@ -159,4 +171,5 @@ private:
     // --- 내부 헬퍼 함수 ---
     void LevelUp();
     void RecalculateStatsForLevel(int32 NewLevel);
+    void RecalculateFinalStats();
 };
