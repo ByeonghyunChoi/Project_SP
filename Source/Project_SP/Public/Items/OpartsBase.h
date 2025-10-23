@@ -94,6 +94,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	FOpartStats CurrentStats;
 
+	//오파츠의 다음 레벨 스탯 반환
+	UFUNCTION(BlueprintPure, Category = "Oparts")
+	bool GetNextLevelStats(FOpartStats& OutNextStats) const;
+
 	// 스탯이 현재 플레이어에게 적용(Add)된 상태인지 추적하는 플래그
 	UPROPERTY(VisibleInstanceOnly, Category = "Oparts State")
 	bool bStatsCurrentlyApplied = false; // 기본값은 false
@@ -102,6 +106,8 @@ private:
 	TObjectPtr<class UInventoryComponent> inventoryRef;
 
 	bool GetStatsForLevel(int32 Level, FOpartStats& OutStats);
+
+	bool GetStatsForNextLevel(int32 Level, FOpartStats& OutStats) const;
 
 	int32 ArtifactUnlockedNumber;
 };

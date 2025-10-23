@@ -49,6 +49,32 @@ bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 	return false;
 }
 
+bool UOpartsBase::GetStatsForNextLevel(int32 Level, FOpartStats& OutStats) const
+{
+	if (!OpartsStatsDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OpartsStatsDataTable is null! Cannot load stats."));
+		return false;
+	}
+	FString RowName = FString::Printf(TEXT("LEVEL_%d"), Level);
+
+	FOpartStats* StatsRow = OpartsStatsDataTable->FindRow<FOpartStats>(FName(*RowName), TEXT(""));
+    
+    // ...
+    // 데이터 로드 성공 시:
+    if (StatsRow)
+    {
+        // 찾은 데이터를 OutStats 구조체에 복사
+        OutStats.Health = StatsRow->Health;
+        OutStats.Attack = StatsRow->Attack;
+        OutStats.Speed = StatsRow->Speed;
+        return true;
+    }
+
+	UE_LOG(LogTemp, Error, TEXT("Failed to find stats for Level %d (Row: %s) in DataTable."), Level, *RowName);
+	return false; //
+}
+
 void UOpartsBase::BeginPlay()
 {
 	Super::BeginPlay();
@@ -196,6 +222,32 @@ int32 UOpartsBase::GetOpartsCurrentLevel() const
 {
 	return CurrentLevel; // 오파츠에 띄우기 위한 반환값
 }
+
+bool UOpartsBase::GetNextLevelStats(FOpartStats& OutNextStats) const
+{
+	const int32 MAX_OPARTS_LEVEL = 5;
+
+	if (CurrentLevel >= MAX_OPARTS_LEVEL)
+	{
+		// 다음 레벨이 없음을 알림
+		OutNextStats = FOpartStats();
+		return false;
+	}
+
+	// 2. 다음 레벨(CurrentLevel + 1) 계산
+	int32 NextLevel = CurrentLevel + 1;
+
+	// 3. 헬퍼 함수를 사용하여 다음 레벨의 데이터를 로드
+	if (GetStatsForNextLevel(NextLevel, OutNextStats))
+	{
+		return true; // 로드 성공
+	}
+
+	// 데이터 테이블에 다음 레벨 스탯이 없는 경우
+	OutNextStats = FOpartStats();
+	return false;
+}
+
 
 int32 UOpartsBase::GetRequiredSandForNextLevel() const
 {
