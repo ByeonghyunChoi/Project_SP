@@ -49,3 +49,11 @@ enum class EBattleState : uint8
     InProgress UMETA(DisplayName = "전투 진행 중"),
     Ended UMETA(DisplayName = "전투 종료")
 };
+
+UENUM(BlueprintType)
+enum class EDamageFloaterType : uint8
+{
+    Normal        UMETA(DisplayName = "일반 데미지"),
+    Critical    UMETA(DisplayName = "치명타 데미지"),
+    StatusEffect    UMETA(DisplayName = "상태 이상 데미지")
+};

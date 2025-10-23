@@ -5,7 +5,9 @@
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Kismet/KismetMathLibrary.h"
+#include "Data/CameraShotTypes.h"
+#include "Combat/CombatCameraShotDirector.h"
+#include "Character/CombatPawn.h"
 
 // Sets default values for this component's properties
 UCombatCameraComponent::UCombatCameraComponent()
@@ -32,69 +34,83 @@ void UCombatCameraComponent::InitializeCamera(FName CameraTag)
 
 void UCombatCameraComponent::PlayDefaultShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_DefaultWide"), Attacker, Target);
+    PlayShot(DefaultWideShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayAttackerShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_PlayerAttack"), Attacker, Target);
+    PlayShot(PlayerAttackShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayEnemyShot(AActor* Attacker, AActor* Target)
 {
-    PlayShot(TEXT("Shot_EnemyAttack"), Attacker, Target);
+    PlayShot(EnemyAttackShotName, Attacker, Target);
 }
 
 void UCombatCameraComponent::PlayParryShot(AActor* Parrier, AActor* Attacker)
 {
-    PlayShot(TEXT("Shot_ParryImpact"), Parrier, Attacker);
+    PlayShot(ParryImpactShotName, Parrier, Attacker);
 }
 
 void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* Target)
 {
     if (!ShotDataTable || !ControlledCamera) return;
-    FCameraShotData* ShotData = ShotDataTable->FindRow<FCameraShotData>(ShotName, TEXT(""));
-    if (!ShotData) return;
 
+    const FCameraShotData* ShotData = ShotDataTable->FindRow<FCameraShotData>(ShotName, TEXT(""));
+    if (!ShotData || !ShotData->DirectorClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': ShotData not found or DirectorClass is not set."), *ShotName.ToString());
+        return;
+    }
+
+    // --- 카메라 쉐이크 ---
     if (ShotData->CameraShake)
     {
         APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
         if (PC) PC->ClientStartCameraShake(ShotData->CameraShake);
     }
 
-    // 목표 위치/회전 계산
-    FVector BaseLocation = FVector::ZeroVector;
-    AActor* LookAtTarget = nullptr;
+    // --- Transform 계산 ---
+    UCombatCameraShotDirector* Director = NewObject<UCombatCameraShotDirector>(this, ShotData->DirectorClass);
+    if (!Director) return;
 
-    switch (ShotData->TargetType)
+    ACombatPawn* AttackerPawn = Cast<ACombatPawn>(Attacker);
+    ACombatPawn* TargetPawn = Cast<ACombatPawn>(Target);
+
+    if (Director->bRequiresTarget && !TargetPawn) // Target 유효성 검사 추가
     {
-    case ECameraShotTarget::Attacker:
-        if (Attacker) { BaseLocation = Attacker->GetActorLocation(); LookAtTarget = Attacker; }
-        break;
-    case ECameraShotTarget::Target:
-        if (Target) { BaseLocation = Target->GetActorLocation(); LookAtTarget = Target; }
-        break;
-    case ECameraShotTarget::Midpoint:
-        if (Attacker && Target) {
-            BaseLocation = (Attacker->GetActorLocation() + Target->GetActorLocation()) / 2.0f;
-            LookAtTarget = nullptr; // 중간 지점을 보도록
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Director requires a Target, but none provided or invalid."), *ShotName.ToString());
+        return;
+    }
+    // Attacker는 항상 필요하다고 가정 (필요시 bRequiresAttacker 추가 가능)
+    if (!AttackerPawn) {
+        UE_LOG(LogTemp, Warning, TEXT("PlayShot '%s': Attacker is required but missing or invalid."), *ShotName.ToString());
+        return;
+    }
+
+
+    FTransform FinalTargetTransform = Director->CalculateCameraTransform(AttackerPawn, TargetPawn, this);
+    FVector FinalTargetLocation = FinalTargetTransform.GetLocation();
+    FRotator FinalTargetRotation = FinalTargetTransform.GetRotation().Rotator();
+
+    // --- 카메라 이동 (Instant Cut 또는 보간) ---
+    if (ShotData->bInstantCut)
+    {
+        SetComponentTickEnabled(false);
+        ControlledCamera->SetActorLocationAndRotation(FinalTargetLocation, FinalTargetRotation);
+        if (UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent())
+        {
+            CineComponent->SetFieldOfView(ShotData->FieldOfView);
         }
-        break;
-    case ECameraShotTarget::World:
-        TargetLocation = ShotData->WorldTransform.GetLocation();
-        TargetRotation = ShotData->WorldTransform.GetRotation().Rotator();
-        break;
     }
-
-    if (ShotData->TargetType != ECameraShotTarget::World)
+    else
     {
-        TargetLocation = BaseLocation + ShotData->CameraOffset;
-        TargetRotation = UKismetMathLibrary::FindLookAtRotation(TargetLocation, LookAtTarget ? LookAtTarget->GetActorLocation() : BaseLocation);
+        TargetLocation = FinalTargetLocation;
+        TargetRotation = FinalTargetRotation;
+        TargetFieldOfView = ShotData->FieldOfView;
+        CurrentInterpolationSpeed = ShotData->InterpolationSpeed;
+        SetComponentTickEnabled(true);
     }
-
-    TargetFieldOfView = ShotData->FieldOfView;
-    CurrentInterpolationSpeed = ShotData->InterpolationSpeed;
-    SetComponentTickEnabled(true);
 }
 
 void UCombatCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -111,12 +127,15 @@ void UCombatCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType,
         FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, CurrentInterpolationSpeed);
         ControlledCamera->SetActorRotation(NewRotation);
 
-        UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent();
-        float CurrentFOV = CineComponent->FieldOfView;
-        float NewFOV = FMath::FInterpTo(CurrentFOV, TargetFieldOfView, DeltaTime, CurrentInterpolationSpeed);
-        CineComponent->SetFieldOfView(NewFOV);
+        if (UCineCameraComponent* CineComponent = ControlledCamera->GetCineCameraComponent())
+        {
+            float CurrentFOV = CineComponent->FieldOfView;
+            float NewFOV = FMath::FInterpTo(CurrentFOV, TargetFieldOfView, DeltaTime, CurrentInterpolationSpeed);
+            CineComponent->SetFieldOfView(NewFOV);
+        }
 
-        if (CurrentLocation.Equals(TargetLocation, 1.0f))
+        // 목적지 도달 시 틱 비활성화 (약간의 허용 오차 포함)
+        if (CurrentLocation.Equals(TargetLocation, 1.0f) && CurrentRotation.Equals(TargetRotation, 1.0f))
         {
             SetComponentTickEnabled(false);
         }

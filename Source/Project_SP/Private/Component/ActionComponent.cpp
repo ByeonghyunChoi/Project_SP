@@ -3,6 +3,7 @@
 #include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
 #include "Data/ActionData.h"
+#include "Component/AttributesComponent.h"
 #include "Character/CombatPawn.h"
 
 UActionComponent::UActionComponent()
@@ -64,6 +65,12 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 		{
 			if (Action->CanStartAction(Instigator))
 			{
+				const int32 CostSP = Action->GetData().CostSP;
+				// [이 줄을 수정하세요]
+				if (CostSP != 0 && Instigator && Instigator->GetAttributesComponent())
+				{
+					Instigator->GetAttributesComponent()->ApplySPChange(-CostSP);
+				}
 				// 액션이 시작되면 ActiveAction에 기록합니다.
 				ActiveAction = Action;
 				Action->StartAction(Instigator, Targets);

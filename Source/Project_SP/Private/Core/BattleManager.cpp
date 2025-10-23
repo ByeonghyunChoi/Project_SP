@@ -2,6 +2,7 @@
 
 #include "Core/BattleManager.h"
 #include "Character/CombatPawn.h"
+#include "Character/PlayerCharacter.h"
 #include "Component/BattleTurnComponent.h"
 #include "Component/AttributesComponent.h"
 #include "Component/GameEventComponent.h"
@@ -10,6 +11,11 @@
 #include "Combat/CombatTask.h"
 #include "Combat/Tasks/Task_WaitForAnimNotify.h"
 #include "Kismet/GameplayStatics.h"
+#include "Character/MyPlayerController.h"
+#include "TimerManager.h"
+#include "Combat/BattleTransitionManager.h"
+#include "Component/PlayerCombatControlComponent.h"
+#include "Component/StatusEffectComponent.h"
 
 ABattleManager::ABattleManager()
 {
@@ -31,6 +37,11 @@ void ABattleManager::Tick(float DeltaTime)
 
 	if (CurrentBattleState != EBattleState::InProgress) return;
 
+	if (bIsProcessingTask && CurrentTask && CurrentTask->IsLatent())
+	{
+		CurrentTask->TickTask(DeltaTime);
+	}
+
 	if (TurnStack.IsEmpty())
 	{
 		DecideAndStartNextTurn();
@@ -41,6 +52,9 @@ void ABattleManager::Tick(float DeltaTime)
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
 {
+	CachedPlayerController = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	PlayerControlComponents.Empty();
+
 	AllCombatants.Empty();
 	AllCombatants.Append(PlayerParty);
 	AllCombatants.Append(EnemyParty);
@@ -49,10 +63,28 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
 	{
 		if (Combatant)
 		{
+			if (Combatant->GetFaction() == EFaction::Player) // 플레이어 컴포넌트 저장
+			{
+				if (APlayerCharacter* PlayerChar = Cast<APlayerCharacter>(Combatant))
+				{
+					UPlayerCombatControlComponent* ControlComp = PlayerChar->FindComponentByClass<UPlayerCombatControlComponent>();
+					if (ControlComp)
+					{
+						PlayerControlComponents.Add(ControlComp);
+					}
+				}
+			}
+
 			if (Combatant->GetGameEventComponent())
 			{
+				if (Combatant->GetFaction() == EFaction::Enemy) // 적 패링 이벤트 바인딩
+				{
+					Combatant->GetGameEventComponent()->OnParryWindowOpened.AddDynamic(this, &ABattleManager::HandleEnemyParryWindowOpened);
+					Combatant->GetGameEventComponent()->OnParryWindowClosed.AddDynamic(this, &ABattleManager::HandleEnemyParryWindowClosed);
+				}
 				Combatant->GetGameEventComponent()->OnActionExecutionFinished.AddDynamic(this, &ABattleManager::HandleActionFinished);
 				Combatant->GetGameEventComponent()->OnInterruptRequest.AddDynamic(this, &ABattleManager::HandleInterruptRequest);
+				Combatant->GetGameEventComponent()->OnDamageFinalized.AddDynamic(this, &ABattleManager::HandleDamageReceived);
 			}
 			if (Combatant->GetAttributesComponent())
 			{
@@ -71,6 +103,13 @@ void ABattleManager::EndBattle()
 	CurrentBattleState = EBattleState::Ended;
 	TurnStack.Empty();
 	SetActorTickEnabled(false);
+
+	GetWorldTimerManager().SetTimer(
+		BattleEndTimerHandle,
+		this,
+		&ABattleManager::TriggerFieldTransition,
+		BattleEndDelay,
+		false);
 }
 
 void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
@@ -80,6 +119,47 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 	TurnStack.Emplace(Combatant, Type);
 	Combatant->GetBattleTurnComponent()->StartTurn();
 
+	bool bHasDoT = false;
+	if (Combatant->GetStatusEffectComponent())
+	{
+		bHasDoT = Combatant->GetStatusEffectComponent()->HasDamageOverTimeEffect();
+	}
+
+	if (CameraComponent)
+	{
+		if (bHasDoT)
+		{
+			CameraComponent->PlayShot(StatusEffectFocusShotName, Combatant, nullptr);
+		}
+	}
+
+	if (Combatant->GetStatusEffectComponent())
+	{
+		Combatant->GetStatusEffectComponent()->OnTurnStarted();
+	}
+
+	GetWorldTimerManager().SetTimer(
+		TurnStartSequenceTimerHandle,
+		this,
+		&ABattleManager::OnTurnStartSequenceFinished,
+		TurnStartSequenceDelay,
+		false
+	);
+
+	
+	OnTurnOrderChanged();
+}
+
+void ABattleManager::OnTurnStartSequenceFinished()
+{
+	// 1. 현재 턴인 캐릭터를 가져옵니다.
+	ACombatPawn* Combatant = GetCurrentTurnCharacter();
+	if (!Combatant || Combatant->GetCombatPawnState() == ECombatPawnState::Defeated)
+	{
+		EndCurrentTurn();
+		return;
+	}
+	// 이 시점부터 플레이어가 입력을 할 수 있게 됩니다.
 	TArray<ACombatPawn*> Targets;
 	const EFaction TargetFaction = (Combatant->GetFaction() == EFaction::Player) ? EFaction::Enemy : EFaction::Player;
 	for (ACombatPawn* Pawn : AllCombatants)
@@ -89,25 +169,59 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 			Targets.Add(Pawn);
 		}
 	}
+	UpdateInputModeForTurn(Combatant);
 	Combatant->OnTurnBegin(Targets);
-	OnTurnOrderChanged();
 }
 
 void ABattleManager::EndCurrentTurn()
 {
 	if (TurnStack.IsEmpty()) return;
 
+	// 1. 현재 턴 정보 가져오기 (Pop 전에!)
 	ACombatPawn* EndedTurnCombatant = TurnStack.Last().Combatant;
-	TurnStack.Pop();
+	ETurnType EndedTurnType = TurnStack.Last().TurnType; // << 끝나는 턴의 타입을 저장
+	TurnStack.Pop(); // 스택에서 제거
 
+	// 2. 끝난 턴 처리
 	if (EndedTurnCombatant)
 	{
 		EndedTurnCombatant->GetBattleTurnComponent()->EndTurn();
 	}
 
-	OnTurnOrderChanged();
+	// --- [수정된 다음 행동 결정 로직] ---
+	// 3. 끝난 턴이 'Interrupt'였거나 스택이 비었으면 다음 턴 결정
+	if (EndedTurnType == ETurnType::Interrupt || TurnStack.IsEmpty())
+	{
+		if (EndedTurnType == ETurnType::Interrupt) {
+			UE_LOG(LogTemp, Log, TEXT("Interrupt turn ended. Deciding next normal turn."));
+		}
+		else {
+			UE_LOG(LogTemp, Log, TEXT("Normal turn ended and stack is empty. Deciding next normal turn."));
+		}
+		DecideAndStartNextTurn(); // 다음 일반 턴 시작
+	}
+	else
+	{
+		// 4. (예외적 상황) 스택에 남은 턴이 있고, 끝난 턴이 Interrupt가 아니었을 경우
+		//    (현재 설계에서는 이 분기가 거의 실행되지 않아야 함)
+		ACombatPawn* ResumedCombatant = TurnStack.Last().Combatant;
+		if (ResumedCombatant && ResumedCombatant->GetCombatPawnState() != ECombatPawnState::Defeated)
+		{
+			// 이전 턴 재개 (이 경우는 중첩 인터럽트 등 복잡한 상황)
+			UE_LOG(LogTemp, Log, TEXT("Resuming previous turn for %s (Non-interrupt end)"), *ResumedCombatant->GetName());
+			UpdateInputModeForTurn(ResumedCombatant);
+		}
+		else
+		{
+			// 재개할 턴의 캐릭터가 죽었으면 다음 턴 결정
+			UE_LOG(LogTemp, Warning, TEXT("Resumed combatant %s is defeated or invalid after non-interrupt end. Deciding next turn."), ResumedCombatant ? *ResumedCombatant->GetName() : TEXT("nullptr"));
+			DecideAndStartNextTurn();
+		}
+	}
+	// --- [수정된 로직 끝] ---
 
-	DecideAndStartNextTurn();
+	// 5. 턴 순서 UI 갱신 (항상 호출)
+	OnTurnOrderChanged();
 }
 
 void ABattleManager::CheckBattleEndConditions()
@@ -135,11 +249,13 @@ void ABattleManager::CheckBattleEndConditions()
 	if (bAllPlayersDefeated)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - DEFEAT ======="));
+		bPlayerWonBattle = false;
 		EndBattle();
 	}
 	else if (bAllEnemiesDefeated)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("======= BATTLE ENDED - VICTORY ======="));
+		bPlayerWonBattle = true;
 		EndBattle();
 	}
 }
@@ -172,6 +288,32 @@ void ABattleManager::HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatP
 {
 }
 
+void ABattleManager::HandleDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, EDamageFloaterType DamageType, ACombatPawn* InstigatorPawn)
+{
+	if (!DamagedPawn || DamageAmount <= 0.f)
+	{
+		return;
+	}
+
+	DamagedPawn->K2_ShowDamageFloater(DamageAmount, DamageType);
+}
+
+void ABattleManager::HandleEnemyParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration)
+{
+	for (UPlayerCombatControlComponent* ControlComp : PlayerControlComponents)
+	{
+		if (ControlComp) ControlComp->OnReceiveParryWindowOpened(Attacker, AttackType, Duration);
+	}
+}
+
+void ABattleManager::HandleEnemyParryWindowClosed(ACombatPawn* Attacker)
+{
+	for (UPlayerCombatControlComponent* ControlComp : PlayerControlComponents)
+	{
+		if (ControlComp) ControlComp->OnReceiveParryWindowClosed(Attacker);
+	}
+}
+
 void ABattleManager::DecideAndStartNextTurn()
 {
 	if (CurrentBattleState != EBattleState::InProgress) return;
@@ -188,6 +330,21 @@ void ABattleManager::DecideAndStartNextTurn()
 	}
 }
 
+void ABattleManager::UpdateInputModeForTurn(ACombatPawn* TurnCombatant)
+{
+	if (CachedPlayerController && TurnCombatant)
+	{
+		if (TurnCombatant->GetFaction() == EFaction::Player)
+		{
+			CachedPlayerController->SetPlayerTurnInputMode(); 
+		}
+		else if (TurnCombatant->GetFaction() == EFaction::Enemy)
+		{
+			CachedPlayerController->SetEnemyTurnInputMode(); 
+		}
+	}
+}
+
 void ABattleManager::QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks)
 {
 	TaskQueue.Append(Tasks);
@@ -195,7 +352,10 @@ void ABattleManager::QueueUpCombatTasks(const TArray<UCombatTask*>& Tasks)
 
 void ABattleManager::InjectCombatTasks(const TArray<UCombatTask*>& Tasks)
 {
-	TaskQueue.Insert(Tasks, 0);
+	if (Tasks.Num() > 0)
+	{
+		TaskQueue.Insert(Tasks, 0);
+	}
 }
 
 void ABattleManager::ClearTaskQueue()
@@ -226,6 +386,16 @@ void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
 	}
 }
 
+void ABattleManager::RequestPlayerInterruptTurn(ACombatPawn* PlayerPawn)
+{
+	if (PlayerPawn && PlayerPawn->GetFaction() == EFaction::Player)
+	{
+		UE_LOG(LogTemp, Log, TEXT("BattleManager: Received Interrupt Turn Request from %s."), *PlayerPawn->GetName());
+		// 인터럽트 타입으로 턴 스택에 추가하고 즉시 시작
+		PushAndStartTurn(PlayerPawn, ETurnType::Interrupt);
+	}
+}
+
 void ABattleManager::ProcessTaskQueue()
 {
 	if (bIsProcessingTask || TaskQueue.Num() == 0) return;
@@ -245,5 +415,16 @@ void ABattleManager::OnCurrentTaskFinished()
 {
 	bIsProcessingTask = false;
 	CurrentTask = nullptr;
+}
+
+void ABattleManager::TriggerFieldTransition()
+{
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>())
+		{
+			TransitionManager->RequestExitBattle(bPlayerWonBattle);
+		}
+	}
 }
 

@@ -14,6 +14,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
+#include "Character/MyPlayerController.h"
+#include "Character/MonsterCharacter.h"
+#include "Combat/MonsterGroupObject.h"
 
 UBattleTransitionManager::UBattleTransitionManager()
 {
@@ -22,9 +25,6 @@ UBattleTransitionManager::UBattleTransitionManager()
 	{
 		TransitionWidgetClass = TransitionWidgetRef.Class;
 	}
-	BattleArenaMapName = FName("BattleMap_01");
-	BattleStageDirectorTag = FName("BattleStage");
-
 }
 
 void UBattleTransitionManager::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup)
@@ -34,6 +34,11 @@ void UBattleTransitionManager::RequestEnterBattle(APlayerCharacter* Player, UMon
 	PlayerCharacterRef = Player;
 	MonsterGroupToBattle = MonsterGroup;
 	if (!PlayerCharacterRef) return;
+
+	if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PlayerCharacterRef->GetController()))
+	{
+		MyPC->SetEnemyTurnInputMode();
+	}
 
 	LastFieldLocation = PlayerCharacterRef->GetActorLocation();
 	PlayerCharacterRef->GetCharacterMovement()->StopMovementImmediately();
@@ -160,6 +165,14 @@ void UBattleTransitionManager::CheckAndFinalizeTransition()
 void UBattleTransitionManager::FinalizeBattleStart()
 {
 	UE_LOG(LogTemp, Error, TEXT("[FLOW 7] Finalizing... Calling BattleManager->StartBattle() NOW!"));
+
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+		{
+			MyPC->ShowBattleHUD();
+		}
+	}
 	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
 	if (BattleManager)
 	{
@@ -173,9 +186,10 @@ void UBattleTransitionManager::FinalizeBattleStart()
 	}
 }
 
-void UBattleTransitionManager::RequestExitBattle()
+void UBattleTransitionManager::RequestExitBattle(bool bPlayerWon)
 {
-	UnloadBattleMap(); // 단순화를 위해 즉시 언로드
+	bPlayerWonLastBattle = bPlayerWon;
+	UnloadBattleMap();
 }
 
 void UBattleTransitionManager::UnloadBattleMap()
@@ -195,11 +209,40 @@ void UBattleTransitionManager::UnloadBattleMap()
 
 void UBattleTransitionManager::OnBattleArenaUnloaded()
 {
+	if (bPlayerWonLastBattle && MonsterGroupToBattle)
+	{
+		TArray<AActor*> FoundMonsters;
+		// 2. 현재 월드(필드)에 있는 모든 몬스터 캐릭터를 찾습니다.
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMonsterCharacter::StaticClass(), FoundMonsters);
+
+		for (AActor* Actor : FoundMonsters)
+		{
+			AMonsterCharacter* Monster = Cast<AMonsterCharacter>(Actor);
+			// 3. 몬스터가 우리가 싸웠던 '그 몬스터 그룹'에 속해있는지 확인합니다.
+			if (Monster && Monster->GetCombatMonsterGroup() == MonsterGroupToBattle)
+			{
+				// 4. 일치하면 필드에서 몬스터를 파괴합니다.
+				Monster->Destroy();
+			}
+		}
+	}
+
 	if (PlayerCharacterRef)
 	{
 		PlayerCharacterRef->SetActorLocation(LastFieldLocation); 
 		PlayerCharacterRef->SetActorHiddenInGame(false); 
 		PlayerCharacterRef->SetActorEnableCollision(true); 
 		PlayerCharacterRef->OnEnterFieldMode(); 
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(World->GetFirstPlayerController()))
+		{
+			MyPC->SetFieldInputMode();
+		}
+	}
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		PC->SetViewTargetWithBlend(PlayerCharacterRef.Get(), 0.0f);
 	}
 }

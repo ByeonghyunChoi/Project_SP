@@ -17,6 +17,8 @@ class PROJECT_SP_API UTask_OpenParryWindow : public UCombatTask
 public:
 	virtual void ExecuteTask_Implementation() override;
 
+	virtual bool IsLatent() const override { return true; }
+
 private:
 	// 패링 가능 시간이 만료되었을 때 타이머가 호출할 함수
 	void OnParryWindowTimerEnd();

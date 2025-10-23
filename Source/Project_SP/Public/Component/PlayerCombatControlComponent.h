@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Data/ActionData.h"
+#include "Combat/CombatTypes.h"
 #include "PlayerCombatControlComponent.generated.h"
 
 class ACombatPawn;
@@ -37,6 +38,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnTargetsChanged OnTargetsChanged;
 
+	UFUNCTION()
+	void OnReceiveParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration);
+
+	UFUNCTION()
+	void OnReceiveParryWindowClosed(ACombatPawn* Attacker);
+
 protected:
 	virtual void BeginPlay() override;
 	// 컴포넌트 참조
@@ -45,6 +52,25 @@ protected:
 	UPROPERTY() 
 	TObjectPtr<UActionComponent> ActionComponent;
 	UPROPERTY() TObjectPtr<UWeaponSystemComponent> WeaponSystemComponent;
+
+	//패링 관련 기능과 데이터
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry")
+	bool bIsParryWindowOpen = false;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry")
+	EDamageType RequiredParryType;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Parry")
+	TWeakObjectPtr<ACombatPawn> CurrentParryAttacker;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Combat|Parry")
+	bool bPendingParryInterrupt = false;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Combat|Parry")
+	FName PendingParrySkillID = NAME_None;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Combat|Parry")
+	TWeakObjectPtr<ACombatPawn> PendingParryTarget;
 
 	// 전투 제어 변수
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
@@ -102,5 +128,8 @@ private:
 	void CycleTarget(float Direction);
 	void SelectTargetByMouse();
 	void SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets);	
+
+	void OnParrySuccess(ACombatPawn* ParriedAttacker);
+	void OnParryFailure(ACombatPawn* ParriedAttacker, EParryResult Result);
 
 };

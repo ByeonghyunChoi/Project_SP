@@ -58,4 +58,7 @@ public:
 
 	// 턴이 시작될 때 BattleManager가 호출해 줄 함수
 	void OnTurnStarted();
+
+	UFUNCTION(BlueprintPure, Category = "Status Effect")
+	bool HasDamageOverTimeEffect() const;
 };

@@ -67,6 +67,7 @@ void ABattleStageDirector::OnAssetsLoaded()
 	if (!Player || !MonsterGroup) return;
 
 	Player->SetActorTransform(GetActorTransform());
+	Player->SetHomeTransform(GetActorTransform());
 	Player->SetActorHiddenInGame(false);
 	Player->SetActorEnableCollision(true);
 	Player->OnEnterBattleMode();
@@ -127,6 +128,7 @@ TArray<ACombatPawn*> ABattleStageDirector::SpawnEnemies(UMonsterGroupObject* Mon
 
 		if (SpawnedMonster)
 		{
+			SpawnedMonster->SetHomeTransform(SpawnedMonster->GetActorTransform());
 			// --- 이하 몬스터 초기화 로직은 기존과 동일합니다 ---
 			if (UAttributesComponent* AttrComp = SpawnedMonster->GetAttributesComponent())
 			{

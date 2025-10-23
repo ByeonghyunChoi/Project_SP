@@ -11,7 +11,7 @@ class UMonsterGroupObject;
 class UUserWidget;
 class ACombatPawn;
 
-UCLASS(Blueprintable, BlueprintType)
+UCLASS(Blueprintable, BlueprintType, Config = Game)
 class PROJECT_SP_API UBattleTransitionManager : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -19,7 +19,7 @@ class PROJECT_SP_API UBattleTransitionManager : public UGameInstanceSubsystem
 public:
 	UBattleTransitionManager();
 	void RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup);
-	void RequestExitBattle();
+	void RequestExitBattle(bool bPlayerWon);
 	void NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
 
 protected:
@@ -36,8 +36,13 @@ protected:
 	TArray<TObjectPtr<ACombatPawn>> CachedEnemyParty;
 
 	TSubclassOf<UUserWidget> TransitionWidgetClass;
+
+	UPROPERTY(Config)
 	FName BattleArenaMapName;
+	UPROPERTY(Config)
 	FName BattleStageDirectorTag;
+
+	bool bPlayerWonLastBattle = false;
 
 private:
 	bool bLevelStreamingComplete;
@@ -59,7 +64,8 @@ private:
 
 	void CheckAndFinalizeTransition();
 	void FinalizeBattleStart();
-
 	void UnloadBattleMap();
-	UFUNCTION() void OnBattleArenaUnloaded();
+
+	UFUNCTION()
+	void OnBattleArenaUnloaded();
 };
