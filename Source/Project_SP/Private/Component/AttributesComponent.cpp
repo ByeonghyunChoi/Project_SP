@@ -1,6 +1,7 @@
 ﻿// AttributesComponent.cpp
 
 #include "Component/AttributesComponent.h"
+#include "Items/OpartsBase.h"
 
 UAttributesComponent::UAttributesComponent()
 {
@@ -102,6 +103,26 @@ void UAttributesComponent::ApplyMoneyChange(int32 Delta)
     }
 }
 
+// 오파츠 스탯 적용 함수
+void UAttributesComponent::ApplyOpartsStats(const FOpartStats& OpartsStats)
+{
+    OpartsBonusStats.fMaxHealth += OpartsStats.Health;
+    OpartsBonusStats.fAttackPower += OpartsStats.Attack;
+    OpartsBonusStats.fMovementSpeed += OpartsStats.Speed;
+
+    RecalculateFinalStats();
+}
+
+// 오파츠 스탯 제거 함수
+void UAttributesComponent::RemoveOpartsStats(const FOpartStats& OpartsStats)
+{
+    OpartsBonusStats.fMaxHealth = FMath::Max(0.f, OpartsBonusStats.fMaxHealth - OpartsStats.Health);
+    OpartsBonusStats.fAttackPower = FMath::Max(0.f, OpartsBonusStats.fAttackPower - OpartsStats.Attack);
+    OpartsBonusStats.fMovementSpeed = FMath::Max(0.f, OpartsBonusStats.fMovementSpeed - OpartsStats.Speed);
+
+    RecalculateFinalStats();
+}
+
 void UAttributesComponent::LevelUp()
 {
     if (Level >= MAX_LEVEL) return;
@@ -144,4 +165,22 @@ void UAttributesComponent::RecalculateStatsForLevel(int32 NewLevel)
     CurrentStats.fDefensePower = FMath::Lerp(BaseStats.fDefensePower, BaseStats.DefensePowerCap, Progress);
 
     // 다른 스탯들도 같은 방식으로 재계산...
+}
+
+// 오파츠의 스탯 보너스를 반영하여 최종 스탯 재계산 - 만든 이유는 플레이어가 레벨업 시 오파츠 보너스가 반영되지 않는 문제 해결
+void UAttributesComponent::RecalculateFinalStats()
+{
+    RecalculateStatsForLevel(Level);
+
+    // 2. 오파츠 보너스 합산 (CurrentStats에 OpartsBonusStats를 더함)
+    CurrentStats.fMaxHealth += OpartsBonusStats.fMaxHealth;
+    CurrentStats.fAttackPower += OpartsBonusStats.fAttackPower;
+    CurrentStats.fMovementSpeed += OpartsBonusStats.fMovementSpeed;
+
+	CurrentStats.fCurrentHealth += OpartsBonusStats.fMaxHealth; // 현재 체력도 오파츠 보너스만큼 증가시킴
+
+    // 3. 체력 및 이벤트 브로드캐스트
+    // CurrentStats.fCurrentHealth는 fMaxHealth를 초과하지 않도록 Clamp
+    CurrentStats.fCurrentHealth = FMath::Clamp(CurrentStats.fCurrentHealth, 0.f, CurrentStats.fMaxHealth);
+    OnHealthChanged.Broadcast(CurrentStats.fCurrentHealth, 0.f, nullptr); // MaxHealth가 변했음을 알림
 }

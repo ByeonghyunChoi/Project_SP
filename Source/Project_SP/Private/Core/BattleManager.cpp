@@ -190,20 +190,32 @@ void ABattleManager::EndCurrentTurn()
 
 	// --- [수정된 다음 행동 결정 로직] ---
 	// 3. 끝난 턴이 'Interrupt'였거나 스택이 비었으면 다음 턴 결정
-	if (EndedTurnType == ETurnType::Interrupt || TurnStack.IsEmpty())
+	if (EndedTurnType == ETurnType::Interrupt)
 	{
-		if (EndedTurnType == ETurnType::Interrupt) {
-			UE_LOG(LogTemp, Log, TEXT("Interrupt turn ended. Deciding next normal turn."));
+		UE_LOG(LogTemp, Log, TEXT("Interrupt turn ended."));
+
+		// 4. (핵심 수정)
+		//    인터럽트 턴이 끝났다면, 그 밑에 깔려있던 '취소된' 일반 턴도 스택에서 제거합니다.
+		if (!TurnStack.IsEmpty() && TurnStack.Last().TurnType == ETurnType::Normal)
+		{
+			ACombatPawn* CancelledPawn = TurnStack.Last().Combatant;
+			UE_LOG(LogTemp, Warning, TEXT("Removing cancelled normal turn for %s from stack."), CancelledPawn ? *CancelledPawn->GetName() : TEXT("nullptr"));
+			TurnStack.Pop(); // '좀비 턴' 제거
 		}
-		else {
-			UE_LOG(LogTemp, Log, TEXT("Normal turn ended and stack is empty. Deciding next normal turn."));
-		}
-		DecideAndStartNextTurn(); // 다음 일반 턴 시작
+
+		// 5. 스택이 완전히 정리되었으므로, 다음 일반 턴을 결정합니다.
+		DecideAndStartNextTurn();
+	}
+	else if (TurnStack.IsEmpty())
+	{
+		// 6. 일반 턴이 끝났고 스택이 비었다면, 다음 일반 턴을 결정합니다.
+		UE_LOG(LogTemp, Log, TEXT("Normal turn ended and stack is empty. Deciding next normal turn."));
+		DecideAndStartNextTurn();
 	}
 	else
 	{
-		// 4. (예외적 상황) 스택에 남은 턴이 있고, 끝난 턴이 Interrupt가 아니었을 경우
-		//    (현재 설계에서는 이 분기가 거의 실행되지 않아야 함)
+		// 7. (예외적 상황) 스택에 남은 턴이 있고, 끝난 턴이 Interrupt가 아니었을 경우
+		//    (이 분기는 이제 거의 실행되지 않아야 합니다.)
 		ACombatPawn* ResumedCombatant = TurnStack.Last().Combatant;
 		if (ResumedCombatant && ResumedCombatant->GetCombatPawnState() != ECombatPawnState::Defeated)
 		{

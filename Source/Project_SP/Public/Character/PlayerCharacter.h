@@ -7,6 +7,12 @@
 class UWeaponSystemComponent;
 class UFieldActionComponent;
 class UPlayerCombatControlComponent;
+class UInventoryComponent;
+class UEquipmentSystemComponent;
+// 오파츠들
+class UCrystalSkullOparts;
+class UJadeClockOparts;
+class UGoldBugOparts;
 
 
 UCLASS()
@@ -32,6 +38,23 @@ protected:
 	// 전투 행동 제어 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Brain")
 	TObjectPtr<UPlayerCombatControlComponent> CombatControlComponent;
+	// 인벤토리 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UInventoryComponent> InventoryComponent;
+	// 장비 시스템 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Components")
+	TObjectPtr<UEquipmentSystemComponent> EquipmentSystemComponent;
+
+	// 오파츠 컴포넌트들----------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
+	TObjectPtr<UCrystalSkullOparts> CrystalSkull;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
+	TObjectPtr<UJadeClockOparts> JadeClock;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
+	TObjectPtr<UGoldBugOparts> GoldBug;
+	// ----------------------------------------
 
 public:
 	virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;
@@ -42,4 +65,7 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Modes")
 	void OnEnterBattleMode();
+
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	void LogOpartsActiveState() const; // 오파츠 상태를 로그로 출력하는 함수 선언
 };
