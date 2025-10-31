@@ -174,7 +174,7 @@ void UOpartsBase::UnlockArtifact()
 	//InventoryComponent 참조 체크
 	if (!inventoryRef)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Oparts LevelUp failed: InventoryComponent is NULL. Cannot check/spend Sand."));
+		UE_LOG(LogTemp, Error, TEXT("Artifact Unlock failed: InventoryComponent is NULL. Cannot check/spend Sand."));
 		return;
 	}
 
