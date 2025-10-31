@@ -57,3 +57,24 @@ enum class EDamageFloaterType : uint8
     Critical    UMETA(DisplayName = "치명타 데미지"),
     StatusEffect    UMETA(DisplayName = "상태 이상 데미지")
 };
+
+UENUM(BlueprintType)
+enum class EMapType : uint8
+{
+    Normal UMETA(DisplayName = "일반 맵"),
+    Epic UMETA(DisplayName = "애픽 맵"),
+    Boss UMETA(DisplayName = "보스 맵"),
+    Rest UMETA(DisplayName = "휴식 맵"),
+    Jester UMETA(DisplatName = "광대 맵"),
+    Prepare UMETA(DisplayName = "준비 맵")
+};
+
+UENUM(BlueprintType)
+enum class EMapState : uint8
+{
+    InProgress UMETA(DisplayName = "맵 진행 중"),
+    Reward UMETA(DisplayName = "보상 수령 중"),
+    Cleard UMETA(DisplatName = "맵 클리어")
+};
+
+
