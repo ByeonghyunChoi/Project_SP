@@ -7,6 +7,11 @@
 #include "Combat/CombatTypes.h"
 #include "MapBase.generated.h"
 
+class USceneComponent;
+class UMapNode;
+class APortalActor;
+class ARewardBox;
+
 UCLASS()
 class PROJECT_SP_API AMapBase : public AActor
 {
@@ -28,15 +33,49 @@ protected:
 	//맵 상태
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	EMapState CurrentMapState;
-	//스폰한 맵 액터
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Map")
-	TSubclassOf<AActor> MapActor;
+	//플레이어 시작 위치
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Map")
+	TObjectPtr<USceneComponent> PlayerStartPoint;
 
+	//Map Transfer, Portal Section
+protected:
+	//연결된 맵
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map Logic")
+	TArray<UMapNode*> NextNodeOptions;
+	//배치된 포탈
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
+	TArray<APortalActor*> PortalActors;
+	//보상 상자
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
+	TObjectPtr<ARewardBox> RewardBox;
+
+	//Manager Call Section
+public:
+	//맵에 배치된 오브젝트들 활성화 함수
+	UFUNCTION(BlueprintNativeEvent, Category = "Map Logic")
+	void BeginMapLogic();
+	virtual void BeginMapLogic_Implementation();
+
+	//다음 맵 목록을 넘겨주는 함수
+	void InitializeNextNodes(const TArray<UMapNode*>& ChildNodes);
+
+	//Common Function Section
+protected:
+	//포탈 활성화하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Map Logic")
+	void ActivatePortals();
+
+
+
+	//Getter, Setter Section
 public:
 	void SetMapType(const EMapType& NewMapType);
 	EMapType GetMapType() const;
 
 	void SetMapState(const EMapState& NewMapState);
 	EMapState GetMapState() const;
+
+	FVector GetPlayerStartLocation() const;
+	FRotator GetPlayerStartRotation() const;
 
 };
