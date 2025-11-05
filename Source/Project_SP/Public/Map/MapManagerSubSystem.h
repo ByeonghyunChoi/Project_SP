@@ -59,7 +59,7 @@ protected:
 
 	//게임 시작 맵(레벨) 이름
 	UPROPERTY(EditDefaultsOnly, Category = "Map Config")
-	FName HubMapName = "MapName(나중에 수정)";
+	FName HubSpawnPointTag = "HubStart";
 
 	//스테이지 수
 	UPROPERTY(EditDefaultsOnly, Category = "Map Config")

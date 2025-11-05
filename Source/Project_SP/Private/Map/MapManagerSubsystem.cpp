@@ -7,6 +7,7 @@
 #include "Map/MapBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "Character/PlayerCharacter.h"
+#include "Engine/TargetPoint.h"
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -30,21 +31,43 @@ void UMapManagerSubsystem::StartNewRun()
 
 void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 {
-	//현재 맵 파괴
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// 현재 맵 파괴
 	if (CurrentMapActorInstance)
 	{
 		CurrentMapActorInstance->Destroy();
 		CurrentMapActorInstance = nullptr;
 	}
 
-	//맵 데이터 초기화
+	// 맵 데이터 초기화
 	GraphRoot = nullptr;
 	CurrentNode = nullptr;
 	ClearedNodeIDs.Empty();
 	CurrentStage = 1;
 
-	//게임 시작 맵(레벨)으로 이동
-	UGameplayStatics::OpenLevel(GetWorld(), HubMapName);
+	// 플레이어 폰 찾기
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
+	APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn);
+
+	// 허브 스폰 지점(ATargetPoint) 찾기
+	AActor* HubSpawnPoint = nullptr;
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), HubSpawnPointTag, FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		HubSpawnPoint = FoundActors[0]; 
+	}
+
+	if (Player && HubSpawnPoint)
+	{
+		// 3. 텔레포트
+		FVector Location = HubSpawnPoint->GetActorLocation();
+		FRotator Rotation = HubSpawnPoint->GetActorRotation();
+		PlayerPawn->SetActorLocationAndRotation(Location, Rotation);
+	}
 }
 
 void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
