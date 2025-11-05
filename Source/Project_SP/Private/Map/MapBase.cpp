@@ -15,7 +15,7 @@ AMapBase::AMapBase()
 	PlayerStartPoint->SetupAttachment(RootComponent);
 
 	CurrentMapState = EMapState::InProgress;
-	CurrentMapType = EMapType::Normal;
+	CurrentMapType = EMapType::NormalBattle;
 }
 
 // Called when the game starts or when spawned

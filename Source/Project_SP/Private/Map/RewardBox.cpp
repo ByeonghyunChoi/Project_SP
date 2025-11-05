@@ -2,26 +2,43 @@
 
 
 #include "Map/RewardBox.h"
+#include "Components/StaticMeshComponent.h"
 
 // Sets default values
 ARewardBox::ARewardBox()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+    BoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
+    SetRootComponent(BoxMesh);
 
+    bHasBeenInteracted = false;
 }
 
-// Called when the game starts or when spawned
-void ARewardBox::BeginPlay()
+void ARewardBox::PerformInteraction()
 {
-	Super::BeginPlay();
-	
+    if (bHasBeenInteracted)
+    {
+        return;
+    }
+
+    bHasBeenInteracted = true;
+
+    OnRewardInteracted.Broadcast();
+    SetActorEnableCollision(false);
+
+    //보상을 주는 로직을 여기에 구현
+
+    this->Destroy();
 }
 
-// Called every frame
-void ARewardBox::Tick(float DeltaTime)
+void ARewardBox::ExecuteInteraction(APlayerCharacter* Interactor)
 {
-	Super::Tick(DeltaTime);
-
+    PerformInteraction();
 }
+
+FText ARewardBox::GetInteractText()
+{
+    return FText::FromString(TEXT("보상 열기[E]"));
+}
+
+
 

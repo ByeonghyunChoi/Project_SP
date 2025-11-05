@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/CombatPawn.h"
+#include "Interface/InteractableInterface.h"
 #include "PlayerCharacter.generated.h"
 
 class UWeaponSystemComponent;
@@ -9,6 +10,8 @@ class UFieldActionComponent;
 class UPlayerCombatControlComponent;
 class UInventoryComponent;
 class UEquipmentSystemComponent;
+class USphereComponent;
+class UInputAction;
 // 오파츠들
 class UCrystalSkullOparts;
 class UJadeClockOparts;
@@ -55,6 +58,38 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	TObjectPtr<UGoldBugOparts> GoldBug;
 	// ----------------------------------------
+
+	//Interaction Section
+protected:
+	//상호작용 볼륨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<USphereComponent> InteractionVolume;
+
+	//상호작용 대상
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Interaction")
+	TArray<TScriptInterface<IInteractableInterface>> OverlappedInteractables;
+
+	//상호작용 IA
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> InteractAction;
+
+	//필드 어택 IA
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> FieldAttackAction;
+
+	//상호작용 입력이 눌렸을 때 호출될 함수
+	void OnInteractInput();
+
+	//필드 공격 입력이 눌렸을 때 호출될 함수
+	void OnFieldAttackInput();
+
+	//오버랩 시작 이벤트
+	UFUNCTION()
+	void OnInteractionVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	
+	//오버랩 종료 이벤트
+	UFUNCTION()
+	void OnInteractionVolumeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
 public:
 	virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;

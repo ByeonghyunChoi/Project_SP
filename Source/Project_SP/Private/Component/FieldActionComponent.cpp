@@ -8,6 +8,7 @@
 #include "Combat/BattleTransitionManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Interface/InteractableInterface.h"
 
 // Sets default values for this component's properties
 UFieldActionComponent::UFieldActionComponent()
@@ -108,6 +109,21 @@ void UFieldActionComponent::OnAttackAnimationFinished()
         bIsAttacking = false; 
         bIsMoving = true;
     }
+}
+
+void UFieldActionComponent::PerformInteraction(IInteractableInterface* Target)
+{
+	if (Target == nullptr)
+	{
+		return;
+	}
+
+	if (OwningPlayer == nullptr)
+	{
+		return;
+	}
+
+	Target->ExecuteInteraction(OwningPlayer);
 }
 
 

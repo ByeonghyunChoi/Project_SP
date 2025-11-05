@@ -61,12 +61,19 @@ enum class EDamageFloaterType : uint8
 UENUM(BlueprintType)
 enum class EMapType : uint8
 {
-    Normal UMETA(DisplayName = "일반 맵"),
-    Epic UMETA(DisplayName = "애픽 맵"),
-    Boss UMETA(DisplayName = "보스 맵"),
-    Rest UMETA(DisplayName = "휴식 맵"),
-    Jester UMETA(DisplatName = "광대 맵"),
-    Prepare UMETA(DisplayName = "준비 맵")
+    // "일반" 등급 맵 유형
+    Rest            UMETA(DisplayName = "쉼터"),
+    NormalBattle    UMETA(DisplayName = "일반 전투"),
+
+    // "에픽" 등급 맵 유형
+    StrongEnemyBattle UMETA(DisplayName = "강적 전투"),
+    Jester            UMETA(DisplayName = "광대 맵"),
+
+    // "준비" 등급 맵 유형
+    Prepare           UMETA(DisplayName = "준비 맵"),
+
+    // "보스" 등급 맵 유형
+    BossBattle        UMETA(DisplayName = "보스 전투")
 };
 
 UENUM(BlueprintType)

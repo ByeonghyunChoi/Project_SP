@@ -10,7 +10,11 @@
 #include "Items/JadeClockOparts.h"
 #include "Items/GoldBugOparts.h"
 #include "EnhancedInputComponent.h"
+#include "InputMappingContext.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/SphereComponent.h"
+#include "Interface/InteractableInterface.h"
+#include "InputAction.h"
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -22,6 +26,8 @@ APlayerCharacter::APlayerCharacter()
 	JadeClock = CreateDefaultSubobject<UJadeClockOparts>(TEXT("JadeClockOparts"));
 	GoldBug = CreateDefaultSubobject<UGoldBugOparts>(TEXT("GoldBergOparts"));
 	EquipmentSystemComponent = CreateDefaultSubobject<UEquipmentSystemComponent>(TEXT("EquipmentSystemComp"));
+	InteractionVolume = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionVolume"));
+	InteractionVolume->SetupAttachment(RootComponent);
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
@@ -37,6 +43,9 @@ void APlayerCharacter::BeginPlay()
 
 	// 오파츠 상태 로그 출력
 	//LogOpartsActiveState();
+
+	InteractionVolume->OnComponentBeginOverlap.AddDynamic(this, &APlayerCharacter::OnInteractionVolumeBeginOverlap);
+	InteractionVolume->OnComponentEndOverlap.AddDynamic(this, &APlayerCharacter::OnInteractionVolumeEndOverlap);
 
 	// EquipmentSystemComponent가 3개의 오파츠 포인터를 참조하도록 초기화
 	if (EquipmentSystemComponent)
@@ -63,6 +72,79 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		{
 			CombatControlComponent->SetupPlayerInput(EnhancedInputComponent);
 		}
+
+		if (InteractAction)
+		{
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &APlayerCharacter::OnInteractInput);
+		}
+
+		if (FieldAttackAction)
+		{
+			EnhancedInputComponent->BindAction(FieldAttackAction, ETriggerEvent::Triggered, this, &APlayerCharacter::OnFieldAttackInput);
+		}
+	}
+}
+
+void APlayerCharacter::OnInteractInput()
+{
+	if (OverlappedInteractables.Num() > 0)
+	{
+		// 0번째 대상(가장 먼저 감지된 대상)을 가져옴
+		TScriptInterface<IInteractableInterface> Target = OverlappedInteractables[0];
+
+		// FieldActionComponent가 있는지 확인
+		if (FieldActionComp && Target)
+		{
+			// FieldActionComponent에게 "이 대상과 상호작용해"라고 로직 실행을 '요청'
+			FieldActionComp->PerformInteraction(Target.GetInterface());
+		}
+	}
+}
+
+void APlayerCharacter::OnFieldAttackInput()
+{
+	if (FieldActionComp)
+	{
+		FieldActionComp->StartAttackSequence();
+	}
+}
+
+void APlayerCharacter::OnInteractionVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && OtherActor->Implements<UInteractableInterface>())
+	{
+		// 큐(배열)의 맨 뒤에 추가
+		OverlappedInteractables.Add(OtherActor);
+
+		// [UI 로직]
+		// 만약 이 아이템이 유일한 대상(방금 0번이 됨)이라면 UI를 표시/갱신
+		// if (OverlappedInteractables.Num() == 1)
+		// {
+		//     FText InteractText = IInteractableInterface::GetInteractText(OtherActor);
+		//     // MyPlayerController->ShowInteractPrompt(InteractText);
+		// }
+	}
+}
+
+void APlayerCharacter::OnInteractionVolumeEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor && OtherActor->Implements<UInteractableInterface>())
+	{
+		// 큐(배열)에서 제거
+		OverlappedInteractables.Remove(OtherActor);
+
+		// [UI 로직]
+		// if (OverlappedInteractables.Num() > 0)
+		// {
+		//     // 다음 대상(새로운 0번)으로 UI 갱신
+		//     FText InteractText = IInteractableInterface::GetInteractText(OverlappedInteractables[0].GetObject());
+		//     // MyPlayerController->ShowInteractPrompt(InteractText);
+		// }
+		// else
+		// {
+		//     // 대상이 없으므로 UI 숨김
+		//     // MyPlayerController->HideInteractPrompt();
+		// }
 	}
 }
 

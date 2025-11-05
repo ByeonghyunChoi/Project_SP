@@ -8,6 +8,8 @@
 
 class APlayerCharacter;
 class AMonsterCharacter;
+class IInteractableInterface;
+class UBoxComponent;
 
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -31,9 +33,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FieldMode")
 	bool bIsMoving = true;
-
 	UPROPERTY()
 	TObjectPtr<APlayerCharacter> OwningPlayer;
+
 
 public:	
 	// 플레이어의 공격 입력을 받았을 때 호출됩니다.
@@ -47,6 +49,9 @@ public:
 	// 공격 애니메이션이 끝났을 때 호출됩니다.
 	UFUNCTION(BlueprintCallable, Category = "Field Action")
 	void OnAttackAnimationFinished();
+
+	//상호작용 실행 함수
+	void PerformInteraction(IInteractableInterface* Target);
 
 		
 };
