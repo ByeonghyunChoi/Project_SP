@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Map/MapManagerSubsystem.h"
@@ -13,8 +13,19 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	//¸Ê »ı¼º±â ÀÎ½ºÅÏ½º »ı¼º
+	//ë§µ ìƒì„±ê¸° ì¸ìŠ¤í„´ìŠ¤ ìƒì„±
 	MapGenerator = NewObject<UMapGraphGenerator>(this);
+
+	const FString DataTabletPath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapData.DT_MapData'");
+	MapTypeData = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTabletPath));
+	if (MapTypeData)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ë§µ ë°ì´í„° ë¡œë”© ì„±ê³µ"));
+	}
+
+	HubSpawnPointTag = "HubStart";
+	MaxStages = 3;
+	DungeonSpawnPointTag = "LogStart";
 }
 
 void UMapManagerSubsystem::StartNewRun()
@@ -34,24 +45,24 @@ void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// ÇöÀç ¸Ê ÆÄ±«
+	// í˜„ì¬ ë§µ íŒŒê´´
 	if (CurrentMapActorInstance)
 	{
 		CurrentMapActorInstance->Destroy();
 		CurrentMapActorInstance = nullptr;
 	}
 
-	// ¸Ê µ¥ÀÌÅÍ ÃÊ±âÈ­
+	// ë§µ ë°ì´í„° ì´ˆê¸°í™”
 	GraphRoot = nullptr;
 	CurrentNode = nullptr;
 	ClearedNodeIDs.Empty();
 	CurrentStage = 1;
 
-	// ÇÃ·¹ÀÌ¾î Æù Ã£±â
+	// í”Œë ˆì´ì–´ í° ì°¾ê¸°
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
 	APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn);
 
-	// Çãºê ½ºÆù ÁöÁ¡(ATargetPoint) Ã£±â
+	// í—ˆë¸Œ ìŠ¤í° ì§€ì (ATargetPoint) ì°¾ê¸°
 	AActor* HubSpawnPoint = nullptr;
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), HubSpawnPointTag, FoundActors);
@@ -63,7 +74,7 @@ void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 
 	if (Player && HubSpawnPoint)
 	{
-		// 3. ÅÚ·¹Æ÷Æ®
+		// 3. í…”ë ˆí¬íŠ¸
 		FVector Location = HubSpawnPoint->GetActorLocation();
 		FRotator Rotation = HubSpawnPoint->GetActorRotation();
 		PlayerPawn->SetActorLocationAndRotation(Location, Rotation);
@@ -76,60 +87,75 @@ void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 	
 	if (!TargetNode)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Æ÷Å»ÀÌ ¾ø½À´Ï´Ù."));
+		UE_LOG(LogTemp, Log, TEXT("í¬íƒˆì´ ì—†ìŠµë‹ˆë‹¤."));
 		return;
 	}
 
 	if (!MapTypeData)
 	{
-		UE_LOG(LogTemp, Log, TEXT("¸Ê Å¸ÀÔÀÌ ¾ø½À´Ï´Ù."));
+		UE_LOG(LogTemp, Log, TEXT("ë§µ íƒ€ì…ì´ ì—†ìŠµë‹ˆë‹¤."));
 		return;
 	}
 
 	if (!World)
 	{
-		UE_LOG(LogTemp, Log, TEXT("¿ùµå¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù."));
+		UE_LOG(LogTemp, Log, TEXT("ì›”ë“œë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤."));
 		return;
 	}
 
-	//ÇöÀç ¸Ê ÆÄ±«
+	//í˜„ì¬ ë§µ íŒŒê´´
 	if (CurrentMapActorInstance)
 	{
 		CurrentMapActorInstance->Destroy();
 		CurrentMapActorInstance = nullptr;
 	}
 
-	//»óÅÂ °»½Å
+	//ìƒíƒœ ê°±ì‹ 
 	if (CurrentNode)
 	{
-		ClearedNodeIDs.Add(CurrentNode->NodeID); // ÀÌÀü ³ëµå¸¦ Å¬¸®¾î Ã³¸®
+		ClearedNodeIDs.Add(CurrentNode->NodeID); // ì´ì „ ë…¸ë“œë¥¼ í´ë¦¬ì–´ ì²˜ë¦¬
 	}
-	CurrentNode = TargetNode; // ÇöÀç À§Ä¡¸¦ Å¸°Ù ³ëµå·Î º¯°æ
+	CurrentNode = TargetNode; // í˜„ì¬ ìœ„ì¹˜ë¥¼ íƒ€ê²Ÿ ë…¸ë“œë¡œ ë³€ê²½
 
-	//¸Ê Å¸ÀÔ¿¡ ¸Â´Â ¸Ê ¾×ÅÍ Ã£±â
+	//ë§µ íƒ€ì…ì— ë§ëŠ” ë§µ ì•¡í„° ì°¾ê¸°
 	const FName RowName = UEnum::GetValueAsName(CurrentNode->MapType);
 	FMapDataRow* Row = MapTypeData->FindRow<FMapDataRow>(RowName, TEXT(""));
 	if (!Row || !Row->MapClass)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapTypeData¿¡ '%s' Å¸ÀÔÀÌ Á¤ÀÇµÇÁö ¾Ê¾Ò½À´Ï´Ù!"), *RowName.ToString());
-		// ¾ÈÀüÀåÄ¡·Î ±âº» ¸Ê ½ºÆù
+		UE_LOG(LogTemp, Error, TEXT("MapManager: MapTypeDataì— '%s' íƒ€ì…ì´ ì •ì˜ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤!"), *RowName.ToString());
+		// ì•ˆì „ì¥ì¹˜ë¡œ ê¸°ë³¸ ë§µ ìŠ¤í°
 		return;
 	}
 	TSubclassOf<AMapBase> ClassToSpawn = Row->MapClass;
 
-	//»õ ¸Ê ¾×ÅÍ ½ºÆù
-	CurrentMapActorInstance = World->SpawnActor<AMapBase>(ClassToSpawn, FVector::ZeroVector, FRotator::ZeroRotator);
+	//ìŠ¤í° ìœ„ì¹˜ ì„¤ì •
+	FVector SpawnLocation = FVector::ZeroVector;
+	FRotator SpawnRotation = FRotator::ZeroRotator;
+
+	AActor* DungeonSpawnPoint = nullptr;
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), DungeonSpawnPointTag, FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		DungeonSpawnPoint = FoundActors[0];
+		SpawnLocation = DungeonSpawnPoint->GetActorLocation();
+		SpawnRotation = DungeonSpawnPoint->GetActorRotation();
+	}
+
+	//ìƒˆ ë§µ ì•¡í„° ìŠ¤í°
+	CurrentMapActorInstance = World->SpawnActor<AMapBase>(ClassToSpawn, SpawnLocation, SpawnRotation);
 	if (!CurrentMapActorInstance)
 	{
-		UE_LOG(LogTemp, Fatal, TEXT("MapManager: ¸Ê ½ºÆù¿¡ Ä¡¸íÀûÀÎ ½ÇÆĞ°¡ ¹ß»ıÇß½À´Ï´Ù!"));
+		UE_LOG(LogTemp, Fatal, TEXT("MapManager: ë§µ ìŠ¤í°ì— ì¹˜ëª…ì ì¸ ì‹¤íŒ¨ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤!"));
 		return;
 	}
 
-	//µ¥ÀÌÅÍ Àü´Ş
+	//ë°ì´í„° ì „ë‹¬
 	CurrentMapActorInstance->SetMapType(CurrentNode->MapType);
 	CurrentMapActorInstance->InitializeNextNodes(CurrentNode->ChildNodes);
 
-	//ÇÃ·¹ÀÌ¾î ÀÌµ¿
+	//í”Œë ˆì´ì–´ ì´ë™
 	APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0);
 	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(Pawn);
 	if (PlayerCharacter)
@@ -139,7 +165,7 @@ void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 		PlayerCharacter->SetActorLocationAndRotation(StartLocation, StartRotation);
 	}
 
-	//»õ ¸ÊÀÇ ·ÎÁ÷ ½ÃÀÛ
+	//ìƒˆ ë§µì˜ ë¡œì§ ì‹œì‘
 	CurrentMapActorInstance->BeginMapLogic();
 }
 
@@ -147,17 +173,17 @@ void UMapManagerSubsystem::GoToNextStage()
 {
 	CurrentStage++;
 
-	//¸¶Áö¸· º¸½º¸¦ Å¬¸®¾î Çß´Ù¸é °ÔÀÓ ½ÃÀÛ ¸ÊÀ¸·Î ÀÌµ¿
+	//ë§ˆì§€ë§‰ ë³´ìŠ¤ë¥¼ í´ë¦¬ì–´ í–ˆë‹¤ë©´ ê²Œì„ ì‹œì‘ ë§µìœ¼ë¡œ ì´ë™
 	if (CurrentStage > MaxStages)
 	{
 		ReturnToHub(true); 
 		return;
 	}
 
-	// ´ÙÀ½ ½ºÅ×ÀÌÁö ¸Ê ±×·¡ÇÁ »ı¼º
+	// ë‹¤ìŒ ìŠ¤í…Œì´ì§€ ë§µ ê·¸ë˜í”„ ìƒì„±
 	GenerateNewStageGraph();
 
-	//·çÆ® ¸ÊÀ¸·Î ÀÌµ¿(2-1, 3-1)
+	//ë£¨íŠ¸ ë§µìœ¼ë¡œ ì´ë™(2-1, 3-1)
 	TravelToNode(GraphRoot);
 }
 
@@ -165,10 +191,10 @@ void UMapManagerSubsystem::GenerateNewStageGraph()
 {
 	if (!MapGenerator)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapGenerator°¡ NullÀÔ´Ï´Ù!"));
+		UE_LOG(LogTemp, Error, TEXT("MapManager: MapGeneratorê°€ Nullì…ë‹ˆë‹¤!"));
 		return;
 	}
 
-	//ÇöÀç ½ºÅ×ÀÌÁö¸¦ ¾Ë·ÁÁÖ°í ¸Ê ±×·¡ÇÁ »ı¼ºÀ» ¿äÃ»
+	//í˜„ì¬ ìŠ¤í…Œì´ì§€ë¥¼ ì•Œë ¤ì£¼ê³  ë§µ ê·¸ë˜í”„ ìƒì„±ì„ ìš”ì²­
 	GraphRoot = MapGenerator->GenerateStageGraph(this, CurrentStage);
 }

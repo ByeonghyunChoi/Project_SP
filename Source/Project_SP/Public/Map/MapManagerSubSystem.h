@@ -53,19 +53,10 @@ public:
 	void GoToNextStage();
 
 protected:
-	//맵 타입과 맵 데이터 구조체를 연결하는 함수
-	UPROPERTY(EditDefaultsOnly, Category = "Map Config")
+	//로드된 데이터 테이블을 저장할 실제 포인터
+	UPROPERTY(Transient)
 	TObjectPtr<UDataTable> MapTypeData;
 
-	//게임 시작 맵(레벨) 이름
-	UPROPERTY(EditDefaultsOnly, Category = "Map Config")
-	FName HubSpawnPointTag = "HubStart";
-
-	//스테이지 수
-	UPROPERTY(EditDefaultsOnly, Category = "Map Config")
-	int32 MaxStages = 3;
-
-protected:
 	//맵 그래프 생성기 인스턴스
 	UPROPERTY()
 	TObjectPtr<UMapGraphGenerator> MapGenerator;
@@ -93,4 +84,10 @@ protected:
 private:
 	//새 스테이지 그래프를 생성하고 루트를 설정하는 함수
 	void GenerateNewStageGraph();
+	//게임 시작 맵(레벨) 이름
+	FName HubSpawnPointTag;
+	//스테이지 수
+	int32 MaxStages; 
+	//로그라이크 맵 스폰 위치
+	FName DungeonSpawnPointTag;
 };

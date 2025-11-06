@@ -5,7 +5,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Map/MapNode.h"
-#include "Map/MapManagerSubSystem.h"
+#include "Map/MapManagerSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Character/PlayerCharacter.h"
 
@@ -24,11 +24,14 @@ APortalActor::APortalActor()
 
 	InfoWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InfoWidget"));
 	InfoWidget->SetupAttachment(RootComponent);
+
+	
 }
 
 void APortalActor::InitializePortalData(UMapNode* NodeData)
 {
 	TargetNodeData = NodeData;
+	bIsStageExitPortal = false;
 
 	if (TargetNodeData)
 	{
@@ -40,6 +43,17 @@ void APortalActor::InitializePortalData(UMapNode* NodeData)
 	}
 }
 
+void APortalActor::ActivateAsStageExitPortal()
+{
+	TargetNodeData = nullptr;
+	bIsStageExitPortal = true;
+
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+
+	UpdatePortalWidget();
+}
+
 void APortalActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
@@ -48,19 +62,26 @@ void APortalActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AAct
 		return;
 	}
 
-	if (TargetNodeData)
+	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+	if (!MapManager)
 	{
-		UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
-		if (MapManager)
-		{
-			MapManager->TravelToNode(TargetNodeData);
-			SetActorEnableCollision(false);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Log, TEXT("MapManager를 찾을 수 없습니다."));
-		}
+		UE_LOG(LogTemp, Log, TEXT("MapManager를 찾을 수 없습니다."));
+		return;
+	}
+	
+	if (bIsStageExitPortal)
+	{
+		// 1. 스테이지 출구 포탈인 경우 (보스 맵 클리어)
+		MapManager->GoToNextStage();
+		SetActorEnableCollision(false);
+	}
+	else if (TargetNodeData)
+	{
+		// 2. 일반 노드 포탈인 경우
+		MapManager->TravelToNode(TargetNodeData);
+		SetActorEnableCollision(false);
 	}
 }
+
 
 

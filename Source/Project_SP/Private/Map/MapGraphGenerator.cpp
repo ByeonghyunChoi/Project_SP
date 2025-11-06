@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Map/MapGraphGenerator.h"
@@ -8,37 +8,37 @@ UMapNode* UMapGraphGenerator::GenerateStageGraph(UObject* Outer, int32 StageNumb
 {
 	if (!Outer)
 	{
-		UE_LOG(LogTemp, Log, TEXT("MapGeneratorÀÇ ¼ÒÀ¯ÀÚ°¡ ¾ø½À´Ï´Ù."));
+		UE_LOG(LogTemp, Log, TEXT("MapGeneratorì˜ ì†Œìœ ìê°€ ì—†ìŠµë‹ˆë‹¤."));
 		return nullptr;
 	}
 
-	//¸ÊÀÇ ¸ğµç ³ëµå¸¦ Ãşº°·Î ÀúÀåÇÒ TMapÀÚ·á±¸Á¶
+	//ë§µì˜ ëª¨ë“  ë…¸ë“œë¥¼ ì¸µë³„ë¡œ ì €ì¥í•  TMapìë£Œêµ¬ì¡°
 	TMap<int32, TArray<UMapNode*>> AllNodesByLayer;
-	//ÃÑ 10°³ÀÇ Ãş
+	//ì´ 10ê°œì˜ ì¸µ
 	AllNodesByLayer.Reserve(10);
 
-	//°¢ ½ºÅ×ÀÌÁöÀÇ 1¹øÂ° ¸ÊÀº ÀÏ¹İ ÀüÅõ¸Ê °íÁ¤
+	//ê° ìŠ¤í…Œì´ì§€ì˜ 1ë²ˆì§¸ ë§µì€ ì¼ë°˜ ì „íˆ¬ë§µ ê³ ì •
 	UMapNode* RootNode = NewObject<UMapNode>(Outer);
 	RootNode->InitializeNode(EMapType::NormalBattle, 0);
 	AllNodesByLayer.Add(0, TArray<UMapNode*>{RootNode});
 
-	//ÀÌÀü ¸Ê ³ëµå¸¦ ºÎ¸ğ·Î ÇÏ¿© ÀÚ½Äµé ¸Ê »ı¼º ½ÃÀÛ
+	//ì´ì „ ë§µ ë…¸ë“œë¥¼ ë¶€ëª¨ë¡œ í•˜ì—¬ ìì‹ë“¤ ë§µ ìƒì„± ì‹œì‘
 	GenerateChildrenRecursive(Outer, RootNode, 0, AllNodesByLayer);
 
-	//°¢ ½ºÅ×ÀÌÁöÀÇ 8Ãş ÁØºñ¸Ê ³ëµå »ı¼º
+	//ê° ìŠ¤í…Œì´ì§€ì˜ 8ì¸µ ì¤€ë¹„ë§µ ë…¸ë“œ ìƒì„±
 	UMapNode* PrepareNode = NewObject<UMapNode>(Outer);
 	PrepareNode->InitializeNode(EMapType::Prepare, 8);
 	AllNodesByLayer.Add(8, TArray<UMapNode*>{PrepareNode});
 
-	//°¢ ½ºÅ×ÀÌÁöÀÇ 9Ãş º¸½º¸Ê ³ëµå »ı¼º
+	//ê° ìŠ¤í…Œì´ì§€ì˜ 9ì¸µ ë³´ìŠ¤ë§µ ë…¸ë“œ ìƒì„±
 	UMapNode* BossNode = NewObject<UMapNode>(Outer);
 	BossNode->InitializeNode(EMapType::BossBattle, 9);
 	AllNodesByLayer.Add(9, TArray<UMapNode*>{BossNode});
 
-	//8Ãş¿¡¼­ 9Ãş ´ÜÀÏ ¿¬°á
+	//8ì¸µì—ì„œ 9ì¸µ ë‹¨ì¼ ì—°ê²°
 	PrepareNode->AddChildNode(BossNode);
 
-	//7Ãş¿¡¼­ 8Ãş(ÁØºñ ¸Ê)À¸·Î °­Á¦ ÇÕ·ù
+	//7ì¸µì—ì„œ 8ì¸µ(ì¤€ë¹„ ë§µ)ìœ¼ë¡œ ê°•ì œ í•©ë¥˜
 	if (AllNodesByLayer.Contains(7))
 	{
 		for (UMapNode* NodeInLayer7 : AllNodesByLayer[7])
@@ -47,13 +47,13 @@ UMapNode* UMapGraphGenerator::GenerateStageGraph(UObject* Outer, int32 StageNumb
 		}
 	}
 
-	//½ÃÀÛ ³ëµå ¹İÈ¯
+	//ì‹œì‘ ë…¸ë“œ ë°˜í™˜
 	return RootNode;
 }
 
 void UMapGraphGenerator::GenerateChildrenRecursive(UObject* Outer, UMapNode* ParentNode, int32 CurrentLayer, TMap<int32, TArray<UMapNode*>>& AllNodesByLayer)
 {
-	// 7Ãş¿¡ µµ´ŞÇÏ¸é Àç±Í »ı¼º Á¾·á
+	// 7ì¸µì— ë„ë‹¬í•˜ë©´ ì¬ê·€ ìƒì„± ì¢…ë£Œ
 	if (CurrentLayer >= 7) 
 	{
 		return;
@@ -61,10 +61,10 @@ void UMapGraphGenerator::GenerateChildrenRecursive(UObject* Outer, UMapNode* Par
 
 	int32 NextLayer = CurrentLayer + 1;
 
-	//´ÙÀ½ Ãş¿¡ »ı¼ºÇØ¾ß ÇÒ ¸Ê Å¸ÀÔ ¸ñ·ÏÀ» °¡Á®¿È.
+	//ë‹¤ìŒ ì¸µì— ìƒì„±í•´ì•¼ í•  ë§µ íƒ€ì… ëª©ë¡ì„ ê°€ì ¸ì˜´.
 	TArray<EMapType> TypesForNextLayer = GetMapTypesForNextLayer(NextLayer);
 
-	//ÇØ´ç Å¸ÀÔµé·Î ÀÚ½Ä ³ëµå¸¦ »ı¼ºÇÏ°í ºÎ¸ğ¿¡ ¿¬°á
+	//í•´ë‹¹ íƒ€ì…ë“¤ë¡œ ìì‹ ë…¸ë“œë¥¼ ìƒì„±í•˜ê³  ë¶€ëª¨ì— ì—°ê²°
 	for (EMapType ChildType : TypesForNextLayer)
 	{
 		UMapNode* NewChildNode = NewObject<UMapNode>(Outer);
@@ -79,7 +79,7 @@ TArray<EMapType> UMapGraphGenerator::GetMapTypesForNextLayer(int32 NextLayerInde
 {
 	switch (NextLayerIndex)
 	{
-		//3¹øÂ°, 6¹øÂ° ¸Ê¿¡¼­ °­Àû, ±¤´ë ¸ÊÀÌ È®Á¤ÀûÀ¸·Î °¢°¢ ¿¬°á(¼ø¼­¸¸ ´Ù¸£°Ô ¼³Á¤)
+		//3ë²ˆì§¸, 6ë²ˆì§¸ ë§µì—ì„œ ê°•ì , ê´‘ëŒ€ ë§µì´ í™•ì •ì ìœ¼ë¡œ ê°ê° ì—°ê²°(ìˆœì„œë§Œ ë‹¤ë¥´ê²Œ ì„¤ì •)
 		case 2:
 		case 5:
 		{
@@ -90,7 +90,7 @@ TArray<EMapType> UMapGraphGenerator::GetMapTypesForNextLayer(int32 NextLayerInde
 			return { EMapType::Jester, EMapType::StrongEnemyBattle };
 		}
 
-		// ÀÏ¹İ ¸Ê¿¡¼­ 9:1ºñÀ²·Î ÀÏ¹İ ÀüÅõ, ÈŞ½Ä ¸Ê »ı¼º
+		// ì¼ë°˜ ë§µì—ì„œ 9:1ë¹„ìœ¨ë¡œ ì¼ë°˜ ì „íˆ¬, íœ´ì‹ ë§µ ìƒì„±
 		case 1:
 		case 3:
 		case 4:
@@ -107,7 +107,7 @@ TArray<EMapType> UMapGraphGenerator::GetMapTypesForNextLayer(int32 NextLayerInde
 
 			return NormalChoices;
 		}
-		//1¹øÂ°, 9¹øÂ°, 10¹øÂ° ¸ÊÀº °íÁ¤ ¸ÊÀÌ±â ‹š¹®¿¡ GetMapTypesForNextLayerÇÔ¼ö·Î ¿¬°áµÇÁö ¾ÊÀ½
+		//1ë²ˆì§¸, 9ë²ˆì§¸, 10ë²ˆì§¸ ë§µì€ ê³ ì • ë§µì´ê¸° ë–„ë¬¸ì— GetMapTypesForNextLayerí•¨ìˆ˜ë¡œ ì—°ê²°ë˜ì§€ ì•ŠìŒ
 		default:
 			return { EMapType::NormalBattle, EMapType::NormalBattle };
 	}

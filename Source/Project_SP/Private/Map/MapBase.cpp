@@ -27,7 +27,7 @@ void AMapBase::BeginPlay()
 	{
 		if (Portal)
 		{
-			Portal->SetActorHiddenInGame(false);
+			Portal->SetActorHiddenInGame(true);
 			Portal->SetActorEnableCollision(false);
 		}
 	}
@@ -53,12 +53,10 @@ void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
 void AMapBase::ActivatePortals()
 {
 	SetMapState(EMapState::Cleard);
-	if (NextNodeOptions.Num() != PortalActors.Num())
-	{
-		return;
-	}
 
-	for (int32 i = 0; i < PortalActors.Num(); ++i)
+	int32 NumToActivate = FMath::Min(NextNodeOptions.Num(), PortalActors.Num());
+	
+	for (int32 i = 0; i < NumToActivate; ++i)
 	{
 		APortalActor* Portal = PortalActors[i];
 		UMapNode* NodeData = NextNodeOptions[i];
@@ -67,6 +65,14 @@ void AMapBase::ActivatePortals()
 		{
 			Portal->SetActorEnableCollision(true);
 			Portal->InitializePortalData(NodeData);
+
+			if (Portal && NodeData)
+			{
+				// [추가] 포탈을 다시 화면에 보이게 합니다.
+				Portal->SetActorHiddenInGame(false);
+				Portal->SetActorEnableCollision(true);
+				Portal->InitializePortalData(NodeData);
+			}
 		}
 	}
 }

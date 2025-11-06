@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Ôªø// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Map/RewardBox.h"
@@ -25,7 +25,7 @@ void ARewardBox::PerformInteraction()
     OnRewardInteracted.Broadcast();
     SetActorEnableCollision(false);
 
-    //∫∏ªÛ¿ª ¡÷¥¬ ∑Œ¡˜¿ª ø©±‚ø° ±∏«ˆ
+    //Î≥¥ÏÉÅÏùÑ Ï£ºÎäî Î°úÏßÅÏùÑ Ïó¨Í∏∞Ïóê Íµ¨ÌòÑ
 
     this->Destroy();
 }
@@ -37,7 +37,7 @@ void ARewardBox::ExecuteInteraction(APlayerCharacter* Interactor)
 
 FText ARewardBox::GetInteractText()
 {
-    return FText::FromString(TEXT("∫∏ªÛ ø≠±‚[E]"));
+    return FText::FromString(TEXT("Î≥¥ÏÉÅ Ïó¥Í∏∞[E]"));
 }
 
 

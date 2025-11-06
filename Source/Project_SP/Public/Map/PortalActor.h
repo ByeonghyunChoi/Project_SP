@@ -37,9 +37,17 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Portal Logic")
 	TObjectPtr<UMapNode> TargetNodeData;
 
+	//다음 스테이지로 가는 포탈인지 확인
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Portal Logic")
+	bool bIsStageExitPortal = false;
+
 public:
 	//포탈에 맵 데이터와 UI데이터 갱신 함수
 	void InitializePortalData(UMapNode* NodeData);
+
+	//스테이지 이동 포탈 설정 함수
+	UFUNCTION(BlueprintCallable, Category = "Portal Logic")
+	void ActivateAsStageExitPortal();
 
 protected:
 	//블루프린트에서 갱신된 데이터를 기반으로 UI에 아이콘을 표시해주는 함수(BP에서 재사용해서 사용)

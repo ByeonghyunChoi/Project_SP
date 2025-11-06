@@ -75,7 +75,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 		if (InteractAction)
 		{
-			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &APlayerCharacter::OnInteractInput);
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &APlayerCharacter::OnInteractInput);
 		}
 
 		if (FieldAttackAction)
@@ -87,6 +87,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void APlayerCharacter::OnInteractInput()
 {
+	UE_LOG(LogTemp, Warning, TEXT("=== 1. OnInteractInput() 호출됨! (키 눌림) ==="));
 	if (OverlappedInteractables.Num() > 0)
 	{
 		// 0번째 대상(가장 먼저 감지된 대상)을 가져옴
@@ -111,8 +112,10 @@ void APlayerCharacter::OnFieldAttackInput()
 
 void APlayerCharacter::OnInteractionVolumeBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	UE_LOG(LogTemp, Warning, TEXT("=== 2. Overlap 감지됨!: %s ==="), *OtherActor->GetName());
 	if (OtherActor && OtherActor->Implements<UInteractableInterface>())
 	{
+		UE_LOG(LogTemp, Warning, TEXT("=== 3. 인터페이스 확인! 배열에 추가: %s ==="), *OtherActor->GetName());
 		// 큐(배열)의 맨 뒤에 추가
 		OverlappedInteractables.Add(OtherActor);
 
