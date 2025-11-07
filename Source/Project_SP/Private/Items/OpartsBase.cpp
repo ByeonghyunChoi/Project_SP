@@ -161,7 +161,7 @@ void UOpartsBase::LevelUpOparts()
 	CalculateMaterial.Broadcast();
 }
 
-// 아티팩트 해금 함수 나중에 더 추가
+// 아티팩트 해금 함수 (UI에 적용할때 Unlock함수를 실행 버튼에 옮겨놓고 눌러서 실행이 되면 브로드캐스트 알림을 받고 알림을 받으면 UI에 해금된 아티팩트 표시 오파츠 마다 개인 설정 필요)
 void UOpartsBase::UnlockArtifact()
 {
 	// 1. 최대 해금 횟수 체크 (5개 해금 완료 시)
