@@ -1,7 +1,7 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Combat/BattleTransitionManager.h"
+#include "Combat/BattleTransitionManagerSubsystem.h"
 #include "Animation/UMGSequencePlayer.h"
 #include "Engine/LevelStreaming.h"
 #include "Character/PlayerCharacter.h"
@@ -17,8 +17,9 @@
 #include "Character/MyPlayerController.h"
 #include "Character/MonsterCharacter.h"
 #include "Combat/MonsterGroupObject.h"
+#include "Map/MapManagerSubSystem.h"
 
-UBattleTransitionManager::UBattleTransitionManager()
+UBattleTransitionManagerSubsystem::UBattleTransitionManagerSubsystem()
 {
 	static ConstructorHelpers::FClassFinder<UUserWidget> TransitionWidgetRef(TEXT("/Game/Battle/HUD/WBP_BattleTransition.WBP_BattleTransition_C"));
 	if (TransitionWidgetRef.Succeeded())
@@ -27,7 +28,7 @@ UBattleTransitionManager::UBattleTransitionManager()
 	}
 }
 
-void UBattleTransitionManager::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup)
+void UBattleTransitionManagerSubsystem::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup)
 {
 	bLevelStreamingComplete = false;
 	bAllPreparationsComplete = false;
@@ -71,13 +72,13 @@ void UBattleTransitionManager::RequestEnterBattle(APlayerCharacter* Player, UMon
 	StartLoadingBattleMap();
 }
 
-void UBattleTransitionManager::OnFadeInAnimationFinished()
+void UBattleTransitionManagerSubsystem::OnFadeInAnimationFinished()
 {
 	// FadeIn 애니메이션이 끝났으므로, 안전하게 레벨 로딩을 시작합니다.
 	StartLoadingBattleMap();
 }
 
-void UBattleTransitionManager::StartLoadingBattleMap()
+void UBattleTransitionManagerSubsystem::StartLoadingBattleMap()
 {
 	if (PlayerCharacterRef)
 	{
@@ -91,10 +92,10 @@ void UBattleTransitionManager::StartLoadingBattleMap()
 	UGameplayStatics::LoadStreamLevel(this, BattleArenaMapName, true, true, FLatentActionInfo());
 
 	// 로딩이 끝났는지 0.1초마다 확인하는 타이머를 시작합니다.
-	GetWorld()->GetTimerManager().SetTimer(LevelStreamingCheckTimer, this, &UBattleTransitionManager::CheckLevelStreamingStatus, 0.1f, true);
+	GetWorld()->GetTimerManager().SetTimer(LevelStreamingCheckTimer, this, &UBattleTransitionManagerSubsystem::CheckLevelStreamingStatus, 0.1f, true);
 }
 
-void UBattleTransitionManager::CheckLevelStreamingStatus()
+void UBattleTransitionManagerSubsystem::CheckLevelStreamingStatus()
 {
 	ULevelStreaming* StreamingLevel = UGameplayStatics::GetStreamingLevel(this, BattleArenaMapName);
 	if (StreamingLevel && StreamingLevel->IsLevelLoaded() && StreamingLevel->IsLevelVisible())
@@ -105,7 +106,7 @@ void UBattleTransitionManager::CheckLevelStreamingStatus()
 }
 
 
-void UBattleTransitionManager::OnBattleArenaConfirmed()
+void UBattleTransitionManagerSubsystem::OnBattleArenaConfirmed()
 {
 	UE_LOG(LogTemp, Error, TEXT("[FLOW 3] Battle Arena level is confirmed to be LOADED and VISIBLE."));
 	bLevelStreamingComplete = true;
@@ -125,7 +126,7 @@ void UBattleTransitionManager::OnBattleArenaConfirmed()
 	}
 }
 
-void UBattleTransitionManager::NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
+void UBattleTransitionManagerSubsystem::NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
 {
 	UE_LOG(LogTemp, Error, TEXT("[FLOW 6] Received notification that battle is ready. Starting final transition..."));
 	bAllPreparationsComplete = true;
@@ -136,7 +137,7 @@ void UBattleTransitionManager::NotifyBattleReady(const TArray<ACombatPawn*>& Pla
 	CheckAndFinalizeTransition();
 }
 
-void UBattleTransitionManager::CheckAndFinalizeTransition()
+void UBattleTransitionManagerSubsystem::CheckAndFinalizeTransition()
 {
 	if (bLevelStreamingComplete && bAllPreparationsComplete)
 	{
@@ -158,11 +159,11 @@ void UBattleTransitionManager::CheckAndFinalizeTransition()
 		}
 
 		FTimerHandle TimerHandle;
-		GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &UBattleTransitionManager::FinalizeBattleStart, FadeOutDuration, false);
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &UBattleTransitionManagerSubsystem::FinalizeBattleStart, FadeOutDuration, false);
 	}
 }
 
-void UBattleTransitionManager::FinalizeBattleStart()
+void UBattleTransitionManagerSubsystem::FinalizeBattleStart()
 {
 	UE_LOG(LogTemp, Error, TEXT("[FLOW 7] Finalizing... Calling BattleManager->StartBattle() NOW!"));
 
@@ -186,13 +187,13 @@ void UBattleTransitionManager::FinalizeBattleStart()
 	}
 }
 
-void UBattleTransitionManager::RequestExitBattle(bool bPlayerWon)
+void UBattleTransitionManagerSubsystem::RequestExitBattle(bool bPlayerWon)
 {
 	bPlayerWonLastBattle = bPlayerWon;
 	UnloadBattleMap();
 }
 
-void UBattleTransitionManager::UnloadBattleMap()
+void UBattleTransitionManagerSubsystem::UnloadBattleMap()
 {
 	if (PlayerCharacterRef)
 	{
@@ -207,26 +208,8 @@ void UBattleTransitionManager::UnloadBattleMap()
 	UGameplayStatics::UnloadStreamLevel(this, BattleArenaMapName, LatentInfo, false);
 }
 
-void UBattleTransitionManager::OnBattleArenaUnloaded()
+void UBattleTransitionManagerSubsystem::OnBattleArenaUnloaded()
 {
-	if (bPlayerWonLastBattle && MonsterGroupToBattle)
-	{
-		TArray<AActor*> FoundMonsters;
-		// 2. 현재 월드(필드)에 있는 모든 몬스터 캐릭터를 찾습니다.
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMonsterCharacter::StaticClass(), FoundMonsters);
-
-		for (AActor* Actor : FoundMonsters)
-		{
-			AMonsterCharacter* Monster = Cast<AMonsterCharacter>(Actor);
-			// 3. 몬스터가 우리가 싸웠던 '그 몬스터 그룹'에 속해있는지 확인합니다.
-			if (Monster && Monster->GetCombatMonsterGroup() == MonsterGroupToBattle)
-			{
-				// 4. 일치하면 필드에서 몬스터를 파괴합니다.
-				Monster->Destroy();
-			}
-		}
-	}
-
 	if (PlayerCharacterRef)
 	{
 		PlayerCharacterRef->SetActorLocation(LastFieldLocation); 
@@ -241,8 +224,18 @@ void UBattleTransitionManager::OnBattleArenaUnloaded()
 			MyPC->SetFieldInputMode();
 		}
 	}
+	//전투 결과 알려줌
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->NotifyCombatFinished(bPlayerWonLastBattle);
+	}
+
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 	{
 		PC->SetViewTargetWithBlend(PlayerCharacterRef.Get(), 0.0f);
 	}
+
+	CachedPlayerParty.Empty();
+	CachedEnemyParty.Empty();
+	MonsterGroupToBattle = nullptr;
 }

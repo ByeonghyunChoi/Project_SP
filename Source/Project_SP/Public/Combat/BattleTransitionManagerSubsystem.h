@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "BattleTransitionManager.generated.h"
+#include "BattleTransitionManagerSubsystem.generated.h"
 
 class APlayerCharacter;
 class UMonsterGroupObject;
@@ -12,12 +12,12 @@ class UUserWidget;
 class ACombatPawn;
 
 UCLASS(Blueprintable, BlueprintType, Config = Game)
-class PROJECT_SP_API UBattleTransitionManager : public UGameInstanceSubsystem
+class PROJECT_SP_API UBattleTransitionManagerSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	UBattleTransitionManager();
+	UBattleTransitionManagerSubsystem();
 	void RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup);
 	void RequestExitBattle(bool bPlayerWon);
 	void NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);

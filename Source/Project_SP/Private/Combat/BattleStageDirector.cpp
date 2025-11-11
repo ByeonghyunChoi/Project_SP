@@ -4,7 +4,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Component/CombatCameraComponent.h"
-#include "Combat/BattleTransitionManager.h"
+#include "Combat/BattleTransitionManagerSubsystem.h"
 #include "Character/PlayerCharacter.h"
 #include "Character/MonsterCharacter.h"
 #include "Combat/MonsterGroupObject.h"
@@ -91,7 +91,7 @@ void ABattleStageDirector::OnAssetsLoaded()
 
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
-		if (UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>())
+		if (UBattleTransitionManagerSubsystem* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManagerSubsystem>())
 		{
 			UE_LOG(LogTemp, Error, TEXT("[BSD LOG 4] SUCCESS! Notifying BattleTransitionManager that all is ready!"));
 			TransitionManager->NotifyBattleReady(PlayerParty, EnemyParty);

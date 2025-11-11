@@ -52,6 +52,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Map Manager")
 	void GoToNextStage();
 
+	//전투 결과를 현재 맵에 넘겨주는 함수
+	UFUNCTION(BlueprintCallable, Category = "Map Manager")
+	void NotifyCombatFinished(bool bPlayerWon);
+
 protected:
 	//로드된 데이터 테이블을 저장할 실제 포인터
 	UPROPERTY(Transient)

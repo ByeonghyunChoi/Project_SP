@@ -211,6 +211,15 @@ void UMapManagerSubsystem::GoToNextStage()
 	TravelToNode(GraphRoot);
 }
 
+void UMapManagerSubsystem::NotifyCombatFinished(bool bPlayerWon)
+{
+	if (CurrentMapActorInstance)
+	{
+		// 현재 스폰된 맵 액터(예: BP_NormalMap)의 OnCombatFinished 이벤트를 호출
+		CurrentMapActorInstance->OnCombatFinished(bPlayerWon);
+	}
+}
+
 void UMapManagerSubsystem::GenerateNewStageGraph()
 {
 	if (!MapGenerator)

@@ -13,7 +13,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Character/MyPlayerController.h"
 #include "TimerManager.h"
-#include "Combat/BattleTransitionManager.h"
+#include "Combat/BattleTransitionManagerSubsystem.h"
 #include "Component/PlayerCombatControlComponent.h"
 #include "Component/StatusEffectComponent.h"
 #include "SubSystem/TimeForceSubsystem.h"
@@ -104,6 +104,10 @@ void ABattleManager::EndBattle()
 	CurrentBattleState = EBattleState::Ended;
 	TurnStack.Empty();
 	SetActorTickEnabled(false);
+
+	AllCombatants.Empty();
+	PlayerControlComponents.Empty();
+	ClearTaskQueue();
 
 	GetWorldTimerManager().SetTimer(
 		BattleEndTimerHandle,
@@ -485,7 +489,7 @@ void ABattleManager::TriggerFieldTransition()
 {
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
-		if (UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>())
+		if (UBattleTransitionManagerSubsystem* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManagerSubsystem>())
 		{
 			TransitionManager->RequestExitBattle(bPlayerWonBattle);
 		}
