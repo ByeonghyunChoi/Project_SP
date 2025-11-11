@@ -16,6 +16,7 @@
 #include "Combat/BattleTransitionManager.h"
 #include "Component/PlayerCombatControlComponent.h"
 #include "Component/StatusEffectComponent.h"
+#include "SubSystem/TimeForceSubsystem.h"
 
 ABattleManager::ABattleManager()
 {
@@ -159,6 +160,26 @@ void ABattleManager::OnTurnStartSequenceFinished()
 		EndCurrentTurn();
 		return;
 	}
+	if (TurnStack.IsEmpty())
+	{
+		EndCurrentTurn();
+		return;
+	}
+	const FTurnContext& CurrentTurn = TurnStack.Last();
+
+	if (Combatant->GetFaction() == EFaction::Player && CurrentTurn.TurnType == ETurnType::Normal)
+	{
+		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+		{
+			if (!TimeManager->DecreaseTimeForce(1))
+			{
+				// 시간의 힘 소모 실패 (게임 오버됨)
+				// TimeForceSubsystem이 ReturnToHub를 호출했으므로, 전투를 즉시 중단.
+				return;
+			}
+		}
+	}
+
 	// 이 시점부터 플레이어가 입력을 할 수 있게 됩니다.
 	TArray<ACombatPawn*> Targets;
 	const EFaction TargetFaction = (Combatant->GetFaction() == EFaction::Player) ? EFaction::Enemy : EFaction::Player;
@@ -291,8 +312,39 @@ void ABattleManager::HandleInterruptRequest(ACombatPawn* InInstigator)
 	PushAndStartTurn(InInstigator, ETurnType::Interrupt);
 }
 
-void ABattleManager::HandleCombatantDied(AActor* InInstigator)
+void ABattleManager::HandleCombatantDied(AActor* Victim, AActor* InInstigator)
 {
+	ACombatPawn* DeadPawn = Cast<ACombatPawn>(Victim);
+	if (DeadPawn && DeadPawn->GetFaction() == EFaction::Player)
+	{
+		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+		{
+			if (TimeManager->DecreaseTimeForce(20))
+			{
+				// [부활 성공] 시간의 힘 소모 성공
+
+				// 1. 플레이어 부활 로직 (예: 체력 50%로)
+				float MaxHealth = DeadPawn->GetAttributesComponent()->GetCurrentStats().fMaxHealth;
+				DeadPawn->GetAttributesComponent()->ApplyHealthChange(MaxHealth * 0.5f, nullptr);
+				DeadPawn->SetCombatPawnState(ECombatPawnState::Idle);
+				DeadPawn->SetActorEnableCollision(true); // 충돌 다시 켜기
+
+				UE_LOG(LogTemp, Warning, TEXT("%s가 시간의 힘 20을 소모하고 부활했습니다!"), *DeadPawn->GetName());
+
+				// 2. 부활했으므로, 전투 패배 조건을 체크하지 않고 함수를 '즉시' 종료합니다.
+				// (적이 다 죽었는지 체크는 필요할 수 있으니 CheckBattleEndConditions() 호출)
+				CheckBattleEndConditions();
+				return;
+			}
+			else
+			{
+				// [부활 실패] 시간의 힘 부족 (TimeManager가 게임 오버 처리함)
+				UE_LOG(LogTemp, Error, TEXT("%s 사망. 시간의 힘 부족. 게임 오버."), *DeadPawn->GetName());
+			}
+		}
+	}
+	// ---
+
 	CheckBattleEndConditions();
 }
 

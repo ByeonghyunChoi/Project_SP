@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Character/PlayerCharacter.h"
 #include "Engine/TargetPoint.h"
+#include "SubSystem/TimeForceSubsystem.h"
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -30,6 +31,11 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UMapManagerSubsystem::StartNewRun()
 {
+	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+	{
+		TimeManager->ResetTimeForce();
+	}
+
 	CurrentStage = 1;
 	ClearedNodeIDs.Empty();
 	CurrentNode = nullptr;
@@ -42,6 +48,14 @@ void UMapManagerSubsystem::StartNewRun()
 
 void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 {
+	if (bPlayerWon)
+	{
+		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+		{
+			TimeManager->ResetTimeForce();
+		}
+	}
+
 	UWorld* World = GetWorld();
 	if (!World) return;
 
@@ -83,6 +97,16 @@ void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 
 void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 {
+	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+	{
+		if (!TimeManager->DecreaseTimeForce(1))
+		{
+			// 시간의 힘 소모 실패 (게임 오버됨)
+			// TimeForceSubsystem이 ReturnToHub를 호출했으므로, 맵 이동을 즉시 중단.
+			return;
+		}
+	}
+
 	UWorld* World = GetWorld();
 	
 	if (!TargetNode)

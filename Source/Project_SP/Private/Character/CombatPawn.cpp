@@ -66,7 +66,7 @@ void ACombatPawn::SetCharacterDisplayName(const FText& NewName)
     DisplayName = NewName;
 }
 
-void ACombatPawn::HandleOwnerHealthDepleted(AActor* InInstigator)
+void ACombatPawn::HandleOwnerHealthDepleted(AActor* Victim, AActor* InInstigator)
 {
     if (CurrentPawnState != ECombatPawnState::Defeated)
     {

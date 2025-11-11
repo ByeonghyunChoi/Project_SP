@@ -96,7 +96,7 @@ public:
     void SetFaction(const EFaction& NewFaction);
 
     UFUNCTION()
-    void HandleOwnerHealthDepleted(AActor* InInstigator);
+    void HandleOwnerHealthDepleted(AActor* Victim, AActor* InInstigator);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "UI", meta = (DisplayName = "ShowDamageFloaterVFX"))
     void K2_ShowDamageFloater(float DamageAmount, EDamageFloaterType DamageType);

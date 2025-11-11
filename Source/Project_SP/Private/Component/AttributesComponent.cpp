@@ -58,7 +58,7 @@ void UAttributesComponent::ApplyHealthChange(float Delta, AActor* Instigator)
 
     if (OldHealth > 0.f && CurrentStats.fCurrentHealth <= 0.f)
     {
-        OnHealthDepleted.Broadcast(Instigator);
+        OnHealthDepleted.Broadcast(GetOwner(), Instigator);
     }
 }
 

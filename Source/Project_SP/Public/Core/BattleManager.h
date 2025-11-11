@@ -109,7 +109,7 @@ protected:
 	UFUNCTION()
 	void HandleInterruptRequest(ACombatPawn* InInstigator);
 	UFUNCTION()
-	void HandleCombatantDied(AActor* InInstigator);
+	void HandleCombatantDied(AActor* Victim, AActor* InInstigator);
 	UFUNCTION()
 	void HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult);
 	UFUNCTION()
