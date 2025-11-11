@@ -56,6 +56,11 @@ public:
 	void BeginMapLogic();
 	virtual void BeginMapLogic_Implementation();
 
+	//전투에 승리하면 작동하는 함수
+	UFUNCTION(BlueprintNativeEvent, Category = "Map Logic")
+	void OnCombatFinished(bool bPlayerWon);
+	virtual void OnCombatFinished_Implementation(bool bPlayerWon);
+
 	//다음 맵 목록을 넘겨주는 함수
 	void InitializeNextNodes(const TArray<UMapNode*>& ChildNodes);
 
@@ -64,8 +69,6 @@ protected:
 	//포탈 활성화하는 함수
 	UFUNCTION(BlueprintCallable, Category = "Map Logic")
 	void ActivatePortals();
-
-
 
 	//Getter, Setter Section
 public:

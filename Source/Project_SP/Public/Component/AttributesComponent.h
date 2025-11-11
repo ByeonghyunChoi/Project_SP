@@ -64,7 +64,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSPChanged, int32, CurrentSP, int
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnExperienceChanged, int32, CurrentExperience, int32, NeededExperience);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelChanged, int32, NewLevel);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMoneyChanged, int32, CurrentMoney, int32, Delta);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthDepleted, AActor*, Instigator);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthDepleted, AActor*, Victim, AActor*, InInstigator);
 
 /**
  * @class UAttributesComponent

@@ -45,6 +45,11 @@ void AMapBase::BeginMapLogic_Implementation()
 	ActivatePortals();
 }
 
+void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
+{
+	UE_LOG(LogTemp, Log, TEXT("AMapBase::OnCombatFinished - PlayerWon: %s"), bPlayerWon ? TEXT("True") : TEXT("False"));
+}
+
 void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
 {
 	NextNodeOptions = ChildNodes;

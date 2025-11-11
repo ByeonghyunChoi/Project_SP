@@ -5,7 +5,7 @@
 #include "Character/PlayerCharacter.h"
 #include "Character/MonsterCharacter.h"
 #include "Combat/MonsterGroupObject.h"
-#include "Combat/BattleTransitionManager.h"
+#include "Combat/BattleTransitionManagerSubsystem.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Interface/InteractableInterface.h"
@@ -27,7 +27,7 @@ void UFieldActionComponent::BeginPlay()
 	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 	{
 		// UBattleTransitionManager 타입으로 서브시스템을 요청합니다.
-		UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>();
+		UBattleTransitionManagerSubsystem* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManagerSubsystem>();
 		if (TransitionManager)
 		{
 			// 실제로 생성된 인스턴스의 정확한 클래스 이름을 출력합니다.
@@ -89,7 +89,7 @@ void UFieldActionComponent::PerformAttackHitCheck()
 			{
 				if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 				{
-					UBattleTransitionManager* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManager>();
+					UBattleTransitionManagerSubsystem* TransitionManager = GameInstance->GetSubsystem<UBattleTransitionManagerSubsystem>();
 					if (TransitionManager)
 					{
 						UE_LOG(LogTemp, Error, TEXT("[FLOW 1] Attack successful. Requesting battle transition..."));

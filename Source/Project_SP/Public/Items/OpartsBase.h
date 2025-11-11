@@ -46,6 +46,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual void ActiveSpecialAbility();
 
+
 	// 오파츠 현재 레벨 반환
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual int32 GetOpartsCurrentLevel() const;
