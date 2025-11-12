@@ -21,10 +21,6 @@ public:
 	// Sets default values for this actor's properties
 	AMapBase();
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
 	//Map Structure Section
 protected:
 	//¸Ê Á¾·ù

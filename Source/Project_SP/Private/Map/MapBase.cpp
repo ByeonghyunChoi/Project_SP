@@ -18,27 +18,6 @@ AMapBase::AMapBase()
 	CurrentMapType = EMapType::NormalBattle;
 }
 
-// Called when the game starts or when spawned
-void AMapBase::BeginPlay()
-{
-	Super::BeginPlay();
-
-	for (APortalActor* Portal : PortalActors)
-	{
-		if (Portal)
-		{
-			Portal->SetActorHiddenInGame(true);
-			Portal->SetActorEnableCollision(false);
-		}
-	}
-
-	if (RewardBox)
-	{
-		RewardBox->SetActorHiddenInGame(true);
-		RewardBox->SetActorEnableCollision(false);
-	}
-	
-}
 
 void AMapBase::BeginMapLogic_Implementation()
 {
