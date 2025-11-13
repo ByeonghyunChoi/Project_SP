@@ -43,5 +43,6 @@ public:
 	virtual void ExecuteInteraction(APlayerCharacter* Interactor) override;
 
 	//플레이어 UI에 표시할 텍스트를 반환
+	UFUNCTION(BlueprintCallable)
 	virtual FText GetInteractText() override;
 };

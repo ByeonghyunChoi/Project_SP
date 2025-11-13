@@ -17,6 +17,7 @@ class UCrystalSkullOparts;
 class UJadeClockOparts;
 class UGoldBugOparts;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableTargetChanged, const FText&, InteractText);
 
 UCLASS()
 class PROJECT_SP_API APlayerCharacter : public ACombatPawn
@@ -77,6 +78,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> FieldAttackAction;
 
+	//상호작용 UI 델리게이트
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
+	FOnInteractableTargetChanged OnInteractableTargetChanged;
+
 	//상호작용 입력이 눌렸을 때 호출될 함수
 	void OnInteractInput();
 
@@ -100,6 +105,9 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Modes")
 	void OnEnterBattleMode();
+
+	//UI 갱신 함수
+	void UpdateInteractionUI();
 
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void LogOpartsActiveState() const; // 오파츠 상태를 로그로 출력하는 함수 선언

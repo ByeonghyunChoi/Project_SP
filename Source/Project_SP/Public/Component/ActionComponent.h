@@ -44,6 +44,10 @@ public:
 	bool GetActionData(FName ActionID, FActionData& OutActionData) const;
 	const TArray<TObjectPtr<UGameAction>>& GetGrantedActions() const { return GrantedActions; }
 
+	//액션 초기화 함수
+	UFUNCTION(BlueprintCallable, Category = "Actions")
+	void ResetActiveAction();
+
 protected:
 	// 참조할 '설계도' 데이터 테이블
 	UPROPERTY(EditDefaultsOnly, Category = "Actions")

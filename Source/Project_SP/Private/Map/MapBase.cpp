@@ -34,6 +34,18 @@ void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
 	NextNodeOptions = ChildNodes;
 }
 
+void AMapBase::ClearMapElements()
+{
+	for (APortalActor* Portal : PortalActors)
+	{
+		if (Portal)
+		{
+			Portal->Destroy();
+		}
+	}
+	PortalActors.Empty();
+}
+
 void AMapBase::ActivatePortals()
 {
 	SetMapState(EMapState::Cleard);
@@ -49,14 +61,7 @@ void AMapBase::ActivatePortals()
 		{
 			Portal->SetActorEnableCollision(true);
 			Portal->InitializePortalData(NodeData);
-
-			if (Portal && NodeData)
-			{
-				// [추가] 포탈을 다시 화면에 보이게 합니다.
-				Portal->SetActorHiddenInGame(false);
-				Portal->SetActorEnableCollision(true);
-				Portal->InitializePortalData(NodeData);
-			}
+			Portal->OnPortalStateChanged(true);
 		}
 	}
 }

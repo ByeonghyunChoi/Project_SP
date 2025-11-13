@@ -130,6 +130,7 @@ void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 	//현재 맵 파괴
 	if (CurrentMapActorInstance)
 	{
+		CurrentMapActorInstance->ClearMapElements();
 		CurrentMapActorInstance->Destroy();
 		CurrentMapActorInstance = nullptr;
 	}

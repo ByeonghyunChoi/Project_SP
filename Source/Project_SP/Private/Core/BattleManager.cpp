@@ -17,6 +17,7 @@
 #include "Component/PlayerCombatControlComponent.h"
 #include "Component/StatusEffectComponent.h"
 #include "SubSystem/TimeForceSubsystem.h"
+#include "Component/ActionComponent.h"
 
 ABattleManager::ABattleManager()
 {
@@ -104,6 +105,14 @@ void ABattleManager::EndBattle()
 	CurrentBattleState = EBattleState::Ended;
 	TurnStack.Empty();
 	SetActorTickEnabled(false);
+
+	for (ACombatPawn* Combatant : AllCombatants)
+	{
+		if (Combatant && Combatant->GetActionComponent())
+		{
+			Combatant->GetActionComponent()->ResetActiveAction();
+		}
+	}
 
 	AllCombatants.Empty();
 	PlayerControlComponents.Empty();

@@ -49,14 +49,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Portal Logic")
 	void ActivateAsStageExitPortal();
 
-protected:
-	//블루프린트에서 갱신된 데이터를 기반으로 UI에 아이콘을 표시해주는 함수(BP에서 재사용해서 사용)
-	UFUNCTION(BlueprintImplementableEvent, Category = "Portal Logic")
-	void UpdatePortalWidget();
 	//포탈의 활성화 비활성화에 따라 외형 결정 함수
-	UFUNCTION(BlueprintImplementableEvent, Category = "Portal Visuals")
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Portal Visuals")
 	void OnPortalStateChanged(bool bIsNowActive);
 
+protected:
+	//블루프린트에서 갱신된 데이터를 기반으로 UI에 아이콘을 표시해주는 함수(BP에서 재사용해서 사용)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Portal Logic")
+	void UpdatePortalWidget();
+	
 	//오버랩 함수
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);

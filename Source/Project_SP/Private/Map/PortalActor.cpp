@@ -25,7 +25,7 @@ APortalActor::APortalActor()
 	InfoWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InfoWidget"));
 	InfoWidget->SetupAttachment(RootComponent);
 
-	
+
 }
 
 void APortalActor::InitializePortalData(UMapNode* NodeData)
@@ -48,7 +48,6 @@ void APortalActor::ActivateAsStageExitPortal()
 	TargetNodeData = nullptr;
 	bIsStageExitPortal = true;
 
-	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
 
 	UpdatePortalWidget();
@@ -68,7 +67,7 @@ void APortalActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AAct
 		UE_LOG(LogTemp, Log, TEXT("MapManager를 찾을 수 없습니다."));
 		return;
 	}
-	
+
 	if (bIsStageExitPortal)
 	{
 		// 1. 스테이지 출구 포탈인 경우 (보스 맵 클리어)

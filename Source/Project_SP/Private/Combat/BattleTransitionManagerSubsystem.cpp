@@ -210,12 +210,17 @@ void UBattleTransitionManagerSubsystem::UnloadBattleMap()
 
 void UBattleTransitionManagerSubsystem::OnBattleArenaUnloaded()
 {
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->NotifyCombatFinished(bPlayerWonLastBattle);
+	}
+
 	if (PlayerCharacterRef)
 	{
-		PlayerCharacterRef->SetActorLocation(LastFieldLocation); 
-		PlayerCharacterRef->SetActorHiddenInGame(false); 
-		PlayerCharacterRef->SetActorEnableCollision(true); 
-		PlayerCharacterRef->OnEnterFieldMode(); 
+		PlayerCharacterRef->SetActorLocation(LastFieldLocation);
+		PlayerCharacterRef->SetActorHiddenInGame(false);
+		PlayerCharacterRef->SetActorEnableCollision(true);
+		PlayerCharacterRef->OnEnterFieldMode();
 	}
 	if (UWorld* World = GetWorld())
 	{
@@ -224,12 +229,6 @@ void UBattleTransitionManagerSubsystem::OnBattleArenaUnloaded()
 			MyPC->SetFieldInputMode();
 		}
 	}
-	//전투 결과 알려줌
-	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
-	{
-		MapManager->NotifyCombatFinished(bPlayerWonLastBattle);
-	}
-
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 	{
 		PC->SetViewTargetWithBlend(PlayerCharacterRef.Get(), 0.0f);

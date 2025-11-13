@@ -37,7 +37,7 @@ void ARewardBox::ExecuteInteraction(APlayerCharacter* Interactor)
 
 FText ARewardBox::GetInteractText()
 {
-    return FText::FromString(TEXT("보상 열기[E]"));
+    return FText::FromString(TEXT("보상 열기[F]"));
 }
 
 

@@ -119,13 +119,7 @@ void APlayerCharacter::OnInteractionVolumeBeginOverlap(UPrimitiveComponent* Over
 		// 큐(배열)의 맨 뒤에 추가
 		OverlappedInteractables.Add(OtherActor);
 
-		// [UI 로직]
-		// 만약 이 아이템이 유일한 대상(방금 0번이 됨)이라면 UI를 표시/갱신
-		// if (OverlappedInteractables.Num() == 1)
-		// {
-		//     FText InteractText = IInteractableInterface::GetInteractText(OtherActor);
-		//     // MyPlayerController->ShowInteractPrompt(InteractText);
-		// }
+		UpdateInteractionUI();
 	}
 }
 
@@ -136,18 +130,7 @@ void APlayerCharacter::OnInteractionVolumeEndOverlap(UPrimitiveComponent* Overla
 		// 큐(배열)에서 제거
 		OverlappedInteractables.Remove(OtherActor);
 
-		// [UI 로직]
-		// if (OverlappedInteractables.Num() > 0)
-		// {
-		//     // 다음 대상(새로운 0번)으로 UI 갱신
-		//     FText InteractText = IInteractableInterface::GetInteractText(OverlappedInteractables[0].GetObject());
-		//     // MyPlayerController->ShowInteractPrompt(InteractText);
-		// }
-		// else
-		// {
-		//     // 대상이 없으므로 UI 숨김
-		//     // MyPlayerController->HideInteractPrompt();
-		// }
+		UpdateInteractionUI();
 	}
 }
 
@@ -161,6 +144,24 @@ void APlayerCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 	if (CombatControlComponent)
 	{
 		CombatControlComponent->OnTurnBegin(PotentialTargets);
+	}
+}
+
+void APlayerCharacter::UpdateInteractionUI()
+{
+	if (OverlappedInteractables.Num() > 0)
+	{
+		// 1. 큐에 대상이 하나 이상 있음 (0번째 대상 표시)
+		if (IInteractableInterface* Interface = OverlappedInteractables[0].GetInterface())
+		{
+			FText InteractText = Interface->GetInteractText();
+			OnInteractableTargetChanged.Broadcast(InteractText); // "이 텍스트를 띄워"
+		}
+	}
+	else
+	{
+		// 2. 큐가 비어있음
+		OnInteractableTargetChanged.Broadcast(FText::GetEmpty()); // "비어있는 텍스트" (UI 숨김 신호)
 	}
 }
 

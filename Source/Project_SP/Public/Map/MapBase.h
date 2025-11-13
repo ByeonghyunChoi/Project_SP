@@ -60,6 +60,9 @@ public:
 	//다음 맵 목록을 넘겨주는 함수
 	void InitializeNextNodes(const TArray<UMapNode*>& ChildNodes);
 
+	//맵이 가지고 있는 모든 액터를 파괴하는 함수
+	void ClearMapElements();
+
 	//Common Function Section
 protected:
 	//포탈 활성화하는 함수

@@ -112,3 +112,8 @@ bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData)
 
 	return false; 
 }
+
+void UActionComponent::ResetActiveAction()
+{
+	ActiveAction = nullptr;
+}
