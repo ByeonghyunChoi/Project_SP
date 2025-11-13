@@ -66,7 +66,8 @@ public:
 	virtual void OnUnequip(AActor* Instigator);
 
 public:
-	UPROPERTY(BlueprintAssignable) FCalculateMaterial CalculateMaterial;
+	UPROPERTY(BlueprintAssignable) 
+	FCalculateMaterial CalculateMaterial;
 
 protected:
 	// 시작함수
