@@ -40,6 +40,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material")
 	void SetCurrentIncompleteEnergy(int32 NewAmount);
 
+	// 유물 관련 기능 함수
+	// 장착할 수 있는 유물 빈칸
+	// int32 GetAvailableRelicSlot() const;
+	// 장착
+	void EquipRelic();
+	// 해제
+	void UnequipRelic();
+
 protected:
 
 	virtual void BeginPlay() override;
