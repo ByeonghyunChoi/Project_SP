@@ -16,6 +16,7 @@ class AMyPlayerController;
 class UPlayerCombatControlComponent;
 enum class EBattleState : uint8;
 
+// 턴 정의 구조체
 USTRUCT(BlueprintType)
 struct FTurnContext
 {
@@ -30,6 +31,8 @@ struct FTurnContext
 		: Combatant(InCombatant), TurnType(InType) {
 	}
 };
+//턴 정의 끝
+
 
 UCLASS()
 class PROJECT_SP_API ABattleManager : public AActor
@@ -132,7 +135,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCombatTask> CurrentTask;
 	bool bIsProcessingTask;
-
+	bool bWaitingForTasksToStartTurn = false;
 	void ProcessTaskQueue();
 	UFUNCTION()
 	void OnCurrentTaskFinished();
@@ -144,4 +147,9 @@ private:
 	void OnTurnStartSequenceFinished();
 
 	FTimerHandle TurnStartSequenceTimerHandle;
+
+	void ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* Defender);
+
+public:
+	void FinalizeParryTurnSwitch(ACombatPawn* OriginalAttacker, ACombatPawn* ParryWinner);
 };
