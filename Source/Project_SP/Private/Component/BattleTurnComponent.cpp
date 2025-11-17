@@ -20,10 +20,13 @@ void UBattleTurnComponent::BeginPlay()
 	AttributesComp = GetOwner()->FindComponentByClass<UAttributesComponent>();
 }
 
-void UBattleTurnComponent::StartTurn()
+void UBattleTurnComponent::StartTurn(bool bIsInterrupt)
 {
     bIsMyTurn = true;
-    ActionValue = 0.f; // 턴을 가졌으므로 행동 게이지를 0으로 초기화
+    if (!bIsInterrupt)
+    {
+        ActionValue = 0.f;
+    }
 }
 
 void UBattleTurnComponent::EndTurn()

@@ -10,6 +10,8 @@
 #include "Component/TurnSchedulerComponent.h"
 #include "Combat/CombatTask.h"
 #include "Combat/Tasks/Task_WaitForAnimNotify.h"
+#include "Combat/Tasks/Task_ExecuteParrySwitch.h" 
+#include "Combat/Tasks/Task_MoveCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Character/MyPlayerController.h"
 #include "TimerManager.h"
@@ -18,6 +20,7 @@
 #include "Component/StatusEffectComponent.h"
 #include "SubSystem/TimeForceSubsystem.h"
 #include "Component/ActionComponent.h"
+#include "Combat/GameAction.h"
 
 ABattleManager::ABattleManager()
 {
@@ -39,17 +42,38 @@ void ABattleManager::Tick(float DeltaTime)
 
 	if (CurrentBattleState != EBattleState::InProgress) return;
 
-	if (bIsProcessingTask && CurrentTask && CurrentTask->IsLatent())
+	// 1. 현재 실행 중인 태스크가 있다면 틱 공급
+	if (bIsProcessingTask && CurrentTask)
 	{
-		CurrentTask->TickTask(DeltaTime);
+		if (CurrentTask->IsLatent())
+		{
+			CurrentTask->TickTask(DeltaTime);
+		}
+		return; // 태스크 실행 중에는 아래 로직 수행 안 함
 	}
 
+	// 2. 대기 중인 태스크가 있다면 다음 태스크 실행
+	if (TaskQueue.Num() > 0)
+	{
+		ProcessTaskQueue();
+		return;
+	}
+
+	// --- [여기 도달했다는 것은 실행/대기 중인 태스크가 없다는 뜻] ---
+
+	// 3. [추가] 태스크가 다 끝났고, 턴 시작을 대기 중이었다면 턴 시작 시퀀스 진입
+	if (bWaitingForTasksToStartTurn)
+	{
+		bWaitingForTasksToStartTurn = false;
+		OnTurnStartSequenceFinished();
+		return;
+	}
+
+	// 4. 턴 스택이 비었다면 다음 턴 결정
 	if (TurnStack.IsEmpty())
 	{
 		DecideAndStartNextTurn();
 	}
-
-	ProcessTaskQueue();
 }
 
 void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty)
@@ -131,7 +155,8 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 	if (!Combatant || Combatant->GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
 	TurnStack.Emplace(Combatant, Type);
-	Combatant->GetBattleTurnComponent()->StartTurn();
+	bool bIsInterruptTurn = (Type == ETurnType::Interrupt);
+	Combatant->GetBattleTurnComponent()->StartTurn(bIsInterruptTurn);
 
 	bool bHasDoT = false;
 	if (Combatant->GetStatusEffectComponent())
@@ -162,6 +187,8 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 
 	
 	OnTurnOrderChanged();
+
+	bWaitingForTasksToStartTurn = true;
 }
 
 void ABattleManager::OnTurnStartSequenceFinished()
@@ -205,6 +232,89 @@ void ABattleManager::OnTurnStartSequenceFinished()
 	}
 	UpdateInputModeForTurn(Combatant);
 	Combatant->OnTurnBegin(Targets);
+}
+
+void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* Defender)
+{
+	if (!Attacker || !Defender) return;
+
+	// 1. 행동 중단
+	ClearTaskQueue();
+
+	TArray<UCombatTask*> SequenceTasks;
+
+	// 2. 'Parry_Visuals' 액션 로드
+	if (UActionComponent* ActionComp = Defender->GetActionComponent())
+	{
+		FActionData ParryVisualData;
+		if (ActionComp->GetActionData(TEXT("Parry_Visuals"), ParryVisualData))
+		{
+			if (ParryVisualData.GameActionClass)
+			{
+				UGameAction* VisualAction = NewObject<UGameAction>(this, ParryVisualData.GameActionClass);
+				VisualAction->Initialize(ActionComp, TEXT("Parry_Visuals"));
+
+				for (UCombatTask* TaskTemplate : VisualAction->GetTasks())
+				{
+					if (TaskTemplate)
+					{
+						UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
+
+						// [컨텍스트 설정]
+						// 기본적으로 Instigator=플레이어, Target=몬스터
+						// bApplyToTarget이 true면 Instigator=몬스터, Target=플레이어
+						ACombatPawn* RealInstigator = TaskTemplate->bApplyToTarget ? Attacker : Defender;
+						TArray<ACombatPawn*> RealTargets = TaskTemplate->bApplyToTarget ? TArray<ACombatPawn*>{ Defender } : TArray<ACombatPawn*>{ Attacker };
+
+						NewTask->Initialize(this, RealInstigator, RealTargets);
+						SequenceTasks.Add(NewTask);
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 실행
+	InjectCombatTasks(SequenceTasks);
+}
+
+
+void ABattleManager::FinalizeParryTurnSwitch(ACombatPawn* OriginalAttacker, ACombatPawn* ParryWinner)
+{
+	UE_LOG(LogTemp, Log, TEXT("[Parry Logic] Visuals Finished. Switching Turn & Auto-Counter."));
+
+	// 1. 몬스터(Attacker) 턴 종료 (Pop)
+	if (GetCurrentTurnCharacter() == OriginalAttacker)
+	{
+		TurnStack.Pop();
+		OriginalAttacker->GetBattleTurnComponent()->EndTurn();
+	}
+
+	// 2. 플레이어(Winner) 추가 턴 시작 (Interrupt)
+	PushAndStartTurn(ParryWinner, ETurnType::Interrupt);
+
+	// 3. 자동 반격 스킬 실행
+	if (UActionComponent* PlayerActionComp = ParryWinner->GetActionComponent())
+	{
+		// 실제로는 무기 데이터 등에서 가져와야 할 반격 스킬 ID
+		FName CounterActionID = TEXT("Counter_Attack_Default");
+
+		// 액션 실행 (태스크 생성 -> 큐 주입)
+		bool bStarted = PlayerActionComp->StartActionByID(ParryWinner, CounterActionID, { OriginalAttacker });
+
+		if (bStarted)
+		{
+			// BattleManager가 입력 대기 상태(UI 띄우기 등)로 빠지지 않도록 플래그 해제
+			// (PushAndStartTurn 내부에서 bWaitingForTasksToStartTurn = true로 설정했을 것이므로)
+			bWaitingForTasksToStartTurn = false;
+			ParryWinner->SetCombatPawnState(ECombatPawnState::PerformingAction);
+		}
+		else
+		{
+			// 반격 액션 실행 실패 시 턴 종료 처리
+			EndCurrentTurn();
+		}
+	}
 }
 
 void ABattleManager::EndCurrentTurn()
@@ -363,6 +473,10 @@ void ABattleManager::HandleCombatantDied(AActor* Victim, AActor* InInstigator)
 
 void ABattleManager::HandleParryAttempted(ACombatPawn* ParriedAttacker, ACombatPawn* ParryingPlayer, EParryResult ParryResult)
 {
+	if (ParryResult == EParryResult::Success)
+	{
+		ExecuteParrySequence(ParriedAttacker, ParryingPlayer);
+	}
 }
 
 void ABattleManager::HandleDamageReceived(ACombatPawn* DamagedPawn, float DamageAmount, EDamageFloaterType DamageType, ACombatPawn* InstigatorPawn)
