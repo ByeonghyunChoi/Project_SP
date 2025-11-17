@@ -15,6 +15,17 @@ class PROJECT_SP_API UWeaponData : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
+
+    UWeaponData()
+        : WeaponType(EDamageType::Fenrir) // Enum의 첫 번째 값
+        , BasicAttackActionID(NAME_None)
+        , SpecialSkillActionID(NAME_None)
+        , ParrySkillActionID(NAME_None)
+        , DisplayName(FText::GetEmpty())
+        , Description(FText::GetEmpty())
+    {
+    }
+
     // --- 로직용 데이터 ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
     EDamageType WeaponType;

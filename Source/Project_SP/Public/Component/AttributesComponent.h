@@ -6,57 +6,9 @@
 #include "Components/ActorComponent.h"
 #include "Engine/DataTable.h"
 #include "Items/OpartsBase.h"
+#include "Data/CharacterStatsData.h"
 #include "AttributesComponent.generated.h"
 
-
-USTRUCT(BlueprintType)
-struct FCombatStats : public FTableRowBase
-{
-    GENERATED_BODY()
-
-    // 최대 체력, 공격력, 방어력 등 모든 스탯의 '상한선' 또는 '성장 최대치'
-    // 예: MaxHealthCap은 레벨 50일 때 도달할 수 있는 최대 체력
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Caps")
-    float MaxHealthCap = 2000.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Caps")
-    float AttackPowerCap = 300.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Caps")
-    float DefensePowerCap = 250.f;
-
-    // --- 스탯 목록 ---
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fCurrentHealth = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fMaxHealth = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fAttackPower = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fDefensePower = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fMovementSpeed = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fCriticalChance = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fCriticalDamageMultiplier = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fHitProbability = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fEvasion = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fStatusEffectResistance = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fStatusEffectAccuracy = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fDamageIncreaseMultiplier = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fDamageReductionMultiplier = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fArmorPenetration = 0.0f;
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-    float fStatusEffectMultiplier = 0.0f;
-};
 
 // --- 델리게이트 선언 ---
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHealthChanged, float, CurrentHealth, float, Delta, AActor*, Instigator);
@@ -94,14 +46,14 @@ protected:
 
     // --- 데이터 ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Stats")
-    FCombatStats BaseStats; // 레벨 1 기준 원본 스탯
+    FCharacterStatsData BaseStats; // 레벨 1 기준 원본 스탯
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Stats")
-    FCombatStats CurrentStats; // 현재 레벨 및 버프/디버프가 적용된 실제 스탯
+    FCharacterStatsData CurrentStats; // 현재 레벨 및 버프/디버프가 적용된 실제 스탯
 
 	// 오파츠로부터 얻은 추가 스탯 보너스
     UPROPERTY(VisibleAnywhere, Category = "Attributes|Oparts")
-    FCombatStats OpartsBonusStats;
+    FCharacterStatsData OpartsBonusStats;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Growth")
     int32 Level = 1;
@@ -115,8 +67,7 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Resources")
     int32 SkillPoints = 3;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Resources")
-    int32 Money = 0;
+
 
 public:
     // --- 이벤트 방송 ---
@@ -124,7 +75,6 @@ public:
     UPROPERTY(BlueprintAssignable) FOnSPChanged OnSPChanged;
     UPROPERTY(BlueprintAssignable) FOnExperienceChanged OnExperienceChanged;
     UPROPERTY(BlueprintAssignable) FOnLevelChanged OnLevelChanged;
-    UPROPERTY(BlueprintAssignable) FOnMoneyChanged OnMoneyChanged;
     UPROPERTY(BlueprintAssignable) FOnHealthDepleted OnHealthDepleted;
 
     // --- 핵심 기능 함수 ---
@@ -152,7 +102,7 @@ public:
 
     // --- 접근자(Getter) ---
     UFUNCTION(BlueprintPure, Category = "Attributes")
-    const FCombatStats& GetCurrentStats() const { return CurrentStats; }
+    const FCharacterStatsData& GetCurrentStats() const { return CurrentStats; }
 
     UFUNCTION(BlueprintPure, Category = "Attributes")
     int32 GetLevel() const { return Level; }

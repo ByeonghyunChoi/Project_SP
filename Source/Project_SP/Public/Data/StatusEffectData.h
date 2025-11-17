@@ -38,7 +38,13 @@ struct FStatusSubEffect
         , StatToModify(EStatToModify::None)
         , EffectMagnitude(0.f)
     {
+    }
 
+    FStatusSubEffect(EStatusEffectType InEffectType, EStatToModify InStatToModify, float InEffectMagnitude)
+        : EffectType(InEffectType)
+        , StatToModify(InStatToModify)
+        , EffectMagnitude(InEffectMagnitude)
+    {
     }
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -58,6 +64,30 @@ struct FStatusEffectData : public FTableRowBase
     GENERATED_BODY()
 
 public:
+
+    FStatusEffectData()
+        : DisplayName(FText::GetEmpty())
+        , TurnDuration(0)
+        , StatToModify(EStatToModify::None)
+        // TMap과 TArray는 자동으로 비어있는 상태로 생성됩니다.
+    {
+    }
+
+    FStatusEffectData(
+        FText InDisplayName,
+        int32 InTurnDuration,
+        EStatToModify InStatToModify,
+        const TMap<FName, FName>& InCombinationRules,
+        const TArray<FStatusSubEffect>& InSubEffects
+    )
+        : DisplayName(InDisplayName)
+        , TurnDuration(InTurnDuration)
+        , StatToModify(InStatToModify)
+        , CombinationRules(InCombinationRules)
+        , SubEffects(InSubEffects)
+    {
+    }
+
     // UI에 표시될 이름
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FText DisplayName;

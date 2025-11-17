@@ -20,6 +20,35 @@ struct FItemData : public FTableRowBase
 {
 	GENERATED_BODY()
 
+public:
+    FItemData()
+        : ItemID(NAME_None)
+        , ItemType(EItemType::EIT_None) // 기본값 유지
+        , ItemName(FText::GetEmpty())
+        , ItemDescription(FText::GetEmpty())
+        , ItemIcon(nullptr)
+        , bCanStack(false)
+    {
+    }
+
+    // --- 2. 파라미터 생성자 (Parameterized Constructor) ---
+    FItemData(
+        FName InItemID,
+        EItemType InItemType,
+        FText InItemName,
+        FText InItemDescription,
+        TSoftObjectPtr<class UTexture2D> InItemIcon,
+        bool InbCanStack
+    )
+        : ItemID(InItemID)
+        , ItemType(InItemType)
+        , ItemName(InItemName)
+        , ItemDescription(InItemDescription)
+        , ItemIcon(InItemIcon)
+        , bCanStack(InbCanStack)
+    {
+    }
+
 	// 아이템 고유 ID
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Data")
 	FName ItemID;

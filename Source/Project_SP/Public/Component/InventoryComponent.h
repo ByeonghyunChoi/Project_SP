@@ -11,11 +11,30 @@ struct FPlayerMaterial
 {
 	GENERATED_BODY()
 
+public:
+
+	FPlayerMaterial() 
+		: Sand(0)
+		, IncompleteEnergy(0)
+		, Money(0)
+	{
+	}
+
+	FPlayerMaterial(int32 InSand, int32 InIncompleteEnergy, int32 InMoney)
+		: Sand(InSand)
+		, IncompleteEnergy(InIncompleteEnergy)
+		, Money(InMoney)
+	{
+	}
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
 	int32 Sand = 0;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
 	int32 IncompleteEnergy = 0;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
+	int32 Money = 0;
 };
 
 UCLASS()

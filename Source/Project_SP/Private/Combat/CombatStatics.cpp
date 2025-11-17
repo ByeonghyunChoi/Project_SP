@@ -24,15 +24,20 @@ float UCombatStatics::CalculateDamage(const UAttributesComponent* AttackerStats,
     }
 
     float BaseDamage = AttackerStats->GetCurrentStats().fAttackPower * SkillCoefficient;
-    float DamageMultiCoef = (1 + AttackerStats->GetCurrentStats().fDamageIncreaseMultiplier - AttackerStats->GetCurrentStats().fDamageReductionMultiplier);
-    float DefendCoef = 1 - (TargetStats->GetCurrentStats().fDefensePower / (TargetStats->GetCurrentStats().fDefensePower + DefenseDivisor)) + AttackerStats->GetCurrentStats().fArmorPenetration;
-    float HitChance = 1 - (TargetStats->GetCurrentStats().fEvasion - AttackerStats->GetCurrentStats().fHitProbability);
-    if (FMath::FRand() > HitChance)
+    float CriticalCoefficient = 1.0f;
+    float CriticalChance = AttackerStats->GetCurrentStats().fCriticalChance;
+    float RandomFloat = FMath::FRand(); // 0.0 ~ 1.0사이의 값
+    if (CriticalChance >= RandomFloat)
     {
-        BaseDamage *= 0.5;
+        CriticalCoefficient* AttackerStats->GetCurrentStats().fCriticalDamageMultiplier; // 1.0 * 크뎀
     }
+    else
+    {
+        CriticalCoefficient = 1.0f;
+    }
+    float DamageMultiCoef = 1.0f + AttackerStats->GetCurrentStats().fDamageIncreaseMultiplier - AttackerStats->GetCurrentStats().fDamageReductionMultiplier;; // 주는 데미지 계수
     // 최종 데미지
-    float FinalDamage = BaseDamage * DamageMultiCoef * DefendCoef * LevelCoefficient;
+    float FinalDamage = BaseDamage * DamageMultiCoef * LevelCoefficient;
 
     // 최종 데미지를 반올림하여 반환
     return FMath::RoundToFloat(FinalDamage);
@@ -66,11 +71,12 @@ float UCombatStatics::CalculateStatusEffectDamage(const ACombatPawn* Instigator,
     // 2. 증감 계수 계산
     float IncreaseDamage = (1.0f + InstigatorStats->GetCurrentStats().fDamageIncreaseMultiplier - TargetStats->GetCurrentStats().fDamageReductionMultiplier);
 
-    // 3. 방어 계수 계산
-    float defenceCoefficient = 1.0f - (TargetStats->GetCurrentStats().fDefensePower / (TargetStats->GetCurrentStats().fDefensePower + DefenseDivisor)) + InstigatorStats->GetCurrentStats().fArmorPenetration;
+    // 3. 효과 증가 계수 계산
+    float StatusEffectMultiCoef = 1.0f + InstigatorStats->GetCurrentStats().fStatusEffectMultiplier;
 
     // 4. 모든 계수를 곱하여 최종 데미지 계산 (상태 이상 효과 배율 포함)
-    float FinalDamage = BaseDamage * IncreaseDamage * defenceCoefficient * LevelCoefficient * InstigatorStats->GetCurrentStats().fStatusEffectMultiplier;
+    float FinalDamage = BaseDamage * IncreaseDamage * LevelCoefficient * StatusEffectMultiCoef;
 
+    //반올림
     return FMath::RoundToFloat(FinalDamage);
 }
