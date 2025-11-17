@@ -37,7 +37,7 @@ protected:
 
 public:
 	/** @brief 턴을 시작할 때 BattleManager에 의해 호출됩니다. 행동 게이지를 리셋합니다. */
-	void StartTurn();
+	void StartTurn(bool bIsInterrupt = false);
 
 	/** @brief 턴을 종료할 때 BattleManager에 의해 호출됩니다. */
 	void EndTurn();
