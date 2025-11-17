@@ -33,6 +33,14 @@ struct FStatusSubEffect
 {
     GENERATED_BODY()
 
+    FStatusSubEffect()
+        : EffectType(EStatusEffectType::Stat_Debuff)
+        , StatToModify(EStatToModify::None)
+        , EffectMagnitude(0.f)
+    {
+
+    }
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EStatusEffectType EffectType;
 
