@@ -29,8 +29,6 @@ void UInventoryComponent::SetCurrentSand(int32 NewAmount)
 	// 최소값을 0으로 설정하여 음수 재화를 방지합니다.
 	PlayerMaterials.Sand = FMath::Max(0, NewAmount);
 
-	// TODO: 필요하다면 여기서 UI 업데이트 이벤트 등을 호출합니다.
-	//UE_LOG(LogTemp, Log, TEXT("Sand amount set to: %d"), PlayerMaterials.Sand);
 }
 
 // 현재 불완전한 기운 가져오기
@@ -43,5 +41,16 @@ int32 UInventoryComponent::GetCurrentIncompleteEnergy() const
 void UInventoryComponent::SetCurrentIncompleteEnergy(int32 NewAmount)
 {
 	PlayerMaterials.IncompleteEnergy = FMath::Max(0, NewAmount);
-	// UI업데이트 이벤트
+	
+}
+
+// 유물 관련 함수
+void UInventoryComponent::EquipRelic()
+{
+
+}
+
+void UInventoryComponent::UnequipRelic()
+{
+
 }

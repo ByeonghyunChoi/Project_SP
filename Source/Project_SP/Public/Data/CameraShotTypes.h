@@ -14,6 +14,31 @@ struct FCameraShotData : public FTableRowBase
 {
     GENERATED_BODY()
 
+public:
+    FCameraShotData()
+        : DirectorClass(nullptr)
+        , InterpolationSpeed(5.0f) // 기본값 유지
+        , FieldOfView(90.0f)       // 기본값 유지
+        , bInstantCut(false)
+        , CameraShake(nullptr)
+    {
+    }
+
+    FCameraShotData(
+        TSubclassOf<UCombatCameraShotDirector> InDirectorClass,
+        float InInterpolationSpeed,
+        float InFieldOfView,
+        bool InbInstantCut,
+        TSubclassOf<class UCameraShakeBase> InCameraShake
+    )
+        : DirectorClass(InDirectorClass)
+        , InterpolationSpeed(InInterpolationSpeed)
+        , FieldOfView(InFieldOfView)
+        , bInstantCut(InbInstantCut)
+        , CameraShake(InCameraShake)
+    {
+    }
+
     /** 이 샷의 카메라 Transform을 계산할 Director 클래스입니다. */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Shot|Logic", meta = (AllowAbstract = "false"))
     TSubclassOf<UCombatCameraShotDirector> DirectorClass;

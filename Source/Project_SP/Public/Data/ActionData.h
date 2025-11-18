@@ -6,10 +6,6 @@
 
 class UGameAction;
 
-/**
- *
- */
-
 UENUM(BlueprintType)
 enum class ETargetingType : uint8
 {
@@ -34,6 +30,54 @@ struct FActionData : public FTableRowBase
     GENERATED_BODY()
 
 public:
+    FActionData()
+        : DisplayName(FText::GetEmpty())
+        , TargetingType(ETargetingType::Self) 
+        , DamageType(EDamageType::Fenrir) 
+        , CostSP(0)
+        , SkillCoefficient(1.0f)
+        , NumberOfHits(1)
+        , NumberOfTargets(1)
+        , StatusEffectIDToApply(NAME_None)
+        , StatusEffectChance(1.0f)
+        , StatusEffectDurationOverride(0)
+        , StatusEffectMagnitudeOverride(0.0f)
+        , ParryWindowDuration(0.0f)
+        , GameActionClass(nullptr)
+    {
+    }
+
+    FActionData(
+        FText InDisplayName,
+        ETargetingType InTargetingType,
+        EDamageType InDamageType,
+        int32 InCostSP,
+        float InSkillCoefficient,
+        int32 InNumberOfHits,
+        int32 InNumberOfTargets,
+        FName InStatusEffectIDToApply,
+        float InStatusEffectChance,
+        int32 InStatusEffectDurationOverride,
+        float InStatusEffectMagnitudeOverride,
+        float InParryWindowDuration,
+        TSubclassOf<UGameAction> InGameActionClass
+    )
+        : DisplayName(InDisplayName)
+        , TargetingType(InTargetingType)
+        , DamageType(InDamageType)
+        , CostSP(InCostSP)
+        , SkillCoefficient(InSkillCoefficient)
+        , NumberOfHits(InNumberOfHits)
+        , NumberOfTargets(InNumberOfTargets)
+        , StatusEffectIDToApply(InStatusEffectIDToApply)
+        , StatusEffectChance(InStatusEffectChance)
+        , StatusEffectDurationOverride(InStatusEffectDurationOverride)
+        , StatusEffectMagnitudeOverride(InStatusEffectMagnitudeOverride)
+        , ParryWindowDuration(InParryWindowDuration)
+        , GameActionClass(InGameActionClass)
+    {
+    }
+
     // --- 기본 정보 (General) ---
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General")
     FText DisplayName;

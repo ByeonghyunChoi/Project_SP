@@ -31,6 +31,9 @@ public:
     
     ACombatPawn* GetInstigator() const { return Instigator; }
 
+    UPROPERTY(EditAnywhere, Category = "Combat Task")
+    bool bApplyToTarget = false;
+
 protected:
     UPROPERTY(BlueprintReadOnly, Category = "Combat Task")
     TObjectPtr<ABattleManager> BattleManager;

@@ -16,6 +16,34 @@ struct FMonsterData : public FTableRowBase
 	GENERATED_BODY()
 
 public:
+
+    FMonsterData()
+        : DisplayName(FText::GetEmpty())
+        , MonsterClass(nullptr)
+        , CharacterStatsRowName(NAME_None)
+        // TArray는 별도 초기화가 없으면 비어있는 상태로 생성됩니다.
+        , WeaknessType(EDamageType::Fenrir) // 기본값 설정 (필요시 변경)
+    {
+    }
+
+    // --- 2. 파라미터 생성자 (Parameterized Constructor) ---
+    FMonsterData(
+        FText InDisplayName,
+        TSubclassOf<class AMonsterCharacter> InMonsterClass,
+        FName InCharacterStatsRowName,
+        const TArray<FName>& InAvailableActionIDs,
+        EDamageType InWeaknessType,
+        const TArray<TSoftObjectPtr<UObject>>& InCriticalAssets
+    )
+        : DisplayName(InDisplayName)
+        , MonsterClass(InMonsterClass)
+        , CharacterStatsRowName(InCharacterStatsRowName)
+        , AvailableActionIDs(InAvailableActionIDs)
+        , WeaknessType(InWeaknessType)
+        , CriticalAssets(InCriticalAssets)
+    {
+    }
+
 	//몬스터 이름
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster Info")
 	FText DisplayName;

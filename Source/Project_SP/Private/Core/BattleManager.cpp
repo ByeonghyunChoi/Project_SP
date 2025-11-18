@@ -20,6 +20,7 @@
 #include "Component/StatusEffectComponent.h"
 #include "SubSystem/TimeForceSubsystem.h"
 #include "Component/ActionComponent.h"
+#include "Combat/GameAction.h"
 
 ABattleManager::ABattleManager()
 {
@@ -237,21 +238,17 @@ void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* De
 {
 	if (!Attacker || !Defender) return;
 
-	UE_LOG(LogTemp, Warning, TEXT("!!! PARRY SUCCESS: Starting Visual Sequence !!!"));
-
-	// 1. [중단] 현재 실행 중인 몬스터의 행동(데미지 판정 등) 즉시 제거
+	// 1. 행동 중단
 	ClearTaskQueue();
 
 	TArray<UCombatTask*> SequenceTasks;
 
-	// 2. [연출 로드] 데이터 테이블/BP에 정의된 'Parry_Visuals' 액션 가져오기
+	// 2. 'Parry_Visuals' 액션 로드
 	if (UActionComponent* ActionComp = Defender->GetActionComponent())
 	{
 		FActionData ParryVisualData;
-		// "Parry_Visuals"라는 ID는 데이터 테이블에 정의되어 있어야 함
 		if (ActionComp->GetActionData(TEXT("Parry_Visuals"), ParryVisualData))
 		{
-			// 액션 인스턴스를 임시로 만들어 그 안의 태스크들을 복사해옴
 			if (ParryVisualData.GameActionClass)
 			{
 				UGameAction* VisualAction = NewObject<UGameAction>(this, ParryVisualData.GameActionClass);
@@ -262,8 +259,14 @@ void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* De
 					if (TaskTemplate)
 					{
 						UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
-						// 연출의 주체(Instigator)는 방어한 플레이어, 대상(Target)은 공격한 몬스터
-						NewTask->Initialize(this, Defender, { Attacker });
+
+						// [컨텍스트 설정]
+						// 기본적으로 Instigator=플레이어, Target=몬스터
+						// bApplyToTarget이 true면 Instigator=몬스터, Target=플레이어
+						ACombatPawn* RealInstigator = TaskTemplate->bApplyToTarget ? Attacker : Defender;
+						TArray<ACombatPawn*> RealTargets = TaskTemplate->bApplyToTarget ? TArray<ACombatPawn*>{ Defender } : TArray<ACombatPawn*>{ Attacker };
+
+						NewTask->Initialize(this, RealInstigator, RealTargets);
 						SequenceTasks.Add(NewTask);
 					}
 				}
@@ -271,19 +274,7 @@ void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* De
 		}
 	}
 
-	// 3. [연출 추가] 몬스터가 튕겨나간 뒤 제자리로 돌아가는 이동 태스크 (C++에서 동적 추가)
-	UTask_MoveCharacter* ReturnTask = NewObject<UTask_MoveCharacter>(this);
-	ReturnTask->Initialize(this, Attacker, {}); // Instigator: 몬스터
-	ReturnTask->MoveType = EMoveTargetType::ToHome;
-	ReturnTask->MoveSpeed = 1500.0f; // 빠르게 복귀
-	SequenceTasks.Add(ReturnTask);
-
-	// 4. [로직 연결] 모든 연출 끝에 '턴 교체 태스크' 끼워 넣기
-	UTask_ExecuteParrySwitch* SwitchTask = NewObject<UTask_ExecuteParrySwitch>(this);
-	SwitchTask->Initialize(this, Attacker, { Defender });
-	SequenceTasks.Add(SwitchTask);
-
-	// 5. 실행 큐에 주입
+	// 3. 실행
 	InjectCombatTasks(SequenceTasks);
 }
 

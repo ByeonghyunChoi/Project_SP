@@ -11,6 +11,21 @@ struct FOpartStats : public FTableRowBase
 {
 	GENERATED_BODY()
 
+public:
+	FOpartStats()
+		: Health(100.0f)
+		, Attack(100.0f)
+		, Speed(20.0f)
+	{
+	}
+
+	FOpartStats(float InHealth, float InAttack, float InSpeed)
+        : Health(InHealth)
+        , Attack(InAttack)
+        , Speed(InSpeed)
+    {
+    }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oparts")
 	float Health = 100;
 

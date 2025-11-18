@@ -22,7 +22,7 @@ void UAttributesComponent::InitializeAttributes()
         return;
     }
 
-    const FCombatStats* FoundRow = AttributesDataTable->FindRow<FCombatStats>(CharacterID, TEXT("Loading Attributes"));
+    const FCharacterStatsData* FoundRow = AttributesDataTable->FindRow<FCharacterStatsData>(CharacterID, TEXT("Loading Attributes"));
     if (FoundRow)
     {
         BaseStats = *FoundRow;
@@ -37,7 +37,6 @@ void UAttributesComponent::InitializeAttributes()
         OnSPChanged.Broadcast(SkillPoints, 0);
         OnExperienceChanged.Broadcast(Experience, NextLevelExperience);
         OnLevelChanged.Broadcast(Level);
-        OnMoneyChanged.Broadcast(Money, 0);
     }
     else
     {
@@ -91,17 +90,6 @@ void UAttributesComponent::GainExperience(int32 Amount)
     OnExperienceChanged.Broadcast(Experience, NextLevelExperience);
 }
 
-void UAttributesComponent::ApplyMoneyChange(int32 Delta)
-{
-    const int32 OldMoney = Money;
-    Money = FMath::Max(0, Money + Delta); // 돈이 음수가 되지 않도록 함
-    const int32 ActualDelta = Money - OldMoney;
-
-    if (ActualDelta != 0)
-    {
-        OnMoneyChanged.Broadcast(Money, ActualDelta);
-    }
-}
 
 // 오파츠 스탯 적용 함수
 void UAttributesComponent::ApplyOpartsStats(const FOpartStats& OpartsStats)
@@ -162,7 +150,6 @@ void UAttributesComponent::RecalculateStatsForLevel(int32 NewLevel)
     // 선형 보간(Lerp)을 사용하여 스탯을 부드럽게 증가시킴
     CurrentStats.fMaxHealth = FMath::Lerp(BaseStats.fMaxHealth, BaseStats.MaxHealthCap, Progress);
     CurrentStats.fAttackPower = FMath::Lerp(BaseStats.fAttackPower, BaseStats.AttackPowerCap, Progress);
-    CurrentStats.fDefensePower = FMath::Lerp(BaseStats.fDefensePower, BaseStats.DefensePowerCap, Progress);
 
     // 다른 스탯들도 같은 방식으로 재계산...
 }
