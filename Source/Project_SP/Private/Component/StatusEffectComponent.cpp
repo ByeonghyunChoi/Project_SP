@@ -178,10 +178,7 @@ void UStatusEffectComponent::RecalculateStatModifiers()
             {
                 if (SubEffect.EffectType == EStatusEffectType::Stat_Debuff)
                 {
-                    if (SubEffect.StatToModify == EStatToModify::DefensePower)
-                    {
-                        float OriginalDefense = OwnerAttributesComp->GetCurrentStats().fDefensePower;
-                    }
+
                 }
             }
         }

@@ -29,7 +29,7 @@ float UCombatStatics::CalculateDamage(const UAttributesComponent* AttackerStats,
     float RandomFloat = FMath::FRand(); // 0.0 ~ 1.0사이의 값
     if (CriticalChance >= RandomFloat)
     {
-        CriticalCoefficient* AttackerStats->GetCurrentStats().fCriticalDamageMultiplier; // 1.0 * 크뎀
+        CriticalCoefficient *= AttackerStats->GetCurrentStats().fCriticalDamageMultiplier; // 1.0 * 크뎀
     }
     else
     {
