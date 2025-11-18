@@ -13,8 +13,8 @@ void UInventoryComponent::BeginPlay()
 	Super::BeginPlay();
 
 	// 테스트용 초기값
-	PlayerMaterials.Sand = 9999;
-	PlayerMaterials.IncompleteEnergy = 999; // 테스트용 초기값
+	PlayerMaterials.Sand = 0;
+	PlayerMaterials.IncompleteEnergy = 0; // 테스트용 초기값
 }
 
 // 현재 모래 가져오기
@@ -41,7 +41,37 @@ int32 UInventoryComponent::GetCurrentIncompleteEnergy() const
 void UInventoryComponent::SetCurrentIncompleteEnergy(int32 NewAmount)
 {
 	PlayerMaterials.IncompleteEnergy = FMath::Max(0, NewAmount);
-	
+}
+
+int32 UInventoryComponent::GetCurrentMoney() const
+{
+	return PlayerMaterials.Money;
+}
+
+void UInventoryComponent::SetCurrentMoney(int32 NewAmount)
+{
+	PlayerMaterials.Money = FMath::Max(0, NewAmount);
+}
+
+void UInventoryComponent::GainSand(int32 Amount)
+{
+	int32 ActrualReward = FMath::Max(0, Amount);
+	int32 NewTotalSand = GetCurrentSand() + ActrualReward;
+	SetCurrentSand(NewTotalSand);
+}
+
+void UInventoryComponent::GainIncompleteEnergy(int32 Amount)
+{
+	int32 ActrualReward = FMath::Max(0, Amount);
+	int32 NewTotalIncompleteEnergy = GetCurrentIncompleteEnergy() + ActrualReward;
+	SetCurrentIncompleteEnergy(NewTotalIncompleteEnergy);
+}
+
+void UInventoryComponent::GainMoney(int32 Amount)
+{
+	int32 ActrualReward = FMath::Max(0, Amount);
+	int32 NewTotalMoney = GetCurrentMoney() + ActrualReward;
+	SetCurrentMoney(NewTotalMoney);
 }
 
 // 유물 관련 함수

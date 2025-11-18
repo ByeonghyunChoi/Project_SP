@@ -44,6 +44,12 @@ protected:
 	//보상 상자
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
 	TObjectPtr<ARewardBox> RewardBox;
+	//보상 데이터 테이블
+	UPROPERTY(EditDefaultsOnly, Category = "Map Logic|Reward")
+	TObjectPtr<UDataTable> RewardDataTable;
+
+	//보상 데이터 테이블에서 맵 타입에 맞는 보상 행 이름 반환 함수
+	FName GetRewardRowNameByMapType() const;
 
 	//Manager Call Section
 public:

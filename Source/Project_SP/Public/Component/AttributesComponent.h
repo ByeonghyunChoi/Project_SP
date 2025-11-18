@@ -90,9 +90,6 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Attributes")
     void GainExperience(int32 Amount);
 
-    UFUNCTION(BlueprintCallable, Category = "Attributes")
-    void ApplyMoneyChange(int32 Delta);
-
     // ¿ÀÆÄÃ÷ ½ºÅÈ Àû¿ë ÇÔ¼ö
 	UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
     void ApplyOpartsStats(const FOpartStats& OpartsStats);
