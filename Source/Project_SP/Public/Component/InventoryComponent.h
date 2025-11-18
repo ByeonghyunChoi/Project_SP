@@ -59,6 +59,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material")
 	void SetCurrentIncompleteEnergy(int32 NewAmount);
 
+	// Money (돈)
+	UFUNCTION(BlueprintPure, Category = "Material")
+	int32 GetCurrentMoney() const;
+	
+	UFUNCTION(BlueprintCallable, Category = "Material")
+	void SetCurrentMoney(int32 NewAmount);
+
+	void GainSand(int32 Amount);
+
+	void GainIncompleteEnergy(int32 Amount);
+
+	void GainMoney(int32 Amount);
+
 	// 유물 관련 기능 함수
 	// 장착할 수 있는 유물 빈칸
 	// int32 GetAvailableRelicSlot() const;

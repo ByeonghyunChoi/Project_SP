@@ -19,6 +19,27 @@ AMapBase::AMapBase()
 }
 
 
+FName AMapBase::GetRewardRowNameByMapType() const
+{
+	switch (CurrentMapType)
+    {
+    case EMapType::NormalBattle:
+        return FName("Normal"); // 일반 전투 보상
+
+    case EMapType::StrongEnemyBattle:
+        return FName("Epic");  // 강적 전투 보상
+
+    case EMapType::BossBattle:
+        return FName("Boss");   // 보스 전투 보상
+
+    case EMapType::Jester:
+        return FName("Epic");   // 이벤트 맵 보상
+
+    default:
+        return FName("Normal");
+    }
+}
+
 void AMapBase::BeginMapLogic_Implementation()
 {
 	ActivatePortals();
@@ -27,6 +48,16 @@ void AMapBase::BeginMapLogic_Implementation()
 void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
 {
 	UE_LOG(LogTemp, Log, TEXT("AMapBase::OnCombatFinished - PlayerWon: %s"), bPlayerWon ? TEXT("True") : TEXT("False"));
+	if (bPlayerWon)
+	{
+		// 보상 상자 설정
+		if (RewardBox)
+		{
+			// ... 보상 설정 로직 ...
+			FName TargetLootGroup = GetRewardRowNameByMapType();
+			RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
+		}
+	}
 }
 
 void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)

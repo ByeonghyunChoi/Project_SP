@@ -178,7 +178,10 @@ void UStatusEffectComponent::RecalculateStatModifiers()
             {
                 if (SubEffect.EffectType == EStatusEffectType::Stat_Debuff)
                 {
+                    if (SubEffect.StatToModify == EStatToModify::DefensePower)
+                    {
 
+                    }
                 }
             }
         }
