@@ -66,6 +66,8 @@ protected:
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "State")
     FTransform HomeTransform;
 
+    bool bIsVisualDeathPending = false;
+
 public:
     // --- 공통 기능 ---
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -106,4 +108,8 @@ public:
 
     void SetHomeTransform(const FTransform& NewHomeTransform) { HomeTransform = NewHomeTransform; }
     FTransform GetHomeTransform() const { return HomeTransform; }
+
+    void ExecuteDelayedDeath();
+
+    void ReviveFromDefeat(float HealthPercentage = 0.5f);
 };

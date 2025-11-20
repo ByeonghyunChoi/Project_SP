@@ -113,6 +113,14 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
     }
 }
 
+void UCombatCameraComponent::SetCameraTargetLocation(FVector NewTargetLoc, FRotator NewTargetRot, float InterpSpeed)
+{
+    TargetLocation = NewTargetLoc;
+    TargetRotation = NewTargetRot;
+    CurrentInterpolationSpeed = InterpSpeed;
+    SetComponentTickEnabled(true);
+}
+
 void UCombatCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);

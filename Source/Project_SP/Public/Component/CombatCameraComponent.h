@@ -29,6 +29,7 @@ public:
     void PlayParryShot(AActor* Parrier, AActor* Attacker);
 
     void PlayShot(FName ShotName, AActor* Attacker = nullptr, AActor* Target = nullptr);
+    void SetCameraTargetLocation(FVector NewTargetLoc, FRotator NewTargetRot, float InterpSpeed);
 
 protected:
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

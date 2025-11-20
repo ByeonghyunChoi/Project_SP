@@ -423,6 +423,16 @@ ACombatPawn* ABattleManager::GetCurrentTurnCharacter() const
 
 void ABattleManager::HandleActionFinished(ACombatPawn* FinishedPawn)
 {
+	for (int32 i = AllCombatants.Num() - 1; i >= 0; --i)
+	{
+		ACombatPawn* Pawn = AllCombatants[i];
+		if (IsValid(Pawn))
+		{
+			Pawn->ExecuteDelayedDeath();
+		}
+	}
+
+	// 기존 로직 (턴 종료 처리 등)
 	if (GetCurrentTurnCharacter() == FinishedPawn)
 	{
 		EndCurrentTurn();
@@ -438,31 +448,25 @@ void ABattleManager::HandleInterruptRequest(ACombatPawn* InInstigator)
 void ABattleManager::HandleCombatantDied(AActor* Victim, AActor* InInstigator)
 {
 	ACombatPawn* DeadPawn = Cast<ACombatPawn>(Victim);
-	if (DeadPawn && DeadPawn->GetFaction() == EFaction::Player)
+	if (!DeadPawn) return;
+
+	if (DeadPawn->GetFaction() == EFaction::Player)
 	{
 		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
 		{
+			// 시간의 힘 20 소모 시도
 			if (TimeManager->DecreaseTimeForce(20))
 			{
-				// [부활 성공] 시간의 힘 소모 성공
+				DeadPawn->ReviveFromDefeat(0.5f);
+				UE_LOG(LogTemp, Warning, TEXT("플레이어 부활 성공! (시간의 힘 소모)"));
 
-				// 1. 플레이어 부활 로직 (예: 체력 50%로)
-				float MaxHealth = DeadPawn->GetAttributesComponent()->GetCurrentStats().fMaxHealth;
-				DeadPawn->GetAttributesComponent()->ApplyHealthChange(MaxHealth * 0.5f, nullptr);
-				DeadPawn->SetCombatPawnState(ECombatPawnState::Idle);
-				DeadPawn->SetActorEnableCollision(true); // 충돌 다시 켜기
-
-				UE_LOG(LogTemp, Warning, TEXT("%s가 시간의 힘 20을 소모하고 부활했습니다!"), *DeadPawn->GetName());
-
-				// 2. 부활했으므로, 전투 패배 조건을 체크하지 않고 함수를 '즉시' 종료합니다.
-				// (적이 다 죽었는지 체크는 필요할 수 있으니 CheckBattleEndConditions() 호출)
-				CheckBattleEndConditions();
+				// 부활했으므로 패배 조건 체크 없이 리턴
 				return;
 			}
 			else
 			{
-				// [부활 실패] 시간의 힘 부족 (TimeManager가 게임 오버 처리함)
-				UE_LOG(LogTemp, Error, TEXT("%s 사망. 시간의 힘 부족. 게임 오버."), *DeadPawn->GetName());
+				// [실패] 시간의 힘 부족 -> 게임 오버
+				UE_LOG(LogTemp, Error, TEXT("부활 실패: 시간의 힘 부족."));
 			}
 		}
 	}
@@ -485,7 +489,7 @@ void ABattleManager::HandleDamageReceived(ACombatPawn* DamagedPawn, float Damage
 	{
 		return;
 	}
-
+	
 	DamagedPawn->K2_ShowDamageFloater(DamageAmount, DamageType);
 }
 

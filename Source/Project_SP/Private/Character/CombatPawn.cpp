@@ -68,14 +68,66 @@ void ACombatPawn::SetCharacterDisplayName(const FText& NewName)
 
 void ACombatPawn::HandleOwnerHealthDepleted(AActor* Victim, AActor* InInstigator)
 {
-    if (CurrentPawnState != ECombatPawnState::Defeated)
+    if (CurrentPawnState == ECombatPawnState::Defeated || bIsVisualDeathPending)
     {
-        SetCombatPawnState(ECombatPawnState::Defeated);
-        // 더 이상 타겟팅되지 않도록 충돌 비활성화
+        return;
+    }
+
+    // 1. 상태는 'Defeated'로 변경 (더 이상 타겟팅되거나 행동하지 못하게)
+    SetCombatPawnState(ECombatPawnState::Defeated);
+
+    // 2. [핵심] 충돌은 끄지 않습니다! (남은 연타를 다 맞아야 하니까)
+    // SetActorEnableCollision(false); <--- 주석 처리 또는 삭제
+
+    // 3. [핵심] 사망 연출도 지금 안 합니다. 플래그만 켭니다.
+    bIsVisualDeathPending = true;
+
+    UE_LOG(LogTemp, Log, TEXT("%s is defeated but waiting for action to end."), *GetName());
+}
+
+void ACombatPawn::ExecuteDelayedDeath()
+{
+    if (bIsVisualDeathPending)
+    {
+        bIsVisualDeathPending = false;
+
+        // 미뤄뒀던 충돌 해제
         SetActorEnableCollision(false);
 
+        // 미뤄뒀던 사망 연출(Ragdoll or Anim) 재생
         K2_OnDied();
+
+        UE_LOG(LogTemp, Log, TEXT("%s Visual Death Executed."), *GetName());
     }
+}
+
+void ACombatPawn::ReviveFromDefeat(float HealthPercentage)
+{
+    if (AttributesComponent)
+    {
+        float MaxHealth = AttributesComponent->GetCurrentStats().fMaxHealth;
+        float CurrentHealth = AttributesComponent->GetCurrentStats().fCurrentHealth;
+        float HealAmount = (MaxHealth * HealthPercentage) - CurrentHealth;
+        if (HealAmount > 0)
+        {
+            AttributesComponent->ApplyHealthChange(HealAmount, this);
+        }
+    }
+
+    // 1. 사망 예약 취소 (핵심!)
+    bIsVisualDeathPending = false;
+
+    // 2. 상태 복구
+    // (죽었다가 살아났으니, 다시 대기 상태나 맞고 있는 상태로 변경)
+    if (CurrentPawnState == ECombatPawnState::Defeated)
+    {
+        SetCombatPawnState(ECombatPawnState::Idle);
+    }
+
+    // 3. 충돌 및 기타 상태 확실하게 복구
+    SetActorEnableCollision(true);
+
+    UE_LOG(LogTemp, Warning, TEXT("Pawn %s Revived! Death Pending Cancelled."), *GetName());
 }
 
 void ACombatPawn::SetCombatPawnState(const ECombatPawnState& NewState)

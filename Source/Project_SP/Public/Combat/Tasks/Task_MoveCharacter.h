@@ -10,7 +10,8 @@ UENUM(BlueprintType)
 enum class EMoveTargetType : uint8
 {
 	ToTarget    UMETA(DisplayName = "타겟에게 이동"),
-	ToHome      UMETA(DisplayName = "원래 위치로 복귀")
+	ToHome      UMETA(DisplayName = "원래 위치로 복귀"),
+    ToCurrentLocationWithOffset UMETA(DisplayName = "현재 위치 기준 이동")
 };
 
 UCLASS()
@@ -35,11 +36,38 @@ protected:
 
     /** 타겟에게 이동 시, 이 거리만큼 앞에서 멈춥니다. */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
-    float AttackOffset = 50.0f;
-
+    FVector TargetOffset_3D = FVector::ZeroVector;
     /** 회전 속도 (RInterpTo의 속도값) */
     UPROPERTY(EditAnywhere, Category = "Task Properties")
     float RotationSpeed = 10.0f;
+
+    // 이동 시 재생할 몽타주 (점프, 대쉬, 백스텝 등)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Visuals")
+    TObjectPtr<UAnimMontage> MovementMontage;
+
+    // True: 적을 바라보며 이동 (백스텝, 공중 사격)
+    // False: 이동하는 방향을 바라봄 (대쉬, 달리기)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Visuals")
+    bool bFaceTargetWhileMoving = false;
+
+    // True: 지형 무시하고 공중으로 직선 이동 (점프, 공중 대쉬용)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Visuals")
+    bool bIgnoreGround = false;
+
+    // [추가] 이동 중 카메라 연출을 사용할지 여부
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
+    bool bUseActionCamera = false;
+
+    // [추가] 캐릭터 기준 카메라 오프셋 (예: X=-300, Z=150 -> 등 뒤 위쪽)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
+    FVector ActionCameraOffset = FVector(-300.0f, 0.0f, 150.0f);
+
+    // [추가] 카메라 이동 속도 (부드럽게 따라가기 위함)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
+    float ActionCameraSmoothSpeed = 10.0f;
+
+    // 원래 카메라 위치 복구용
+    bool bWasActionCameraUsed = false;
 
 private:
     /** 이동해야 할 최종 목적지 위치 */
@@ -52,4 +80,6 @@ private:
 	
     //캐릭터의 최대 이동 속도
     float OriginalMaxWalkSpeed = 0.0f;
+
+    uint8 OriginalMovementMode;
 };
