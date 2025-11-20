@@ -62,6 +62,11 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
     FVector ActionCameraOffset = FVector(-300.0f, 0.0f, 150.0f);
 
+    // [추가] 캐릭터 기준 카메라 회전 오프셋 (예: Pitch=-15 -> 아래를 내려다봄)
+    // 캐릭터가 바라보는 방향(Rotation)에 이 값을 더해서 최종 각도를 결정합니다.
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
+    FRotator ActionCameraRotationOffset = FRotator(-15.0f, 0.0f, 0.0f);
+
     // [추가] 카메라 이동 속도 (부드럽게 따라가기 위함)
     UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
     float ActionCameraSmoothSpeed = 10.0f;

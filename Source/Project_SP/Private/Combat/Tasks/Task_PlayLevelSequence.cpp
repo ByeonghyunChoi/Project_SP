@@ -7,57 +7,60 @@
 
 void UTask_PlayLevelSequence::ExecuteTask_Implementation()
 {
-    if (!SequenceAsset || !GetWorld())
-    {
-        FinishTask();
-        return;
-    }
+	if (!SequenceAsset || !GetWorld())
+	{
+		FinishTask();
+		return;
+	}
 
-    FMovieSceneSequencePlaybackSettings Settings;
-    Settings.bAutoPlay = false;
-    Settings.bDisableCameraCuts = false; // 시퀀스 카메라 사용
-    Settings.bHideHud = true;            // 연출 중 HUD 숨김
+	FMovieSceneSequencePlaybackSettings Settings;
+	Settings.bAutoPlay = false;
+	// [수정] 변수 값에 따라 카메라 컷 제어 (Disable = !Use)
+	Settings.bDisableCameraCuts = !bUseCameraCuts;
+	Settings.bHideHud = true;
 
-    ALevelSequenceActor* OutActor = nullptr;
+	ALevelSequenceActor* TempActor = nullptr; // 1. 임시 포인터 생성
 
-    // 1. 시퀀스 플레이어 및 액터 생성
-    SequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(
-        GetWorld(), SequenceAsset, Settings, OutActor);
+	SequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(
+		GetWorld(), SequenceAsset, Settings, TempActor); // 2. 임시 포인터 전달
 
-    if (SequencePlayer && OutActor)
-    {
-        // 2. 동적 바인딩: 태그를 이용해 실제 액터 연결
-        if (Instigator)
-        {
-            OutActor->AddBindingByTag(AttackerTag, Instigator);
-        }
+	SequenceActor = TempActor;
 
-        if (Targets.IsValidIndex(0) && Targets[0])
-        {
-            OutActor->AddBindingByTag(TargetTag, Targets[0]);
-        }
+	if (SequencePlayer && SequenceActor)
+	{
+		// 2. 동적 바인딩
+		if (Instigator)
+		{
+			// (옵션) 시퀀스 원점을 시전자 위치로 이동하려면 아래 주석 해제
+			// SequenceActor->SetActorTransform(Instigator->GetActorTransform());
+			SequenceActor->AddBindingByTag(AttackerTag, Instigator);
+		}
 
-        // 3. 재생
-        SequencePlayer->OnFinished.AddDynamic(this, &UTask_PlayLevelSequence::OnSequenceFinished);
-        SequencePlayer->Play();
+		if (Targets.IsValidIndex(0) && Targets[0])
+		{
+			SequenceActor->AddBindingByTag(TargetTag, Targets[0]);
+		}
 
-        // [핵심] 대기 옵션이 꺼져있으면 즉시 태스크 종료 (다음 태스크 실행)
-        if (!bWaitForCompletion)
-        {
-            FinishTask();
-        }
-    }
-    else
-    {
-        FinishTask();
-    }
+		// 3. 재생
+		SequencePlayer->OnFinished.AddDynamic(this, &UTask_PlayLevelSequence::OnSequenceFinished);
+		SequencePlayer->Play();
+
+		// [핵심] 대기 옵션이 꺼져있으면 즉시 태스크 종료
+		if (!bWaitForCompletion)
+		{
+			FinishTask();
+		}
+	}
+	else
+	{
+		FinishTask();
+	}
 }
 
 void UTask_PlayLevelSequence::OnSequenceFinished()
 {
-    // bWaitForCompletion이 True였을 경우 여기서 태스크 종료
-    if (bWaitForCompletion)
-    {
-        FinishTask();
-    }
+	if (bWaitForCompletion)
+	{
+		FinishTask();
+	}
 }

@@ -130,17 +130,18 @@ void UTask_MoveCharacter::TickTask(float DeltaTime)
 			FVector CharLoc = Instigator->GetActorLocation();
 			FRotator CharRot = Instigator->GetActorRotation();
 
-			// 캐릭터 등 뒤 오프셋 계산
+			// [위치 계산] 캐릭터 등 뒤 오프셋 적용
 			FVector CamGoalLoc = CharLoc + CharRot.RotateVector(ActionCameraOffset);
-			FRotator CamGoalRot = CharRot;
-			CamGoalRot.Pitch -= 10.0f;
+
+			// [회전 계산] 캐릭터 회전 + 우리가 설정한 회전 오프셋
+			// 예: 캐릭터가 (0, 90, 0)을 보고 있고, 오프셋이 (-15, 0, 0)이라면
+			// 최종 카메라는 ( -15, 90, 0 )이 되어 "동쪽을 보며 아래를 내려다보는" 각도가 됨.
+			FRotator CamGoalRot = CharRot + ActionCameraRotationOffset;
 
 			// 카메라 이동 명령
-			// (SetCameraTargetLocation 함수가 없다면 구현 필요)
 			CamComp->SetCameraTargetLocation(CamGoalLoc, CamGoalRot, ActionCameraSmoothSpeed);
 		}
 	}
-
 
 	// 4. [도착 판정]
 	if (FVector::DistSquared(CurrentLoc, TargetLocation) < FMath::Square(10.0f))

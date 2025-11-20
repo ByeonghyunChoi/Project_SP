@@ -40,9 +40,15 @@ protected:
     UPROPERTY(EditAnywhere, Category = "Sequence")
     bool bWaitForCompletion = true;
 
+    UPROPERTY(EditAnywhere, Category = "Sequence")
+    bool bUseCameraCuts = true;
+
 private:
     UPROPERTY()
     TObjectPtr<ULevelSequencePlayer> SequencePlayer;
+
+    UPROPERTY()
+    TObjectPtr<ALevelSequenceActor> SequenceActor;
 
     UFUNCTION()
     void OnSequenceFinished();
