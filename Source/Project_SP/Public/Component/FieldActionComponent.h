@@ -36,6 +36,9 @@ protected:
 	UPROPERTY()
 	TObjectPtr<APlayerCharacter> OwningPlayer;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Field Action")
+	TObjectPtr<UAnimMontage> FieldAttackMontage;
+
 
 public:	
 	// 플레이어의 공격 입력을 받았을 때 호출됩니다.

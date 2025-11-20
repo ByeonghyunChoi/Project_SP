@@ -65,6 +65,11 @@ void UFieldActionComponent::StartAttackSequence()
             OwningPlayer->SetActorRotation(TargetRotation);
         }
     }
+
+	if (FieldAttackMontage)
+	{
+		OwningPlayer->PlayAnimMontage(FieldAttackMontage);
+	}
 }
 
 void UFieldActionComponent::PerformAttackHitCheck()
