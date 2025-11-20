@@ -14,6 +14,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "Interface/InteractableInterface.h"
+#include "Component/ActionComponent.h"
 #include "InputAction.h"
 
 APlayerCharacter::APlayerCharacter()
@@ -136,6 +137,11 @@ void APlayerCharacter::OnInteractionVolumeEndOverlap(UPrimitiveComponent* Overla
 
 void APlayerCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {
+	if (ActionComponent)
+	{
+		ActionComponent->ReduceCooldowns();
+	}
+
 	if (GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
 	UE_LOG(LogTemp, Log, TEXT("Player Turn Began."));

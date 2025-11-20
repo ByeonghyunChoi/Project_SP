@@ -4,21 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "Combat/CombatTask.h"
-#include "Task_DealDamage.generated.h"
+#include "Task_ApplyStatusRandom.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class PROJECT_SP_API UTask_DealDamage : public UCombatTask
+class PROJECT_SP_API UTask_ApplyStatusRandom : public UCombatTask
 {
 	GENERATED_BODY()
-
 public:
 	virtual void ExecuteTask_Implementation() override;
 
 protected:
-	UPROPERTY(EditAnywhere, Category = "Task Properties")
-	float DamageCoefficientOverride = -1.0f;
+	// 적용할 상태 이상 ID (예: Poison)
+	UPROPERTY(EditAnywhere, Category = "Status")
+	FName StatusEffectID;
 	
 };

@@ -278,95 +278,39 @@ void UPlayerCombatControlComponent::SelectAction(FName ActionID)
 
 void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 {
+	// 1. 유효성 검사
 	if (!ParriedAttacker || !OwningPlayerCharacter || !ActionComponent || !WeaponSystemComponent) return;
+
 	UE_LOG(LogTemp, Warning, TEXT("!!! PARRY SUCCESS vs %s !!!"), *ParriedAttacker->GetName());
 
+	// 2. 적의 공격 행동 중단 (BattleManager 호출)
 	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
-	if (!BattleManager) return;
-
-	// 1. 적 행동 취소 요청
-	BattleManager->ClearTaskQueue();
-
-	// 2. 몬스터 행동 마무리
-	FName MonsterReturnActionID = TEXT("StormFang_ReturnHome"); // DT_ActionData Row Name
-	FActionData ReturnData;
-	if (ActionComponent->GetActionData(MonsterReturnActionID, ReturnData) && ReturnData.GameActionClass)
+	if (BattleManager)
 	{
-		UGameAction* ReturnAction = NewObject<UGameAction>(OwningPlayerCharacter, ReturnData.GameActionClass); // Outer는 임시
-		if (ReturnAction)
-		{
-			ReturnAction->Initialize(ActionComponent, MonsterReturnActionID);
-			TArray<UCombatTask*> ReturnTasks;
-			for (UCombatTask* TaskTemplate : ReturnAction->GetTasks())
-			{
-				if (TaskTemplate)
-				{
-					UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, BattleManager);
-					// 중요: 각 태스크의 Instigator를 올바르게 설정해야 함
-					if (Cast<UTask_RequestPlayerInterrupt>(NewTask)) {
-						// 인터럽트 요청 태스크의 Instigator는 '플레이어'
-						NewTask->Initialize(BattleManager, OwningPlayerCharacter, {});
-					}
-					else {
-						// 몬스터 복귀 애니메이션/이동 태스크의 Instigator는 '몬스터'
-						NewTask->Initialize(BattleManager, ParriedAttacker, {});
-					}
-					ReturnTasks.Add(NewTask);
-				}
-			}
-			BattleManager->InjectCombatTasks(ReturnTasks); // 비주얼 다음 순서로 주입
-		}
+		// 적이 공격하던 태스크들을 모두 취소시킵니다.
+		BattleManager->ClearTaskQueue();
+	}
+
+	// 3. 무기 데이터에서 패링 스킬 ID 가져오기
+	FName ParryActionID = NAME_None;
+	if (UWeaponData* CurrentWeapon = WeaponSystemComponent->GetCurrentWeapon())
+	{
+		ParryActionID = CurrentWeapon->ParrySkillActionID; // 예: Fenrir_Parry
+	}
+
+	// 4. 패링 스킬 즉시 실행
+	if (!ParryActionID.IsNone())
+	{
+		// 기존처럼 태스크를 수동으로 Inject하지 않고, 일반적인 액션 실행 함수를 사용합니다.
+		// 이 액션(BP_Action_Fenrir_Parry) 안에 '시퀀스 재생(Task_PlayLevelSequence)'과 '데미지 처리'가 모두 들어있습니다.
+		ActionComponent->StartActionByID(OwningPlayerCharacter, ParryActionID, { ParriedAttacker });
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Could not find Monster_ReturnHome_AfterParry action! Parry skill might not execute."));
+		UE_LOG(LogTemp, Error, TEXT("Parry Success but no ParrySkillActionID found for current weapon!"));
 	}
 
-	// 3. 패링 비주얼 태스크 주입 (선택 사항 - 이건 즉시 실행)
-	FName ParryVisualActionID = TEXT("Parry_Visuals");
-	FActionData ParryVisualData;
-	if (ActionComponent->GetActionData(ParryVisualActionID, ParryVisualData) && ParryVisualData.GameActionClass)
-	{
-		UGameAction* VisualAction = NewObject<UGameAction>(OwningPlayerCharacter, ParryVisualData.GameActionClass);
-		if (VisualAction)
-		{
-			VisualAction->Initialize(ActionComponent, ParryVisualActionID);
-			TArray<UCombatTask*> VisualTasks;
-			for (UCombatTask* TaskTemplate : VisualAction->GetTasks()) // GetTasks() 사용
-			{
-				if (TaskTemplate)
-				{
-					UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, BattleManager);
-					NewTask->Initialize(BattleManager, OwningPlayerCharacter, {});
-					VisualTasks.Add(NewTask);
-				}
-			}
-			BattleManager->InjectCombatTasks(VisualTasks); // 비주얼 태스크만 먼저 주입
-		}
-	}
-
-	// 4. 추가 턴 정보 저장
-	FName ParrySkillActionID = NAME_None;
-	if (WeaponSystemComponent->GetCurrentWeapon())
-	{
-		ParrySkillActionID = WeaponSystemComponent->GetCurrentWeapon()->ParrySkillActionID;
-	}
-
-	if (!ParrySkillActionID.IsNone())
-	{
-		bPendingParryInterrupt = true; // 추가 턴 필요 플래그 설정
-		PendingParrySkillID = ParrySkillActionID; // 사용할 스킬 ID 저장
-		PendingParryTarget = ParriedAttacker; // 스킬 대상 저장
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Parry Success but no ParrySkillActionID found for current weapon! Skipping interrupt turn request."));
-		// 패링 스킬이 없으면 추가 턴을 요청하지 않음 (선택적: EndTurn만 주입?)
-		// 이 경우 BattleManager는 다음 일반 턴을 결정하게 됨
-	}
-
-
-	// 5. 패링 성공 이벤트 방송
+	// 5. 패링 성공 이벤트 방송 (UI 표시 등)
 	if (OwningPlayerCharacter->GetGameEventComponent())
 	{
 		OwningPlayerCharacter->GetGameEventComponent()->BroadcastParryAttempted(ParriedAttacker, OwningPlayerCharacter, EParryResult::Success);

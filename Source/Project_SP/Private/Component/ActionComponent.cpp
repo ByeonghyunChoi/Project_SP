@@ -66,7 +66,7 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 			if (Action->CanStartAction(Instigator))
 			{
 				const int32 CostSP = Action->GetData().CostSP;
-				// [이 줄을 수정하세요]
+				// 
 				if (CostSP != 0 && Instigator && Instigator->GetAttributesComponent())
 				{
 					Instigator->GetAttributesComponent()->ApplySPChange(-CostSP);
@@ -74,6 +74,12 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 				// 액션이 시작되면 ActiveAction에 기록합니다.
 				ActiveAction = Action;
 				Action->StartAction(Instigator, Targets);
+
+				if (Action->GetData().CooldownTurns > 0)
+				{
+					// 쿨타임 맵에 추가 (이미 있으면 덮어씌움)
+					CooldownMap.Add(ActionID, Action->GetData().CooldownTurns);
+				}
 				return true;
 			}
 			return false; // 조건이 맞지 않아 실행 실패
@@ -116,4 +122,16 @@ bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData)
 void UActionComponent::ResetActiveAction()
 {
 	ActiveAction = nullptr;
+}
+
+void UActionComponent::ReduceCooldowns()
+{
+	for (auto It = CooldownMap.CreateIterator(); It; ++It)
+	{
+		It.Value()--; // 1턴 감소
+		if (It.Value() <= 0)
+		{
+			It.RemoveCurrent(); // 0이 되면 목록에서 제거 (사용 가능)
+		}
+	}
 }

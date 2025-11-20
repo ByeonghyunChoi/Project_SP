@@ -32,17 +32,17 @@ struct FActionData : public FTableRowBase
 public:
     FActionData()
         : DisplayName(FText::GetEmpty())
-        , TargetingType(ETargetingType::Self) 
-        , DamageType(EDamageType::Fenrir) 
+        , TargetingType(ETargetingType::Self)
+        , DamageType(EDamageType::Fenrir)
         , CostSP(0)
         , SkillCoefficient(1.0f)
-        , NumberOfHits(1)
         , NumberOfTargets(1)
         , StatusEffectIDToApply(NAME_None)
         , StatusEffectChance(1.0f)
         , StatusEffectDurationOverride(0)
         , StatusEffectMagnitudeOverride(0.0f)
         , ParryWindowDuration(0.0f)
+        , CooldownTurns(0)
         , GameActionClass(nullptr)
     {
     }
@@ -53,13 +53,13 @@ public:
         EDamageType InDamageType,
         int32 InCostSP,
         float InSkillCoefficient,
-        int32 InNumberOfHits,
         int32 InNumberOfTargets,
         FName InStatusEffectIDToApply,
         float InStatusEffectChance,
         int32 InStatusEffectDurationOverride,
         float InStatusEffectMagnitudeOverride,
         float InParryWindowDuration,
+        int32 InCooldownTurns,
         TSubclassOf<UGameAction> InGameActionClass
     )
         : DisplayName(InDisplayName)
@@ -67,13 +67,13 @@ public:
         , DamageType(InDamageType)
         , CostSP(InCostSP)
         , SkillCoefficient(InSkillCoefficient)
-        , NumberOfHits(InNumberOfHits)
         , NumberOfTargets(InNumberOfTargets)
         , StatusEffectIDToApply(InStatusEffectIDToApply)
         , StatusEffectChance(InStatusEffectChance)
         , StatusEffectDurationOverride(InStatusEffectDurationOverride)
         , StatusEffectMagnitudeOverride(InStatusEffectMagnitudeOverride)
         , ParryWindowDuration(InParryWindowDuration)
+        , CooldownTurns(InCooldownTurns)
         , GameActionClass(InGameActionClass)
     {
     }
@@ -97,9 +97,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     float SkillCoefficient = 1.0f;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-    int32 NumberOfHits = 1;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat", meta = (ClampMin = "1"))
     int32 NumberOfTargets = 1;
 
@@ -113,21 +110,21 @@ public:
     float StatusEffectChance = 1.0f;
 
     // 상태 이상의 지속 턴을 이 값으로 재정의합니다.
-    // 0 이하의 값일 경우, DT_StatusEffects에 정의된 기본값을 사용합니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect|Overrides")
     int32 StatusEffectDurationOverride = 0;
 
-    // 상태 이상의 효과량(데미지, 스탯 감소량 등)을 이 값으로 재정의합니다.
-    // 0.0일 경우, DT_StatusEffects에 정의된 기본값을 사용합니다.
+    // 상태 이상의 효과량을 이 값으로 재정의합니다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Status Effect|Overrides")
     float StatusEffectMagnitudeOverride = 0.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     float ParryWindowDuration = 0.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cost")
+    int32 CooldownTurns = 0;
+
     // --- 로직 (Logic) ---
     // 이 행동의 실제 로직을 담고 있는 UGameAction 클래스
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Logic")
     TSubclassOf<UGameAction> GameActionClass;
-
 };

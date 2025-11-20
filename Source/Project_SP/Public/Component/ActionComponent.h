@@ -48,6 +48,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Actions")
 	void ResetActiveAction();
 
+	UFUNCTION(BlueprintCallable, Category = "Actions")
+	void ReduceCooldowns();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
+	TMap<FName, int32> CooldownMap;
+
 protected:
 	// 참조할 '설계도' 데이터 테이블
 	UPROPERTY(EditDefaultsOnly, Category = "Actions")

@@ -13,7 +13,13 @@ void UTask_DealDamage::ExecuteTask_Implementation()
     UGameAction* OwningAction = Cast<UGameAction>(GetOuter());
     if (Instigator && OwningAction && Instigator->GetAttributesComponent() && Targets.Num() > 0)
     {
-        const float SkillCoefficient = OwningAction->GetData().SkillCoefficient;
+        float SkillCoefficient = OwningAction->GetData().SkillCoefficient;
+
+        if (DamageCoefficientOverride > 0.0f)
+        {
+            SkillCoefficient = DamageCoefficientOverride;
+        }
+
         UAttributesComponent* InstigatorStats = Instigator->GetAttributesComponent(); // 가해자 스탯
 
         for (ACombatPawn* Target : Targets)

@@ -58,4 +58,7 @@ public:
     UMonsterGroupObject* GetCombatMonsterGroup() const { return CombatMonsterGroup; }
 
     void SetWeaknessType(EDamageType NewType) { WeaknessType = NewType; }
+
+    UFUNCTION(BlueprintPure, Category = "AI")
+    EDamageType GetWeaknessType() const { return WeaknessType; }
 };

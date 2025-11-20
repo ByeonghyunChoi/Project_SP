@@ -29,6 +29,17 @@ bool UGameAction::CanStartAction_Implementation(ACombatPawn* Instigator)
 {
     if (!Instigator) return false;
 
+    if (OwningComponent && OwningComponent->CooldownMap.Contains(ActionID))
+    {
+        int32 Remaining = OwningComponent->CooldownMap[ActionID];
+        if (Remaining > 0)
+        {
+            FString Msg = FString::Printf(TEXT("쿨타임 중입니다. 남은 턴: %d"), Remaining);
+            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
+            return false;
+        }
+    }
+
     // 비용이 0이면 항상 실행 가능
     if (Data.CostSP <= 0)
     {
