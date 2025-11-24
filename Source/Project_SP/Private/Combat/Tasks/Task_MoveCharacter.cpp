@@ -147,8 +147,6 @@ void UTask_MoveCharacter::TickTask(float DeltaTime)
 	if (FVector::DistSquared(CurrentLoc, TargetLocation) < FMath::Square(10.0f))
 	{
 		// 이동 완료!
-		bIsMoveComplete = true;
-
 		UCharacterMovementComponent* MoveComp = Instigator->GetCharacterMovement();
 		if (MoveComp)
 		{
@@ -169,6 +167,8 @@ void UTask_MoveCharacter::TickTask(float DeltaTime)
 		}
 
 		// 태스크 종료
+		bIsMoveComplete = true;
 		FinishTask();
+		return;
 	}
 }
