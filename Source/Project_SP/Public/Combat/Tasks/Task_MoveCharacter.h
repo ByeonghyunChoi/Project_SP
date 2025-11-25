@@ -70,6 +70,9 @@ protected:
     // [추가] 카메라 이동 속도 (부드럽게 따라가기 위함)
     UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
     float ActionCameraSmoothSpeed = 10.0f;
+    //카메라의 시야 각(줌 인, 줌 아웃)
+    UPROPERTY(EditAnywhere, Category = "Task Properties|Camera")
+    float ActionCameraFOV = 90.0f;
 
     // 원래 카메라 위치 복구용
     bool bWasActionCameraUsed = false;

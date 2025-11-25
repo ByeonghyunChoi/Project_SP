@@ -25,7 +25,8 @@ void UBattleTurnComponent::StartTurn(bool bIsInterrupt)
     bIsMyTurn = true;
     if (!bIsInterrupt)
     {
-        ActionValue = 0.f;
+        ActionValue -= ActionThreshold;
+        if (ActionValue < 0.0f) ActionValue = 0.0f;
     }
 }
 

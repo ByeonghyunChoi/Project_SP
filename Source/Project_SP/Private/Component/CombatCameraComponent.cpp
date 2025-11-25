@@ -113,10 +113,11 @@ void UCombatCameraComponent::PlayShot(FName ShotName, AActor* Attacker, AActor* 
     }
 }
 
-void UCombatCameraComponent::SetCameraTargetLocation(FVector NewTargetLoc, FRotator NewTargetRot, float InterpSpeed)
+void UCombatCameraComponent::SetCameraTargetLocation(FVector NewTargetLoc, FRotator NewTargetRot, float NewTargetFOV, float InterpSpeed)
 {
     TargetLocation = NewTargetLoc;
     TargetRotation = NewTargetRot;
+    TargetFieldOfView = NewTargetFOV;
     CurrentInterpolationSpeed = InterpSpeed;
     SetComponentTickEnabled(true);
 }

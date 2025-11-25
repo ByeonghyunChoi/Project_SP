@@ -21,11 +21,8 @@ void UTask_MoveCharacter::ExecuteTask_Implementation()
 		OriginalMaxWalkSpeed = MoveComp->MaxWalkSpeed;
 		OriginalMovementMode = (uint8)MoveComp->MovementMode; // 원래 모드 저장
 
-		// [핵심] 공중 이동이면 'Flying' 모드로 전환 (중력 무시)
-		if (bIgnoreGround)
-		{
-			MoveComp->SetMovementMode(MOVE_Flying);
-		}
+		
+		MoveComp->SetMovementMode(MOVE_Flying);
 		MoveComp->MaxWalkSpeed = MoveSpeed;
 	}
 
@@ -91,84 +88,109 @@ void UTask_MoveCharacter::ExecuteTask_Implementation()
 
 void UTask_MoveCharacter::TickTask(float DeltaTime)
 {
-	if (bIsMoveComplete || !Instigator) return;
+    if (bIsMoveComplete || !Instigator) return;
 
-	FVector CurrentLoc = Instigator->GetActorLocation();
+    FVector CurrentLoc = Instigator->GetActorLocation();
 
-	// 1. [이동 로직]
-	FVector NewLoc = FMath::VInterpConstantTo(CurrentLoc, TargetLocation, DeltaTime, MoveSpeed);
-	Instigator->SetActorLocation(NewLoc, true);
+    // 1. [이동 로직]
+    FVector NewLoc = FMath::VInterpConstantTo(CurrentLoc, TargetLocation, DeltaTime, MoveSpeed);
 
-	// 2. [회전 로직]
-	FRotator CurrentRot = Instigator->GetActorRotation();
-	FRotator GoalRot = TargetRotation;
+    if (!bIgnoreGround)
+    {
+        NewLoc.Z = CurrentLoc.Z; // "땅 파고 들어가지 마!"
+    }
 
-	if (bFaceTargetWhileMoving && Targets.IsValidIndex(0))
-	{
-		GoalRot = UKismetMathLibrary::FindLookAtRotation(CurrentLoc, Targets[0]->GetActorLocation());
-	}
-	else if (!bFaceTargetWhileMoving)
-	{
-		FVector MoveDir = (TargetLocation - CurrentLoc).GetSafeNormal();
-		if (!MoveDir.IsNearlyZero())
-		{
-			GoalRot = MoveDir.Rotation();
-		}
-	}
-	GoalRot.Pitch = 0.f;
-	GoalRot.Roll = 0.f;
+    Instigator->SetActorLocation(NewLoc, false);
 
-	FRotator NewRot = FMath::RInterpTo(CurrentRot, GoalRot, DeltaTime, RotationSpeed);
-	Instigator->SetActorRotation(NewRot);
+    // 2. [회전 로직]
+    FRotator CurrentRot = Instigator->GetActorRotation();
+    FRotator GoalRot = TargetRotation;
+
+    if (bFaceTargetWhileMoving && Targets.IsValidIndex(0))
+    {
+        GoalRot = UKismetMathLibrary::FindLookAtRotation(CurrentLoc, Targets[0]->GetActorLocation());
+    }
+    else if (!bFaceTargetWhileMoving)
+    {
+        FVector MoveDir = (TargetLocation - CurrentLoc).GetSafeNormal();
+        if (!MoveDir.IsNearlyZero())
+        {
+            GoalRot = MoveDir.Rotation();
+        }
+    }
+    GoalRot.Pitch = 0.f;
+    GoalRot.Roll = 0.f;
+
+    FRotator NewRot = FMath::RInterpTo(CurrentRot, GoalRot, DeltaTime, RotationSpeed);
+    Instigator->SetActorRotation(NewRot);
 
 
-	// 3. [액션 카메라 로직] (매 프레임 실행)
-	if (bUseActionCamera && BattleManager)
-	{
-		if (UCombatCameraComponent* CamComp = BattleManager->GetCameraComponent())
-		{
-			FVector CharLoc = Instigator->GetActorLocation();
-			FRotator CharRot = Instigator->GetActorRotation();
+    // 3. [액션 카메라 로직]
+    if (bUseActionCamera && BattleManager)
+    {
+        if (UCombatCameraComponent* CamComp = BattleManager->GetCameraComponent())
+        {
+            FVector CharLoc = Instigator->GetActorLocation();
+            FRotator CharRot = Instigator->GetActorRotation();
 
-			// [위치 계산] 캐릭터 등 뒤 오프셋 적용
-			FVector CamGoalLoc = CharLoc + CharRot.RotateVector(ActionCameraOffset);
+            FVector CamGoalLoc = CharLoc + CharRot.RotateVector(ActionCameraOffset);
+            FRotator CamGoalRot = CharRot + ActionCameraRotationOffset;
 
-			// [회전 계산] 캐릭터 회전 + 우리가 설정한 회전 오프셋
-			// 예: 캐릭터가 (0, 90, 0)을 보고 있고, 오프셋이 (-15, 0, 0)이라면
-			// 최종 카메라는 ( -15, 90, 0 )이 되어 "동쪽을 보며 아래를 내려다보는" 각도가 됨.
-			FRotator CamGoalRot = CharRot + ActionCameraRotationOffset;
+            CamComp->SetCameraTargetLocation(CamGoalLoc, CamGoalRot, ActionCameraFOV, ActionCameraSmoothSpeed);
+        }
+    }
 
-			// 카메라 이동 명령
-			CamComp->SetCameraTargetLocation(CamGoalLoc, CamGoalRot, ActionCameraSmoothSpeed);
-		}
-	}
+    // 4. [도착 판정] (여기가 핵심 수정!)
+    float DistanceSquared = 0.0f;
 
-	// 4. [도착 판정]
-	if (FVector::DistSquared(CurrentLoc, TargetLocation) < FMath::Square(10.0f))
-	{
-		// 이동 완료!
-		UCharacterMovementComponent* MoveComp = Instigator->GetCharacterMovement();
-		if (MoveComp)
-		{
-			MoveComp->StopMovementImmediately();
-			MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed;
+    if (bIgnoreGround)
+    {
+        // 공중 이동(점프)은 3D 거리 전체를 체크 (높이까지 맞아야 함)
+        DistanceSquared = FVector::DistSquared(CurrentLoc, TargetLocation);
+    }
+    else
+    {
+        // [해결책] 지상 이동(복귀)은 높이(Z)를 무시하고 XY 평면 거리만 체크!
+        // 이렇게 하면 바닥 높이가 조금 달라도 도착으로 인정됨
+        DistanceSquared = FVector::DistSquaredXY(CurrentLoc, TargetLocation);
+    }
 
-			// 원래 이동 모드 복구
-			if (bIgnoreGround)
-			{
-				MoveComp->SetMovementMode(EMovementMode(OriginalMovementMode));
-			}
-		}
+    // 50.0f (50cm) 이내면 도착으로 간주
+    if (DistanceSquared < FMath::Square(50.0f))
+    {
+        // 이동 완료!
+        bIsMoveComplete = true;
 
-		// 몽타주 정지
-		if (MovementMontage)
-		{
-			Instigator->StopAnimMontage(MovementMontage);
-		}
+        // [옵션] 깔끔한 마무리를 위해 위치 강제 동기화 
+        // (단, 지상 이동일 때는 Z축은 건드리지 않고 XY만 맞춤)
+        if (!bIgnoreGround)
+        {
+            FVector FinalLoc = FVector(TargetLocation.X, TargetLocation.Y, CurrentLoc.Z);
+            Instigator->SetActorLocation(FinalLoc);
+        }
+        else
+        {
+            Instigator->SetActorLocation(TargetLocation);
+        }
 
-		// 태스크 종료
-		bIsMoveComplete = true;
-		FinishTask();
-		return;
-	}
+        UCharacterMovementComponent* MoveComp = Instigator->GetCharacterMovement();
+        if (MoveComp)
+        {
+            MoveComp->StopMovementImmediately();
+            MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed;
+
+            if (bIgnoreGround)
+            {
+                MoveComp->SetMovementMode(EMovementMode(OriginalMovementMode));
+            }
+        }
+
+        if (MovementMontage)
+        {
+            Instigator->StopAnimMontage(MovementMontage);
+        }
+
+        FinishTask();
+        return;
+    }
 }
