@@ -49,6 +49,7 @@ void UTurnSchedulerComponent::BeginPlay()
 
 ACombatPawn* UTurnSchedulerComponent::DetermineNextTurnCombatant(const TArray<ACombatPawn*>& AllCombatants)
 {
+
 	// 1. 이미 행동 게이지가 꽉 찬(10000 이상) 캐릭터가 있는지 확인 (우선권 처리)
 	TArray<ACombatPawn*> ReadyCombatants = FindReadyCombatants(AllCombatants);
 	if (ReadyCombatants.Num() > 0)
@@ -97,6 +98,8 @@ ACombatPawn* UTurnSchedulerComponent::DetermineNextTurnCombatant(const TArray<AC
 
 		return NextPawn;
 	}
+
+	return nullptr;
 }
 
 TArray<ACombatPawn*> UTurnSchedulerComponent::GetPredictedTurnOrder(int32 MaxPredictionCount) const
