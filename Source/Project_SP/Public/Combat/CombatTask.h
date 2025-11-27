@@ -28,6 +28,8 @@ public:
     virtual bool IsLatent() const { return false; }
 
     virtual void TickTask(float DeltaTime) {}
+
+    virtual void OnNotifyReceived(FName NotifyName) {}
     
     ACombatPawn* GetInstigator() const { return Instigator; }
 

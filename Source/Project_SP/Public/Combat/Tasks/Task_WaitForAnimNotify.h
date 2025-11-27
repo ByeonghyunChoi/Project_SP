@@ -20,7 +20,7 @@ public:
 	virtual bool IsLatent() const override { return true; }
 
 	// BattleManager가 신호를 받았을 때 이 함수를 호출합니다.
-	void OnNotifyReceived(FName ReceivedNotifyName);
+	virtual void OnNotifyReceived(FName ReceivedNotifyName) override;
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "Task Properties")

@@ -574,10 +574,9 @@ void ABattleManager::ClearTaskQueue()
 
 void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
 {
-	if (UTask_WaitForAnimNotify* WaitTask = Cast<UTask_WaitForAnimNotify>(CurrentTask))
+	if (CurrentTask)
 	{
-		// 대기 중인 작업에게 신호를 전달합니다.
-		WaitTask->OnNotifyReceived(NotifyName);
+		CurrentTask->OnNotifyReceived(NotifyName);
 	}
 }
 
