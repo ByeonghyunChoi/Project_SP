@@ -55,7 +55,7 @@ void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
 		{
 			// ... 보상 설정 로직 ...
 			FName TargetLootGroup = GetRewardRowNameByMapType();
-			RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
+			RewardBox->InitializeReward(RewardDataTable, TargetLootGroup, RelicDataTable);
 		}
 	}
 }

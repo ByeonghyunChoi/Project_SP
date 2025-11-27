@@ -4,7 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Data/RelicData.h"
 #include "MyPlayerController.generated.h"
+
+class UUserWidget;
 
 /**
  * 
@@ -54,4 +57,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetEnemyTurnInputMode();
 	
+	// 유물 선택 UI 관련
+	// 에디터에서 WBP_RelicSelect를 할당할 변수
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UUserWidget> RelicSelectWidgetClass;
+
+	// 맵(보상상자)에서 호출할 함수: 유물 데이터 3개를 받아 UI를 켭니다.
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowRelicSelectionUI(const TArray<FRelicData>& Choices);
+
 };

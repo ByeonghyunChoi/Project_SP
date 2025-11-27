@@ -4,24 +4,23 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "Data/RelicData.h"
 #include "RelicSpawner.generated.h"
 
-struct FRelicData;
 class UDataTable;
+class URelicBase;
 
 UCLASS()
 class PROJECT_SP_API URelicSpawner : public UObject
 {
 	GENERATED_BODY()
+
 public:
 	URelicSpawner();
 
 	UFUNCTION(BlueprintCallable, Category = "Relic Generation")
-	TArray<FRelicData> GenerateRandomRelicChoices(UDataTable* RelicDataTable, const TArray<FName>& EquippedRelicIDs);
+	TArray<FRelicData> GenerateRandomRelicChoices(UDataTable* RelicDataTable, const TArray<TSubclassOf<URelicBase>>& EquippedRelicClasses);
 
 protected:
-	// 데이터 테이블 참조
-	UPROPERTY(EditDefaultsOnly, Category = "Relic Data")
-	TObjectPtr<UDataTable> DefaultRelicDataTable;
 
 };

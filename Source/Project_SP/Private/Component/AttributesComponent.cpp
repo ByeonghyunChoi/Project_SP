@@ -94,9 +94,9 @@ void UAttributesComponent::GainExperience(int32 Amount)
 // 오파츠 스탯 적용 함수
 void UAttributesComponent::ApplyOpartsStats(const FOpartStats& OpartsStats)
 {
-    OpartsBonusStats.fMaxHealth += OpartsStats.Health;
-    OpartsBonusStats.fAttackPower += OpartsStats.Attack;
-    OpartsBonusStats.fMovementSpeed += OpartsStats.Speed;
+    OpartsBonusStats.Health = OpartsStats.Health;
+    OpartsBonusStats.Attack = OpartsStats.Attack;
+    OpartsBonusStats.Speed = OpartsStats.Speed;
 
     RecalculateFinalStats();
 }
@@ -104,11 +104,61 @@ void UAttributesComponent::ApplyOpartsStats(const FOpartStats& OpartsStats)
 // 오파츠 스탯 제거 함수
 void UAttributesComponent::RemoveOpartsStats(const FOpartStats& OpartsStats)
 {
-    OpartsBonusStats.fMaxHealth = FMath::Max(0.f, OpartsBonusStats.fMaxHealth - OpartsStats.Health);
-    OpartsBonusStats.fAttackPower = FMath::Max(0.f, OpartsBonusStats.fAttackPower - OpartsStats.Attack);
-    OpartsBonusStats.fMovementSpeed = FMath::Max(0.f, OpartsBonusStats.fMovementSpeed - OpartsStats.Speed);
+    OpartsBonusStats.Health = FMath::Max(0.f, OpartsBonusStats.Health - OpartsStats.Health);
+    OpartsBonusStats.Attack = FMath::Max(0.f, OpartsBonusStats.Attack - OpartsStats.Attack);
+    OpartsBonusStats.Speed = FMath::Max(0.f, OpartsBonusStats.Speed - OpartsStats.Speed);
 
     RecalculateFinalStats();
+}
+
+// 유물(렐릭) 스탯 적용 함수
+void UAttributesComponent::ApplyRelicStats(ERelicStatType StatType, float Value)
+{
+    // [1] 변경 전 상태를 미리 저장 (체력 회복 계산용)
+    float OldMaxHealth = CurrentStats.fMaxHealth;
+
+    // 스위치 문으로 어떤 스탯을 건드릴지 결정
+    switch (StatType)
+    {
+    case ERelicStatType::MaxHealth:
+        // 최대 체력 % 증가 (기본 스탯 기준)
+        CurrentStats.fMaxHealth += CurrentStats.fMaxHealth * Value;
+        break;
+
+    case ERelicStatType::AttackPower:
+        // 공격력 % 증가
+        CurrentStats.fAttackPower = CurrentStats.fAttackPower * Value;
+        break;
+
+    case ERelicStatType::MovementSpeed:
+        // 이동 속도 % 증가
+        CurrentStats.fMovementSpeed = CurrentStats.fMovementSpeed *  Value;
+        break;
+
+    case ERelicStatType::DamageIncrease:
+        // 피해 증가율 합산 (예: 0.07)
+        CurrentStats.fDamageIncreaseMultiplier += Value;
+        break;
+
+    case ERelicStatType::DamageReduction:
+        // 피해 감소율 합산
+        CurrentStats.fDamageReductionMultiplier += Value;
+        break;
+    }
+
+    // [4] 체력이 변했다면, 늘어난 만큼 현재 체력을 회복시켜 줍니다.
+    if (StatType == ERelicStatType::MaxHealth)
+    {
+        float NewMaxHealth = CurrentStats.fMaxHealth;
+        float HealthDelta = NewMaxHealth - OldMaxHealth;
+
+        // 양수일 때(유물 장착 시)만 회복시킵니다. 
+        // (해제 시에는 RecalculateFinalStats 내부의 Clamp에 의해 자동으로 깎입니다)
+        if (HealthDelta > 0.f)
+        {
+            ApplyHealthChange(HealthDelta, nullptr);
+        }
+    }
 }
 
 void UAttributesComponent::LevelUp()
@@ -157,14 +207,16 @@ void UAttributesComponent::RecalculateStatsForLevel(int32 NewLevel)
 // 오파츠의 스탯 보너스를 반영하여 최종 스탯 재계산 - 만든 이유는 플레이어가 레벨업 시 오파츠 보너스가 반영되지 않는 문제 해결
 void UAttributesComponent::RecalculateFinalStats()
 {
+
     RecalculateStatsForLevel(Level);
 
     // 2. 오파츠 보너스 합산 (CurrentStats에 OpartsBonusStats를 더함)
-    CurrentStats.fMaxHealth += OpartsBonusStats.fMaxHealth;
-    CurrentStats.fAttackPower += OpartsBonusStats.fAttackPower;
-    CurrentStats.fMovementSpeed += OpartsBonusStats.fMovementSpeed;
+    CurrentStats.fMaxHealth = CurrentStats.fMaxHealth + OpartsBonusStats.Health;
+    CurrentStats.fAttackPower = CurrentStats.fAttackPower + OpartsBonusStats.Attack;
+    CurrentStats.fMovementSpeed = CurrentStats.fMovementSpeed + OpartsBonusStats.Speed;
 
-	CurrentStats.fCurrentHealth += OpartsBonusStats.fMaxHealth; // 현재 체력도 오파츠 보너스만큼 증가시킴
+    // 현재 체력 부분인데 유물 추가하면서 수정해서 좀 이상한듯 나중에 수정 더 해야 할듯 일반 배틀에 들어가면 UI에 표기되는 체력이 0임
+    ApplyHealthChange(CurrentStats.fMaxHealth, nullptr);
 
     // 3. 체력 및 이벤트 브로드캐스트
     // CurrentStats.fCurrentHealth는 fMaxHealth를 초과하지 않도록 Clamp

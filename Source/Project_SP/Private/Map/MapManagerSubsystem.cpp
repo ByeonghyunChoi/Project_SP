@@ -9,6 +9,7 @@
 #include "Character/PlayerCharacter.h"
 #include "Engine/TargetPoint.h"
 #include "SubSystem/TimeForceSubsystem.h"
+#include "Component/RelicManagerComponent.h"
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -40,6 +41,17 @@ void UMapManagerSubsystem::StartNewRun()
 	ClearedNodeIDs.Empty();
 	CurrentNode = nullptr;
 	CurrentMapActorInstance = nullptr;
+
+	// 플레이어 찾기
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn))
+	{
+		// 유물 리셋 함수 호출
+		if (URelicManagerComponent* RelicComp = Player->FindComponentByClass<URelicManagerComponent>())
+		{
+			RelicComp->ResetAllRelics();
+		}
+	}
 
 	GenerateNewStageGraph();
 
@@ -75,6 +87,16 @@ void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 	// 플레이어 폰 찾기
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
 	APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn);
+
+	// 유물 리셋
+	if (Player)
+	{
+		// 여기서도 리셋 호출 (죽어서 돌아오든, 깨서 돌아오든 초기화)
+		if (URelicManagerComponent* RelicComp = Player->FindComponentByClass<URelicManagerComponent>())
+		{
+			RelicComp->ResetAllRelics();
+		}
+	}
 
 	// 허브 스폰 지점(ATargetPoint) 찾기
 	AActor* HubSpawnPoint = nullptr;

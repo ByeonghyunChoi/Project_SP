@@ -16,6 +16,8 @@ class UInputAction;
 class UCrystalSkullOparts;
 class UJadeClockOparts;
 class UGoldBugOparts;
+//유물 관리 컴포넌트
+class URelicManagerComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableTargetChanged, const FText&, InteractText);
 
@@ -58,7 +60,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts")
 	TObjectPtr<UGoldBugOparts> GoldBug;
-	// ----------------------------------------
+
+	// 유물 관리 컴포넌트----------------
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Relic")
+	TObjectPtr<URelicManagerComponent> RelicManagerComponent;
 
 	//Interaction Section
 protected:

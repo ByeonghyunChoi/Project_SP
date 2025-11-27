@@ -6,6 +6,7 @@
 #include "Component/PlayerCombatControlComponent.h" 
 #include "Component/InventoryComponent.h"
 #include "Component/EquipmentSystemComponent.h"
+#include "Component/RelicManagerComponent.h"
 #include "Items/CrystalSkullOparts.h" 
 #include "Items/JadeClockOparts.h"
 #include "Items/GoldBugOparts.h"
@@ -26,6 +27,7 @@ APlayerCharacter::APlayerCharacter()
 	JadeClock = CreateDefaultSubobject<UJadeClockOparts>(TEXT("JadeClockOparts"));
 	GoldBug = CreateDefaultSubobject<UGoldBugOparts>(TEXT("GoldBergOparts"));
 	EquipmentSystemComponent = CreateDefaultSubobject<UEquipmentSystemComponent>(TEXT("EquipmentSystemComp"));
+	RelicManagerComponent = CreateDefaultSubobject<URelicManagerComponent>(TEXT("RelicManagerComponent"));
 	InteractionVolume = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionVolume"));
 	InteractionVolume->SetupAttachment(RootComponent);
 

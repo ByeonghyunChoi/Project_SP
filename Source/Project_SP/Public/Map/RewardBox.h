@@ -9,6 +9,7 @@
 
 class UDataTable;
 class inventoryComponent;
+class URelicSpawner;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRewardInteractedSignature);
 
@@ -29,6 +30,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RewardBox")
 	TObjectPtr<UDataTable> RewardInfo;
+
+	// [추가] 유물 데이터 테이블 (InitializeReward에서 받아옴)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RewardBox")
+	TObjectPtr<UDataTable> RelicDataTable;
 
 	//Interaction Logic Section
 public:
@@ -53,7 +58,7 @@ public:
 	virtual void ExecuteInteraction(APlayerCharacter* Interactor) override;
 
 	//보상 데이터 테이블과 로우 이름을 초기화하는 함수
-	void InitializeReward(UDataTable* InTable, FName InRowName);
+	void InitializeReward(UDataTable* InTable, FName InRowName, UDataTable* InRelicTable);
 
 	//플레이어 UI에 표시할 텍스트를 반환
 	UFUNCTION(BlueprintCallable)
@@ -61,4 +66,7 @@ public:
 
 protected:
 	void RewardToPlayer(APlayerCharacter* Interactor);
+
+	// [추가] 유물 보상 지급 로직
+	void TryGiveRelicReward(class APlayerCharacter* Interactor);
 };
