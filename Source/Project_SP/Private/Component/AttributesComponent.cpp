@@ -127,12 +127,12 @@ void UAttributesComponent::ApplyRelicStats(ERelicStatType StatType, float Value)
 
     case ERelicStatType::AttackPower:
         // 공격력 % 증가
-        CurrentStats.fAttackPower = CurrentStats.fAttackPower * Value;
+        CurrentStats.fAttackPower += CurrentStats.fAttackPower * Value;
         break;
 
     case ERelicStatType::MovementSpeed:
         // 이동 속도 % 증가
-        CurrentStats.fMovementSpeed = CurrentStats.fMovementSpeed *  Value;
+        CurrentStats.fMovementSpeed += CurrentStats.fMovementSpeed *  Value;
         break;
 
     case ERelicStatType::DamageIncrease:
@@ -146,19 +146,20 @@ void UAttributesComponent::ApplyRelicStats(ERelicStatType StatType, float Value)
         break;
     }
 
-    // [4] 체력이 변했다면, 늘어난 만큼 현재 체력을 회복시켜 줍니다.
-    if (StatType == ERelicStatType::MaxHealth)
-    {
-        float NewMaxHealth = CurrentStats.fMaxHealth;
-        float HealthDelta = NewMaxHealth - OldMaxHealth;
+    // 현재 체력 계산 함수 추가 하기 이거는 상태이상 관련 체력 게산 함수
+    //// [4] 체력이 변했다면, 늘어난 만큼 현재 체력을 회복시켜 줍니다.
+    //if (StatType == ERelicStatType::MaxHealth)
+    //{
+    //    float NewMaxHealth = CurrentStats.fMaxHealth;
+    //    float HealthDelta = NewMaxHealth - OldMaxHealth;
 
-        // 양수일 때(유물 장착 시)만 회복시킵니다. 
-        // (해제 시에는 RecalculateFinalStats 내부의 Clamp에 의해 자동으로 깎입니다)
-        if (HealthDelta > 0.f)
-        {
-            ApplyHealthChange(HealthDelta, nullptr);
-        }
-    }
+    //    // 양수일 때(유물 장착 시)만 회복시킵니다. 
+    //    // (해제 시에는 RecalculateFinalStats 내부의 Clamp에 의해 자동으로 깎입니다)
+    //    if (HealthDelta > 0.f)
+    //    {
+    //        ApplyHealthChange(HealthDelta, nullptr);
+    //    }
+    //}
 }
 
 void UAttributesComponent::LevelUp()
@@ -216,7 +217,7 @@ void UAttributesComponent::RecalculateFinalStats()
     CurrentStats.fMovementSpeed = CurrentStats.fMovementSpeed + OpartsBonusStats.Speed;
 
     // 현재 체력 부분인데 유물 추가하면서 수정해서 좀 이상한듯 나중에 수정 더 해야 할듯 일반 배틀에 들어가면 UI에 표기되는 체력이 0임
-    ApplyHealthChange(CurrentStats.fMaxHealth, nullptr);
+    //ApplyHealthChange(CurrentStats.fMaxHealth, nullptr);
 
     // 3. 체력 및 이벤트 브로드캐스트
     // CurrentStats.fCurrentHealth는 fMaxHealth를 초과하지 않도록 Clamp
