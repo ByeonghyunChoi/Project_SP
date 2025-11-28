@@ -1,234 +1,264 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Map/MapManagerSubsystem.h"
-#include "Map/MapGraphGenerator.h"
+﻿#include "Map/MapManagerSubsystem.h"
 #include "Map/MapNode.h"
 #include "Map/MapBase.h"
+#include "Map/MapGraphGenerator.h"
 #include "Kismet/GameplayStatics.h"
 #include "Character/PlayerCharacter.h"
+#include "UObject/ConstructorHelpers.h"
+#include "TimerManager.h"
 #include "Engine/TargetPoint.h"
-#include "SubSystem/TimeForceSubsystem.h"
+#include "Misc/OutputDeviceNull.h" // 위젯 함수 호출용
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	//맵 생성기 인스턴스 생성
-	MapGenerator = NewObject<UMapGraphGenerator>(this);
+	// 데이터 테이블 및 위젯 클래스 로드
+	const FString DataTablePath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapData.DT_MapData'");
+	MapTypeData = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
 
-	const FString DataTabletPath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapData.DT_MapData'");
-	MapTypeData = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTabletPath));
-	if (MapTypeData)
+	static ConstructorHelpers::FClassFinder<UUserWidget> WidgetFinder(TEXT("/Game/Battle/HUD/WBP_BattleTransition.WBP_BattleTransition_C"));
+	if (WidgetFinder.Succeeded())
 	{
-		UE_LOG(LogTemp, Log, TEXT("맵 데이터 로딩 성공"));
+		TransitionWidgetClass = WidgetFinder.Class;
 	}
 
-	HubSpawnPointTag = "HubStart";
-	MaxStages = 3;
-	DungeonSpawnPointTag = "LogStart";
+	MapGenerator = NewObject<UMapGraphGenerator>(this);
 }
 
 void UMapManagerSubsystem::StartNewRun()
 {
-	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
-	{
-		TimeManager->ResetTimeForce();
-	}
-
+	// 새 게임 시작: 1스테이지 그래프 생성 후 첫 노드로 이동
 	CurrentStage = 1;
-	ClearedNodeIDs.Empty();
 	CurrentNode = nullptr;
-	CurrentMapActorInstance = nullptr;
+	CurrentMapLogicActor = nullptr;
 
 	GenerateNewStageGraph();
-
 	TravelToNode(GraphRoot);
-}
-
-void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
-{
-	if (bPlayerWon)
-	{
-		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
-		{
-			TimeManager->ResetTimeForce();
-		}
-	}
-
-	UWorld* World = GetWorld();
-	if (!World) return;
-
-	// 현재 맵 파괴
-	if (CurrentMapActorInstance)
-	{
-		CurrentMapActorInstance->Destroy();
-		CurrentMapActorInstance = nullptr;
-	}
-
-	// 맵 데이터 초기화
-	GraphRoot = nullptr;
-	CurrentNode = nullptr;
-	ClearedNodeIDs.Empty();
-	CurrentStage = 1;
-
-	// 플레이어 폰 찾기
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
-	APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn);
-
-	// 허브 스폰 지점(ATargetPoint) 찾기
-	AActor* HubSpawnPoint = nullptr;
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), HubSpawnPointTag, FoundActors);
-
-	if (FoundActors.Num() > 0)
-	{
-		HubSpawnPoint = FoundActors[0]; 
-	}
-
-	if (Player && HubSpawnPoint)
-	{
-		// 3. 텔레포트
-		FVector Location = HubSpawnPoint->GetActorLocation();
-		FRotator Rotation = HubSpawnPoint->GetActorRotation();
-		PlayerPawn->SetActorLocationAndRotation(Location, Rotation);
-	}
 }
 
 void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 {
-	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+	if (!TargetNode) return;
+	PendingNode = TargetNode;
+
+	// [Step 1] 로딩 시작 전 화면을 검게 가림 (Fade In)
+	if (TransitionWidgetClass)
 	{
-		if (!TimeManager->DecreaseTimeForce(1))
+		if (!CurrentTransitionWidget)
 		{
-			// 시간의 힘 소모 실패 (게임 오버됨)
-			// TimeForceSubsystem이 ReturnToHub를 호출했으므로, 맵 이동을 즉시 중단.
+			CurrentTransitionWidget = CreateWidget<UUserWidget>(GetWorld(), TransitionWidgetClass);
+		}
+
+		if (CurrentTransitionWidget)
+		{
+			CurrentTransitionWidget->AddToViewport(9999);
+
+			// BP 함수 'PlayFadeIn' 호출
+			FOutputDeviceNull Ar;
+			CurrentTransitionWidget->CallFunctionByNameWithArguments(TEXT("PlayFadeIn"), Ar, nullptr, true);
+
+			// 애니메이션 시간(1초) 후 로딩 프로세스 시작
+			FTimerHandle TimerHandle;
+			GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &UMapManagerSubsystem::OnFadeInFinished, 1.0f, false);
 			return;
 		}
 	}
 
-	UWorld* World = GetWorld();
-	
-	if (!TargetNode)
+	// 위젯 없으면 바로 로딩 (비상용)
+	OnFadeInFinished();
+}
+
+void UMapManagerSubsystem::OnFadeInFinished()
+{
+	// 화면이 가려졌으니 기존 맵을 언로드하거나 새 맵을 로드합니다.
+	if (CurrentLevelInstance)
 	{
-		UE_LOG(LogTemp, Log, TEXT("포탈이 없습니다."));
-		return;
+		UnloadPreviousLevel();
+	}
+	else
+	{
+		LoadNextLevel();
+	}
+}
+
+void UMapManagerSubsystem::UnloadPreviousLevel()
+{
+	if (CurrentLevelInstance)
+	{
+		// 언로드 완료 시점(Hidden)을 잡기 위해 델리게이트 연결
+		CurrentLevelInstance->OnLevelHidden.AddDynamic(this, &UMapManagerSubsystem::OnLevelUnloaded);
+		CurrentLevelInstance->SetShouldBeLoaded(false);
+		CurrentLevelInstance->SetShouldBeVisible(false);
+	}
+	else
+	{
+		OnLevelUnloaded();
+	}
+}
+
+void UMapManagerSubsystem::OnLevelUnloaded()
+{
+	// 델리게이트 해제 및 포인터 초기화
+	if (CurrentLevelInstance)
+	{
+		CurrentLevelInstance->OnLevelHidden.RemoveDynamic(this, &UMapManagerSubsystem::OnLevelUnloaded);
+		CurrentLevelInstance = nullptr;
 	}
 
-	if (!MapTypeData)
-	{
-		UE_LOG(LogTemp, Log, TEXT("맵 타입이 없습니다."));
-		return;
-	}
+	// 깨끗해졌으니 다음 레벨 로드
+	LoadNextLevel();
+}
 
-	if (!World)
-	{
-		UE_LOG(LogTemp, Log, TEXT("월드를 찾을 수 없습니다."));
-		return;
-	}
+void UMapManagerSubsystem::LoadNextLevel()
+{
+	if (!PendingNode || !MapTypeData) return;
 
-	//현재 맵 파괴
-	if (CurrentMapActorInstance)
-	{
-		CurrentMapActorInstance->ClearMapElements();
-		CurrentMapActorInstance->Destroy();
-		CurrentMapActorInstance = nullptr;
-	}
-
-	//상태 갱신
-	if (CurrentNode)
-	{
-		ClearedNodeIDs.Add(CurrentNode->NodeID); // 이전 노드를 클리어 처리
-	}
-	CurrentNode = TargetNode; // 현재 위치를 타겟 노드로 변경
-
-	//맵 타입에 맞는 맵 액터 찾기
-	const FName RowName = UEnum::GetValueAsName(CurrentNode->MapType);
+	// 데이터 테이블에서 맵 타입에 맞는 정보(레벨 경로) 가져오기
+	const FName RowName = UEnum::GetValueAsName(PendingNode->MapType);
 	FMapDataRow* Row = MapTypeData->FindRow<FMapDataRow>(RowName, TEXT(""));
-	if (!Row || !Row->MapClass)
+
+	if (!Row || Row->LevelAsset.IsNull())
 	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapTypeData에 '%s' 타입이 정의되지 않았습니다!"), *RowName.ToString());
-		// 안전장치로 기본 맵 스폰
-		return;
-	}
-	TSubclassOf<AMapBase> ClassToSpawn = Row->MapClass;
-
-	//스폰 위치 설정
-	FVector SpawnLocation = FVector::ZeroVector;
-	FRotator SpawnRotation = FRotator::ZeroRotator;
-
-	AActor* DungeonSpawnPoint = nullptr;
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), DungeonSpawnPointTag, FoundActors);
-
-	if (FoundActors.Num() > 0)
-	{
-		DungeonSpawnPoint = FoundActors[0];
-		SpawnLocation = DungeonSpawnPoint->GetActorLocation();
-		SpawnRotation = DungeonSpawnPoint->GetActorRotation();
-	}
-
-	//새 맵 액터 스폰
-	CurrentMapActorInstance = World->SpawnActor<AMapBase>(ClassToSpawn, SpawnLocation, SpawnRotation);
-	if (!CurrentMapActorInstance)
-	{
-		UE_LOG(LogTemp, Fatal, TEXT("MapManager: 맵 스폰에 치명적인 실패가 발생했습니다!"));
+		UE_LOG(LogTemp, Error, TEXT("Level Asset Not Found!"));
+		PerformFadeOut(); // 에러 나도 화면은 밝혀줘야 함
 		return;
 	}
 
-	//데이터 전달
-	CurrentMapActorInstance->SetMapType(CurrentNode->MapType);
-	CurrentMapActorInstance->InitializeNextNodes(CurrentNode->ChildNodes);
+	// [핵심] 레벨 인스턴스 비동기 로드
+	bool bSuccess = false;
+	CurrentLevelInstance = ULevelStreamingDynamic::LoadLevelInstance(
+		this,
+		Row->LevelAsset.GetLongPackageName(),
+		FVector::ZeroVector, // 위치 (필요 시 변경 가능)
+		FRotator::ZeroRotator,
+		bSuccess
+	);
 
-	//플레이어 이동
-	APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0);
-	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(Pawn);
-	if (PlayerCharacter)
+	if (bSuccess && CurrentLevelInstance)
 	{
-		FVector StartLocation = CurrentMapActorInstance->GetPlayerStartLocation();
-		FRotator StartRotation = CurrentMapActorInstance->GetPlayerStartRotation();
-		PlayerCharacter->SetActorLocationAndRotation(StartLocation, StartRotation);
+		// 로딩 완료 시점(Shown)을 잡기 위해 델리게이트 연결
+		CurrentLevelInstance->OnLevelShown.AddDynamic(this, &UMapManagerSubsystem::OnLevelLoaded);
+	}
+}
+
+void UMapManagerSubsystem::OnLevelLoaded()
+{
+	// 1. 델리게이트 해제
+	if (CurrentLevelInstance)
+	{
+		CurrentLevelInstance->OnLevelShown.RemoveDynamic(this, &UMapManagerSubsystem::OnLevelLoaded);
 	}
 
-	//새 맵의 로직 시작
-	CurrentMapActorInstance->BeginMapLogic();
+	// 2. 맵 로직 액터(BP) 동적 스폰
+	const FName RowName = UEnum::GetValueAsName(PendingNode->MapType);
+	FMapDataRow* Row = MapTypeData->FindRow<FMapDataRow>(RowName, TEXT(""));
+
+	if (Row && Row->MapLogicClass)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		// 데이터 테이블에 지정된 BP 클래스(BP_Map_Normal 등)를 스폰
+		CurrentMapLogicActor = GetWorld()->SpawnActor<AMapBase>(
+			Row->MapLogicClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+
+	// 3. 맵 초기화 및 플레이어 이동
+	if (CurrentMapLogicActor)
+	{
+		// 현재 노드 정보 갱신
+		CurrentNode = PendingNode;
+
+		// 다음 갈 수 있는 곳 정보 전달
+		CurrentMapLogicActor->InitializeNextNodes(CurrentNode->ChildNodes);
+
+		// 플레이어를 레벨 내 시작 지점(PlayerStartPoint 태그)으로 이동
+		if (APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+		{
+			// MapBase가 태그를 검색해서 위치를 알려줌
+			Player->SetActorLocationAndRotation(
+				CurrentMapLogicActor->GetPlayerStartLocation(),
+				CurrentMapLogicActor->GetPlayerStartRotation()
+			);
+		}
+
+		// [중요] 맵 로직 시작 (몬스터/포탈 스폰 등)
+		CurrentMapLogicActor->BeginMapLogic();
+	}
+
+	// 4. 모든 준비 완료 -> 화면 밝히기
+	PerformFadeOut();
+}
+
+void UMapManagerSubsystem::PerformFadeOut()
+{
+	if (CurrentTransitionWidget)
+	{
+		FOutputDeviceNull Ar;
+		CurrentTransitionWidget->CallFunctionByNameWithArguments(TEXT("PlayFadeOut"), Ar, nullptr, true);
+
+		// 애니메이션 후 위젯 제거
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, [this]()
+			{
+				if (CurrentTransitionWidget)
+				{
+					CurrentTransitionWidget->RemoveFromParent();
+					CurrentTransitionWidget = nullptr;
+				}
+			}, 1.0f, false);
+	}
+}
+
+void UMapManagerSubsystem::NotifyCombatFinished(bool bPlayerWon)
+{
+	if (CurrentMapLogicActor)
+	{
+		CurrentMapLogicActor->OnCombatFinished(bPlayerWon);
+	}
 }
 
 void UMapManagerSubsystem::GoToNextStage()
 {
 	CurrentStage++;
-
-	//마지막 보스를 클리어 했다면 게임 시작 맵으로 이동
 	if (CurrentStage > MaxStages)
 	{
-		ReturnToHub(true); 
+		ReturnToHub(true);
 		return;
 	}
-
-	// 다음 스테이지 맵 그래프 생성
 	GenerateNewStageGraph();
-
-	//루트 맵으로 이동(2-1, 3-1)
 	TravelToNode(GraphRoot);
 }
 
-void UMapManagerSubsystem::NotifyCombatFinished(bool bPlayerWon)
+void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 {
-	if (CurrentMapActorInstance)
+	// 맵 정리 및 허브 이동 로직 (기존 유지)
+	if (CurrentLevelInstance)
 	{
-		// 현재 스폰된 맵 액터(예: BP_NormalMap)의 OnCombatFinished 이벤트를 호출
-		CurrentMapActorInstance->OnCombatFinished(bPlayerWon);
+		CurrentLevelInstance->SetShouldBeLoaded(false);
+		CurrentLevelInstance->SetShouldBeVisible(false);
+		CurrentLevelInstance = nullptr;
+	}
+	CurrentMapLogicActor = nullptr;
+	CurrentNode = nullptr;
+
+	// 허브 스폰 포인트로 이동
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClassWithTag(GetWorld(), ATargetPoint::StaticClass(), HubSpawnPointTag, FoundActors);
+	if (FoundActors.Num() > 0)
+	{
+		if (APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+		{
+			Player->SetActorLocationAndRotation(FoundActors[0]->GetActorLocation(), FoundActors[0]->GetActorRotation());
+		}
 	}
 }
 
 void UMapManagerSubsystem::GenerateNewStageGraph()
 {
-	if (!MapGenerator)
+	if (MapGenerator)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapGenerator가 Null입니다!"));
-		return;
+		GraphRoot = MapGenerator->GenerateStageGraph(this, CurrentStage);
 	}
-
-	//현재 스테이지를 알려주고 맵 그래프 생성을 요청
-	GraphRoot = MapGenerator->GenerateStageGraph(this, CurrentStage);
 }

@@ -1,31 +1,37 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Combat/CombatTypes.h"
 #include "Engine/DataTable.h"
+#include "Engine/LevelStreamingDynamic.h"
+#include "Blueprint/UserWidget.h"
 #include "MapManagerSubsystem.generated.h"
 
-/**
- * 
- */
+// 전방 선언
+class UMapNode;
+class UMapGraphGenerator;
+class AMapBase;
 
-//맵 데이터 구조체
+/**
+ * @brief 맵 데이터 테이블 구조체
+ * 레벨 파일(배경)과 로직 클래스(기능)를 분리하여 정의합니다.
+ */
 USTRUCT(BlueprintType)
 struct FMapDataRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	/* 맵 타입의 종류에 맞게 스폰될 AMapBase의 자식 클래스 (예: BP_NormalMap, BP_RestMap) */
+	// 1. 배경이 되는 레벨 에셋 (.umap)
+	// TSoftObjectPtr를 사용하여 필요할 때만 로딩합니다.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSubclassOf<class AMapBase> MapClass;
-};
+	TSoftObjectPtr<UWorld> LevelAsset;
 
-class UMapNode;
-class UMapGraphGenerator;
-class AMapBase;
+	// 2. 해당 맵의 규칙을 담당할 로직 클래스 (BP_Map_Normal 등)
+	// 레벨 로딩 후 이 클래스가 동적으로 스폰됩니다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TSubclassOf<AMapBase> MapLogicClass;
+};
 
 UCLASS()
 class PROJECT_SP_API UMapManagerSubsystem : public UGameInstanceSubsystem
@@ -33,65 +39,94 @@ class PROJECT_SP_API UMapManagerSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	// 1스테이지 시작 함수
-	UFUNCTION(BlueprintCallable, Category = "Map Manager")
-	void StartNewRun();
+	// --- 외부 호출 함수 ---
 
-	//플레이어가 죽거나 마지막 스테이지를 클리어하면 게임 시작 맵으로 돌아가는 함수
-	UFUNCTION(BlueprintCallable, Category = "Map Manager")
-	void ReturnToHub(bool bPlayerWon);
-
-	//다음 맵으로 이동하는 함수
+	// [진입점] 포탈 이동 시 호출. 화면 암전 후 로딩 프로세스를 시작합니다.
 	UFUNCTION(BlueprintCallable, Category = "Map Manager")
 	void TravelToNode(UMapNode* TargetNode);
 
-	//보스 클리어 후 다음 스테이지로 이동하는 함수
+	// 게임 시작 (1스테이지 로드)
+	UFUNCTION(BlueprintCallable, Category = "Map Manager")
+	void StartNewRun();
+
+	// 다음 스테이지(층)로 이동
 	UFUNCTION(BlueprintCallable, Category = "Map Manager")
 	void GoToNextStage();
 
-	//전투 결과를 현재 맵에 넘겨주는 함수
+	// 전투 승리 알림 (BattleTransitionManager -> MapManager -> MapBase)
 	UFUNCTION(BlueprintCallable, Category = "Map Manager")
 	void NotifyCombatFinished(bool bPlayerWon);
 
+	// 허브(로비)로 귀환
+	UFUNCTION(BlueprintCallable, Category = "Map Manager")
+	void ReturnToHub(bool bPlayerWon);
+
 protected:
-	//로드된 데이터 테이블을 저장할 실제 포인터
-	UPROPERTY(Transient)
+	// 데이터 테이블
+	UPROPERTY()
 	TObjectPtr<UDataTable> MapTypeData;
 
-	//맵 그래프 생성기 인스턴스
+	// 현재 로드된 스트리밍 레벨 인스턴스 (언로드를 위해 저장)
+	UPROPERTY()
+	TObjectPtr<ULevelStreamingDynamic> CurrentLevelInstance;
+
+	// 현재 맵의 로직을 담당하는 액터 (AMapBase)
+	UPROPERTY()
+	TObjectPtr<AMapBase> CurrentMapLogicActor;
+
+	// 화면 전환 위젯 클래스 및 인스턴스
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UUserWidget> TransitionWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> CurrentTransitionWidget;
+
+	// 이동할 목표 노드 임시 저장
+	UPROPERTY()
+	TObjectPtr<UMapNode> PendingNode;
+
+	// 맵 그래프 생성기
 	UPROPERTY()
 	TObjectPtr<UMapGraphGenerator> MapGenerator;
 
-	//현재 스테이지
+	// 맵 진행 상태
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Map State")
 	int32 CurrentStage = 1;
+	int32 MaxStages = 3;
 
-	//현재 스테이지의 전체 맵 그래프
 	UPROPERTY(VisibleInstanceOnly, Category = "Map State")
 	TObjectPtr<UMapNode> GraphRoot;
 
-	//플레이어가 현재 위치한 노드
 	UPROPERTY(VisibleInstanceOnly, Category = "Map State")
 	TObjectPtr<UMapNode> CurrentNode;
 
-	//현재 맵 액터
-	UPROPERTY(VisibleInstanceOnly, Category = "Map State")
-	TObjectPtr<AMapBase> CurrentMapActorInstance;
-
-	//클리어한 맵 노드 ID
-	UPROPERTY(VisibleInstanceOnly, Category = "Map State")
-	TSet<FGuid> ClearedNodeIDs;
+	FName HubSpawnPointTag = TEXT("HubStart");
 
 private:
-	//새 스테이지 그래프를 생성하고 루트를 설정하는 함수
+	// --- 내부 로딩 프로세스 (순서대로 실행됨) ---
+
+	// 1. Fade In(암전) 완료 콜백 -> 언로드 시작
+	UFUNCTION()
+	void OnFadeInFinished();
+
+	// 2. 기존 레벨 언로드
+	void UnloadPreviousLevel();
+
+	// 2-1. 언로드 완료 콜백 -> 새 레벨 로드 시작
+	UFUNCTION()
+	void OnLevelUnloaded();
+
+	// 3. 새 레벨 비동기 로드
+	void LoadNextLevel();
+
+	// 3-1. 로드 완료 콜백 -> 맵 초기화 및 화면 밝기
+	UFUNCTION()
+	void OnLevelLoaded();
+
+	// 4. Fade Out(화면 밝아짐) 실행
+	void PerformFadeOut();
+
 	void GenerateNewStageGraph();
-	//게임 시작 맵(레벨) 이름
-	FName HubSpawnPointTag;
-	//스테이지 수
-	int32 MaxStages; 
-	//로그라이크 맵 스폰 위치
-	FName DungeonSpawnPointTag;
 };

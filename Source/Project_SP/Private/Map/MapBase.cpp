@@ -6,14 +6,12 @@
 #include "Map/MapNode.h"
 #include "Map/PortalActor.h"
 #include "Map/RewardBox.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AMapBase::AMapBase()
 {
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot")));
-	PlayerStartPoint = CreateDefaultSubobject<USceneComponent>(TEXT("PlayerStartPoint"));
-	PlayerStartPoint->SetupAttachment(RootComponent);
-
 	CurrentMapState = EMapState::InProgress;
 	CurrentMapType = EMapType::NormalBattle;
 }
@@ -42,7 +40,15 @@ FName AMapBase::GetRewardRowNameByMapType() const
 
 void AMapBase::BeginMapLogic_Implementation()
 {
-	ActivatePortals();
+	if (!LevelPlayerStartActor)
+	{
+		TArray<AActor*> FoundActors;
+		UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
+		if (FoundActors.Num() > 0)
+		{
+			LevelPlayerStartActor = FoundActors[0];
+		}
+	}
 }
 
 void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
@@ -119,11 +125,35 @@ EMapState AMapBase::GetMapState() const
 
 FVector AMapBase::GetPlayerStartLocation() const
 {
-	return PlayerStartPoint ? PlayerStartPoint->GetComponentLocation() : GetActorLocation();
+	// 이미 찾아놨으면 그거 씀
+	if (LevelPlayerStartActor)
+	{
+		return LevelPlayerStartActor->GetActorLocation();
+	}
+
+	// 없으면 지금 찾음 (태그로 검색)
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		// const 함수라 멤버 변수 수정이 안 되므로 const_cast를 쓰거나,
+		// 그냥 찾은 값만 리턴 (멤버 변수 저장은 BeginMapLogic에서 함)
+		return FoundActors[0]->GetActorLocation();
+	}
+
+	return GetActorLocation(); // 정 못 찾으면 (0,0,0)
 }
 
 FRotator AMapBase::GetPlayerStartRotation() const
 {
-	return PlayerStartPoint ? PlayerStartPoint->GetComponentRotation() : GetActorRotation();
+	if (LevelPlayerStartActor) return LevelPlayerStartActor->GetActorRotation();
+
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
+
+	if (FoundActors.Num() > 0) return FoundActors[0]->GetActorRotation();
+
+	return GetActorRotation();
 }
 
