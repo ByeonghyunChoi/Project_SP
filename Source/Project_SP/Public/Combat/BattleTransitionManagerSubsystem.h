@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Engine/LevelStreamingDynamic.h"
 #include "BattleTransitionManagerSubsystem.generated.h"
 
 class APlayerCharacter;
@@ -44,28 +45,31 @@ protected:
 
 	bool bPlayerWonLastBattle = false;
 
-private:
-	bool bLevelStreamingComplete;
-	bool bAllPreparationsComplete;
-	FTimerHandle LevelStreamingCheckTimer;
+	// [추가] 로드된 전투 레벨 인스턴스
+	UPROPERTY()
+	TObjectPtr<ULevelStreamingDynamic> CurrentBattleLevelInstance;
 
+	// [추가] 전투 맵이 스폰될 위치 (필드와 겹치지 않게 지하로 설정)
+	FVector BattleMapSpawnLocation = FVector(0.0f, 0.0f, -5000.0f);
+	FRotator BattleMapSpawnRotation = FRotator::ZeroRotator;
+
+private:
+	bool bAllPreparationsComplete;
+
+	// 내부 로직 순서
 	void StartLoadingBattleMap();
 
-	// FadeIn 애니메이션이 끝났을 때 호출될 콜백 함수
 	UFUNCTION()
 	void OnFadeInAnimationFinished();
 
-	// 레벨 로딩이 완료되었는지 0.1초마다 확인할 함수
+	// [변경] 델리게이트 콜백 함수들
 	UFUNCTION()
-	void CheckLevelStreamingStatus();
+	void OnBattleLevelShown();
 
-	// 레벨 로딩이 확인된 후 호출될 함수
-	void OnBattleArenaConfirmed();
+	UFUNCTION()
+	void OnBattleLevelHidden();
 
 	void CheckAndFinalizeTransition();
 	void FinalizeBattleStart();
 	void UnloadBattleMap();
-
-	UFUNCTION()
-	void OnBattleArenaUnloaded();
 };

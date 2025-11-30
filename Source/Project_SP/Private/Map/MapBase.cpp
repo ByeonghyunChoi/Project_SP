@@ -17,6 +17,11 @@ AMapBase::AMapBase()
 }
 
 
+void AMapBase::OnRewardBoxOpened()
+{
+	ActivatePortals();
+}
+
 FName AMapBase::GetRewardRowNameByMapType() const
 {
 	switch (CurrentMapType)
@@ -40,6 +45,7 @@ FName AMapBase::GetRewardRowNameByMapType() const
 
 void AMapBase::BeginMapLogic_Implementation()
 {
+	// 1. 플레이어 시작 위치 찾기 (캐싱)
 	if (!LevelPlayerStartActor)
 	{
 		TArray<AActor*> FoundActors;
@@ -49,20 +55,34 @@ void AMapBase::BeginMapLogic_Implementation()
 			LevelPlayerStartActor = FoundActors[0];
 		}
 	}
+
+	// 2. 포탈 초기화 (비활성화 상태로)
+	// (자식 BP에서 포탈을 스폰한 뒤 이 함수가 호출되어야 함)
+	InitPortalsToInactive();
 }
 
 void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
 {
-	UE_LOG(LogTemp, Log, TEXT("AMapBase::OnCombatFinished - PlayerWon: %s"), bPlayerWon ? TEXT("True") : TEXT("False"));
 	if (bPlayerWon)
 	{
-		// 보상 상자 설정
-		if (RewardBox)
-		{
-			// ... 보상 설정 로직 ...
-			FName TargetLootGroup = GetRewardRowNameByMapType();
-			RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
-		}
+		SetMapState(EMapState::Cleard);
+
+		// 보상 상자 스폰 및 초기화
+		SpawnRewardBox();
+	}
+}
+
+void AMapBase::SpawnRewardBox()
+{
+	// 만약 자식 BP에서 이미 스폰하고 변수에 할당했다면 이 로직이 실행됨
+	if (RewardBox)
+	{
+		// 보상 데이터 초기화
+		FName TargetLootGroup = GetRewardRowNameByMapType();
+		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
+
+		// [핵심] 상호작용 이벤트 연결 (상자 열면 -> OnRewardBoxOpened 호출)
+		RewardBox->OnRewardInteracted.AddDynamic(this, &AMapBase::OnRewardBoxOpened);
 	}
 }
 
@@ -85,20 +105,29 @@ void AMapBase::ClearMapElements()
 
 void AMapBase::ActivatePortals()
 {
-	SetMapState(EMapState::Cleard);
-
-	int32 NumToActivate = FMath::Min(NextNodeOptions.Num(), PortalActors.Num());
-	
-	for (int32 i = 0; i < NumToActivate; ++i)
+	for (APortalActor* Portal : PortalActors)
 	{
-		APortalActor* Portal = PortalActors[i];
-		UMapNode* NodeData = NextNodeOptions[i];
-
-		if (Portal && NodeData)
+		if (Portal)
 		{
+			// 열린 상태로 전환
 			Portal->SetActorEnableCollision(true);
-			Portal->InitializePortalData(NodeData);
 			Portal->OnPortalStateChanged(true);
+		}
+	}
+}
+
+void AMapBase::InitPortalsToInactive()
+{
+	int32 NumToInit = FMath::Min(NextNodeOptions.Num(), PortalActors.Num());
+	for (int32 i = 0; i < NumToInit; ++i)
+	{
+		if (APortalActor* Portal = PortalActors[i])
+		{
+			Portal->InitializePortalData(NextNodeOptions[i]);
+
+			// 닫힌 상태로 시작
+			Portal->SetActorEnableCollision(false);
+			Portal->OnPortalStateChanged(false);
 		}
 	}
 }
@@ -125,24 +154,13 @@ EMapState AMapBase::GetMapState() const
 
 FVector AMapBase::GetPlayerStartLocation() const
 {
-	// 이미 찾아놨으면 그거 씀
-	if (LevelPlayerStartActor)
-	{
-		return LevelPlayerStartActor->GetActorLocation();
-	}
+	if (LevelPlayerStartActor) return LevelPlayerStartActor->GetActorLocation();
 
-	// 없으면 지금 찾음 (태그로 검색)
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
+	if (FoundActors.Num() > 0) return FoundActors[0]->GetActorLocation();
 
-	if (FoundActors.Num() > 0)
-	{
-		// const 함수라 멤버 변수 수정이 안 되므로 const_cast를 쓰거나,
-		// 그냥 찾은 값만 리턴 (멤버 변수 저장은 BeginMapLogic에서 함)
-		return FoundActors[0]->GetActorLocation();
-	}
-
-	return GetActorLocation(); // 정 못 찾으면 (0,0,0)
+	return GetActorLocation();
 }
 
 FRotator AMapBase::GetPlayerStartRotation() const
@@ -151,7 +169,6 @@ FRotator AMapBase::GetPlayerStartRotation() const
 
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
-
 	if (FoundActors.Num() > 0) return FoundActors[0]->GetActorRotation();
 
 	return GetActorRotation();

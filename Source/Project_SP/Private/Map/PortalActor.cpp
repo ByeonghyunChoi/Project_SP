@@ -72,14 +72,13 @@ void APortalActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AAct
 	{
 		// 1. 스테이지 출구 포탈인 경우 (보스 맵 클리어)
 		MapManager->GoToNextStage();
-		SetActorEnableCollision(false);
 	}
 	else if (TargetNodeData)
 	{
 		// 2. 일반 노드 포탈인 경우
 		MapManager->TravelToNode(TargetNodeData);
-		SetActorEnableCollision(false);
 	}
+	SetActorEnableCollision(false);
 }
 
 

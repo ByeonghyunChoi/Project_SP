@@ -14,13 +14,14 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// 데이터 테이블 및 위젯 클래스 로드
-	const FString DataTablePath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapData.DT_MapData'");
+	const FString DataTablePath = TEXT("/Game/DataTable/DT_MapData.DT_MapData");
 	MapTypeData = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTablePath));
 
-	static ConstructorHelpers::FClassFinder<UUserWidget> WidgetFinder(TEXT("/Game/Battle/HUD/WBP_BattleTransition.WBP_BattleTransition_C"));
-	if (WidgetFinder.Succeeded())
+	const FString WidgetPath = TEXT("/Game/Battle/HUD/WBP_BattleTransition.WBP_BattleTransition_C");
+	TransitionWidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, *WidgetPath);
+	if (!TransitionWidgetClass)
 	{
-		TransitionWidgetClass = WidgetFinder.Class;
+		UE_LOG(LogTemp, Error, TEXT("Initialize: 위젯 클래스를 찾을 수 없습니다! 경로를 확인하세요: %s"), *WidgetPath);
 	}
 
 	MapGenerator = NewObject<UMapGraphGenerator>(this);
@@ -125,12 +126,14 @@ void UMapManagerSubsystem::LoadNextLevel()
 		return;
 	}
 
+	FVector SpawnLocation = FVector(-15000.0f, 0.0f, 0.0f);
+
 	// [핵심] 레벨 인스턴스 비동기 로드
 	bool bSuccess = false;
 	CurrentLevelInstance = ULevelStreamingDynamic::LoadLevelInstance(
 		this,
 		Row->LevelAsset.GetLongPackageName(),
-		FVector::ZeroVector, // 위치 (필요 시 변경 가능)
+		SpawnLocation, // 위치 (필요 시 변경 가능)
 		FRotator::ZeroRotator,
 		bSuccess
 	);
