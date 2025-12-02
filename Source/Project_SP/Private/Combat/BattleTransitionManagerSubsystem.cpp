@@ -30,11 +30,12 @@ UBattleTransitionManagerSubsystem::UBattleTransitionManagerSubsystem()
 	}
 }
 
-void UBattleTransitionManagerSubsystem::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup)
+void UBattleTransitionManagerSubsystem::RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup, AActor* FieldMonsterActor)
 {
 	bAllPreparationsComplete = false;
 	PlayerCharacterRef = Player;
 	MonsterGroupToBattle = MonsterGroup;
+	CachedFieldMonsterActor = FieldMonsterActor;
 
 	if (!PlayerCharacterRef) return;
 
@@ -225,6 +226,22 @@ void UBattleTransitionManagerSubsystem::OnBattleLevelHidden()
 		MapManager->NotifyCombatFinished(bPlayerWonLastBattle);
 	}
 
+	// 플레이어가 승리했다면 필드에 몬스터 파괴
+	if (bPlayerWonLastBattle)
+	{
+		if (CachedFieldMonsterActor)
+		{
+			CachedFieldMonsterActor->Destroy();
+			CachedFieldMonsterActor = nullptr; // 포인터 비우기 (안전장치)
+			UE_LOG(LogTemp, Log, TEXT("Battle Won! Field Monster Destroyed."));
+		}
+	}
+	else
+	{
+		// 졌거나 도망쳤다면 몬스터를 살려둠 (참조만 해제)
+		CachedFieldMonsterActor = nullptr;
+	}
+
 	// 플레이어 필드 복귀
 	if (PlayerCharacterRef)
 	{
@@ -232,6 +249,12 @@ void UBattleTransitionManagerSubsystem::OnBattleLevelHidden()
 		PlayerCharacterRef->SetActorHiddenInGame(false);
 		PlayerCharacterRef->SetActorEnableCollision(true);
 		PlayerCharacterRef->OnEnterFieldMode();
+		if (UCharacterMovementComponent* MoveComp = PlayerCharacterRef->GetCharacterMovement())
+		{
+			// 관성 제거 (미끄러짐 방지)
+			MoveComp->StopMovementImmediately();
+			MoveComp->SetMovementMode(MOVE_Walking);
+		}
 	}
 
 	// 입력 모드 및 카메라 복구
@@ -245,6 +268,7 @@ void UBattleTransitionManagerSubsystem::OnBattleLevelHidden()
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 	{
 		PC->SetViewTargetWithBlend(PlayerCharacterRef.Get(), 0.0f);
+		PC->FlushPressedKeys();
 	}
 
 	CachedPlayerParty.Empty();

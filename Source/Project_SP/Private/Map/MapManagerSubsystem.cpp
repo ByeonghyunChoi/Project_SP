@@ -85,17 +85,29 @@ void UMapManagerSubsystem::OnFadeInFinished()
 
 void UMapManagerSubsystem::UnloadPreviousLevel()
 {
-	if (CurrentLevelInstance)
-	{
-		// 언로드 완료 시점(Hidden)을 잡기 위해 델리게이트 연결
-		CurrentLevelInstance->OnLevelHidden.AddDynamic(this, &UMapManagerSubsystem::OnLevelUnloaded);
-		CurrentLevelInstance->SetShouldBeLoaded(false);
-		CurrentLevelInstance->SetShouldBeVisible(false);
-	}
-	else
+	if (!IsValid(CurrentLevelInstance))
 	{
 		OnLevelUnloaded();
+		return;
 	}
+
+	// 2. [핵심 수정] 이미 숨겨져 있는 상태라면, 델리게이트가 안 불릴 수 있음 -> 즉시 완료 처리
+	// (이 체크가 없으면 영원히 대기하거나 로직이 꼬일 수 있음)
+	if (!CurrentLevelInstance->IsLevelVisible())
+	{
+		// 메모리에는 올라와 있지만 눈에는 안 보이는 상태 -> 그냥 바로 날려버림
+		CurrentLevelInstance->SetShouldBeLoaded(false);
+		OnLevelUnloaded();
+		return;
+	}
+
+	// 3. 정상적인 언로드 절차
+	// 숨겨짐(Hidden) 상태가 되면 OnLevelUnloaded 함수를 호출해달라고 등록
+	CurrentLevelInstance->OnLevelHidden.AddDynamic(this, &UMapManagerSubsystem::OnLevelUnloaded);
+
+	// 보이지 않게 하고(Visible=false), 메모리에서 내림(Loaded=false)
+	CurrentLevelInstance->SetShouldBeVisible(false);
+	CurrentLevelInstance->SetShouldBeLoaded(false);
 }
 
 void UMapManagerSubsystem::OnLevelUnloaded()
@@ -105,6 +117,12 @@ void UMapManagerSubsystem::OnLevelUnloaded()
 	{
 		CurrentLevelInstance->OnLevelHidden.RemoveDynamic(this, &UMapManagerSubsystem::OnLevelUnloaded);
 		CurrentLevelInstance = nullptr;
+	}
+
+	if (CurrentMapLogicActor)
+	{
+		CurrentMapLogicActor->Destroy(); // 액터를 월드에서 제거
+		CurrentMapLogicActor = nullptr;  // 포인터 초기화
 	}
 
 	// 깨끗해졌으니 다음 레벨 로드

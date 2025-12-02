@@ -98,7 +98,7 @@ void UFieldActionComponent::PerformAttackHitCheck()
 					if (TransitionManager)
 					{
 						UE_LOG(LogTemp, Error, TEXT("[FLOW 1] Attack successful. Requesting battle transition..."));
-						TransitionManager->RequestEnterBattle(OwningPlayer, HitMonster->GetCombatMonsterGroup());
+						TransitionManager->RequestEnterBattle(OwningPlayer, HitMonster->GetCombatMonsterGroup(), HitMonster);
 					}
 				}
 			}

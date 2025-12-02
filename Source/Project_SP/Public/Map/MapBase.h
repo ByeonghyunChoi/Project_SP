@@ -19,6 +19,9 @@ public:
 	AMapBase();
 
 protected:
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Type")
 	EMapType CurrentMapType;
 

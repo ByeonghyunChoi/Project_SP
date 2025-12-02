@@ -16,6 +16,14 @@ AMapBase::AMapBase()
 	CurrentMapType = EMapType::NormalBattle;
 }
 
+void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	// 맵 관리자가 사라질 때, 관리하던 모든 액터도 같이 정리합니다.
+	ClearMapElements();
+}
+
 
 void AMapBase::OnRewardBoxOpened()
 {

@@ -19,7 +19,7 @@ class PROJECT_SP_API UBattleTransitionManagerSubsystem : public UGameInstanceSub
 
 public:
 	UBattleTransitionManagerSubsystem();
-	void RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup);
+	void RequestEnterBattle(APlayerCharacter* Player, UMonsterGroupObject* MonsterGroup, AActor* FieldMonsterActor);
 	void RequestExitBattle(bool bPlayerWon);
 	void NotifyBattleReady(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);
 
@@ -35,6 +35,8 @@ protected:
 	TArray<TObjectPtr<ACombatPawn>> CachedPlayerParty;
 	UPROPERTY() 
 	TArray<TObjectPtr<ACombatPawn>> CachedEnemyParty;
+	UPROPERTY()
+	TObjectPtr<AActor> CachedFieldMonsterActor;
 
 	TSubclassOf<UUserWidget> TransitionWidgetClass;
 

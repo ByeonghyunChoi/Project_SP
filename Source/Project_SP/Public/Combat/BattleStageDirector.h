@@ -31,7 +31,7 @@ protected:
 	float DepthSpacing = 50.0f; // 몬스터 간의 '앞뒤' 간격
 
 	UPROPERTY(EditAnywhere, Category = "Battle Stage | Formation")
-	float BaseForwardDistance = 650.0f; // 플레이어로부터의 기본 전방 거리
+	float BaseForwardDistance = 750.0f; // 플레이어로부터의 기본 전방 거리
 
 private:
 	TArray<ACombatPawn*> SpawnEnemies(UMonsterGroupObject* MonsterGroup, APlayerCharacter* PlayerToFace);
