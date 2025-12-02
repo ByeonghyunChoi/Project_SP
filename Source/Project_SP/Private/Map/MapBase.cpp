@@ -87,7 +87,7 @@ void AMapBase::SpawnRewardBox()
 	{
 		// 보상 데이터 초기화
 		FName TargetLootGroup = GetRewardRowNameByMapType();
-		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
+		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup, RelicDataTable);
 
 		// [핵심] 상호작용 이벤트 연결 (상자 열면 -> OnRewardBoxOpened 호출)
 		RewardBox->OnRewardInteracted.AddDynamic(this, &AMapBase::OnRewardBoxOpened);
