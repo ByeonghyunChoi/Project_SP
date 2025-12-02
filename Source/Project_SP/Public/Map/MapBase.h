@@ -46,6 +46,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Map Logic|Reward")
 	TObjectPtr<UDataTable> RewardDataTable;
+	//유물 데이터 테이블
+	UPROPERTY(EditDefaultsOnly, Category = "Map Logic|Reward")
+	TObjectPtr<UDataTable> RelicDataTable;
 
 	// 보상 획득 시 호출될 콜백
 	UFUNCTION()

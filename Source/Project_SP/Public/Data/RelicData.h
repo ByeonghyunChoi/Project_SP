@@ -2,8 +2,22 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "RelicData.generated.h"
+
+class URelicBase;
+
+UENUM(BlueprintType)
+enum class ERelicStatType : uint8
+{
+    None,
+    MaxHealth,          // 최대 체력
+    AttackPower,        // 공격력
+    MovementSpeed,      // 이동 속도
+    DamageIncrease,     // 주는 피해 증가
+    DamageReduction     // 받는 피해 감소
+};
 
 UENUM(BlueprintType)
 enum class ERelicType : uint8
@@ -34,7 +48,7 @@ public:
         FText InRelicName,
         ERelicType InRelicType,
         FText InRelicExplain,
-        TSoftObjectPtr<class UTexture2D> InIcon
+        TObjectPtr<class UTexture2D> InIcon
     )
         : RelicName(InRelicName)
         , RelicType(InRelicType)
@@ -53,5 +67,8 @@ public:
 	FText RelicExplain;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Relic")
-	TSoftObjectPtr<class UTexture2D> Icon;
+    TObjectPtr<class UTexture2D> Icon;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Relic")
+	TSubclassOf<URelicBase> RelicClass;
 };

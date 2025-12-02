@@ -4,13 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Items/RelicBase.h"
-#include "RLC_LightBoots.generated.h"
+#include "RLC_BloodBlade.generated.h"
 
-/**
- * 
- */
+
 UCLASS()
-class PROJECT_SP_API URLC_LightBoots : public URelicBase
+class PROJECT_SP_API URLC_BloodBlade : public URelicBase
 {
 	GENERATED_BODY()
 	

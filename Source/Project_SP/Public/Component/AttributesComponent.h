@@ -7,6 +7,7 @@
 #include "Engine/DataTable.h"
 #include "Items/OpartsBase.h"
 #include "Data/CharacterStatsData.h"
+#include "Data/RelicData.h"
 #include "AttributesComponent.generated.h"
 
 
@@ -53,8 +54,9 @@ protected:
 
 	// 오파츠로부터 얻은 추가 스탯 보너스
     UPROPERTY(VisibleAnywhere, Category = "Attributes|Oparts")
-    FCharacterStatsData OpartsBonusStats;
+    FOpartStats OpartsBonusStats;
 
+	// --- 성장 관련 데이터 ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Growth")
     int32 Level = 1;
 
@@ -96,6 +98,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
     void RemoveOpartsStats(const FOpartStats& OpartsStats);
+
+	// 유물(렐릭) 스탯 적용 함수
+	UFUNCTION(BlueprintCallable, Category = "Attributes|Relic")
+	void ApplyRelicStats(ERelicStatType StatType, float Value);
 
     // --- 접근자(Getter) ---
     UFUNCTION(BlueprintPure, Category = "Attributes")

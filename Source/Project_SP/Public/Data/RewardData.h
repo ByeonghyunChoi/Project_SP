@@ -17,6 +17,7 @@ struct FRewardData : public FTableRowBase
 		, SandAmount(0)
 		, IncompleteEnergyAmount(0)
 		, MoneyAmount(0)
+		, bHasRelicReward(false)
 	{
 	}
 
@@ -28,5 +29,7 @@ struct FRewardData : public FTableRowBase
 	int32 IncompleteEnergyAmount; // 불완전한 기운 수량
 	UPROPERTY(EditAnywhere, Category = "Reward")
 	int32 MoneyAmount; // 돈 수량
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+	bool bHasRelicReward; // 유물 보상이 있는지 여부
 
 };

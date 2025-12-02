@@ -3,12 +3,28 @@
 
 #include "Items/RelicBase.h"
 
-void URelicBase::ApplyRelicEffect()
+void URelicBase::OnEquip(AActor* Instigator)
+{
+    if (Instigator)
+    {
+        ApplyRelicEffect(Instigator);
+    }
+}
+
+void URelicBase::OnUnequip(AActor* Instigator)
+{
+    if (Instigator)
+    {
+        RemoveRelicEffect(Instigator);
+    }
+}
+
+void URelicBase::ApplyRelicEffect(AActor* Target)
 {
 
 }
 
-void URelicBase::RemoveRelicEffect()
+void URelicBase::RemoveRelicEffect(AActor* Target)
 {
 
 }
