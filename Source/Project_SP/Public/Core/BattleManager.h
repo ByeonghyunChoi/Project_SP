@@ -148,8 +148,9 @@ private:
 
 	FTimerHandle TurnStartSequenceTimerHandle;
 
-	void ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* Defender);
-
 public:
 	void FinalizeParryTurnSwitch(ACombatPawn* OriginalAttacker, ACombatPawn* ParryWinner);
+
+	void ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* Defender);
+
 };

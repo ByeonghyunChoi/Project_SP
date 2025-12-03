@@ -73,7 +73,4 @@ void UTask_OpenParryWindow::OnParryWindowTimerEnd()
 			EventComp->BroadcastParryWindowClosed(Instigator);
 		}
 	}
-
-	// 이제 패링 창의 열림과 닫힘에 대한 모든 임무가 끝났으므로, 작업을 종료합니다.
-	FinishTask();
 }

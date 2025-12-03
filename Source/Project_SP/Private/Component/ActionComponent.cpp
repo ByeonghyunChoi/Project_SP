@@ -102,6 +102,11 @@ void UActionComponent::EndActiveAction(ACombatPawn* Instigator)
 	}
 }
 
+bool UActionComponent::StartActionByName(ACombatPawn* Instigator, FName ActionName)
+{
+	return StartActionByID(Instigator, ActionName, TArray<ACombatPawn*>());
+}
+
 bool UActionComponent::GetActionData(FName ActionID, FActionData& OutActionData) const
 {
 	if (!ActionDataTable)

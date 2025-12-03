@@ -37,10 +37,18 @@ void AMonsterAIController::DecideAction(TArray<ACombatPawn*> PlayerPawns)
 
     // 2. 공격할 타겟을 랜덤으로 선택합니다.
     TArray<ACombatPawn*> Targets;
-    Targets.Add(PlayerPawns[FMath::RandRange(0, PlayerPawns.Num() - 1)]);
+    ACombatPawn* SelectedTarget = PlayerPawns[FMath::RandRange(0, PlayerPawns.Num() - 1)];
+    Targets.Add(SelectedTarget);
 
-    // 3. '몸'에게 애니메이션 재생을 지시합니다.
-    ControlledMonster->PlayActionMontage(ActionIDToUse);
+    if (SelectedTarget)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AI DecideAction: Monster %s targets %s using Action %s"),
+            *ControlledMonster->GetName(), *SelectedTarget->GetName(), *ActionIDToUse.ToString());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("AI DecideAction: TARGET IS NULL!"));
+    }
 
     // 4. '몸'의 ActionComponent에게 액션 실행을 직접 명령합니다.
     ActionComp->StartActionByID(ControlledMonster, ActionIDToUse, Targets);

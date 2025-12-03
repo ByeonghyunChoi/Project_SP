@@ -35,6 +35,9 @@ public:
 	bool StartActionByID(ACombatPawn* Instigator, FName ActionID, const TArray<ACombatPawn*>& Targets);
 	void EndActiveAction(ACombatPawn* Instigator);
 
+	UFUNCTION(BlueprintCallable, Category = "Actions")
+	bool StartActionByName(ACombatPawn* Instigator, FName ActionName);
+
 	UFUNCTION(BlueprintPure, Category = "Actions")
 	UGameAction* GetActiveAction() const { return ActiveAction; }
 

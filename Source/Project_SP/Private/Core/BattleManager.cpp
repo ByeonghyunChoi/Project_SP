@@ -21,6 +21,8 @@
 #include "SubSystem/TimeForceSubsystem.h"
 #include "Component/ActionComponent.h"
 #include "Combat/GameAction.h"
+#include "Data/WeaponData.h"
+#include "Component/WeaponSystemComponent.h"
 
 ABattleManager::ABattleManager()
 {
@@ -42,6 +44,18 @@ void ABattleManager::Tick(float DeltaTime)
 
 	if (CurrentBattleState != EBattleState::InProgress) return;
 
+
+	if (TaskQueue.Num() > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Tick: Queue Size = %d, IsProcessing = %s"),
+			TaskQueue.Num(), bIsProcessingTask ? TEXT("TRUE") : TEXT("FALSE"));
+	}
+
+	while (TaskQueue.Num() > 0 && !bIsProcessingTask)
+	{
+		ProcessTaskQueue();
+	}
+
 	// 1. 현재 실행 중인 태스크가 있다면 틱 공급
 	if (bIsProcessingTask && CurrentTask)
 	{
@@ -50,13 +64,6 @@ void ABattleManager::Tick(float DeltaTime)
 			CurrentTask->TickTask(DeltaTime);
 		}
 		return; // 태스크 실행 중에는 아래 로직 수행 안 함
-	}
-
-	// 2. 대기 중인 태스크가 있다면 다음 태스크 실행
-	if (TaskQueue.Num() > 0)
-	{
-		ProcessTaskQueue();
-		return;
 	}
 
 	// --- [여기 도달했다는 것은 실행/대기 중인 태스크가 없다는 뜻] ---
@@ -238,81 +245,98 @@ void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* De
 {
 	if (!Attacker || !Defender) return;
 
-	// 1. 행동 중단
+	// 1. 적 행동 강제 중단
 	ClearTaskQueue();
+	Attacker->StopAnimMontage();
 
-	TArray<UCombatTask*> SequenceTasks;
-
-	// 2. 'Parry_Visuals' 액션 로드
-	if (UActionComponent* ActionComp = Defender->GetActionComponent())
+	// 2. [즉시 실행] Parry_Visual (소리, 이펙트, 카메라)
+	// 태스크 큐에 넣지 않고 바로 실행해버려야 싱크가 맞습니다.
+	if (UActionComponent* PlayerActionComp = Defender->GetActionComponent())
 	{
-		FActionData ParryVisualData;
-		if (ActionComp->GetActionData(TEXT("Parry_Visuals"), ParryVisualData))
+		FActionData VisualData;
+		if (PlayerActionComp->GetActionData(TEXT("Parry_Visual"), VisualData))
 		{
-			if (ParryVisualData.GameActionClass)
+			UGameAction* TempAction = NewObject<UGameAction>(this, VisualData.GameActionClass);
+			if (TempAction)
 			{
-				UGameAction* VisualAction = NewObject<UGameAction>(this, ParryVisualData.GameActionClass);
-				VisualAction->Initialize(ActionComp, TEXT("Parry_Visuals"));
-
-				for (UCombatTask* TaskTemplate : VisualAction->GetTasks())
+				// 즉발 연출 태스크들만 골라서 바로 실행!
+				for (UCombatTask* Task : TempAction->GetTasks())
 				{
-					if (TaskTemplate)
-					{
-						UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
-
-						// [컨텍스트 설정]
-						// 기본적으로 Instigator=플레이어, Target=몬스터
-						// bApplyToTarget이 true면 Instigator=몬스터, Target=플레이어
-						ACombatPawn* RealInstigator = TaskTemplate->bApplyToTarget ? Attacker : Defender;
-						TArray<ACombatPawn*> RealTargets = TaskTemplate->bApplyToTarget ? TArray<ACombatPawn*>{ Defender } : TArray<ACombatPawn*>{ Attacker };
-
-						NewTask->Initialize(this, RealInstigator, RealTargets);
-						SequenceTasks.Add(NewTask);
-					}
+					UCombatTask* NewTask = DuplicateObject<UCombatTask>(Task, this);
+					NewTask->Initialize(this, Defender, { Attacker });
+					NewTask->ExecuteTask(); // [핵심] 즉시 실행
 				}
 			}
 		}
 	}
 
-	// 3. 실행
-	InjectCombatTasks(SequenceTasks);
+	// 3. [시간 정지] (HitStop)
+	// 연출이 터지자마자 멈춰야 타격감이 삽니다.
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.001f);
+
+	// 0.15초 뒤에 풀림
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, [this, Attacker, Defender]()
+		{
+			// 4. [시간 복구]
+			UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+
+			// 5. [후속 조치] 몬스터 밀려남 & 턴 교체
+			TArray<UCombatTask*> SequenceTasks;
+
+			// A. 몬스터 리액션 (Parry_Reaction)
+			if (UActionComponent* MonsterActionComp = Attacker->GetActionComponent())
+			{
+				FActionData ReactData;
+				if (MonsterActionComp->GetActionData(TEXT("Parry_Reaction"), ReactData))
+				{
+					UGameAction* TempAction = NewObject<UGameAction>(this, ReactData.GameActionClass);
+					if (TempAction)
+					{
+						for (UCombatTask* Task : TempAction->GetTasks())
+						{
+							UCombatTask* NewTask = DuplicateObject<UCombatTask>(Task, this);
+							NewTask->Initialize(this, Attacker, {});
+							SequenceTasks.Add(NewTask);
+						}
+					}
+				}
+			}
+
+			// B. 턴 교체 스위치
+			UTask_ExecuteParrySwitch* SwitchTask = NewObject<UTask_ExecuteParrySwitch>(this);
+			SwitchTask->Initialize(this, Attacker, { Defender });
+			SequenceTasks.Add(SwitchTask);
+
+			// 큐에 주입
+			InjectCombatTasks(SequenceTasks);
+
+		}, 0.15f, false);
 }
 
 
 void ABattleManager::FinalizeParryTurnSwitch(ACombatPawn* OriginalAttacker, ACombatPawn* ParryWinner)
 {
-	UE_LOG(LogTemp, Log, TEXT("[Parry Logic] Visuals Finished. Switching Turn & Auto-Counter."));
+	UE_LOG(LogTemp, Log, TEXT("패링 연출 종료. 턴 교체 및 반격 시작!"));
 
-	// 1. 몬스터(Attacker) 턴 종료 (Pop)
+	// 1. [적 턴 중단]
 	if (GetCurrentTurnCharacter() == OriginalAttacker)
 	{
-		TurnStack.Pop();
+		TurnStack.Pop(); // 스택에서 몬스터 제거
 		OriginalAttacker->GetBattleTurnComponent()->EndTurn();
 	}
 
-	// 2. 플레이어(Winner) 추가 턴 시작 (Interrupt)
+	// 2. [플레이어 추가 턴]
 	PushAndStartTurn(ParryWinner, ETurnType::Interrupt);
 
-	// 3. 자동 반격 스킬 실행
-	if (UActionComponent* PlayerActionComp = ParryWinner->GetActionComponent())
+	// 3. [자동 반격] 패링 스킬 실행
+	// 플레이어 무기에서 패링 스킬 ID 가져오기
+	if (UWeaponSystemComponent* WeaponComp = ParryWinner->FindComponentByClass<UWeaponSystemComponent>())
 	{
-		// 실제로는 무기 데이터 등에서 가져와야 할 반격 스킬 ID
-		FName CounterActionID = TEXT("Counter_Attack_Default");
-
-		// 액션 실행 (태스크 생성 -> 큐 주입)
-		bool bStarted = PlayerActionComp->StartActionByID(ParryWinner, CounterActionID, { OriginalAttacker });
-
-		if (bStarted)
+		if (UWeaponData* Weapon = WeaponComp->GetCurrentWeapon())
 		{
-			// BattleManager가 입력 대기 상태(UI 띄우기 등)로 빠지지 않도록 플래그 해제
-			// (PushAndStartTurn 내부에서 bWaitingForTasksToStartTurn = true로 설정했을 것이므로)
-			bWaitingForTasksToStartTurn = false;
-			ParryWinner->SetCombatPawnState(ECombatPawnState::PerformingAction);
-		}
-		else
-		{
-			// 반격 액션 실행 실패 시 턴 종료 처리
-			EndCurrentTurn();
+			// 예: Fenrir_Parry
+			ParryWinner->GetActionComponent()->StartActionByID(ParryWinner, Weapon->ParrySkillActionID, { OriginalAttacker });
 		}
 	}
 }
@@ -574,6 +598,8 @@ void ABattleManager::ClearTaskQueue()
 
 void ABattleManager::SignalTaskByNotifyName(FName NotifyName)
 {
+	UE_LOG(LogTemp, Warning, TEXT("BattleManager received Signal: %s"), *NotifyName.ToString());
+
 	if (CurrentTask)
 	{
 		CurrentTask->OnNotifyReceived(NotifyName);
@@ -599,6 +625,8 @@ void ABattleManager::ProcessTaskQueue()
 
 	if (CurrentTask)
 	{
+		UE_LOG(LogTemp, Warning, TEXT(">>> ProcessTask: Executing [%s]"), *CurrentTask->GetName());
+
 		bIsProcessingTask = true;
 		CurrentTask->OnTaskFinished.AddDynamic(this, &ABattleManager::OnCurrentTaskFinished);
 		CurrentTask->ExecuteTask();
@@ -607,6 +635,8 @@ void ABattleManager::ProcessTaskQueue()
 
 void ABattleManager::OnCurrentTaskFinished()
 {
+	UE_LOG(LogTemp, Warning, TEXT("<<< Task Finished."));
+
 	bIsProcessingTask = false;
 	CurrentTask = nullptr;
 }

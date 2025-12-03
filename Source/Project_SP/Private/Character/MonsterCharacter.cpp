@@ -45,23 +45,6 @@ void AMonsterCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets
     }
 }
 
-void AMonsterCharacter::PlayActionMontage(FName ActionID)
-{
-    const TSoftObjectPtr<UAnimMontage>* FoundMontage = ActionMontageMap.Find(ActionID);
-    if (FoundMontage && FoundMontage->IsValid()) // .IsValid()로 포인터가 null이 아닌지 확인
-    {
-        // Get()은 이미 로드된 애셋을 즉시 반환합니다.
-        if (UAnimMontage* MontageToPlay = FoundMontage->Get())
-        {
-            PlayAnimMontage(MontageToPlay);
-        }
-        else
-        {
-            // 만약 Get()이 실패했다면, CriticalAssets에 이 몽타주가 빠졌다는 의미입니다.
-            UE_LOG(LogTemp, Error, TEXT("Montage '%s' was not preloaded! Check FMonsterData::CriticalAssets."), *FoundMontage->ToSoftObjectPath().ToString());
-        }
-    }
-}
 
 void AMonsterCharacter::HandleParryWindowOpened(ACombatPawn* Attacker, EDamageType AttackType, float Duration)
 {

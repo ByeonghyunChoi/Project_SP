@@ -49,8 +49,6 @@ protected:
 public:
     // --- 외부(주로 AIController)에서 호출하는 함수 ---
 
-    void PlayActionMontage(FName ActionID);
-
     virtual void OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets) override;
 
     // Getter 및 Setter 함수
