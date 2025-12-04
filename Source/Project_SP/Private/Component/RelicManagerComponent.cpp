@@ -16,7 +16,7 @@ void URelicManagerComponent::BeginPlay()
 	
 }
 
-void URelicManagerComponent::AddRelic(TSubclassOf<URelicBase> RelicClass)
+void URelicManagerComponent::AddRelic(const FRelicData& NewRelicData)
 {
     if (EquippedRelics.Num() >= MAX_RELIC_SLOTS)
     {
@@ -24,13 +24,15 @@ void URelicManagerComponent::AddRelic(TSubclassOf<URelicBase> RelicClass)
         return;
     }
 
-    if (!RelicClass) return;
+    if (!NewRelicData.RelicClass) return;
 
     // 1. 유물 객체 생성 (Owner는 PlayerCharacter)
-    URelicBase* NewRelic = NewObject<URelicBase>(GetOwner(), RelicClass);
+    URelicBase* NewRelic = NewObject<URelicBase>(GetOwner(), NewRelicData.RelicClass);
 
     if (NewRelic)
     {
+        NewRelic->InitializeRelic(NewRelicData);
+
         EquippedRelics.Add(NewRelic);
 
         // 변경된 함수 호출 (GetOwner()를 넘겨줌)
@@ -70,4 +72,17 @@ TArray<TSubclassOf<URelicBase>> URelicManagerComponent::GetEquippedRelicClasses(
         }
     }
     return ResultClasses;
+}
+
+TArray<URelicBase*> URelicManagerComponent::GetEquippedRelics() const
+{
+    TArray<URelicBase*> Result;
+    for (const TObjectPtr<URelicBase>& Relic : EquippedRelics)
+    {
+        if (Relic)
+        {
+            Result.Add(Relic.Get()); // 포인터 꺼내서 추가
+        }
+    }
+    return Result;
 }

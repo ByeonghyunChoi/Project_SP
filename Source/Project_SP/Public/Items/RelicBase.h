@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "Data/RelicData.h"
 #include "RelicBase.generated.h"
 
 UCLASS(BlueprintType, Blueprintable)
@@ -12,7 +13,22 @@ class PROJECT_SP_API URelicBase : public UObject
 {
 	GENERATED_BODY()
 	
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Relic Info")
+	FRelicData RelicInfo;
+
 public:
+	void InitializeRelic(const FRelicData& InData)
+	{
+		RelicInfo = InData;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Relic Info")
+	FRelicData GetRelicData() const
+	{
+		return RelicInfo;
+	}
+
 	UFUNCTION(BlueprintCallable, Category = "Relic")
 	virtual void OnEquip(AActor* Instigator);
 
