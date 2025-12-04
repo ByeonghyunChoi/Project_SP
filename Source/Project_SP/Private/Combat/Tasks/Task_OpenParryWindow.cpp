@@ -7,6 +7,7 @@
 #include "Character/MonsterCharacter.h"
 #include "Combat/GameAction.h"
 #include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
 
 void UTask_OpenParryWindow::ExecuteTask_Implementation()
 {
@@ -43,6 +44,8 @@ void UTask_OpenParryWindow::ExecuteTask_Implementation()
                 // 이벤트 방송: 이제 '공격 속성'이 아닌 '몬스터 약점'을 인자로 보냅니다.
                 EventComp->BroadcastParryWindowOpened(Instigator, RequiredParryType, ActionData.ParryWindowDuration);
 
+                UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.5f);
+
                 // 타이머 설정 (기존 코드 유지)
                 if (UWorld* World = GetWorld())
                 {
@@ -54,7 +57,6 @@ void UTask_OpenParryWindow::ExecuteTask_Implementation()
                         false
                     );
                 }
-                return;
             }
         }
     }
@@ -67,6 +69,8 @@ void UTask_OpenParryWindow::OnParryWindowTimerEnd()
 {
 	if (Instigator)
 	{
+        UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+
 		if (UGameEventComponent* EventComp = Instigator->GetGameEventComponent())
 		{
 			// "패링 창 닫힘"을 방송합니다.

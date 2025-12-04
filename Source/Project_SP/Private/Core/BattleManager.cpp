@@ -637,6 +637,11 @@ void ABattleManager::OnCurrentTaskFinished()
 {
 	UE_LOG(LogTemp, Warning, TEXT("<<< Task Finished."));
 
+	if (CurrentTask)
+	{
+		CurrentTask->OnTaskFinished.RemoveDynamic(this, &ABattleManager::OnCurrentTaskFinished);
+	}
+
 	bIsProcessingTask = false;
 	CurrentTask = nullptr;
 }

@@ -72,6 +72,8 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, Category = "Combat|Parry")
 	TWeakObjectPtr<ACombatPawn> PendingParryTarget;
 
+	bool bIsParrySequenceActive = false;
+
 	// 전투 제어 변수
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
 	TArray<TObjectPtr<ACombatPawn>> AllEnemyTargets;

@@ -58,6 +58,9 @@ void UPlayerCombatControlComponent::OnTurnBegin(const TArray<ACombatPawn*>& Pote
 {
 	if (!OwningPlayerCharacter || !WeaponSystemComponent || !ActionComponent) return;
 
+	bIsParrySequenceActive = false;
+	bIsParryWindowOpen = false;
+
 	if (bPendingParryInterrupt && !PendingParrySkillID.IsNone() && PendingParryTarget.IsValid())
 	{
 		ACombatPawn* Target = PendingParryTarget.Get(); 
@@ -158,6 +161,12 @@ void UPlayerCombatControlComponent::OnReceiveParryWindowOpened(ACombatPawn* Atta
 
 void UPlayerCombatControlComponent::OnReceiveParryWindowClosed(ACombatPawn* Attacker)
 {
+	if (bIsParrySequenceActive)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Parry Closed Signal Ignored (Sequence Active)"));
+		return;
+	}
+
 	// 올바른 Attacker가 닫았는지 확인
 	if (bIsParryWindowOpen && CurrentParryAttacker == Attacker)
 	{
@@ -281,36 +290,20 @@ void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 	// 1. 유효성 검사
 	if (!ParriedAttacker || !OwningPlayerCharacter || !ActionComponent || !WeaponSystemComponent) return;
 
+	bIsParrySequenceActive = true;
+	bIsParryWindowOpen = false;
+
 	UE_LOG(LogTemp, Warning, TEXT("!!! PARRY SUCCESS vs %s !!!"), *ParriedAttacker->GetName());
 
-	// 2. 적의 공격 행동 중단 (BattleManager 호출)
+	// 3. [수정] 직접 스킬을 실행하지 않고, BattleManager에게 연출 시작을 요청합니다.
 	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
 	if (BattleManager)
 	{
-		// 적이 공격하던 태스크들을 모두 취소시킵니다.
-		BattleManager->ClearTaskQueue();
+		// 여기서 BattleManager가 연출(Visual) -> 시간정지 -> 리액션 -> 턴 교체 -> 반격기 실행까지 다 알아서 합니다.
+		BattleManager->ExecuteParrySequence(ParriedAttacker, OwningPlayerCharacter);
 	}
 
-	// 3. 무기 데이터에서 패링 스킬 ID 가져오기
-	FName ParryActionID = NAME_None;
-	if (UWeaponData* CurrentWeapon = WeaponSystemComponent->GetCurrentWeapon())
-	{
-		ParryActionID = CurrentWeapon->ParrySkillActionID; // 예: Fenrir_Parry
-	}
-
-	// 4. 패링 스킬 즉시 실행
-	if (!ParryActionID.IsNone())
-	{
-		// 기존처럼 태스크를 수동으로 Inject하지 않고, 일반적인 액션 실행 함수를 사용합니다.
-		// 이 액션(BP_Action_Fenrir_Parry) 안에 '시퀀스 재생(Task_PlayLevelSequence)'과 '데미지 처리'가 모두 들어있습니다.
-		ActionComponent->StartActionByID(OwningPlayerCharacter, ParryActionID, { ParriedAttacker });
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Parry Success but no ParrySkillActionID found for current weapon!"));
-	}
-
-	// 5. 패링 성공 이벤트 방송 (UI 표시 등)
+	// 4. UI용 이벤트 방송 (선택 사항)
 	if (OwningPlayerCharacter->GetGameEventComponent())
 	{
 		OwningPlayerCharacter->GetGameEventComponent()->BroadcastParryAttempted(ParriedAttacker, OwningPlayerCharacter, EParryResult::Success);
