@@ -153,4 +153,16 @@ public:
 
 	void ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* Defender);
 
+	protected:
+		UPROPERTY()
+		TObjectPtr<ACombatPawn> PendingParryAttacker;
+
+		UPROPERTY()
+		TObjectPtr<ACombatPawn> PendingParryDefender;
+
+public:
+	void ActivateHitStop(float Duration, float Dilation);
+
+private:
+	void OnHitStopFinished();
 };

@@ -85,6 +85,25 @@ bool UActionComponent::StartActionByID(ACombatPawn* Instigator, FName ActionID, 
 			return false; // 조건이 맞지 않아 실행 실패
 		}
 	}
+
+	if (ActionDataTable)
+	{
+		const FActionData* FoundRow = ActionDataTable->FindRow<FActionData>(ActionID, TEXT("StartAction AutoGrant"));
+
+		// 데이터 테이블에는 존재하는 액션이라면?
+		if (FoundRow && FoundRow->GameActionClass)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Action [%s] not found in inventory. Auto-granting from DataTable..."), *ActionID.ToString());
+
+			// 1. 액션을 생성해서 목록에 추가 (GrantAction 함수 재활용)
+			GrantAction(ActionID);
+
+			// 2. 방금 추가했으니 다시 실행 시도 (재귀 호출)
+			// 이제는 GrantedActions 목록에 있으므로 위 1번 로직을 타게 됩니다.
+			return StartActionByID(Instigator, ActionID, Targets);
+		}
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("ActionID '%s'를 찾을 수 없습니다."), *ActionID.ToString());
 	return false;
 }

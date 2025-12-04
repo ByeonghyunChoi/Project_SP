@@ -44,14 +44,7 @@ void ABattleManager::Tick(float DeltaTime)
 
 	if (CurrentBattleState != EBattleState::InProgress) return;
 
-
-	if (TaskQueue.Num() > 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Tick: Queue Size = %d, IsProcessing = %s"),
-			TaskQueue.Num(), bIsProcessingTask ? TEXT("TRUE") : TEXT("FALSE"));
-	}
-
-	while (TaskQueue.Num() > 0 && !bIsProcessingTask)
+	if (TaskQueue.Num() > 0 && !bIsProcessingTask)
 	{
 		ProcessTaskQueue();
 	}
@@ -200,6 +193,11 @@ void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)
 
 void ABattleManager::OnTurnStartSequenceFinished()
 {
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(TurnStartSequenceTimerHandle);
+	}
+
 	// 1. 현재 턴인 캐릭터를 가져옵니다.
 	ACombatPawn* Combatant = GetCurrentTurnCharacter();
 	if (!Combatant || Combatant->GetCombatPawnState() == ECombatPawnState::Defeated)
@@ -245,99 +243,196 @@ void ABattleManager::ExecuteParrySequence(ACombatPawn* Attacker, ACombatPawn* De
 {
 	if (!Attacker || !Defender) return;
 
-	// 1. 적 행동 강제 중단
+	// 1. 데이터 저장 (나중에 써야 함)
+	PendingParryAttacker = Attacker;
+	PendingParryDefender = Defender;
+
+	// 2. 적 행동 중단
 	ClearTaskQueue();
 	Attacker->StopAnimMontage();
 
-	// 2. [즉시 실행] Parry_Visual (소리, 이펙트, 카메라)
-	// 태스크 큐에 넣지 않고 바로 실행해버려야 싱크가 맞습니다.
+	// 3. [시각적 연출 시작] Parry_Visual
 	if (UActionComponent* PlayerActionComp = Defender->GetActionComponent())
 	{
-		FActionData VisualData;
-		if (PlayerActionComp->GetActionData(TEXT("Parry_Visual"), VisualData))
-		{
-			UGameAction* TempAction = NewObject<UGameAction>(this, VisualData.GameActionClass);
-			if (TempAction)
-			{
-				// 즉발 연출 태스크들만 골라서 바로 실행!
-				for (UCombatTask* Task : TempAction->GetTasks())
-				{
-					UCombatTask* NewTask = DuplicateObject<UCombatTask>(Task, this);
-					NewTask->Initialize(this, Defender, { Attacker });
-					NewTask->ExecuteTask(); // [핵심] 즉시 실행
-				}
-			}
-		}
+		PlayerActionComp->StartActionByName(Defender, TEXT("Parry_Visual"));
+	}
+}
+
+void ABattleManager::ActivateHitStop(float Duration, float Dilation)
+{
+	UE_LOG(LogTemp, Warning, TEXT(">>> ActivateHitStop Called. Duration: %f, Dilation: %f"), Duration, Dilation);
+
+	// 1. 시간 정지 적용
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), Dilation);
+
+	// 2. 타이머 지연 시간 계산
+	// 목표: 현실 시간(RealTime)으로 Duration만큼 멈추고 싶다.
+	// 공식: GameTime = RealTime * Dilation
+	float GameTimeDelay = Duration * Dilation;
+
+	// [안전장치] 지연 시간이 너무 작으면(0에 수렴하면) 타이머가 안 돌 수도 있으므로 최소값 보장
+	// 0.001초(GameTime)보다 작으면 0.001초로 설정 (프레임 틱 보장)
+	if (GameTimeDelay < 0.001f)
+	{
+		GameTimeDelay = 0.001f;
 	}
 
-	// 3. [시간 정지] (HitStop)
-	// 연출이 터지자마자 멈춰야 타격감이 삽니다.
-	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.001f);
+	UE_LOG(LogTemp, Warning, TEXT(">>> Timer Set for: %f seconds (GameTime)"), GameTimeDelay);
 
-	// 0.15초 뒤에 풀림
 	FTimerHandle Handle;
-	GetWorld()->GetTimerManager().SetTimer(Handle, [this, Attacker, Defender]()
+	GetWorld()->GetTimerManager().SetTimer(Handle, this, &ABattleManager::OnHitStopFinished, GameTimeDelay, false);
+}
+
+void ABattleManager::OnHitStopFinished()
+{
+	UE_LOG(LogTemp, Warning, TEXT("<<< OnHitStopFinished Called. Restoring Time..."));
+
+	// 1. 시간 복구
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+
+	// 2. 후속 조치 (태스크 병합 및 주입)
+	if (PendingParryAttacker && PendingParryDefender)
+	{
+		TArray<UCombatTask*> CombinedTasks;
+
+		// -------------------------------------------------------
+		// [Step 1] 몬스터 리액션 태스크 추출 (Parry_Reaction)
+		// -------------------------------------------------------
+		// 몬스터가 "으악!" 하고 뒤로 물러나는 동작
+		if (UActionComponent* MonsterActionComp = PendingParryAttacker->GetActionComponent())
 		{
-			// 4. [시간 복구]
-			UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
-
-			// 5. [후속 조치] 몬스터 밀려남 & 턴 교체
-			TArray<UCombatTask*> SequenceTasks;
-
-			// A. 몬스터 리액션 (Parry_Reaction)
-			if (UActionComponent* MonsterActionComp = Attacker->GetActionComponent())
+			FActionData ReactData;
+			// 데이터 테이블에서 'Parry_Reaction'을 찾음
+			if (MonsterActionComp->GetActionData(TEXT("Parry_Reaction"), ReactData))
 			{
-				FActionData ReactData;
-				if (MonsterActionComp->GetActionData(TEXT("Parry_Reaction"), ReactData))
+				UGameAction* TempAction = NewObject<UGameAction>(this, ReactData.GameActionClass);
+				if (TempAction)
 				{
-					UGameAction* TempAction = NewObject<UGameAction>(this, ReactData.GameActionClass);
-					if (TempAction)
+					for (UCombatTask* TaskTemplate : TempAction->GetTasks())
 					{
-						for (UCombatTask* Task : TempAction->GetTasks())
-						{
-							UCombatTask* NewTask = DuplicateObject<UCombatTask>(Task, this);
-							NewTask->Initialize(this, Attacker, {});
-							SequenceTasks.Add(NewTask);
-						}
+						UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
+
+						// Instigator: 몬스터 (자기가 움직여야 하니까)
+						NewTask->Initialize(this, PendingParryAttacker, {});
+
+						CombinedTasks.Add(NewTask);
 					}
 				}
 			}
+		}
 
-			// B. 턴 교체 스위치
-			UTask_ExecuteParrySwitch* SwitchTask = NewObject<UTask_ExecuteParrySwitch>(this);
-			SwitchTask->Initialize(this, Attacker, { Defender });
-			SequenceTasks.Add(SwitchTask);
+		// -------------------------------------------------------
+		// [Step 2] 턴 교체 태스크 추출 (Turn_Switch)
+		// -------------------------------------------------------
+		// 몬스터가 다 물러난 뒤에(위 태스크가 끝나면) 실행됨
+		if (UActionComponent* PlayerActionComp = PendingParryDefender->GetActionComponent())
+		{
+			FActionData SwitchData;
+			// 데이터 테이블에서 'Turn_Switch'를 찾음
+			if (PlayerActionComp->GetActionData(TEXT("Turn_Switch"), SwitchData))
+			{
+				UGameAction* TempAction = NewObject<UGameAction>(this, SwitchData.GameActionClass);
+				if (TempAction)
+				{
+					for (UCombatTask* TaskTemplate : TempAction->GetTasks())
+					{
+						UCombatTask* NewTask = DuplicateObject<UCombatTask>(TaskTemplate, this);
 
-			// 큐에 주입
-			InjectCombatTasks(SequenceTasks);
+						// Instigator: 몬스터 (몬스터 턴을 끝내야 하므로)
+						// Target: 플레이어 (플레이어에게 턴을 줘야 하므로)
+						NewTask->Initialize(this, PendingParryAttacker, { PendingParryDefender });
 
-		}, 0.15f, false);
+						CombinedTasks.Add(NewTask);
+					}
+				}
+			}
+		}
+
+		// -------------------------------------------------------
+		// [Step 3] 통합 주입 (순차 실행 보장)
+		// -------------------------------------------------------
+		if (CombinedTasks.Num() > 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT(">>> Injecting %d Combined Tasks"), CombinedTasks.Num());
+
+			// 큐의 맨 앞에 넣습니다. (새치기)
+			// TaskQueue는 FIFO(선입선출)이므로, 넣은 순서대로 [리액션 -> 턴스위치]가 실행됩니다.
+			// 리액션(Move)이 Latent라면, 그게 끝날 때까지 턴스위치는 대기합니다.
+			InjectCombatTasks(CombinedTasks);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("!!! No Tasks Found! Check DataTable Row Names (Parry_Reaction, Turn_Switch) !!!"));
+		}
+	}
+
+	// 데이터 초기화
+	PendingParryAttacker = nullptr;
+	PendingParryDefender = nullptr;
 }
 
 
 void ABattleManager::FinalizeParryTurnSwitch(ACombatPawn* OriginalAttacker, ACombatPawn* ParryWinner)
 {
-	UE_LOG(LogTemp, Log, TEXT("패링 연출 종료. 턴 교체 및 반격 시작!"));
+	UE_LOG(LogTemp, Warning, TEXT(">>> FinalizeParryTurnSwitch Called."));
 
-	// 1. [적 턴 중단]
+	// 1. 적 턴 종료
 	if (GetCurrentTurnCharacter() == OriginalAttacker)
 	{
-		TurnStack.Pop(); // 스택에서 몬스터 제거
+		TurnStack.Pop();
 		OriginalAttacker->GetBattleTurnComponent()->EndTurn();
 	}
 
-	// 2. [플레이어 추가 턴]
+	// 2. 플레이어 추가 턴 시작
 	PushAndStartTurn(ParryWinner, ETurnType::Interrupt);
 
-	// 3. [자동 반격] 패링 스킬 실행
-	// 플레이어 무기에서 패링 스킬 ID 가져오기
+	// 턴 시작 대기 취소
+	bWaitingForTasksToStartTurn = false;
+	GetWorld()->GetTimerManager().ClearTimer(TurnStartSequenceTimerHandle);
+
+	// 3. 자동 반격 스킬 실행
+	bool bActionStarted = false;
+
 	if (UWeaponSystemComponent* WeaponComp = ParryWinner->FindComponentByClass<UWeaponSystemComponent>())
 	{
 		if (UWeaponData* Weapon = WeaponComp->GetCurrentWeapon())
 		{
-			// 예: Fenrir_Parry
-			ParryWinner->GetActionComponent()->StartActionByID(ParryWinner, Weapon->ParrySkillActionID, { OriginalAttacker });
+			FName CounterActionID = Weapon->ParrySkillActionID;
+
+			UE_LOG(LogTemp, Warning, TEXT("   > Attempting to start Counter Action: %s"), *CounterActionID.ToString());
+
+			if (!CounterActionID.IsNone())
+			{
+				// [핵심 수정] ★★★
+				// 현재 플레이어는 'Turn_Switch' 액션을 수행 중인 상태(Active)일 수 있습니다.
+				// 새 스킬을 쓰려면 기존 상태를 강제로 초기화해야 합니다.
+				if (UActionComponent* ActionComp = ParryWinner->GetActionComponent())
+				{
+					ActionComp->ResetActiveAction(); // "야, 하던 거(Turn_Switch) 잊어버려!"
+
+					// 이제 깨끗한 상태에서 반격기 실행
+					bActionStarted = ActionComp->StartActionByID(ParryWinner, CounterActionID, { OriginalAttacker });
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("   > ERROR: ParrySkillActionID is NONE!"));
+			}
 		}
+	}
+
+	// 4. 실패 시 안전장치
+	if (!bActionStarted)
+	{
+		UE_LOG(LogTemp, Error, TEXT("!!! Counter Action Failed to Start! Ending Turn Forcefully. !!!"));
+		// 여기서 EndCurrentTurn을 하면 턴이 꼬일 수 있으니, 
+		// 차라리 상태를 AwaitingInput으로 바꿔서 플레이어가 수동으로라도 때리게 해줍니다.
+		ParryWinner->SetCombatPawnState(ECombatPawnState::AwaitingInput);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT(">>> Counter Action Started Successfully!"));
+		ParryWinner->SetCombatPawnState(ECombatPawnState::PerformingAction);
 	}
 }
 

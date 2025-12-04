@@ -44,7 +44,7 @@ void UTask_OpenParryWindow::ExecuteTask_Implementation()
                 // 이벤트 방송: 이제 '공격 속성'이 아닌 '몬스터 약점'을 인자로 보냅니다.
                 EventComp->BroadcastParryWindowOpened(Instigator, RequiredParryType, ActionData.ParryWindowDuration);
 
-                UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.5f);
+                UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.3f);
 
                 // 타이머 설정 (기존 코드 유지)
                 if (UWorld* World = GetWorld())

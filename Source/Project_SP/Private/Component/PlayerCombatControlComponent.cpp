@@ -16,6 +16,7 @@
 #include "Combat/CombatTask.h"
 #include "Combat/Tasks/Task_EndTurn.h"
 #include "Combat/Tasks/Task_RequestPlayerInterrupt.h"
+#include "Component/AttributesComponent.h"
 
 // Sets default values for this component's properties
 UPlayerCombatControlComponent::UPlayerCombatControlComponent()
@@ -271,6 +272,8 @@ void UPlayerCombatControlComponent::OnParrySuccess(ACombatPawn* ParriedAttacker)
 
 	UE_LOG(LogTemp, Warning, TEXT("!!! PARRY SUCCESS vs %s !!!"), *ParriedAttacker->GetName());
 
+	OwningPlayerCharacter->GetAttributesComponent()->ApplySPChange(-1);
+
 	// 3. [수정] 직접 스킬을 실행하지 않고, BattleManager에게 연출 시작을 요청합니다.
 	ABattleManager* BattleManager = Cast<ABattleManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ABattleManager::StaticClass()));
 	if (BattleManager)
@@ -405,9 +408,15 @@ void UPlayerCombatControlComponent::SetCurrentTargets(const TArray<ACombatPawn*>
 
 void UPlayerCombatControlComponent::HandleParryInput(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Spacebar Pressed!"));
+
 	// 1. 방어 로직은 플레이어 턴이 아닐 때만 작동
 	bool bIsPlayerTurn = (OwningPlayerCharacter->GetCombatPawnState() == ECombatPawnState::AwaitingInput);
-	if (bIsPlayerTurn) return;
+	if (bIsPlayerTurn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Ignored: It IS Player Turn."));
+		return;
+	}
 
 	// 2. 1회 제한 체크
 	if (bHasAttemptedParry)

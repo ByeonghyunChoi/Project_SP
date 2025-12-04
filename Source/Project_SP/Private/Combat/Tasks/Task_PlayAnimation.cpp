@@ -7,6 +7,8 @@ void UTask_PlayAnimation::ExecuteTask_Implementation()
 {
 	if (Instigator && MontageToPlay)
 	{
+		float CurrentTime = GetWorld()->GetTimeSeconds();
+		UE_LOG(LogTemp, Warning, TEXT("[Time: %f] PlayAnimation Started: %s"), CurrentTime, *MontageToPlay->GetName());
 		Instigator->PlayAnimMontage(MontageToPlay);
 	}
 
