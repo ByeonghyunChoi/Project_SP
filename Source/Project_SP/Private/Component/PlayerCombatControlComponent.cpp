@@ -51,6 +51,7 @@ void UPlayerCombatControlComponent::SetupPlayerInput(UEnhancedInputComponent* Pl
 		PlayerInputComponent->BindAction(IA_ConfirmAction, ETriggerEvent::Started, this, &UPlayerCombatControlComponent::HandleConfirmAction);
 		PlayerInputComponent->BindAction(IA_CycleTarget, ETriggerEvent::Triggered, this, &UPlayerCombatControlComponent::HandleCycleTarget);
 		PlayerInputComponent->BindAction(IA_SelectTargetMouse, ETriggerEvent::Started, this, &UPlayerCombatControlComponent::HandleSelectTargetMouse);
+		PlayerInputComponent->BindAction(IA_Parry, ETriggerEvent::Started, this, &UPlayerCombatControlComponent::HandleParryInput);
 	}
 }
 
@@ -155,6 +156,8 @@ void UPlayerCombatControlComponent::OnReceiveParryWindowOpened(ACombatPawn* Atta
 	bIsParryWindowOpen = true;
 	RequiredParryType = AttackType;
 	CurrentParryAttacker = Attacker;
+
+	bHasAttemptedParry = false;
 	UE_LOG(LogTemp, Log, TEXT("Parry Window Opened! Attacker: %s, Required Type: %s"), *Attacker->GetName(), *UEnum::GetValueAsString(AttackType));
 	// TODO: UI에 패링 가능 알림 표시 (예: 델리게이트 방송)
 }
@@ -186,36 +189,9 @@ void UPlayerCombatControlComponent::HandleChangeWeapon(int32 WeaponIndex)
 	// 1. [순서 변경] 실제 무기 교체를 먼저 시도 (SwitchWeapon은 중복 방지 기능 있음)
 	WeaponSystemComponent->SwitchWeapon(SelectedType);
 
-	// 2. 패링 시도 확인 (이제 교체된 무기 기준으로 판단)
+	// 2. 일반적인 무기 교체 후 기본 공격 자동 선택 (플레이어 턴일 때만)
 	bool bIsPlayerTurnActive = (OwningPlayerCharacter->GetCombatPawnState() == ECombatPawnState::AwaitingInput);
-	bool bParryCheckPerformed = false;
-	bool bParrySucceeded = false;
-
-	if (!bIsPlayerTurnActive && bIsParryWindowOpen && CurrentParryAttacker.IsValid())
-	{
-		bParryCheckPerformed = true;
-		ACombatPawn* ParriedAttacker = CurrentParryAttacker.Get();
-
-		// 현재 *교체된* 무기의 타입과 RequiredParryType 비교
-		if (WeaponSystemComponent->GetCurrentWeapon() && WeaponSystemComponent->GetCurrentWeapon()->WeaponType == RequiredParryType)
-		{
-			OnParrySuccess(ParriedAttacker); // 성공 처리
-			bParrySucceeded = true;
-			// 패링 성공 시에는 여기서 함수 종료 (아래 자동 선택 로직 건너뛰기)
-			return;
-		}
-		else
-		{
-			OnParryFailure(ParriedAttacker, EParryResult::PartialSuccess); // 실패 처리
-		}
-
-		// 패링 시도 후 창 닫기
-		bIsParryWindowOpen = false;
-		CurrentParryAttacker = nullptr;
-	}
-
-	// 3. 일반적인 무기 교체 후 기본 공격 자동 선택 (플레이어 턴일 때만)
-	if (bIsPlayerTurnActive) // 패링 시도가 아니었거나 실패했을 때만 실행됨
+	if (bIsPlayerTurnActive)
 	{
 		// 이미 장착된 무기 버튼을 다시 누른 경우도 처리
 		bool bIsAlreadyEquipped = false;
@@ -314,7 +290,6 @@ void UPlayerCombatControlComponent::OnParryFailure(ACombatPawn* ParriedAttacker,
 {
 	if (!OwningPlayerCharacter || !ParriedAttacker) return;
 	UE_LOG(LogTemp, Warning, TEXT("Parry Failed / Partial Success vs %s"), *ParriedAttacker->GetName());
-	// 적 행동은 계속됨. 부분 성공 시 데미지 감소 등의 로직 추가 가능.
 
 	// 패링 실패 이벤트 방송
 	if (OwningPlayerCharacter->GetGameEventComponent())
@@ -426,4 +401,48 @@ void UPlayerCombatControlComponent::SetCurrentTargets(const TArray<ACombatPawn*>
 	CurrentTargets = NewTargets;
 	// "타겟 변경됨!" 방송
 	OnTargetsChanged.Broadcast(CurrentTargets);
+}
+
+void UPlayerCombatControlComponent::HandleParryInput(const FInputActionValue& Value)
+{
+	// 1. 방어 로직은 플레이어 턴이 아닐 때만 작동
+	bool bIsPlayerTurn = (OwningPlayerCharacter->GetCombatPawnState() == ECombatPawnState::AwaitingInput);
+	if (bIsPlayerTurn) return;
+
+	// 2. 1회 제한 체크
+	if (bHasAttemptedParry)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("이미 패링을 시도했습니다."));
+		return;
+	}
+
+	// 시도 횟수 차감
+	bHasAttemptedParry = true;
+
+	// 3. 패링 판정
+	if (bIsParryWindowOpen && CurrentParryAttacker.IsValid())
+	{
+		if (WeaponSystemComponent->GetCurrentWeapon() &&
+			WeaponSystemComponent->GetCurrentWeapon()->WeaponType == RequiredParryType)
+		{
+			// [성공!]
+			OnParrySuccess(CurrentParryAttacker.Get());
+		}
+		else
+		{
+			// [추가됨] 실패! (타이밍은 맞았으나 무기가 틀림)
+			UE_LOG(LogTemp, Warning, TEXT("패링 실패: 무기 타입 불일치!"));
+			OnParryFailure(CurrentParryAttacker.Get(), EParryResult::Miss);
+		}
+	}
+	else
+	{
+		// [실패] 타이밍이 안 맞음
+		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 타이밍 아님!"));
+
+		if (CurrentParryAttacker.IsValid())
+		{
+			OnParryFailure(CurrentParryAttacker.Get(), EParryResult::Miss);
+		}
+	}
 }

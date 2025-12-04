@@ -87,6 +87,8 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat")
 	int32 CurrentTargetIndex;
 
+	bool bHasAttemptedParry = false;
+
 	// 입력 액션
 	UPROPERTY(EditDefaultsOnly, Category = "Input|Actions")
 	TObjectPtr<UInputAction> IA_SelectBasicAttack;
@@ -112,6 +114,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input|Actions")
 	TObjectPtr<UInputAction> IA_SelectTargetMouse;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Input|Actions")
+	TObjectPtr<UInputAction> IA_Parry;
+
 private:
 	//입력 처리 함수
 	void HandleSelectBasicAttack(const FInputActionValue& Value);
@@ -130,6 +135,7 @@ private:
 	void CycleTarget(float Direction);
 	void SelectTargetByMouse();
 	void SetCurrentTargets(const TArray<ACombatPawn*>& NewTargets);	
+	void HandleParryInput(const FInputActionValue& Value);
 
 	void OnParrySuccess(ACombatPawn* ParriedAttacker);
 	void OnParryFailure(ACombatPawn* ParriedAttacker, EParryResult Result);

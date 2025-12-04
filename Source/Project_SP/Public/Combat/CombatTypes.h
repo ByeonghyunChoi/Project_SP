@@ -38,7 +38,7 @@ enum class EParryResult : uint8
 {
     None,           // 패링 시도 없음
     Success,        // 패링 성공 (약점 일치)
-    PartialSuccess  // 부분 성공 (약점 불일치)
+    Miss            // 패링 실패
 };
 
 // 전투의 전체적인 상태
