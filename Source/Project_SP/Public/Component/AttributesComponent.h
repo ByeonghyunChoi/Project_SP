@@ -8,6 +8,7 @@
 #include "Items/OpartsBase.h"
 #include "Data/CharacterStatsData.h"
 #include "Data/RelicData.h"
+#include "Data/StatStructs.h"
 #include "AttributesComponent.generated.h"
 
 
@@ -52,9 +53,11 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Stats")
     FCharacterStatsData CurrentStats; // 현재 레벨 및 버프/디버프가 적용된 실제 스탯
 
-	// 오파츠로부터 얻은 추가 스탯 보너스
-    UPROPERTY(VisibleAnywhere, Category = "Attributes|Oparts")
-    FOpartStats OpartsBonusStats;
+    // 현재 적용 중인 오파츠의 스탯 변동치 (덮어쓰기용)
+    FStatModifiers CurrentOpartsMods;
+
+    // 현재 적용 중인 유물의 스탯 변동치 (덮어쓰기용)
+    FStatModifiers CurrentRelicMods;
 
 	// --- 성장 관련 데이터 ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes|Growth")
@@ -92,16 +95,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Attributes")
     void GainExperience(int32 Amount);
 
-    // 오파츠 스탯 적용 함수
-	UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
-    void ApplyOpartsStats(const FOpartStats& OpartsStats);
-
-    UFUNCTION(BlueprintCallable, Category = "Attributes|Oparts")
-    void RemoveOpartsStats(const FOpartStats& OpartsStats);
-
 	// 유물(렐릭) 스탯 적용 함수
 	UFUNCTION(BlueprintCallable, Category = "Attributes|Relic")
 	void ApplyRelicStats(ERelicStatType StatType, float Value);
+
+    // [신규] 외부에서 "지금 오파츠 스탯은 이거야!" 하고 던져주는 함수
+    void UpdateOpartsModifiers(const FStatModifiers& NewMods);
+
+    // [신규] 외부에서 "지금 유물 스탯은 이거야!" 하고 던져주는 함수
+    void UpdateRelicModifiers(const FStatModifiers& NewMods);
+
+    // [수정] 최종 스탯 재계산 함수
+    void RecalculateFinalStats();
 
     // --- 접근자(Getter) ---
     UFUNCTION(BlueprintPure, Category = "Attributes")
@@ -124,5 +129,4 @@ private:
     // --- 내부 헬퍼 함수 ---
     void LevelUp();
     void RecalculateStatsForLevel(int32 NewLevel);
-    void RecalculateFinalStats();
 };

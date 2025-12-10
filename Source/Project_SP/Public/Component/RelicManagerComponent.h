@@ -7,6 +7,7 @@
 #include "Data/RelicData.h"
 #include "RelicManagerComponent.generated.h"
 
+class UAttributesComponent;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API URelicManagerComponent : public UActorComponent
@@ -41,6 +42,14 @@ public:
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+
+	// 어트리뷰트 컴포넌트 캐싱용 변수
+	UPROPERTY()
+	TObjectPtr<UAttributesComponent> AttributesComp;
+
+public:
+	// [신규] 장착된 모든 유물의 스탯을 합산하여 캐릭터에게 적용하는 함수
+	void RecalculateRelicStats();
 
 private:
 	// 실제 생성된 유물 인스턴스 저장

@@ -13,8 +13,8 @@ void UInventoryComponent::BeginPlay()
 	Super::BeginPlay();
 
 	// 테스트용 초기값
-	PlayerMaterials.Sand = 0;
-	PlayerMaterials.IncompleteEnergy = 0; // 테스트용 초기값
+	PlayerMaterials.Sand = 500;
+	PlayerMaterials.IncompleteEnergy = 100; // 테스트용 초기값
 }
 
 // 현재 모래 가져오기
