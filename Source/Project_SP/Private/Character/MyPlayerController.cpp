@@ -167,3 +167,38 @@ void AMyPlayerController::UpdateStageUI()
         }
     }
 }
+
+void AMyPlayerController::ToggleSystemMenu()
+{
+    if (SystemMenuWidget && SystemMenuWidget->IsInViewport())
+    {
+        // [메뉴 닫기]
+        SystemMenuWidget->RemoveFromParent();
+        SystemMenuWidget = nullptr; // 또는 숨김 처리만 해도 됨
+
+        // 게임 재개
+        SetPause(false);
+
+        // 입력 모드: 게임 전용
+        SetInputMode(FInputModeGameAndUI());
+    }
+    else
+    {
+        // [메뉴 열기]
+        if (!SystemMenuClass) return;
+
+        SystemMenuWidget = CreateWidget<UUserWidget>(this, SystemMenuClass);
+        if (SystemMenuWidget)
+        {
+            SystemMenuWidget->AddToViewport(100); // UI 최상단(Z-Order 높은 값)
+
+            // 게임 일시 정지
+            SetPause(true);
+
+            // 입력 모드: UI 전용 (마우스 보임, 게임 조작 막기)
+            FInputModeGameAndUI InputMode;
+            InputMode.SetWidgetToFocus(SystemMenuWidget->TakeWidget());
+            SetInputMode(InputMode);
+        }
+    }
+}

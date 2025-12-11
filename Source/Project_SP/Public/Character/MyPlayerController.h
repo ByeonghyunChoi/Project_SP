@@ -77,4 +77,18 @@ public:
 	void InitStageUI();
 	//맵 스테이지 UI 갱신 함수
 	void UpdateStageUI();
+
+	//----------시스템 메뉴 관련 변수/함수들----------
+public:
+	// 에디터에서 WBP_SystemMenu를 넣을 변수
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<class UUserWidget> SystemMenuClass;
+
+	// 생성된 위젯을 담아둘 변수
+	UPROPERTY()
+	class UUserWidget* SystemMenuWidget;
+
+	// ESC 키를 누르면 실행될 함수
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ToggleSystemMenu();
 };
