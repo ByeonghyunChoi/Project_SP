@@ -29,7 +29,7 @@ FStatModifiers URLC_StrengthAmulet::GetRelicModifiers() const
 {
     FStatModifiers Mods;
 
-	Mods.PercentAttack = 0.07f; // 가하는 피해량 7% 증가
+	Mods.IncreaseDamage = 0.07f; // 가하는 피해량 7% 증가
 
     return Mods;
 }

@@ -55,6 +55,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Other")
 	float CriticalDamage = 0.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Other")
+	float IncreaseDamage = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Other")
+	float DamageReduction = 0.f;
+
 	// 생성자 (초기화)
 	FStatModifiers() {}
 

@@ -168,6 +168,8 @@ void UAttributesComponent::RecalculateFinalStats()
     // 6. 기타 스탯 합산 (치명타 등)
     CurrentStats.fCriticalChance += (CurrentOpartsMods.CriticalChance + CurrentRelicMods.CriticalChance);
     CurrentStats.fCriticalDamageMultiplier += (CurrentOpartsMods.CriticalDamage + CurrentRelicMods.CriticalDamage);
+	CurrentStats.fDamageIncreaseMultiplier += (CurrentOpartsMods.IncreaseDamage + CurrentRelicMods.IncreaseDamage);
+	CurrentStats.fDamageReductionMultiplier += (CurrentOpartsMods.DamageReduction + CurrentRelicMods.DamageReduction);
 
     // 7. 현재 체력 복구
     CurrentStats.fCurrentHealth = CurrentStats.fMaxHealth * HPRatio;
