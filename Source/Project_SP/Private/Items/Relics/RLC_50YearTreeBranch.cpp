@@ -31,3 +31,12 @@ void URLC_50YearTreeBranch::RemoveRelicEffect(AActor* Target)
     }
 }
 
+FStatModifiers URLC_50YearTreeBranch::GetRelicModifiers() const
+{ 
+	FStatModifiers Mods;
+
+	Mods.PercentHP = 0.1f; // 최대 체력 10% 증가
+
+    return Mods;
+}
+

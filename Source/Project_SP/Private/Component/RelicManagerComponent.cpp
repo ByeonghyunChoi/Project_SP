@@ -63,18 +63,6 @@ void URelicManagerComponent::AddRelic(const FRelicData& NewRelicData)
     if (NewRelic)
     {
         NewRelic->InitializeRelic(NewRelicData);
-
-        EquippedRelics.Add(NewRelic);
-
-        // 변경된 함수 호출 (GetOwner()를 넘겨줌)
-        NewRelic->OnEquip(GetOwner());
-
-        UE_LOG(LogTemp, Log, TEXT("유물 장착 완료: %s"), *NewRelic->GetName());
-    }
-
-    if (NewRelic)
-    {
-        NewRelic->InitializeRelic(NewRelicData);
         EquippedRelics.Add(NewRelic);
         NewRelic->OnEquip(GetOwner());
 

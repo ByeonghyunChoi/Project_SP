@@ -24,3 +24,12 @@ void URLC_StrengthAmulet::RemoveRelicEffect(AActor* Target)
         Attr->ApplyRelicStats(ERelicStatType::DamageIncrease, -0.07f);
     }
 }
+
+FStatModifiers URLC_StrengthAmulet::GetRelicModifiers() const
+{
+    FStatModifiers Mods;
+
+	Mods.PercentAttack = 0.07f; // 가하는 피해량 7% 증가
+
+    return Mods;
+}
