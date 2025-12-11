@@ -25,3 +25,12 @@ void URLC_LightBoots::RemoveRelicEffect(AActor* Target)
         Attr->ApplyRelicStats(ERelicStatType::MovementSpeed, -0.1f);
     }
 }
+
+FStatModifiers URLC_LightBoots::GetRelicModifiers() const
+{
+	FStatModifiers Mods;
+
+	Mods.PercentSpeed = 0.1f; // 이동 속도 10% 증가
+
+    return Mods;
+}

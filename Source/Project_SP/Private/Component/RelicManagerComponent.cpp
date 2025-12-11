@@ -1,8 +1,10 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Component/RelicManagerComponent.h"
+#include "Component/AttributesComponent.h"
 #include "Items/RelicBase.h"
+#include "Data/StatStructs.h"
 
 URelicManagerComponent::URelicManagerComponent()
 {
@@ -13,49 +15,78 @@ URelicManagerComponent::URelicManagerComponent()
 void URelicManagerComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+    // ì‹œì‘í•  ë•Œ ì–´íŠ¸ë¦¬ë·°íŠ¸ ì»´í¬ë„ŒíŠ¸ ì°¾ì•„ë‘ê¸°
+    if (GetOwner())
+    {
+        AttributesComp = GetOwner()->FindComponentByClass<UAttributesComponent>();
+    }
 	
 }
 
-void URelicManagerComponent::AddRelic(TSubclassOf<URelicBase> RelicClass)
+void URelicManagerComponent::RecalculateRelicStats()
+{
+    if (!AttributesComp) return;
+
+    FStatModifiers TotalStats; // í•©ì‚°ìš© ì„ì‹œ ë³€ìˆ˜ (0ìœ¼ë¡œ ì´ˆê¸°í™”ë¨)
+
+    // 1. ì¥ì°©ëœ ëª¨ë“  ìœ ë¬¼ ìˆœíšŒ
+    for (const TObjectPtr<URelicBase>& Relic : EquippedRelics)
+    {
+        if (Relic)
+        {
+            // ê° ìœ ë¬¼ì—ê²Œ ìŠ¤íƒ¯ ë‹¬ë¼ê³  ìš”ì²­ (+) ì—°ì‚°ìë¡œ ëˆ„ì 
+            TotalStats = TotalStats + Relic->GetRelicModifiers();
+        }
+    }
+
+    // 2. í•©ì‚°ëœ ìµœì¢… ê²°ê³¼ë¥¼ ì–´íŠ¸ë¦¬ë·°íŠ¸ ì»´í¬ë„ŒíŠ¸ì— ë®ì–´ì“°ê¸°
+    // (ìœ ë¬¼ì„ ëºì„ ë•ŒëŠ” TotalStatsê°€ ì¤„ì–´ë“  ìƒíƒœë¡œ ê³„ì‚°ë˜ë¯€ë¡œ ìë™ìœ¼ë¡œ ê°ì†Œ íš¨ê³¼)
+    AttributesComp->UpdateRelicModifiers(TotalStats);
+
+    UE_LOG(LogTemp, Log, TEXT("ìœ ë¬¼ ìŠ¤íƒ¯ ì¬ê³„ì‚° ì™„ë£Œ."));
+}
+
+void URelicManagerComponent::AddRelic(const FRelicData& NewRelicData)
 {
     if (EquippedRelics.Num() >= MAX_RELIC_SLOTS)
     {
-        UE_LOG(LogTemp, Warning, TEXT("À¯¹° ½½·ÔÀÌ °¡µæ Ã¡½À´Ï´Ù!"));
+        UE_LOG(LogTemp, Warning, TEXT("ìœ ë¬¼ ìŠ¬ë¡¯ì´ ê°€ë“ ì°¼ìŠµë‹ˆë‹¤!"));
         return;
     }
 
-    if (!RelicClass) return;
+    if (!NewRelicData.RelicClass) return;
 
-    // 1. À¯¹° °´Ã¼ »ı¼º (Owner´Â PlayerCharacter)
-    URelicBase* NewRelic = NewObject<URelicBase>(GetOwner(), RelicClass);
+    // 1. ìœ ë¬¼ ê°ì²´ ìƒì„± (OwnerëŠ” PlayerCharacter)
+    URelicBase* NewRelic = NewObject<URelicBase>(GetOwner(), NewRelicData.RelicClass);
 
     if (NewRelic)
     {
+        NewRelic->InitializeRelic(NewRelicData);
         EquippedRelics.Add(NewRelic);
-
-        // º¯°æµÈ ÇÔ¼ö È£Ãâ (GetOwner()¸¦ ³Ñ°ÜÁÜ)
         NewRelic->OnEquip(GetOwner());
 
-        UE_LOG(LogTemp, Log, TEXT("À¯¹° ÀåÂø ¿Ï·á: %s"), *NewRelic->GetName());
+        // [ì¶”ê°€] ìœ ë¬¼ì´ ëŠ˜ì–´ë‚¬ìœ¼ë‹ˆ ìŠ¤íƒ¯ ì¬ê³„ì‚°!
+        RecalculateRelicStats();
     }
 }
 
-// ¸ğµç À¯¹° ÃÊ±âÈ­ ÇÔ¼ö
+// ëª¨ë“  ìœ ë¬¼ ì´ˆê¸°í™” í•¨ìˆ˜
 void URelicManagerComponent::ResetAllRelics()
 {
-    // 1. ÀåÂøµÈ ¸ğµç À¯¹°ÀÇ È¿°ú Á¦°Å (½ºÅÈ ¿ø»óº¹±¸)
+    // 1. ì¥ì°©ëœ ëª¨ë“  ìœ ë¬¼ì˜ íš¨ê³¼ ì œê±° (ìŠ¤íƒ¯ ì›ìƒë³µêµ¬)
     for (URelicBase* Relic : EquippedRelics)
     {
         if (Relic)
         {
-            Relic->OnUnequip(GetOwner()); // ½ºÅÈ Â÷°¨
+            Relic->OnUnequip(GetOwner()); // ìŠ¤íƒ¯ ì°¨ê°
         }
     }
 
-    // 2. ¹è¿­ ºñ¿ì±â
+    // 2. ë°°ì—´ ë¹„ìš°ê¸°
     EquippedRelics.Empty();
 
-    UE_LOG(LogTemp, Log, TEXT("¸ğµç À¯¹°ÀÌ ÃÊ±âÈ­µÇ¾ú½À´Ï´Ù."));
+    UE_LOG(LogTemp, Log, TEXT("ëª¨ë“  ìœ ë¬¼ì´ ì´ˆê¸°í™”ë˜ì—ˆìŠµë‹ˆë‹¤."));
 }
 
 TArray<TSubclassOf<URelicBase>> URelicManagerComponent::GetEquippedRelicClasses() const
@@ -70,4 +101,17 @@ TArray<TSubclassOf<URelicBase>> URelicManagerComponent::GetEquippedRelicClasses(
         }
     }
     return ResultClasses;
+}
+
+TArray<URelicBase*> URelicManagerComponent::GetEquippedRelics() const
+{
+    TArray<URelicBase*> Result;
+    for (const TObjectPtr<URelicBase>& Relic : EquippedRelics)
+    {
+        if (Relic)
+        {
+            Result.Add(Relic.Get()); // í¬ì¸í„° êº¼ë‚´ì„œ ì¶”ê°€
+        }
+    }
+    return Result;
 }

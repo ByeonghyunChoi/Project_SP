@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Data/RelicData.h"
 #include "RelicManagerComponent.generated.h"
 
+class UAttributesComponent;
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API URelicManagerComponent : public UActorComponent
@@ -18,7 +20,7 @@ public:
 
 	// 유물 획득 함수 (UI에서 선택 시 호출)
 	UFUNCTION(BlueprintCallable, Category = "Relic")
-	void AddRelic(TSubclassOf<URelicBase> RelicClass);
+	void AddRelic(const FRelicData& NewRelicData);
 
 	// 모든 유물 초기화 함수 (새 게임 시작 시 호출)
 	UFUNCTION(BlueprintCallable, Category = "Relic")
@@ -27,6 +29,9 @@ public:
 	// 현재 장착된 유물 클래스 배열 반환
 	UFUNCTION(BlueprintPure, Category = "Relic")
 	TArray<TSubclassOf<URelicBase>> GetEquippedRelicClasses() const;
+
+	UFUNCTION(BlueprintPure, Category = "Relic")
+	TArray<URelicBase*> GetEquippedRelics() const;
 
 	// 현재 장착된 유물 개수 확인
 	UFUNCTION(BlueprintPure)
@@ -37,6 +42,14 @@ public:
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+
+	// 어트리뷰트 컴포넌트 캐싱용 변수
+	UPROPERTY()
+	TObjectPtr<UAttributesComponent> AttributesComp;
+
+public:
+	// [신규] 장착된 모든 유물의 스탯을 합산하여 캐릭터에게 적용하는 함수
+	void RecalculateRelicStats();
 
 private:
 	// 실제 생성된 유물 인스턴스 저장

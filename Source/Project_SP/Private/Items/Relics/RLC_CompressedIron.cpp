@@ -24,3 +24,12 @@ void URLC_CompressedIron::RemoveRelicEffect(AActor* Target)
         Attr->ApplyRelicStats(ERelicStatType::DamageReduction, -0.07f);
     }
 }
+
+FStatModifiers URLC_CompressedIron::GetRelicModifiers() const
+{
+	FStatModifiers Mods;
+
+	Mods.DamageReduction = 0.07f; // 받는 피해량 7% 감소
+
+    return Mods;
+}

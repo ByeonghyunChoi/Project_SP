@@ -16,4 +16,5 @@ protected:
 	virtual void ApplyRelicEffect(AActor* Target) override;
 	virtual void RemoveRelicEffect(AActor* Target) override;
 
+	virtual FStatModifiers GetRelicModifiers() const override;
 };

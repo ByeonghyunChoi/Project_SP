@@ -19,6 +19,11 @@ void URelicBase::OnUnequip(AActor* Instigator)
     }
 }
 
+FStatModifiers URelicBase::GetRelicModifiers() const
+{
+    return FStatModifiers();
+}
+
 void URelicBase::ApplyRelicEffect(AActor* Target)
 {
 

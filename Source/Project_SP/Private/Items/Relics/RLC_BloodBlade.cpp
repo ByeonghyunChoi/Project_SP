@@ -30,3 +30,13 @@ void URLC_BloodBlade::RemoveRelicEffect(AActor* Target)
         Attr->ApplyRelicStats(ERelicStatType::AttackPower, -0.1f);
     }
 }
+
+FStatModifiers URLC_BloodBlade::GetRelicModifiers() const
+{
+	FStatModifiers Mods;
+
+	Mods.PercentAttack = 0.1f; // 공격력 10% 증가
+
+    return Mods;
+}
+

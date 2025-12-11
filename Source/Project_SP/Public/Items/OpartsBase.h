@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Data/StatStructs.h"
 #include "OpartsBase.generated.h"
 
 USTRUCT(BlueprintType)
@@ -45,6 +47,48 @@ class PROJECT_SP_API UOpartsBase : public UActorComponent
 {
 	GENERATED_BODY()
 
+protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts UI")
+	FText OpartsName; // 오파츠 이름
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts UI")
+	TObjectPtr<UTexture2D> OpartsIcon; // 아이콘 이미지
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts UI", meta = (MultiLine = "true"))
+	FText UniqueAbilityTitle; // 고유 능력 제목 텍스트
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts UI", meta = (MultiLine = "true"))
+	FText UniqueAbilityDesc; // 고유 능력 설명 텍스트
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts UI", meta = (MultiLine = "true"))
+	TArray<FText> ActiveAbilityDescriptions;
+
+	//  에디터에서 할당할 데이터 테이블 (DT_OpartsStats)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts Data")
+	TObjectPtr<class UDataTable> LevelStatTable;
+
+public:
+	// Getter 함수들 (블루프린트에서 접근용)
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	FText GetOpartsName() const { return OpartsName; }
+
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	UTexture2D* GetOpartsIcon() const { return OpartsIcon; }
+
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	FText GetUniqueAbilityTitle() const { return UniqueAbilityTitle; }
+
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	FText GetUniqueAbilityDesc() const { return UniqueAbilityDesc; }
+
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	TArray<FText> GetActiveAbilityDescriptions() const { return ActiveAbilityDescriptions; }
+
+	// 기존 스탯 Getter도 필요하다면 활용 (CurrentStats 변수는 이미 public 혹은 protected에 getter 필요)
+	UFUNCTION(BlueprintPure, Category = "Oparts UI")
+	FOpartStats GetCurrentStats() const { return CurrentStats; }
+
+
 public:	
 	// 생성자
 	UOpartsBase();
@@ -61,7 +105,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual void ActiveSpecialAbility();
 
-
 	// 오파츠 현재 레벨 반환
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual int32 GetOpartsCurrentLevel() const;
@@ -73,6 +116,10 @@ public:
 	// 다음 아티팩트 해금에 필요한 불완전한 기운 반환
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	virtual int32 GetRequiredIncompleteEnergy() const;
+
+	// 현재 오파츠의 모든 스탯 정보를 계산해서 반환
+	UFUNCTION(BlueprintPure, Category = "Oparts")
+	FStatModifiers GetCalculatedModifiers() const;
 
 	// [1] 장착 시 호출 (스탯 적용 등)
 	virtual void OnEquip(AActor* Instigator);

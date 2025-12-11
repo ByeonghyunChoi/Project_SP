@@ -34,7 +34,7 @@ bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 	FString RowName = FString::Printf(TEXT("LEVEL_%d"), Level);
 
 	// 데이터 테이블에서 해당 Row를 찾습니다.
-	FOpartStats* StatsRow = OpartsStatsDataTable->FindRow<FOpartStats>(FName(*RowName), TEXT(""));
+	FOpartsStatRow* StatsRow = OpartsStatsDataTable->FindRow<FOpartsStatRow>(FName(*RowName), TEXT(""));
 
 	if (StatsRow)
 	{
@@ -58,7 +58,7 @@ bool UOpartsBase::GetStatsForNextLevel(int32 Level, FOpartStats& OutStats) const
 	}
 	FString RowName = FString::Printf(TEXT("LEVEL_%d"), Level);
 
-	FOpartStats* StatsRow = OpartsStatsDataTable->FindRow<FOpartStats>(FName(*RowName), TEXT(""));
+	FOpartsStatRow* StatsRow = OpartsStatsDataTable->FindRow<FOpartsStatRow>(FName(*RowName), TEXT(""));
     
     // ...
     // 데이터 로드 성공 시:
@@ -147,8 +147,7 @@ void UOpartsBase::LevelUpOparts()
 	// 6. 새 스탯 적용
 	if (GetStatsForLevel(CurrentLevel, CurrentStats))
 	{
-		OnUnequip(GetOwner());
-		OnEquip(GetOwner());
+		GetCalculatedModifiers();
 
 		UE_LOG(LogTemp, Log, TEXT("Oparts Level Up Success! New Level: %d, Health: %.1f, Attack: %.1f"),CurrentLevel, CurrentStats.Health, CurrentStats.Attack);
 	}
@@ -272,6 +271,36 @@ int32 UOpartsBase::GetRequiredIncompleteEnergy() const
 	return -1;
 }
 
+FStatModifiers UOpartsBase::GetCalculatedModifiers() const
+{
+	FStatModifiers Result;
+
+	if (LevelStatTable)
+	{
+		// 행 이름 생성 (예: "Level_1", "Level_2")
+		// 스크린샷에 있는 행 이름과 똑같은 형식을 맞춰야 합니다.
+		FName RowName = *FString::Printf(TEXT("Level_%d"), CurrentLevel);
+
+		// 테이블에서 행 찾기
+		static const FString ContextString(TEXT("Oparts Stat Lookup"));
+		FOpartsStatRow* RowData = LevelStatTable->FindRow<FOpartsStatRow>(RowName, ContextString);
+
+		if (RowData)
+		{
+			// 찾았으면 결과에 넣어줍니다.
+			Result.FlatHP = RowData->Health;
+			Result.FlatAttack = RowData->Attack;
+			Result.FlatSpeed = RowData->Speed;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("오파츠 데이터 테이블에서 %s 행을 찾을 수 없습니다!"), *RowName.ToString());
+		}
+	}
+
+	return Result;
+}
+
 //  장착 시 호출 (스탯 적용 등)
 void UOpartsBase::OnEquip(AActor* Instigator)
 {
@@ -281,7 +310,7 @@ void UOpartsBase::OnEquip(AActor* Instigator)
 	if (AttributesComp && !bStatsCurrentlyApplied)
 	{
 		// 오파츠의 현재 스탯 (CurrentStats)을 AttributesComponent에 적용 요청
-		AttributesComp->ApplyOpartsStats(CurrentStats);
+		//AttributesComp->ApplyOpartsStats(CurrentStats);
 		bStatsCurrentlyApplied = true;
 	}
 }
@@ -295,7 +324,7 @@ void UOpartsBase::OnUnequip(AActor* Instigator)
 	// 스탯이 현재 적용된 상태일 때만 제거 로직 실행
 	if (AttributesComp && bStatsCurrentlyApplied)
 	{
-		AttributesComp->RemoveOpartsStats(CurrentStats);
+		//AttributesComp->RemoveOpartsStats(CurrentStats);
 		bStatsCurrentlyApplied = false; // 스탯 제거 완료
 	}
 }
