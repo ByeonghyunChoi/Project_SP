@@ -63,6 +63,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Map Manager")
 	void ReturnToHub(bool bPlayerWon);
 
+	//UI 데이터 제공 함수
+	UFUNCTION(BlueprintCallable, Category = "Map Manager|UI")
+	void GetCurrentStageLayout(TArray<EMapType>& OutMapTypes, int32& OutCurrentIndex);
+
 protected:
 	// 데이터 테이블
 	UPROPERTY()
@@ -103,6 +107,10 @@ protected:
 	TObjectPtr<UMapNode> CurrentNode;
 
 	FName HubSpawnPointTag = TEXT("HubStart");
+
+	//UI 용 데이터
+	UPROPERTY(VisibleInstanceOnly, Category = "Map State")
+	TArray<TObjectPtr<UMapNode>> VisitedNodes;
 
 private:
 	// --- 내부 로딩 프로세스 (순서대로 실행됨) ---

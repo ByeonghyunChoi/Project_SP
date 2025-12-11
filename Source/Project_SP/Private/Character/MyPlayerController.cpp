@@ -5,6 +5,8 @@
 #include "UI/RelicSelectWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "EnhancedInputSubsystems.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
 
 void AMyPlayerController::BeginPlay()
 {
@@ -110,5 +112,58 @@ void AMyPlayerController::ShowRelicSelectionUI(const TArray<FRelicData>& Choices
         // SetPause(true); 
 
         UE_LOG(LogTemp, Log, TEXT("유물 선택 UI가 표시되었습니다."));
+    }
+}
+
+void AMyPlayerController::InitStageUI()
+{
+    // 1. 이미 있다면 제거 (재시작 시 중복 방지)
+    if (StageWidgetInstance)
+    {
+        StageWidgetInstance->RemoveFromParent();
+        StageWidgetInstance = nullptr;
+    }
+
+    // 2. 위젯 생성
+    if (!StageWidgetClass) return;
+    StageWidgetInstance = CreateWidget<UW_StageProgress>(this, StageWidgetClass);
+
+    if (StageWidgetInstance)
+    {
+        StageWidgetInstance->AddToViewport();
+
+        // 3. 데이터 가져오기 (이 시점엔 StartNewRun이 끝난 직후라 데이터가 깨끗함)
+        UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+        if (MapManager)
+        {
+            TArray<EMapType> MapLayout;
+            int32 CurrentIndex = 0;
+
+            // 데이터 조회
+            MapManager->GetCurrentStageLayout(MapLayout, CurrentIndex);
+
+            // UI 초기화 (1-1 스테이지로 세팅)
+            StageWidgetInstance->InitializeMap(1, CurrentIndex + 1, MapLayout, CurrentIndex);
+        }
+    }
+}
+
+void AMyPlayerController::UpdateStageUI()
+{
+    // 플레이어가 이동한 뒤에 호출할 함수
+    if (StageWidgetInstance)
+    {
+        UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+        if (MapManager)
+        {
+            TArray<EMapType> DummyLayout;
+            int32 NewIndex = 0;
+
+            // 현재 위치 인덱스만 다시 가져옴
+            MapManager->GetCurrentStageLayout(DummyLayout, NewIndex);
+
+            // 화살표 갱신
+            StageWidgetInstance->UpdatePlayerPosition(NewIndex);
+        }
     }
 }

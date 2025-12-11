@@ -35,6 +35,11 @@ void AMonsterCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets
 {
     if (GetCombatPawnState() == ECombatPawnState::Defeated) return;
 
+    if (ActionComponent)
+    {
+        ActionComponent->ResetActiveAction();
+    }
+
     UE_LOG(LogTemp, Log, TEXT("Monster '%s' Turn Began."), *GetCharacterDisplayName().ToString());
     SetCombatPawnState(ECombatPawnState::PerformingAction);
 

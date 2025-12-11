@@ -7,6 +7,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
 #include "Engine/TargetPoint.h"
+#include "Character/MyPlayerController.h"
 #include "Misc/OutputDeviceNull.h" // 위젯 함수 호출용
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -34,14 +35,25 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentNode = nullptr;
 	CurrentMapLogicActor = nullptr;
 
+	VisitedNodes.Empty();
+
 	GenerateNewStageGraph();
 	TravelToNode(GraphRoot);
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+
+	if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+	{
+		MyPC->InitStageUI();
+	}
 }
 
 void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
 {
 	if (!TargetNode) return;
 	PendingNode = TargetNode;
+
+	VisitedNodes.Add(TargetNode);
 
 	// [Step 1] 로딩 시작 전 화면을 검게 가림 (Fade In)
 	if (TransitionWidgetClass)
@@ -208,6 +220,12 @@ void UMapManagerSubsystem::OnLevelLoaded()
 		CurrentMapLogicActor->BeginMapLogic();
 	}
 
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+	{
+		MyPC->UpdateStageUI(); // <- 여기서 화살표 위치 갱신!
+	}
+
 	// 4. 모든 준비 완료 -> 화면 밝히기
 	PerformFadeOut();
 }
@@ -273,6 +291,53 @@ void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
 		{
 			Player->SetActorLocationAndRotation(FoundActors[0]->GetActorLocation(), FoundActors[0]->GetActorRotation());
 		}
+	}
+}
+
+void UMapManagerSubsystem::GetCurrentStageLayout(TArray<EMapType>& OutMapTypes, int32& OutCurrentIndex)
+{
+	OutMapTypes.Empty();
+	const int32 TotalLayers = 10; // 0~9층
+
+	// 1. [과거] 이미 방문한 노드는 실제 데이터를 넣습니다.
+	for (UMapNode* Node : VisitedNodes)
+	{
+		if (Node) OutMapTypes.Add(Node->MapType);
+	}
+
+	// 현재 플레이어 위치 (배열 인덱스 기준)
+	OutCurrentIndex = VisitedNodes.Num() - 1;
+
+	// 2. [미래] 아직 안 간 곳은 '규칙'에 따라 대표 타입을 넣습니다.
+	// MapGraphGenerator의 생성 규칙과 일치시켜야 합니다.
+	for (int32 i = VisitedNodes.Num(); i < TotalLayers; ++i)
+	{
+		EMapType PredictedType = EMapType::NormalBattle;
+
+		switch (i)
+		{
+			// [에픽 구간] 2층(3번째), 5층(6번째) -> 강적 or 광대지만 '강적'으로 통일
+		case 2:
+		case 5:
+			PredictedType = EMapType::StrongEnemyBattle;
+			break;
+
+			// [준비 구간] 8층
+		case 8:
+			PredictedType = EMapType::Prepare;
+			break;
+
+			// [보스 구간] 9층
+		case 9:
+			PredictedType = EMapType::BossBattle;
+			break;
+
+			// [일반 구간] 나머지 -> 일반 or 휴식이지만 '일반'으로 통일
+		default:
+			PredictedType = EMapType::NormalBattle;
+			break;
+		}
+		OutMapTypes.Add(PredictedType);
 	}
 }
 

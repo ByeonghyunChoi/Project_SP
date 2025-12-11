@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Data/RelicData.h"
+#include "UI/W_StageProgress.h"
 #include "MyPlayerController.generated.h"
 
 class UUserWidget;
@@ -39,6 +40,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<class UInputMappingContext> EnemyTurnIMC;
 
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UW_StageProgress> StageWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UW_StageProgress> StageWidgetInstance;
+
 public:
 	UFUNCTION(BlueprintCallable)
 	void ShowFieldHUD();
@@ -66,4 +73,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ShowRelicSelectionUI(const TArray<FRelicData>& Choices);
 
+	//맵 스테이지 UI 호출 함수
+	void InitStageUI();
+	//맵 스테이지 UI 갱신 함수
+	void UpdateStageUI();
 };
