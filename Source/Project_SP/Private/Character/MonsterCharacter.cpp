@@ -7,6 +7,7 @@
 #include "Combat/MonsterGroupObject.h"
 
 
+
 AMonsterCharacter::AMonsterCharacter()
 {
     AIControllerClass = AMonsterAIController::StaticClass();
@@ -30,6 +31,7 @@ void AMonsterCharacter::BeginPlay()
         GameEventComponent->OnParryWindowClosed.AddDynamic(this, &AMonsterCharacter::HandleParryWindowClosed);
     }
 }
+
 
 void AMonsterCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 {

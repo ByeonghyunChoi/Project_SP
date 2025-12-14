@@ -91,4 +91,8 @@ public:
 	// ESC 키를 누르면 실행될 함수
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void ToggleSystemMenu();
+
+	// 위젯의 자신의 턴이 시작했다는 것을 알릴 함수(임시)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	void BP_OnTurnStarted(const FString& Message);
 };

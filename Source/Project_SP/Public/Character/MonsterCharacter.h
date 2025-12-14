@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Character/CombatPawn.h"
 #include "Data/ActionData.h"
+#include "Data/MonsterData.h"
 #include "MonsterCharacter.generated.h"
 
 class UAnimMontage;

@@ -9,6 +9,7 @@ TArray<FMonsterData> UMonsterGroupObject::GetAllMonsterDataInGroup() const
         return Result;
     }
 
+
     for (const FName& MonsterID : MonsterIDsInGroup)
     {
         FMonsterData* FoundData = MonsterDataTable->FindRow<FMonsterData>(MonsterID, TEXT("Looking for Monster Data in Group"));

@@ -20,6 +20,7 @@ class UGoldBugOparts;
 class URelicManagerComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableTargetChanged, const FText&, InteractText);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPawnStateChanged, ECombatPawnState, NewState);
 
 UCLASS()
 class PROJECT_SP_API APlayerCharacter : public ACombatPawn
@@ -116,4 +117,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void LogOpartsActiveState() const; // 오파츠 상태를 로그로 출력하는 함수 선언
+
+	//상태를 바꾸는 함수
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnPawnStateChanged OnPawnStateChanged;
 };

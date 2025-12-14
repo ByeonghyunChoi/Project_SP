@@ -17,6 +17,7 @@
 #include "Interface/InteractableInterface.h"
 #include "Component/ActionComponent.h"
 #include "InputAction.h"
+#include "Character/MyPlayerController.h"
 
 APlayerCharacter::APlayerCharacter()
 {
@@ -152,6 +153,11 @@ void APlayerCharacter::OnTurnBegin(const TArray<ACombatPawn*>& PotentialTargets)
 	if (CombatControlComponent)
 	{
 		CombatControlComponent->OnTurnBegin(PotentialTargets);
+	}
+
+	if (AMyPlayerController* PC = Cast<AMyPlayerController>(GetController()))
+	{
+		PC->BP_OnTurnStarted(TEXT("나의 턴"));
 	}
 }
 
