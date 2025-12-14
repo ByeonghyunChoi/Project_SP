@@ -7,6 +7,7 @@
 #include "Map/PortalActor.h"
 #include "Map/RewardBox.h"
 #include "Kismet/GameplayStatics.h"
+#include"SubSystem/SoundManagerSubsystem.h"
 
 // Sets default values
 AMapBase::AMapBase()
@@ -22,6 +23,17 @@ void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	// 맵 관리자가 사라질 때, 관리하던 모든 액터도 같이 정리합니다.
 	ClearMapElements();
+}
+
+void AMapBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (USoundManagerSubsystem* SoundMgr = GetGameInstance()->GetSubsystem<USoundManagerSubsystem>())
+	{
+		// StageBGM이 nullptr이면 아무 소리도 안 남 (의도된 정적 가능)
+		SoundMgr->PlayFieldBGM(StageBGM);
+	}
 }
 
 

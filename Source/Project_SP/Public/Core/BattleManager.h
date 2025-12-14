@@ -76,6 +76,10 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, Category = "Battle Flow")
 	TArray<TObjectPtr<UPlayerCombatControlComponent>> PlayerControlComponents;
 
+	//전투용 BGM
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	TObjectPtr<USoundBase> DefaultBattleBGM;
+
 public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void StartBattle(const TArray<ACombatPawn*>& PlayerParty, const TArray<ACombatPawn*>& EnemyParty);

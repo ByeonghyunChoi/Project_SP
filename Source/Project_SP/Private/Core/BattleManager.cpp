@@ -23,6 +23,7 @@
 #include "Combat/GameAction.h"
 #include "Data/WeaponData.h"
 #include "Component/WeaponSystemComponent.h"
+#include "SubSystem/SoundManagerSubsystem.h"
 
 ABattleManager::ABattleManager()
 {
@@ -122,6 +123,11 @@ void ABattleManager::StartBattle(const TArray<ACombatPawn*>& PlayerParty, const 
 	SetActorTickEnabled(true);
 
 	DecideAndStartNextTurn();
+
+	if (USoundManagerSubsystem* SoundMgr = GetGameInstance()->GetSubsystem<USoundManagerSubsystem>())
+	{
+		SoundMgr->SwitchToBattleBGM(DefaultBattleBGM);
+	}
 }
 
 void ABattleManager::EndBattle()
@@ -148,6 +154,12 @@ void ABattleManager::EndBattle()
 		&ABattleManager::TriggerFieldTransition,
 		BattleEndDelay,
 		false);
+
+	if (USoundManagerSubsystem* SoundMgr = GetGameInstance()->GetSubsystem<USoundManagerSubsystem>())
+	{
+		SoundMgr->ReturnToFieldBGM();
+	}
+	
 }
 
 void ABattleManager::PushAndStartTurn(ACombatPawn* Combatant, ETurnType Type)

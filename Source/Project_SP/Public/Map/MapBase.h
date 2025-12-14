@@ -21,6 +21,8 @@ public:
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	virtual void BeginPlay() override;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Type")
 	EMapType CurrentMapType;
@@ -55,6 +57,10 @@ protected:
 	void OnRewardBoxOpened();
 
 	FName GetRewardRowNameByMapType() const;
+
+	//맵에서 재생할 BGM
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	TObjectPtr<USoundBase> StageBGM;
 
 public:
 	// [핵심] 맵 로직 시작 (몬스터/포탈 스폰 -> 부모 호출)
