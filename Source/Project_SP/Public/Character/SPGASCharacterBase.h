@@ -20,4 +20,10 @@ public:
 protected:
     UPROPERTY(EditAnywhere, Category = "GAS")
     TObjectPtr<class UAbilitySystemComponent> ASC;
+
+    UPROPERTY(EditAnywhere, Category = "GAS")
+    TObjectPtr<class USPGASAttributeSet> AttributeSet;
+
+public:
+    FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
 };

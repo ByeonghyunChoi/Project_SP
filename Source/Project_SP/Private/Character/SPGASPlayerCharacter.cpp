@@ -18,6 +18,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	if (SPGAS)
 	{
 		ASC = SPGAS->GetAbilitySystemComponent();
+		AttributeSet = SPGAS->GetAttributeSet();
 		ASC->InitAbilityActorInfo(SPGAS, this);
 	}
 }

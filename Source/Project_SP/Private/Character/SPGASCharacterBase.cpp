@@ -4,7 +4,8 @@
 
 ASPGASCharacterBase::ASPGASCharacterBase()
 {
-    
+    ASC = nullptr;
+    AttributeSet = nullptr;
 }
 
 UAbilitySystemComponent* ASPGASCharacterBase::GetAbilitySystemComponent() const
