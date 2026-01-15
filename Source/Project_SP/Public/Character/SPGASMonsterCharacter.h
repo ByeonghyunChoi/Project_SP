@@ -13,6 +13,5 @@ class PROJECT_SP_API ASPGASMonsterCharacter : public ASPGASCharacterBase
 
 public:
     ASPGASMonsterCharacter();
-
-    virtual void PostInitializeComponents() override;
+    virtual void PossessedBy(AController* NewController) override;
 };
