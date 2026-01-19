@@ -18,6 +18,7 @@ public:
 public:
 	FGameplayTag State_Mode_Field;
 	FGameplayTag State_Mode_Battle;
+	FGameplayTag State_Turn_Active;
 
 protected:
 	//태그를 등록하는 내부 함수
