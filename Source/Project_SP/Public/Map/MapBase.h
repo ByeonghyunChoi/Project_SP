@@ -43,8 +43,8 @@ protected:
 	TArray<APortalActor*> PortalActors;
 
 	// 보상 상자
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
-	TObjectPtr<ARewardBox> RewardBox;
+	/*UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
+	TObjectPtr<ARewardBox> RewardBox;*/
 
 	UPROPERTY(EditDefaultsOnly, Category = "Map Logic|Reward")
 	TObjectPtr<UDataTable> RewardDataTable;
@@ -77,8 +77,8 @@ public:
 	void ClearMapElements();
 
 	// 스폰용 함수 (BP에서 사용하거나 내부 사용)
-	UFUNCTION(BlueprintCallable, Category = "Map Logic")
-	void SpawnRewardBox();
+	/*UFUNCTION(BlueprintCallable, Category = "Map Logic")
+	void SpawnRewardBox();*/
 
 protected:
 	// 포탈을 열거나 닫는 함수

@@ -42,10 +42,10 @@ void UMapManagerSubsystem::StartNewRun()
 
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 
-	if (ASPGASPlayerController* MyPC = Cast<ASPGASPlayerController>(PC))
+	/*if (ASPGASPlayerController* MyPC = Cast<ASPGASPlayerController>(PC))
 	{
 		MyPC->InitStageUI();
-	}
+	}*/
 }
 
 void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
@@ -220,11 +220,11 @@ void UMapManagerSubsystem::OnLevelLoaded()
 		CurrentMapLogicActor->BeginMapLogic();
 	}
 
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (ASPGASPlayerController* MyPC = Cast<ASPGASPlayerController>(PC))
-	{
-		MyPC->UpdateStageUI(); // <- 여기서 화살표 위치 갱신!
-	}
+	//APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	//if (ASPGASPlayerController* MyPC = Cast<ASPGASPlayerController>(PC))
+	//{
+	//	MyPC->UpdateStageUI(); // <- 여기서 화살표 위치 갱신!
+	//}
 
 	// 4. 모든 준비 완료 -> 화면 밝히기
 	PerformFadeOut();

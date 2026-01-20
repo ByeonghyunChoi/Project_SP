@@ -85,26 +85,26 @@ void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
 {
 	if (bPlayerWon)
 	{
-		//SetMapState(EMapState::Cleard);
+		SetMapState(EMapState::Cleard);
 
 		// 보상 상자 스폰 및 초기화
-		SpawnRewardBox();
+		//SpawnRewardBox();
 	}
 }
 
-void AMapBase::SpawnRewardBox()
-{
-	// 만약 자식 BP에서 이미 스폰하고 변수에 할당했다면 이 로직이 실행됨
-	if (RewardBox)
-	{
-		// 보상 데이터 초기화
-		FName TargetLootGroup = GetRewardRowNameByMapType();
-		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup, RelicDataTable);
-
-		// [핵심] 상호작용 이벤트 연결 (상자 열면 -> OnRewardBoxOpened 호출)
-		RewardBox->OnRewardInteracted.AddDynamic(this, &AMapBase::OnRewardBoxOpened);
-	}
-}
+//void AMapBase::SpawnRewardBox()
+//{
+//	// 만약 자식 BP에서 이미 스폰하고 변수에 할당했다면 이 로직이 실행됨
+//	if (RewardBox)
+//	{
+//		// 보상 데이터 초기화
+//		FName TargetLootGroup = GetRewardRowNameByMapType();
+//		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup, RelicDataTable);
+//
+//		// [핵심] 상호작용 이벤트 연결 (상자 열면 -> OnRewardBoxOpened 호출)
+//		RewardBox->OnRewardInteracted.AddDynamic(this, &AMapBase::OnRewardBoxOpened);
+//	}
+//}
 
 void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
 {
