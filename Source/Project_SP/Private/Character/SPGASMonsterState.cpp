@@ -8,6 +8,8 @@
 ASPGASMonsterState::ASPGASMonsterState()
 {
 	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("GAS"));
+	ASC->SetIsReplicated(true);
+	ASC->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
 }
 

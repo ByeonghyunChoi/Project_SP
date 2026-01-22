@@ -23,7 +23,9 @@ class PROJECT_SP_API IInteractableInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	//상호작용을 실행할 때 호출
-	virtual void ExecuteInteraction(class ASPGASPlayerCharacter* Interactor) = 0;
+	virtual void ExecuteInteraction(AActor* Interactor) = 0;
 	//UI에 표시할 상호작용 텍스트 반환
-	virtual FText GetInteractText() = 0;
+	virtual FText GetInteractText() const = 0;
+	//현재 상호작용이 가능한 상태인지 확인
+	virtual bool CanInteract(AActor* Interactor) const { return true; }
 };

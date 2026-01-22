@@ -13,12 +13,12 @@ void AInteractionActorBase::BeginPlay()
 	
 }
 
-void AInteractionActorBase::ExecuteInteraction(ASPGASPlayerCharacter* Interactor)
+void AInteractionActorBase::ExecuteInteraction(AActor* Interactor)
 {
 
 }
 
-FText AInteractionActorBase::GetInteractText()
+FText AInteractionActorBase::GetInteractText()const
 {
 	return FText();
 }

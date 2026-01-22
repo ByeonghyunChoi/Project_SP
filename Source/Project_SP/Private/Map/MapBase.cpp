@@ -1,196 +1,95 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Map/MapBase.h"
-#include "Components/SceneComponent.h"
-#include "Map/MapNode.h"
+#include "Map/MapManagerSubsystem.h"
 #include "Map/PortalActor.h"
-#include "Map/RewardBox.h"
-#include "Kismet/GameplayStatics.h"
-#include"SubSystem/SoundManagerSubsystem.h"
+#include "Components/SceneComponent.h"
 
-// Sets default values
 AMapBase::AMapBase()
 {
-	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot")));
-	CurrentMapState = EMapState::InProgress;
-	CurrentMapType = EMapType::NormalBattle;
-}
+	PrimaryActorTick.bCanEverTick = false;
 
-void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	Super::EndPlay(EndPlayReason);
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SetRootComponent(SceneRoot);
 
-	// 맵 관리자가 사라질 때, 관리하던 모든 액터도 같이 정리합니다.
-	ClearMapElements();
+	CurrentState = EMapState::InProgress;
 }
 
 void AMapBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (USoundManagerSubsystem* SoundMgr = GetGameInstance()->GetSubsystem<USoundManagerSubsystem>())
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
 	{
-		// StageBGM이 nullptr이면 아무 소리도 안 남 (의도된 정적 가능)
-		SoundMgr->PlayFieldBGM(StageBGM);
+		MapManager->InitializeCurrentMap(this);
 	}
 }
 
-
-void AMapBase::OnRewardBoxOpened()
+TArray<FTransform> AMapBase::GetSpawnTransformsByTag(FName PointTag) const
 {
-	ActivatePortals();
-}
+	TArray<FTransform> FoundTransforms;
+	TArray<USceneComponent*> Components;
+	GetComponents<USceneComponent>(Components);
 
-FName AMapBase::GetRewardRowNameByMapType() const
-{
-	switch (CurrentMapType)
-    {
-    case EMapType::NormalBattle:
-        return FName("Normal"); // 일반 전투 보상
-
-    case EMapType::StrongEnemyBattle:
-        return FName("Epic");  // 강적 전투 보상
-
-    case EMapType::BossBattle:
-        return FName("Boss");   // 보스 전투 보상
-
-    case EMapType::Jester:
-        return FName("Epic");   // 이벤트 맵 보상
-
-    default:
-        return FName("Normal");
-    }
-}
-
-void AMapBase::BeginMapLogic_Implementation()
-{
-	// 1. 플레이어 시작 위치 찾기 (캐싱)
-	if (!LevelPlayerStartActor)
+	for (USceneComponent* Comp : Components)
 	{
-		TArray<AActor*> FoundActors;
-		UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
-		if (FoundActors.Num() > 0)
+		if (Comp && Comp->ComponentHasTag(PointTag))
 		{
-			LevelPlayerStartActor = FoundActors[0];
+			FoundTransforms.Add(Comp->GetComponentTransform());
 		}
 	}
-
-	// 2. 포탈 초기화 (비활성화 상태로)
-	// (자식 BP에서 포탈을 스폰한 뒤 이 함수가 호출되어야 함)
-	InitPortalsToInactive();
+	return FoundTransforms;
 }
 
-void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
+void AMapBase::SetMapState(EMapState NewState)
 {
-	if (bPlayerWon)
-	{
-		SetMapState(EMapState::Cleard);
+	if (CurrentState == NewState) return;
 
-		// 보상 상자 스폰 및 초기화
-		//SpawnRewardBox();
+	EMapState OldState = CurrentState;
+	CurrentState = NewState;
+
+	switch (CurrentState)
+	{
+	case EMapState::InProgress:
+		HandleStateInProgress();
+		break;
+	case EMapState::Reward:
+		HandleStateReward();
+		break;
+	case EMapState::Cleared:
+		HandleStateCleared();
+		break;
+	}
+
+	OnMapStateChanged(OldState, NewState);
+}
+
+void AMapBase::InitializeMap(EMapType InType)
+{
+	MapType = InType;
+	SetMapState(EMapState::InProgress);
+}
+
+void AMapBase::HandleStateInProgress()
+{
+	//맵의 시작 로직 수행, 기믹 배치 혹은 몬스터 스폰, 포탈 스폰(비활성화)
+}
+
+void AMapBase::HandleStateReward()
+{
+	//전투 승리 후, 또는 맵 로직 완수 후 호출 될 로직
+}
+
+void AMapBase::HandleStateCleared()
+{
+	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+	if (!MapManager || !PortalClass) return;
+
+	// 다음 층 선택지 생성 및 포탈 스폰
+	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
+	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("Portal"));
+
+	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
+	{
+		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
+		if (NewPortal) NewPortal->SetPortalTargetType(Options[i]);
 	}
 }
-
-//void AMapBase::SpawnRewardBox()
-//{
-//	// 만약 자식 BP에서 이미 스폰하고 변수에 할당했다면 이 로직이 실행됨
-//	if (RewardBox)
-//	{
-//		// 보상 데이터 초기화
-//		FName TargetLootGroup = GetRewardRowNameByMapType();
-//		RewardBox->InitializeReward(RewardDataTable, TargetLootGroup, RelicDataTable);
-//
-//		// [핵심] 상호작용 이벤트 연결 (상자 열면 -> OnRewardBoxOpened 호출)
-//		RewardBox->OnRewardInteracted.AddDynamic(this, &AMapBase::OnRewardBoxOpened);
-//	}
-//}
-
-void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
-{
-	NextNodeOptions = ChildNodes;
-}
-
-void AMapBase::ClearMapElements()
-{
-	for (APortalActor* Portal : PortalActors)
-	{
-		if (Portal)
-		{
-			Portal->Destroy();
-		}
-	}
-	PortalActors.Empty();
-}
-
-void AMapBase::ActivatePortals()
-{
-	for (APortalActor* Portal : PortalActors)
-	{
-		if (Portal)
-		{
-			// 열린 상태로 전환
-			Portal->SetActorEnableCollision(true);
-			Portal->OnPortalStateChanged(true);
-		}
-	}
-}
-
-void AMapBase::InitPortalsToInactive()
-{
-	int32 NumToInit = FMath::Min(NextNodeOptions.Num(), PortalActors.Num());
-	for (int32 i = 0; i < NumToInit; ++i)
-	{
-		if (APortalActor* Portal = PortalActors[i])
-		{
-			Portal->InitializePortalData(NextNodeOptions[i]);
-
-			// 닫힌 상태로 시작
-			Portal->SetActorEnableCollision(false);
-			Portal->OnPortalStateChanged(false);
-		}
-	}
-}
-
-void AMapBase::SetMapType(const EMapType& NewMapType)
-{
-	CurrentMapType = NewMapType;
-}
-
-EMapType AMapBase::GetMapType() const
-{
-	return CurrentMapType;
-}
-
-void AMapBase::SetMapState(const EMapState& NewMapState)
-{
-	CurrentMapState = NewMapState;
-}
-
-EMapState AMapBase::GetMapState() const
-{
-	return CurrentMapState;
-}
-
-FVector AMapBase::GetPlayerStartLocation() const
-{
-	if (LevelPlayerStartActor) return LevelPlayerStartActor->GetActorLocation();
-
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
-	if (FoundActors.Num() > 0) return FoundActors[0]->GetActorLocation();
-
-	return GetActorLocation();
-}
-
-FRotator AMapBase::GetPlayerStartRotation() const
-{
-	if (LevelPlayerStartActor) return LevelPlayerStartActor->GetActorRotation();
-
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TEXT("PlayerStartPoint"), FoundActors);
-	if (FoundActors.Num() > 0) return FoundActors[0]->GetActorRotation();
-
-	return GetActorRotation();
-}
-

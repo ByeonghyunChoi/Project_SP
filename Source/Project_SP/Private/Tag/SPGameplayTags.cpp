@@ -16,4 +16,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 {
 	State_Mode_Field = Manager.AddNativeGameplayTag(FName("State.Mode.Field"), TEXT("필드 상태"));
 	State_Mode_Battle = Manager.AddNativeGameplayTag(FName("State.Mode.Battle"), TEXT("전투 상태"));
+	State_Status_BlockMove = Manager.AddNativeGameplayTag(FName("State.Status.BlockMove"), TEXT("이동 불가 상태"));
+
+	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
+	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
+
+	Ability_Type_Field = Manager.AddNativeGameplayTag(FName("Ability.Type.Field"), TEXT("필드 타입 어빌리티"));
+	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
 }

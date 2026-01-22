@@ -24,6 +24,13 @@ protected:
     UPROPERTY(EditAnywhere, Category = "GAS")
     TObjectPtr<class USPGASAttributeSet> AttributeSet;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+    TObjectPtr<class USpringArmComponent> CameraBoom;
+
+    // 실제 카메라
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+    TObjectPtr<class UCameraComponent> FollowCamera;
+
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
 };

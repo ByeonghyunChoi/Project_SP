@@ -17,8 +17,8 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	virtual void ExecuteInteraction(class ASPGASPlayerCharacter* Interactor) override;
+	virtual void ExecuteInteraction(class AActor* Interactor) override;
 
-	virtual FText GetInteractText() override;
+	virtual FText GetInteractText()const override;
 
 };

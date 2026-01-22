@@ -8,7 +8,7 @@ enum class EMapState :uint8
 {
     InProgress UMETA(DisplayName = "맵 진행 중"),
     Reward UMETA(DisplayName = "보상 수령 중"),
-    Cleard UMETA(DisplatName = "맵 클리어")
+    Cleared UMETA(DisplatName = "맵 클리어")
 };
 
 UENUM(BlueprintType)
@@ -24,4 +24,13 @@ enum class EMapType :uint8
     Prepare           UMETA(DisplayName = "준비 맵"),
     // "보스" 등급 맵 유형
     BossBattle        UMETA(DisplayName = "보스 전투")
+};
+
+UENUM(BlueprintType)
+enum class EMapGrade : uint8
+{
+    Normal UMETA(DisplayName = "일반 등급 맵"),
+    Epic UMETA(DisplayName = "에픽 등급 맵"),
+    Prepare UMETA(DisplayName = "준비 등급 맵"),
+    Boss UMETA(DisplayName = "보스 등급 맵")
 };
