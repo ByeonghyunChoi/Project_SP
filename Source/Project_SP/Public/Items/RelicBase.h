@@ -35,9 +35,9 @@
 //	UFUNCTION(BlueprintCallable, Category = "Relic")
 //	virtual void OnUnequip(AActor* Instigator);
 //
-//	//// [신규] 유물의 능력치를 반환하는 함수
-//	//UFUNCTION(BlueprintCallable,  Category = "Relic")
-//	//virtual FStatModifiers GetRelicModifiers() const;
+//	//[신규] 유물의 능력치를 반환하는 함수
+//	UFUNCTION(BlueprintCallable,  Category = "Relic")
+//	virtual FStatModifiers GetRelicModifiers() const;
 //
 //protected:
 //	// 유물 효과 함수 (파생 클래스에서 구현)

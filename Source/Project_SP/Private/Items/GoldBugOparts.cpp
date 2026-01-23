@@ -1,7 +1,4 @@
-﻿//// Fill out your copyright notice in the Description page of Project Settings.
-//
-//
-//#include "Items/GoldBugOparts.h"
+﻿//#include "Items/GoldBugOparts.h"
 //#include "UObject/ConstructorHelpers.h" // 경로 지정 헬퍼 사용
 //
 //UGoldBugOparts::UGoldBugOparts()

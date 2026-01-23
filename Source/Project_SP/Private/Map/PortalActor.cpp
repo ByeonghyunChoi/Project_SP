@@ -1,85 +1,32 @@
-﻿//// Fill out your copyright notice in the Description page of Project Settings.
-//
-//
-//#include "Map/PortalActor.h"
-//#include "Components/BoxComponent.h"
-//#include "Components/WidgetComponent.h"
-//#include "Map/MapNode.h"
-//#include "Map/MapManagerSubsystem.h"
-//#include "Kismet/GameplayStatics.h"
-//#include "Character/SPGASPlayerCharacter.h"
-//
-//// Sets default values
-//APortalActor::APortalActor()
-//{
-//	PortalRoot = CreateDefaultSubobject<USceneComponent>(TEXT("PortalRoot"));
-//	SetRootComponent(PortalRoot);
-//
-//	OverlapVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("OverlapVolume"));
-//	OverlapVolume->SetupAttachment(RootComponent);
-//	OverlapVolume->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-//	OverlapVolume->SetCollisionResponseToAllChannels(ECR_Ignore);
-//	OverlapVolume->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-//	OverlapVolume->OnComponentBeginOverlap.AddDynamic(this, &APortalActor::OnOverlapBegin);
-//
-//	InfoWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("InfoWidget"));
-//	InfoWidget->SetupAttachment(RootComponent);
-//
-//
-//}
-//
-//void APortalActor::InitializePortalData(UMapNode* NodeData)
-//{
-//	TargetNodeData = NodeData;
-//	bIsStageExitPortal = false;
-//
-//	if (TargetNodeData)
-//	{
-//		UpdatePortalWidget();
-//	}
-//	else
-//	{
-//		UE_LOG(LogTemp, Log, TEXT("다음 맵 노드 정보가 없습니다."));
-//	}
-//}
-//
-//void APortalActor::ActivateAsStageExitPortal()
-//{
-//	TargetNodeData = nullptr;
-//	bIsStageExitPortal = true;
-//
-//	SetActorEnableCollision(true);
-//
-//	UpdatePortalWidget();
-//}
-//
-//void APortalActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-//{
-//	ASPGASPlayerCharacter* Player = Cast<ASPGASPlayerCharacter>(OtherActor);
-//	if (!Player)
-//	{
-//		return;
-//	}
-//
-//	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
-//	if (!MapManager)
-//	{
-//		UE_LOG(LogTemp, Log, TEXT("MapManager를 찾을 수 없습니다."));
-//		return;
-//	}
-//
-//	if (bIsStageExitPortal)
-//	{
-//		// 1. 스테이지 출구 포탈인 경우 (보스 맵 클리어)
-//		MapManager->GoToNextStage();
-//	}
-//	else if (TargetNodeData)
-//	{
-//		// 2. 일반 노드 포탈인 경우
-//		MapManager->TravelToNode(TargetNodeData);
-//	}
-//	SetActorEnableCollision(false);
-//}
-//
-//
-//
+﻿#include "Map/PortalActor.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+
+APortalActor::APortalActor()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortalMesh"));
+	SetRootComponent(MeshComponent);
+}
+
+void APortalActor::ExecuteInteraction(AActor* Interactor)
+{
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
+	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+	if (MapManager)
+	{
+		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
+		MapManager->MoveToNextFloor(TargetMapType);
+	}
+}
+
+FText APortalActor::GetInteractText() const
+{
+	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
+	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
+
+	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
+	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
+}

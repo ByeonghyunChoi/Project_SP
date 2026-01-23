@@ -1,9 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Items/Relics/RLC_CompressedIron.h"
-#include "Character/SPGASCharacterBase.h"
-
+//
+//
+//#include "Items/Relics/RLC_CompressedIron.h"
+//#include "Character/SPGASCharacterBase.h"
+//
 //void URLC_CompressedIron::ApplyRelicEffect(AActor* Target)
 //{
 //    if (!Target) return;

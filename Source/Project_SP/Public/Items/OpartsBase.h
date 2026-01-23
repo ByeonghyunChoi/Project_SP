@@ -1,4 +1,4 @@
-//// Fill out your copyright notice in the Description page of Project Settings.
+//
 //
 //#pragma once
 //
@@ -117,8 +117,8 @@
 //	virtual int32 GetRequiredIncompleteEnergy() const;
 //
 //	// 현재 오파츠의 모든 스탯 정보를 계산해서 반환
-//	//UFUNCTION(BlueprintPure, Category = "Oparts")
-//	//FStatModifiers GetCalculatedModifiers() const;
+//	UFUNCTION(BlueprintPure, Category = "Oparts")
+//	FStatModifiers GetCalculatedModifiers() const;
 //
 //	// [1] 장착 시 호출 (스탯 적용 등)
 //	virtual void OnEquip(AActor* Instigator);
@@ -126,9 +126,9 @@
 //	// [2] 해제 시 호출 (스탯 제거 등)
 //	virtual void OnUnequip(AActor* Instigator);
 //
-////public:
-////	UPROPERTY(BlueprintAssignable) 
-////	FCalculateMaterial CalculateMaterial;
+//public:
+//	UPROPERTY(BlueprintAssignable) 
+//	FCalculateMaterial CalculateMaterial;
 //
 //protected:
 //	// 시작함수

@@ -1,6 +1,6 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
+﻿//
+//
+//
 //#include "Items/OpartsBase.h"
 //#include "Component/InventoryComponent.h"
 //
@@ -19,7 +19,7 @@
 //	ArtifactUnlockedNumber = 0;
 //	bIsArtifactUnlocked = { false, false, false, false, false };
 //}
-
+//
 //데이터 테이블에서 스탯을 가져오는 헬퍼 함수 구현
 //bool UOpartsBase::GetStatsForLevel(int32 Level, FOpartStats& OutStats)
 //{
@@ -47,7 +47,7 @@
 //	UE_LOG(LogTemp, Error, TEXT("Failed to find stats for Level %d (Row: %s) in DataTable."), Level, *RowName);
 //	return false;
 //}
-
+//
 //bool UOpartsBase::GetStatsForNextLevel(int32 Level, FOpartStats& OutStats) const
 //{
 //	if (!OpartsStatsDataTable)
@@ -73,7 +73,7 @@
 //	UE_LOG(LogTemp, Error, TEXT("Failed to find stats for Level %d (Row: %s) in DataTable."), Level, *RowName);
 //	return false; //
 //}
-
+//
 //void UOpartsBase::BeginPlay()
 //{
 //	Super::BeginPlay();
@@ -269,7 +269,7 @@
 //	// 해금 데이터가 없거나 모두 해금한 경우
 //	return -1;
 //}
-
+//
 //FStatModifiers UOpartsBase::GetCalculatedModifiers() const
 //{
 //	FStatModifiers Result;

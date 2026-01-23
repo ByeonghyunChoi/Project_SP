@@ -3,6 +3,7 @@
 //
 //#include "InteractionActor/InteractionOpartsActor.h"
 //#include "Character/SPGASPlayerCharacter.h"
+//#include "Character/SPGASPlayerController.h"
 //#include "Kismet/GameplayStatics.h"
 //
 //void AInteractionOpartsActor::BeginPlay()
@@ -17,7 +18,7 @@
 //	}
 //}
 //
-//void AInteractionOpartsActor::ExecuteInteraction(APlayerCharacter* Interactor)
+//void AInteractionOpartsActor::ExecuteInteraction(ASPGASPlayerCharacter* Interactor)
 //{
 //	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("Interaction"));
 //	if (OpartsWidgetInstance)
@@ -25,7 +26,7 @@
 //		OpartsWidgetInstance->AddToViewport();
 //
 //		FInputModeGameAndUI InputMode;
-//		//Interactor->GetController<AMyPlayerController>()->SetInputMode(InputMode);
+//		Interactor->GetController<ASPGASPlayerController>()->SetInputMode(InputMode);
 //	}
 //}
 //

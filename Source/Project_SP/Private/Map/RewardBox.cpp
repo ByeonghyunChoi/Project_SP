@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-//#include "Map/RewardBox.h"
+﻿//#include "Map/RewardBox.h"
 //#include "Data/RewardData.h"
 //#include "Data/RelicData.h" 
 //#include "Items/RelicSpawner.h"   // 스포너
@@ -9,6 +6,8 @@
 //#include "Character/SPGASPlayerCharacter.h"
 //#include "Component/InventoryComponent.h"
 //#include "Components/StaticMeshComponent.h"
+//#include "Character/SPGASPlayerController.h"
+//#include "Character/SPGASPlayerCharacter.h"
 //
 //// Sets default values
 //ARewardBox::ARewardBox()
@@ -19,7 +18,7 @@
 //    bHasBeenInteracted = false;
 //}
 //
-//void ARewardBox::PerformInteraction(APlayerCharacter* Interactor)
+//void ARewardBox::PerformInteraction(ASPGASPlayerCharacter* Interactor)
 //{
 //    if (bHasBeenInteracted)
 //    {
@@ -40,7 +39,7 @@
 //    this->Destroy();
 //}
 //
-//void ARewardBox::ExecuteInteraction(APlayerCharacter* Interactor)
+//void ARewardBox::ExecuteInteraction(ASPGASPlayerCharacter* Interactor)
 //{
 //    PerformInteraction(Interactor);
 //}
@@ -56,8 +55,8 @@
 //{
 //    return FText::FromString(TEXT("보상 열기[F]"));
 //}
-
-//void ARewardBox::RewardToPlayer(APlayerCharacter* Interactor)
+//
+//void ARewardBox::RewardToPlayer(ASPGASPlayerCharacter* Interactor)
 //{
 //    if (!RewardInfo || RewardRowName.IsNone())
 //    {
@@ -86,8 +85,8 @@
 //        UE_LOG(LogTemp, Error, TEXT("플레이어의 인벤토리 컴포넌트를 찾을 수 없습니다!"));
 //    }
 //}
-
-//void ARewardBox::TryGiveRelicReward(APlayerCharacter* Interactor)
+//
+//void ARewardBox::TryGiveRelicReward(ASPGASPlayerCharacter* Interactor)
 //{
 //
 //    UE_LOG(LogTemp, Log, TEXT("유물 얻기를 시도 했습니다."));
@@ -107,7 +106,7 @@
 //        UE_LOG(LogTemp, Log, TEXT("유물을 주는 상자입니다."));
 //        // 필요한 컴포넌트 가져오기
 //        URelicManagerComponent* RelicMgr = Interactor->FindComponentByClass<URelicManagerComponent>();
-//        AMyPlayerController* PC = Cast<AMyPlayerController>(Interactor->GetController());
+//        ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(Interactor->GetController());
 //
 //        if (RelicMgr && PC)
 //        {
@@ -135,6 +134,6 @@
 //    }
 //
 //}
-
-
-
+//
+//
+//

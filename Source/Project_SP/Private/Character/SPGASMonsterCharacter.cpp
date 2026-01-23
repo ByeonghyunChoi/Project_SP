@@ -1,19 +1,25 @@
 ﻿#include "Character/SPGASMonsterCharacter.h"
+#include "Character/SPGASMonsterState.h"
 #include "AbilitySystemComponent.h"
-#include "AttributeSet/SPGASAttributeSet.h"
+
 
 
 
 ASPGASMonsterCharacter::ASPGASMonsterCharacter()
 {
-	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("ASC"));
-	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
 }
 
-void ASPGASMonsterCharacter::PostInitializeComponents()
+void ASPGASMonsterCharacter::PossessedBy(AController* NewController)
 {
-	Super::PostInitializeComponents();
+	Super::PossessedBy(NewController);
 
-	ASC->InitAbilityActorInfo(this, this);
+	ASPGASMonsterState* SPGAS = GetPlayerState<ASPGASMonsterState>();
+	if (SPGAS)
+	{
+		ASC = SPGAS->GetAbilitySystemComponent();
+		AttributeSet = SPGAS->GetAttributeSet();
+		ASC->InitAbilityActorInfo(SPGAS, this);
+	}
 }
+
 

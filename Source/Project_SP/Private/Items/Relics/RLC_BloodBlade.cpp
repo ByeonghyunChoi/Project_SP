@@ -1,9 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Items/Relics/RLC_BloodBlade.h"
-#include "Data/RelicData.h"
-
+//
+//
+//#include "Items/Relics/RLC_BloodBlade.h"
+//#include "Data/RelicData.h"
+//
 //void URLC_BloodBlade::ApplyRelicEffect(AActor* Target)
 //{
 //    if (!Target) return;
@@ -38,4 +38,4 @@
 //
 //    return Mods;
 //}
-
+//

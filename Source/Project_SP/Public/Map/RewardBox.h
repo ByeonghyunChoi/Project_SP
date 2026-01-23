@@ -41,8 +41,8 @@
 //	UPROPERTY(BlueprintAssignable, Category = "RewardBox")
 //	FOnRewardInteractedSignature OnRewardInteracted;
 //	//상호작용 로직
-//	/*UFUNCTION(BlueprintCallable, Category = "RewardBox")
-//	void PerformInteraction(ASPGASPlayerCharacter* Interactor);*/
+//	UFUNCTION(BlueprintCallable, Category = "RewardBox")
+//	void PerformInteraction(class ASPGASPlayerCharacter* Interactor);
 //
 //protected:
 //	//상호작용 여부 판단(중복 방지)
@@ -55,7 +55,7 @@
 //	//Interface Logic Section
 //public:
 //	//플레이어가 상호작용 키를 눌러서 호출할 함수
-//	virtual void ExecuteInteraction(APlayerCharacter* Interactor) override;
+//	virtual void ExecuteInteraction(class ASPGASPlayerCharacter* Interactor) override;
 //
 //	//보상 데이터 테이블과 로우 이름을 초기화하는 함수
 //	void InitializeReward(UDataTable* InTable, FName InRowName, UDataTable* InRelicTable);
@@ -65,8 +65,8 @@
 //	virtual FText GetInteractText() override;
 //
 //protected:
-//	void RewardToPlayer(APlayerCharacter* Interactor);
+//	void RewardToPlayer(class ASPGASPlayerCharacter* Interactor);
 //
 //	// [추가] 유물 보상 지급 로직
-//	void TryGiveRelicReward(class APlayerCharacter* Interactor);
+//	void TryGiveRelicReward(class ASPGASPlayerCharacter* Interactor);
 //};

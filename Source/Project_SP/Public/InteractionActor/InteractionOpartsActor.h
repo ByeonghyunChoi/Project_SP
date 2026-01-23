@@ -23,7 +23,7 @@
 //
 //	virtual void BeginPlay() override;
 //	
-//	virtual void ExecuteInteraction(class APlayerCharacter* Interactor) override;
+//	virtual void ExecuteInteraction(class ASPGASPlayerCharacter* Interactor) override;
 //
 //	virtual FText GetInteractText() override;
 //

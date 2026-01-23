@@ -1,9 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "UI/W_StageNode.h"
-#include "Components/Image.h"
-
+//
+//
+//#include "UI/W_StageNode.h"
+//#include "Components/Image.h"
+//
 //void UW_StageNode::SetupNode(EMapType NodeType, bool bIsCurrent)
 //{
 //    // 1. 타입에 따른 색상 변경
@@ -41,7 +41,7 @@
 //    // 2. 현재 위치 표시 (화살표)
 //    SetIsCurrent(bIsCurrent);
 //}
-
+//
 //void UW_StageNode::SetIsCurrent(bool bIsCurrent)
 //{
 //    if (ArrowImage)
@@ -50,4 +50,4 @@
 //        ArrowImage->SetVisibility(bIsCurrent ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
 //    }
 //}
-
+//
