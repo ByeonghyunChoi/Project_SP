@@ -16,6 +16,17 @@ AMerchantNPC::AMerchantNPC()
 	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 }
 
+void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
+{
+	//OpenShop() -> 여기서 호출
+	//Interactor가 결국 플레이어임. 
+}
+
+FText AMerchantNPC::GetInteractText() const
+{
+	return FText();
+}
+
 // Called when the game starts or when spawned
 void AMerchantNPC::BeginPlay()
 {
