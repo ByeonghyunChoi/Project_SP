@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "MapInfo.generated.h"
@@ -6,31 +6,32 @@
 UENUM(BlueprintType)
 enum class EMapState :uint8
 {
-    InProgress UMETA(DisplayName = "¸Ê ÁøÇà Áß"),
-    Reward UMETA(DisplayName = "º¸»ó ¼ö·É Áß"),
-    Cleared UMETA(DisplatName = "¸Ê Å¬¸®¾î")
+    None,
+    InProgress UMETA(DisplayName = "ë§µ ì§„í–‰ ì¤‘"),
+    Reward UMETA(DisplayName = "ë³´ìƒ ìˆ˜ë ¹ ì¤‘"),
+    Cleared UMETA(DisplatName = "ë§µ í´ë¦¬ì–´")
 };
 
 UENUM(BlueprintType)
 enum class EMapType :uint8
 {
-    // "ÀÏ¹İ" µî±Ş ¸Ê À¯Çü
-    Rest            UMETA(DisplayName = "½°ÅÍ"),
-    NormalBattle    UMETA(DisplayName = "ÀÏ¹İ ÀüÅõ"),
-    // "¿¡ÇÈ" µî±Ş ¸Ê À¯Çü
-    StrongEnemyBattle UMETA(DisplayName = "°­Àû ÀüÅõ"),
-    Jester            UMETA(DisplayName = "±¤´ë ¸Ê"),
-    // "ÁØºñ" µî±Ş ¸Ê À¯Çü
-    Prepare           UMETA(DisplayName = "ÁØºñ ¸Ê"),
-    // "º¸½º" µî±Ş ¸Ê À¯Çü
-    BossBattle        UMETA(DisplayName = "º¸½º ÀüÅõ")
+    // "ì¼ë°˜" ë“±ê¸‰ ë§µ ìœ í˜•
+    Rest            UMETA(DisplayName = "ì‰¼í„°"),
+    NormalBattle    UMETA(DisplayName = "ì¼ë°˜ ì „íˆ¬"),
+    // "ì—í”½" ë“±ê¸‰ ë§µ ìœ í˜•
+    StrongEnemyBattle UMETA(DisplayName = "ê°•ì  ì „íˆ¬"),
+    Jester            UMETA(DisplayName = "ê´‘ëŒ€ ë§µ"),
+    // "ì¤€ë¹„" ë“±ê¸‰ ë§µ ìœ í˜•
+    Prepare           UMETA(DisplayName = "ì¤€ë¹„ ë§µ"),
+    // "ë³´ìŠ¤" ë“±ê¸‰ ë§µ ìœ í˜•
+    BossBattle        UMETA(DisplayName = "ë³´ìŠ¤ ì „íˆ¬")
 };
 
 UENUM(BlueprintType)
 enum class EMapGrade : uint8
 {
-    Normal UMETA(DisplayName = "ÀÏ¹İ µî±Ş ¸Ê"),
-    Epic UMETA(DisplayName = "¿¡ÇÈ µî±Ş ¸Ê"),
-    Prepare UMETA(DisplayName = "ÁØºñ µî±Ş ¸Ê"),
-    Boss UMETA(DisplayName = "º¸½º µî±Ş ¸Ê")
+    Normal UMETA(DisplayName = "ì¼ë°˜ ë“±ê¸‰ ë§µ"),
+    Epic UMETA(DisplayName = "ì—í”½ ë“±ê¸‰ ë§µ"),
+    Prepare UMETA(DisplayName = "ì¤€ë¹„ ë“±ê¸‰ ë§µ"),
+    Boss UMETA(DisplayName = "ë³´ìŠ¤ ë“±ê¸‰ ë§µ")
 };

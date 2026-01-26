@@ -16,11 +16,21 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | Layout")
 	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY(EditAnywhere, Category = "Map | Setup")
 	TSubclassOf<class APortalActor> PortalClass;
+
+	// 스폰할 보상 상자 클래스
+	UPROPERTY(EditAnywhere, Category = "Map | Setup")
+	TSubclassOf<class ARewardBox> RewardChestClass;
+
+	// 관리 중인 스폰된 포탈들
+	UPROPERTY()
+	TArray<class APortalActor*> SpawnedPortals;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
 	EMapState CurrentState;
@@ -30,6 +40,8 @@ protected:
 
 public:
 	TArray<FTransform> GetSpawnTransformsByTag(FName PointTag) const;
+
+	UFUNCTION(BlueprintCallable)
 	void SetMapState(EMapState NewState);
 	void InitializeMap(EMapType InType);
 
