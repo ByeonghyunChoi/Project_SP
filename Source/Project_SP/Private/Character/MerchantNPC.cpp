@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Character/MerchantNPC.h"
@@ -8,18 +8,29 @@
 // Sets default values
 AMerchantNPC::AMerchantNPC()
 {
-	// 1. »óÁ¡ ÄÄÆ÷³ÍÆ® »ı¼º ¹× ºÎÂø
+	// 1. ìƒì  ì»´í¬ë„ŒíŠ¸ ìƒì„± ë° ë¶€ì°©
 	ShopComp = CreateDefaultSubobject<UShopComponent>(TEXT("ShopComponent"));
 
-	// 2. ºñÁÖ¾ó ¼³Á¤ (ÀÏ¹İÀûÀÎ Ä³¸¯ÅÍ ¸Ş½Ã ¹æÇâ ¸ÂÃß±â)
+	// 2. ë¹„ì£¼ì–¼ ì„¤ì • (ì¼ë°˜ì ì¸ ìºë¦­í„° ë©”ì‹œ ë°©í–¥ ë§ì¶”ê¸°)
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
 	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 }
 
 void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 {
-	//OpenShop() -> ¿©±â¼­ È£Ãâ
-	//Interactor°¡ °á±¹ ÇÃ·¹ÀÌ¾îÀÓ. 
+	// InteractorëŠ” í”Œë ˆì´ì–´ ìºë¦­í„°ì…ë‹ˆë‹¤.
+	// ì—¬ê¸°ì„œ PlayerPawn->GetController()ë¥¼ ê°€ì ¸ì˜¤ëŠ”ë°, ì´ê²Œ NULLì¼ ìˆ˜ë„ ìˆìŠµë‹ˆë‹¤.
+	if (APawn* PlayerPawn = Cast<APawn>(Interactor))
+	{
+		if (APlayerController* PC = Cast<APlayerController>(PlayerPawn->GetController()))
+		{
+			OpenShop(PC);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ìƒí˜¸ì‘ìš© ì‹¤íŒ¨: í”Œë ˆì´ì–´ ì»¨íŠ¸ë¡¤ëŸ¬ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŒ!")); // [ì´ê²Œ ëœ¨ëŠ”ì§€ í™•ì¸]
+		}
+	}
 }
 
 FText AMerchantNPC::GetInteractText() const
@@ -38,10 +49,30 @@ void AMerchantNPC::OpenShop(APlayerController* PlayerController)
 {
 	if (!PlayerController) return;
 
-	// [·Î±× È®ÀÎ] 
-	// ¾ÆÁ÷ UI°¡ ¾øÀ¸´Ï, ·Î±×·Î ±â´ÉÀÌ ÀÛµ¿ÇÏ´ÂÁö ¸ÕÀú È®ÀÎ
-	UE_LOG(LogTemp, Warning, TEXT("»óÀÎ '%s'°¡ »óÁ¡À» ¿±´Ï´Ù!"), *MerchantName.ToString());
+	// 1. ìƒì  ì˜¤í”ˆ ë¡œê·¸
+	UE_LOG(LogTemp, Warning, TEXT("=== ìƒì¸ '%s'ê°€ ìƒì ì„ ì—½ë‹ˆë‹¤! ==="), *MerchantName.ToString());
 
-	// ³ªÁß¿¡ ¿©±â¿¡ UI »ı¼º ÄÚµå»ğÀÔ.
-	
+	// 2. [ê²€ì¦] ShopComponentê°€ ë¬¼ê±´ì„ ì˜ ê°€ì ¸ì˜¤ëŠ”ì§€ í…ŒìŠ¤íŠ¸
+	if (ShopComp)
+	{
+		TArray<FShopItemRow> Items = ShopComp->GetShopItems();
+
+		if (Items.Num() == 0)
+		{
+			UE_LOG(LogTemp, Error, TEXT(">> íŒë§¤í•  ì•„ì´í…œì´ ì—†ìŠµë‹ˆë‹¤! (ë°ì´í„° í…Œì´ë¸” ì—°ê²° í™•ì¸ í•„ìš”)"));
+		}
+		else
+		{
+			for (const FShopItemRow& Item : Items)
+			{
+				UE_LOG(LogTemp, Log, TEXT(">> [íŒë§¤ í’ˆëª©] ID: %s | ê°€ê²©: %d | ì¬ê³ : %d"), *Item.ItemID.ToString(), Item.Price, Item.Stock);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT(">> ShopComponentê°€ ì—†ìŠµë‹ˆë‹¤!"));
+	}
+
+	// TODO: ë‚˜ì¤‘ì— ì—¬ê¸°ì— UI ìƒì„± ì½”ë“œ(CreateWidget) ì¶”ê°€ ì˜ˆì •
 }

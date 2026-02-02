@@ -1,89 +1,86 @@
-//// Fill out your copyright notice in the Description page of Project Settings.
-//
-//#pragma once
-//
-//#include "CoreMinimal.h"
-//#include "Components/ActorComponent.h"
-//#include "InventoryComponent.generated.h"
-//
-//USTRUCT(BlueprintType)
-//struct FPlayerMaterial
-//{
-//	GENERATED_BODY()
-//
-//public:
-//
-//	FPlayerMaterial() 
-//		: Sand(0)
-//		, IncompleteEnergy(0)
-//		, Money(0)
-//	{
-//	}
-//
-//	FPlayerMaterial(int32 InSand, int32 InIncompleteEnergy, int32 InMoney)
-//		: Sand(InSand)
-//		, IncompleteEnergy(InIncompleteEnergy)
-//		, Money(InMoney)
-//	{
-//	}
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
-//	int32 Sand = 0;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
-//	int32 IncompleteEnergy = 0;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Material")
-//	int32 Money = 0;
-//};
-//
-//UCLASS()
-//class PROJECT_SP_API UInventoryComponent : public UActorComponent
-//{
-//	GENERATED_BODY()
-//
-//public:
-//	UInventoryComponent();
-//
-//	// Sand (모래)
-//	UFUNCTION(BlueprintPure, Category = "Material")
-//	int32 GetCurrentSand() const;
-//
-//	UFUNCTION(BlueprintCallable, Category = "Material")
-//	void SetCurrentSand(int32 NewAmount);
-//
-//	// Incomplete Energy (불완전한 기운)
-//	UFUNCTION(BlueprintPure, Category = "Material")
-//	int32 GetCurrentIncompleteEnergy() const;
-//
-//	UFUNCTION(BlueprintCallable, Category = "Material")
-//	void SetCurrentIncompleteEnergy(int32 NewAmount);
-//
-//	// Money (돈)
-//	UFUNCTION(BlueprintPure, Category = "Material")
-//	int32 GetCurrentMoney() const;
-//	
-//	UFUNCTION(BlueprintCallable, Category = "Material")
-//	void SetCurrentMoney(int32 NewAmount);
-//
-//	void GainSand(int32 Amount);
-//
-//	void GainIncompleteEnergy(int32 Amount);
-//
-//	void GainMoney(int32 Amount);
-//
-//	// 유물 관련 기능 함수
-//	// 장착할 수 있는 유물 빈칸
-//	// int32 GetAvailableRelicSlot() const;
-//	// 장착
-//	void EquipRelic();
-//	// 해제
-//	void UnequipRelic();
-//
-//protected:
-//
-//	virtual void BeginPlay() override;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Material")
-//	FPlayerMaterial PlayerMaterials;
-//};
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "InventoryComponent.generated.h"
+
+// 재화 데이터를 관리하는 구조체
+USTRUCT(BlueprintType)
+struct FPlayerWallet
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+	int32 Sand = 0; // 모래 (오파츠 강화)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+	int32 IncompleteEnergy = 0; // 불완전한 기운 (아티팩트 해금)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+	int32 Money = 0; // 골드
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryUpdated, const FPlayerWallet&, CurrentWallet);
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class PROJECT_SP_API UInventoryComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UInventoryComponent();
+
+protected:
+	virtual void BeginPlay() override;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+	FPlayerWallet Wallet;
+
+public:
+	// UI 업데이트 알림용
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnInventoryUpdated OnInventoryUpdated;
+
+	// =========================================================
+	// 1. 조회 (Getter)
+	// =========================================================
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	int32 GetSand() const { return Wallet.Sand; }
+
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	int32 GetIncompleteEnergy() const { return Wallet.IncompleteEnergy; }
+
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	int32 GetMoney() const { return Wallet.Money; }
+
+	// =========================================================
+	// 2. 조작 (Gain / Consume)
+	// =========================================================
+
+	// 모래 획득
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddSand(int32 Amount);
+
+	// 모래 소모 (성공 시 true 반환)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool ConsumeSand(int32 Amount);
+
+	// 기운 획득
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddIncompleteEnergy(int32 Amount);
+
+	// 기운 소모 (성공 시 true 반환)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool ConsumeIncompleteEnergy(int32 Amount);
+
+	// 돈 획득
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddMoney(int32 Amount);
+
+	// 돈 소모 (성공 시 true 반환)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool ConsumeMoney(int32 Amount);
+};

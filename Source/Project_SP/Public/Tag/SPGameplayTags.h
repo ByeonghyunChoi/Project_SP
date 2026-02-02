@@ -30,6 +30,11 @@ public:
 	FGameplayTag Ability_Type_Field;
 	FGameplayTag Ability_Type_Battle;
 
+	// 오파츠 (Oparts)
+	FGameplayTag Oparts_CrystalSkull;
+	FGameplayTag Oparts_JadeClock;
+	FGameplayTag Oparts_GoldBug;
+
 protected:
 	//태그를 등록하는 내부 함수
 	void AddAllTags(class UGameplayTagsManager& Manager);
