@@ -27,5 +27,5 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 
 FText ARewardBox::GetInteractText() const
 {
-	return FText();
+	return FText::FromString(TEXT("상자 열기"));
 }

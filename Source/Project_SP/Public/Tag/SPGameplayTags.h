@@ -30,6 +30,10 @@ public:
 	FGameplayTag Ability_Type_Field;
 	FGameplayTag Ability_Type_Battle;
 
+	//이벤트
+	FGameplayTag Event_Interaction;
+	FGameplayTag Event_Field_Hit;
+
 protected:
 	//태그를 등록하는 내부 함수
 	void AddAllTags(class UGameplayTagsManager& Manager);

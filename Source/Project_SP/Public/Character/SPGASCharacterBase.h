@@ -33,4 +33,7 @@ protected:
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+    TObjectPtr<class UAnimMontage> FieldAttackMontage;
 };

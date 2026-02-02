@@ -30,4 +30,9 @@ protected:
 	TArray<TSubclassOf<class UGameplayAbility>> BattlePassiveAbilities;
 
 	void GiveAbilities();
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	TObjectPtr<class USPInteractionComponent> InteractionComponent;
+
 };

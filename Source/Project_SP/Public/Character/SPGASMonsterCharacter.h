@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Character/SPGASCharacterBase.h"
+#include "Data/CombatEncounterData.h"
 #include "SPGASMonsterCharacter.generated.h"
 
 
@@ -14,4 +15,8 @@ class PROJECT_SP_API ASPGASMonsterCharacter : public ASPGASCharacterBase
 public:
     ASPGASMonsterCharacter();
     virtual void PossessedBy(AController* NewController) override;
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+    TObjectPtr<UCombatEncounterData> EncounterData;
 };

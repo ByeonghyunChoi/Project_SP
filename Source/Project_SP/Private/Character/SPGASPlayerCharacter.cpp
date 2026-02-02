@@ -4,12 +4,13 @@
 #include "Character/SPGASPlayerState.h"
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
+#include "Component/SPInteractionComponent.h"
 
 
 
 ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 {
-	
+	InteractionComponent = CreateDefaultSubobject<USPInteractionComponent>(TEXT("InteractComponent"));
 }
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
