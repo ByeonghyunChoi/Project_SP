@@ -19,13 +19,4 @@ public:
 
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 
-protected:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interact")
-	float TraceDistance = 100.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interact")
-	float InteractionRadius = 50.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interact")
-	bool bShowDebug = true;
 };

@@ -14,29 +14,32 @@ public:
 	static const FSPGameplayTags& Get() { return GameplayTags; }
 	static void InitializeNativeGameplayTags();
 
-	//µî·ÏÇÒ ÅÂ±× ¸ñ·Ï ¼½¼Ç
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Â±ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 public:
-	// »óÅÂ(State)
+	// ï¿½ï¿½ï¿½ï¿½(State)
 	FGameplayTag State_Mode_Field;
 	FGameplayTag State_Mode_Battle;
 	FGameplayTag State_Turn_Active;
 	FGameplayTag State_Status_BlockMove;
 
-	// ÀÔ·Â(Input)
+	// ï¿½Ô·ï¿½(Input)
 	FGameplayTag Input_Action_Interact;
 	FGameplayTag Input_Action_FieldAttack;
 
-	// ¾îºô¸®Æ¼ Å¸ÀÔ(Ability Type)
+	// ï¿½ï¿½ï¿½ï¿½ï¿½Æ¼ Å¸ï¿½ï¿½(Ability Type)
 	FGameplayTag Ability_Type_Field;
 	FGameplayTag Ability_Type_Battle;
 
-	// ¿ÀÆÄÃ÷ (Oparts)
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (Oparts)
 	FGameplayTag Oparts_CrystalSkull;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
+	//ï¿½Ìºï¿½Æ®
+	FGameplayTag Event_Interaction;
+	FGameplayTag Event_Field_Hit;
 
 protected:
-	//ÅÂ±×¸¦ µî·ÏÇÏ´Â ³»ºÎ ÇÔ¼ö
+	//ï¿½Â±×¸ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ô¼ï¿½
 	void AddAllTags(class UGameplayTagsManager& Manager);
 
 private:
