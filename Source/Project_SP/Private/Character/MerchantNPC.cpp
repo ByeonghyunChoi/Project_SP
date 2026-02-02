@@ -35,7 +35,7 @@ void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 
 FText AMerchantNPC::GetInteractText() const
 {
-	return FText();
+	return FText::FromString(TEXT("상점 열기"));
 }
 
 // Called when the game starts or when spawned

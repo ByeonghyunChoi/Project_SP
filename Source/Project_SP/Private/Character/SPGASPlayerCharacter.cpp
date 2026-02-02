@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
 #include "Component/SPInteractionComponent.h"
+#include "Character/SPGASPlayerController.h"
 
 
 
@@ -27,6 +28,9 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		UE_LOG(LogTemp, Warning, TEXT("[Server] GAS Initialized & Abilities Given"));
 	}
+
+	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
+	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
 
 void ASPGASPlayerCharacter::OnRep_PlayerState()
