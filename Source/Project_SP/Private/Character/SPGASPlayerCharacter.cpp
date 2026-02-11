@@ -6,12 +6,36 @@
 #include "Tag/SPGameplayTags.h"
 #include "Component/SPInteractionComponent.h"
 #include "Character/SPGASPlayerController.h"
-
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+#include "Map/MapManagerSubSystem.h"
 
 
 ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 {
 	InteractionComponent = CreateDefaultSubobject<USPInteractionComponent>(TEXT("InteractComponent"));
+
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(GetCapsuleComponent());
+	CameraBoom->TargetArmLength = 800.0f;
+	CameraBoom->SetRelativeRotation(FRotator(-45.f, 0.f, 0.f));
+	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = false;
+	CameraBoom->bInheritRoll = false;
+
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	FollowCamera->bUsePawnControlRotation = false;
 }
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
@@ -27,6 +51,33 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		GiveAbilities();
 
 		UE_LOG(LogTemp, Warning, TEXT("[Server] GAS Initialized & Abilities Given"));
+	}
+
+	if (ASC)
+	{
+		// 1. 기본은 필드 태그
+		FGameplayTag ModeTag = FSPGameplayTags::Get().State_Mode_Field;
+
+		// 2. 매니저에게 현재 상태 확인
+		UGameInstance* GI = GetGameInstance();
+		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+		{
+			// ★ "지금 전투 맵에 있나요?" (bIsBattleActive 확인)
+			if (MapManager->IsInBattleMap())
+			{
+				ModeTag = FSPGameplayTags::Get().State_Mode_Battle;
+			}
+		}
+
+		// 3. 결정된 태그 부착
+		ASC->AddLooseGameplayTag(ModeTag);
+
+		UE_LOG(LogTemp, Log, TEXT("🏷️ Input Mode Initialized: %s"), *ModeTag.ToString());
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->LoadPlayerStats(this);
 	}
 
 	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
@@ -126,4 +177,17 @@ void ASPGASPlayerCharacter::GiveAbilities()
 
 	// 초기 상태 활성화
 	ASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FieldTag));
+}
+
+void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
+{
+	if (!CameraBoom && !FollowCamera) return;
+
+	CameraBoom->TargetArmLength = Profile.TargetArmLength;
+	CameraBoom->SocketOffset = Profile.SocketOffset;
+	CameraBoom->SetRelativeRotation(Profile.RelativeRotation);
+	CameraBoom->bEnableCameraLag = Profile.bEnableLag;
+
+	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
+	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 }

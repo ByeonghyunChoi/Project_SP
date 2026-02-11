@@ -33,7 +33,8 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;
-	virtual void AcknowledgePossession(APawn* P) override;
+	virtual void AcknowledgePossession(APawn* InPawn) override;
+	void InitAbilitySystem(APawn* InPawn);
 
 protected:
 	//InputMappingContext 설정

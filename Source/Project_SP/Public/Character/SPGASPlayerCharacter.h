@@ -5,6 +5,32 @@
 #include "GameplayTagContainer.h"
 #include "SPGASPlayerCharacter.generated.h"
 
+USTRUCT(BlueprintType)
+struct FCameraProfile
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float TargetArmLength = 800.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector SocketOffset = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator RelativeRotation = FRotator(-45.0f, 0.0f, 0.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bEnableLag = true;
+
+	//카메라 설정
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FVector CameraRelativeLocation = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FRotator CameraRelativeRotation = FRotator::ZeroRotator;
+};
+
+
 UCLASS()
 class PROJECT_SP_API ASPGASPlayerCharacter : public ASPGASCharacterBase
 {
@@ -29,10 +55,31 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "GAS | Battle")
 	TArray<TSubclassOf<class UGameplayAbility>> BattlePassiveAbilities;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<class USpringArmComponent> CameraBoom;
+
+	// 실제 카메라
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<class UCameraComponent> FollowCamera;
+
 	void GiveAbilities();
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera | Profile")
+	FCameraProfile FieldCameraSetting;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera | Profile")
+	FCameraProfile CombatCameraSetting;
+
+public:
+	// GameMode에서 호출할 함수
+	void SetCameraProfile(const FCameraProfile& Profile);
+
+	// Getter
+	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
+	const FCameraProfile& GetCombatCameraProfile() const { return CombatCameraSetting; }
 
 };

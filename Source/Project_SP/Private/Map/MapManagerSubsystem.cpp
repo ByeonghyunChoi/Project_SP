@@ -2,6 +2,8 @@
 #include "Map/MapBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -29,6 +31,12 @@ void UMapManagerSubsystem::Deinitialize()
 
 void UMapManagerSubsystem::StartNewRun()
 {
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetSaveData();
+	}
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
 	CurrentStage = 1;
 	CurrentFloor = 1;
 	LoadStageLevel();
@@ -81,6 +89,42 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	return Options;
 }
 
+void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage)
+{
+	if (!PlayerPawn || !EncounterData) return;
+
+	// 1. [위치 저장] 필드에서의 현재 위치 저장 (돌아올 때를 위해)
+	SavedFieldTransform = PlayerPawn->GetActorTransform();
+	bIsReturningFromBattle = true;
+	bIsBattleActive = true;
+
+	// 2. [스탯 저장] SaveSubsystem에게 플레이어 정보 저장 위임
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->SavePlayerStats(PlayerPawn);
+	}
+
+	// 3. [전투 정보] CombatSubsystem 설정
+	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		CombatSys->SetPendingEncounter(EncounterData, Advantage);
+	}
+
+	// 4. [이동] 레벨 전환 (OpenLevel)
+	if (!EncounterData->CombatLevelName.IsNone())
+	{
+		UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
+		UE_LOG(LogTemp, Log, TEXT("⚔️ 전투 맵으로 이동합니다: %s"), *EncounterData->CombatLevelName.ToString());
+	}
+}
+
+void UMapManagerSubsystem::ReturnToField()
+{
+	bIsBattleActive = false;
+
+	LoadStageLevel();
+}
+
 void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 {
 	// 다음 스테이지로 넘어가는 경우 (레벨 자체를 갈아타야 함)
@@ -88,6 +132,14 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	{
 		CurrentStage++;
 		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		if (APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+		{
+			if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				SaveSys->SavePlayerStats(Player);
+			}
+		}
 		LoadStageLevel(); // OpenLevel 실행 (로딩 발생)
 		return;
 	}
@@ -100,32 +152,11 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	}
 }
 
-void UMapManagerSubsystem::EnterBattle(TSoftObjectPtr<UWorld> BattleLevelRes)
-{
-	APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	if (!Player || BattleLevelRes.IsNull()) return;
-
-	SavedFieldTransform = Player->GetActorTransform();
-	bool bOutSuccess = false;
-	ActiveBattleLevel = ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(GetWorld(), BattleLevelRes, BattleMapOffset, FRotator::ZeroRotator, bOutSuccess);
-
-	if (bOutSuccess && ActiveBattleLevel)
-	{
-		ActiveBattleLevel->OnLevelLoaded.AddDynamic(this, &UMapManagerSubsystem::OnBattleLevelLoaded);
-	}
-}
-
-void UMapManagerSubsystem::OnBattleLevelLoaded()
-{
-	if (APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
-	{
-		Player->SetActorLocation(BattleMapOffset + FVector(0, 0, 100));
-	}
-		
-}
-
 void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 {
+	//맵 타입을 저장
+	CurrentMapType = MapType;
+
 	// 1. 기존 맵이 있다면 제거
 	if (CurrentMapActor)
 	{
@@ -158,37 +189,39 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 		if (Player)
 		{
-			// 새 맵의 스폰 포인트로 이동
-			TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
-			if (Spawns.Num() > 0)
+			// [CASE A] 전투에서 돌아온 경우
+			if (bIsReturningFromBattle)
 			{
-				Player->SetActorTransform(Spawns[0]);
-				// 물리 엔진 관성 초기화 (필수)
-				if (auto* MoveComp = Player->FindComponentByClass<UCharacterMovementComponent>())
-					MoveComp->StopMovementImmediately();
+				UE_LOG(LogTemp, Log, TEXT("🔙 전투 종료! 저장된 위치로 복귀합니다."));
+
+				// 1. 저장된 위치로 이동
+				// * ETeleportType::ResetPhysics: 떨어지던 가속도 등을 초기화해서 안전하게 착지
+				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
+
+				// 2. 플래그 OFF (다음엔 스폰 포인트로 가야 하니까)
+				bIsReturningFromBattle = false;
+			}
+			// [CASE B] 새로 층에 진입한 경우 (기존 로직)
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("🆕 새 층 진입! 스폰 포인트로 이동합니다."));
+
+				TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
+				if (Spawns.Num() > 0)
+				{
+					Player->SetActorTransform(Spawns[0], false, nullptr, ETeleportType::ResetPhysics);
+				}
+			}
+
+			// 물리 엔진 관성 초기화 (공통 안전장치)
+			if (auto* MoveComp = Player->FindComponentByClass<UCharacterMovementComponent>())
+			{
+				MoveComp->StopMovementImmediately();
 			}
 		}
 
-		// 맵 초기화 (몬스터 스폰 등)
+		// 맵 초기화
 		CurrentMapActor->InitializeMap(MapType);
-	}
-}
-
-void UMapManagerSubsystem::ExitBattle()
-{
-	if (ActiveBattleLevel)
-	{
-		ActiveBattleLevel->SetIsRequestingUnloadAndRemoval(true);
-		ActiveBattleLevel = nullptr;
-
-		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-		if (Player) Player->SetActorTransform(SavedFieldTransform);
-
-		if (CurrentMapActor)
-		{
-			CurrentMapActor->SetActorTickEnabled(true);
-			CurrentMapActor->SetMapState(EMapState::Reward);
-		}
 	}
 }
 
@@ -245,10 +278,24 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 
 	if (Data && Data->LevelReference.GetAssetName() == LoadedWorld->GetName())
 	{
-		// 3. 맞다면 1층 맵 스폰 시작! (항상 일반 전투로 시작)
-		CurrentFloor = 1;
-		SpawnMapActor(EMapType::NormalBattle);
+		// [CASE A] 전투에서 돌아온 경우 -> 저장했던 맵 타입으로 복구
+		if (bIsReturningFromBattle)
+		{
+			// ★ [수정] 무조건 NormalBattle이 아니라, 아까 저장해둔 타입으로 스폰
+			SpawnMapActor(CurrentMapType);
 
-		UE_LOG(LogTemp, Warning, TEXT("Stage Level Loaded! Spawning Floor 1 Map."));
+			UE_LOG(LogTemp, Log, TEXT("⚔️ Returned from Battle! Restoring Map Type: %d (Floor %d)"), (int32)CurrentMapType, CurrentFloor);
+
+			// 주의: bIsReturningFromBattle = false; 는 SpawnMapActor 안에서 위치 이동 후 처리하므로 여기선 놔둠
+		}
+		// [CASE B] 새로 스테이지에 진입한 경우 -> 1층, 일반 전투로 시작
+		else
+		{
+			CurrentFloor = 1;
+			// 스테이지 첫 진입은 보통 일반 전투
+			SpawnMapActor(EMapType::NormalBattle);
+
+			UE_LOG(LogTemp, Warning, TEXT("Stage Level Loaded! Starting New Run (Floor 1)."));
+		}
 	}
 }
