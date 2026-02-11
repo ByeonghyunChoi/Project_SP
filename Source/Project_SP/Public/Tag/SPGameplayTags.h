@@ -30,7 +30,7 @@ public:
 	FGameplayTag Ability_Type_Field;
 	FGameplayTag Ability_Type_Battle;
 
-	// ������ (Oparts)
+	// 오파츠 (Oparts)
 	FGameplayTag Oparts_CrystalSkull;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;

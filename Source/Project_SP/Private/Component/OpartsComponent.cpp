@@ -6,7 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "GameplayAbilitySpec.h"
-#include "Component/InventoryComponent.h" // 나중에 재화 체크할 때 주석 해제
+#include "Component/InventoryComponent.h" 
 
 UOpartsComponent::UOpartsComponent()
 {
