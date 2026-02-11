@@ -39,6 +39,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
 	FPlayerWallet Wallet;
 
+	//추가 적인 내용물
+
 public:
 	// UI 업데이트 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")

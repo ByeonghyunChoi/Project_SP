@@ -14,55 +14,41 @@ struct FPlayerStatsData
 	GENERATED_BODY()
 
 public:
-	// --- A. 자원 (현재 값 저장) ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Resource")
-	float CurrentHealth = -1.0f; // -1: 초기화 안 됨
+	// 1. 자원 (현재 값 - Current Value)
+	UPROPERTY() float CurrentHealth = 100.0f;
+	UPROPERTY() float CurrentBattlePoint = 0.0f;
+	UPROPERTY() float CurrentTimePower = 0.0f;
+	UPROPERTY() float CurrentActionGauge = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Resource")
-	float CurrentTimePower = 0.0f;
+	// 2. 최대치 및 기본 스탯 (베이스 값 - Base Value)
+	UPROPERTY() float MaxHealth = 100.0f;
+	UPROPERTY() float MaxBattlePoint = 5.0f;
+	UPROPERTY() float MaxTimePower = 100.0f;
 
-	// --- B. 기초 스탯 (Base Value 저장) ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Basic")
-	float MaxHealth = 100.0f;
+	UPROPERTY() float Attack = 20.0f;
+	UPROPERTY() float Defense = 10.0f;
+	UPROPERTY() float Speed = 20.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Basic")
-	float AttackPower = 10.0f;
+	// 3. 전투 보조 스탯
+	UPROPERTY() float DefenseIgnore = 0.0f;
+	UPROPERTY() float CriticalRate = 0.05f;
+	UPROPERTY() float CriticalDamage = 1.5f;
+	UPROPERTY() float EffectHitRate = 0.0f;
+	UPROPERTY() float EffectAmplify = 0.0f;
 
-	// --- C. 턴/전투 스탯 ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Combat")
-	float Speed = 100.0f;
+	// 4. 배율 (통합됨)
+	UPROPERTY() float OutgoingDamageMultiplier = 1.0f;
+	UPROPERTY() float IncomingDamageMultiplier = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Combat")
-	float CritChance = 0.05f;
+	// 5. 성장
+	UPROPERTY() float Level = 1.0f;
+	UPROPERTY() float Experience = 0.0f;
+	UPROPERTY() float MaxExperience = 100.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Combat")
-	float CritDamage = 0.5f;
-
-	// --- D. 데미지 보정 ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Mod")
-	float DamageDealtInc = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Mod")
-	float DamageDealtDec = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Mod")
-	float DamageReceivedInc = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Mod")
-	float DamageReceivedDec = 0.0f;
-
-	// --- E. 방어/효과 ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Utility")
-	float Durability = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Utility")
-	float IgnoreDurability = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Utility")
-	float EffectEfficiency = 0.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Utility")
-	float EffectProbability = 0.0f;
-
-	// --- F. 성장 ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Growth")
-	float Level = 1.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData | Growth")
-	float Experience = 0.0f;
+	// 6. 속성 저항
+	UPROPERTY() float ResistanceSurtr = 0.0f;
+	UPROPERTY() float ResistanceFenrir = 0.0f;
+	UPROPERTY() float ResistanceJormungandr = 0.0f;
 };
 
 USTRUCT(BlueprintType)

@@ -77,7 +77,16 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		SaveSys->LoadPlayerStats(this);
+		if (GetAbilitySystemComponent() && AttributeSet)
+		{
+			// 로드는 무조건 GAS 초기화 이후에!
+			// (만약 SaveSystem이 GameInstance에 있다면 여기서 호출)
+			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
+			if (SaveSystem)
+			{
+				SaveSystem->LoadPlayerStats(this);
+			}
+		}
 	}
 
 	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);

@@ -18,12 +18,12 @@ struct FEnemySpawnInfo
 public:
 	// 스폰할 적 클래스 (예: BP_Goblin)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
-	TSubclassOf<class AActor> EnemyClass;
+	TSubclassOf<class AActor> EnemyClass = nullptr;
 
 	// 스폰 위치 인덱스 (전투 맵에 미리 배치된 SpawnPoint의 번호)
 	// 0=중앙, 1=좌측, 2=우측
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
-	int32 SpawnPositionIndex;
+	int32 SpawnPositionIndex = 0;
 
 };
 

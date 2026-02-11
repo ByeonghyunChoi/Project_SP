@@ -20,41 +20,54 @@ void USPSaveGameSubsystem::SavePlayerStats(APawn* PlayerPawn)
 	// 1. 자원 (Health, TimePower) -> 현재 값(Current Value) 저장
 	//    이유: 맞아서 깎인 체력 그대로 다음 맵으로 가야 하니까.
 	bool bFound = false;
+	// 1. 자원 (Current Value)
 	SaveData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
+	SaveData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
 	SaveData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
+	SaveData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
 
-	// 2. 능력치 (MaxHealth, Attack...) -> 기본 값(Base Value) 저장
-	//    이유: '공격력 증가 버프' 같은 일시적인 효과는 저장하면 안 되니까.
-	//    (만약 아이템으로 영구 증가한 스탯이 Base를 올려주는 방식이라면 이게 맞음)
-
+	// 2. 최대치 (Base Value) - 아이템으로 늘어난 Max는 아이템 로직이 처리
 	SaveData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
-	SaveData.Stats.AttackPower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackPowerAttribute());
+	SaveData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
+	SaveData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+	// 3. 기본 스탯 (Base Value)
+	SaveData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
+	SaveData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
 	SaveData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
 
-	SaveData.Stats.CritChance = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCritChanceAttribute());
-	SaveData.Stats.CritDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCritDamageAttribute());
+	// 4. 전투 보조 (Base Value)
+	SaveData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
+	SaveData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
+	SaveData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
+	SaveData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
+	SaveData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
 
-	SaveData.Stats.DamageDealtInc = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDamageDealtIncAttribute());
-	SaveData.Stats.DamageDealtDec = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDamageDealtDecAttribute());
-	SaveData.Stats.DamageReceivedInc = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDamageReceivedIncAttribute());
-	SaveData.Stats.DamageReceivedDec = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDamageReceivedDecAttribute());
+	// 5. 배율 (Base Value)
+	SaveData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
+	SaveData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
 
-	SaveData.Stats.Durability = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDurabilityAttribute());
-	SaveData.Stats.IgnoreDurability = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIgnoreDurabilityAttribute());
-	SaveData.Stats.EffectEfficiency = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectEfficiencyAttribute());
-	SaveData.Stats.EffectProbability = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectProbabilityAttribute());
-
+	// 6. 성장 (Base Value)
 	SaveData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
 	SaveData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
+	SaveData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
 
-	UE_LOG(LogTemp, Log, TEXT("💾 [SaveSystem] Stats Saved. HP: %.1f / %.1f"), SaveData.Stats.CurrentHealth, SaveData.Stats.MaxHealth);
+	// 7. 저항 (Base Value)
+	SaveData.Stats.ResistanceSurtr = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceSurtrAttribute());
+	SaveData.Stats.ResistanceFenrir = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceFenrirAttribute());
+	SaveData.Stats.ResistanceJormungandr = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceJormungandrAttribute());
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Stats Saved. HP: %.1f / %.1f, Level: %.0f"),
+		SaveData.Stats.CurrentHealth, SaveData.Stats.MaxHealth, SaveData.Stats.Level);
 }
 
 void USPSaveGameSubsystem::LoadPlayerStats(APawn* PlayerPawn)
 {
+	if (!PlayerPawn) return;
+
 	if (!SaveData.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("⚠️ [SaveSystem] No Valid Data to Load."));
+		UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] No Valid Data to Load."));
 		return;
 	}
 
@@ -64,40 +77,45 @@ void USPSaveGameSubsystem::LoadPlayerStats(APawn* PlayerPawn)
 	UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
 	if (!ASC) return;
 
-	// [불러오기 로직]
-	// 저장된 값으로 캐릭터의 '기본 스탯'을 덮어씌움
-
-	// 1. 순서 중요: MaxHealth를 먼저 세팅해야 Health 클램핑에 문제가 없음
+	// 1. 최대치 및 성장 스탯 먼저 복구 (SetBase)
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), SaveData.Stats.MaxHealth);
-
-	// 2. 나머지 스탯들 복구
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackPowerAttribute(), SaveData.Stats.AttackPower);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), SaveData.Stats.Speed);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCritChanceAttribute(), SaveData.Stats.CritChance);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCritDamageAttribute(), SaveData.Stats.CritDamage);
-
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDamageDealtIncAttribute(), SaveData.Stats.DamageDealtInc);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDamageDealtDecAttribute(), SaveData.Stats.DamageDealtDec);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDamageReceivedIncAttribute(), SaveData.Stats.DamageReceivedInc);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDamageReceivedDecAttribute(), SaveData.Stats.DamageReceivedDec);
-
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDurabilityAttribute(), SaveData.Stats.Durability);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIgnoreDurabilityAttribute(), SaveData.Stats.IgnoreDurability);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectEfficiencyAttribute(), SaveData.Stats.EffectEfficiency);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectProbabilityAttribute(), SaveData.Stats.EffectProbability);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute(), SaveData.Stats.MaxBattlePoint);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute(), SaveData.Stats.MaxTimePower);
 
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), SaveData.Stats.Level);
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), SaveData.Stats.Experience);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), SaveData.Stats.MaxExperience);
 
-	// 3. 자원 복구 (마지막에)
+	// 2. 기본 스탯 복구
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), SaveData.Stats.Attack);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), SaveData.Stats.Defense);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), SaveData.Stats.Speed);
+
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute(), SaveData.Stats.DefenseIgnore);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), SaveData.Stats.CriticalRate);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute(), SaveData.Stats.CriticalDamage);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute(), SaveData.Stats.EffectHitRate);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute(), SaveData.Stats.EffectAmplify);
+
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), SaveData.Stats.OutgoingDamageMultiplier);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), SaveData.Stats.IncomingDamageMultiplier);
+
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceSurtrAttribute(), SaveData.Stats.ResistanceSurtr);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceFenrirAttribute(), SaveData.Stats.ResistanceFenrir);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceJormungandrAttribute(), SaveData.Stats.ResistanceJormungandr);
+
+	// 3. 자원 (Current Value) 복구 - 가장 마지막에!
+	// (AttributeSet의 PreAttributeChange에서 Clamp가 작동하므로, Max가 이미 설정되어 있어야 함)
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), SaveData.Stats.CurrentHealth);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), SaveData.Stats.CurrentBattlePoint);
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), SaveData.Stats.CurrentTimePower);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), SaveData.Stats.CurrentActionGauge);
 
-	UE_LOG(LogTemp, Log, TEXT("♻️ [SaveSystem] Stats Loaded. HP: %.1f"), SaveData.Stats.CurrentHealth);
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Stats Loaded. HP: %.1f, Level: %.0f"), SaveData.Stats.CurrentHealth, SaveData.Stats.Level);
 }
 
 void USPSaveGameSubsystem::ResetSaveData()
 {
 	SaveData.Reset();
-	UE_LOG(LogTemp, Log, TEXT("🧹 [SaveSystem] Data Reset."));
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Data Reset."));
 }

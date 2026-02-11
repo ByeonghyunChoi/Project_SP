@@ -28,93 +28,122 @@ public:
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
 public:
-	/** 1. 기본 생존 및 전투 스탯 */
+	// 기본 생존 및 자원 스텟
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
 	FGameplayAttributeData Health;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Health);
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Health)
 
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
 	FGameplayAttributeData MaxHealth;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxHealth);
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxHealth)
 
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
-	FGameplayAttributeData AttackPower; // 공격력
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, AttackPower);
+	FGameplayAttributeData BattlePoint; // 배틀 포인트
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, BattlePoint)
 
-	/** 2. 턴 시스템 관련 */
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData MaxBattlePoint; // 배틀 포인트 최대 값
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxBattlePoint)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData TimePower; // 시간의 힘
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, TimePower)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData MaxTimePower; // 시간의 힘 최대 값
+ 	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxTimePower)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData Defense; // 방어력
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Defense)
+
+	// 속도 및 행동 게이지 스텟
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData Speed; // 속도
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Speed)
+
+	// 행동 게이지 (0 ~ Max)
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Turn")
-	FGameplayAttributeData Speed; // 행동게이지 증가 속도
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Speed);
+	FGameplayAttributeData ActionGauge;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ActionGauge)
 
+	// 행동 게이지 최대치 (보통 상수지만 변동 가능성을 위해)
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Turn")
-	FGameplayAttributeData ActionGauge; // 현재 행동게이지 (0~100)
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ActionGauge);
+	FGameplayAttributeData MaxActionGauge;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxActionGauge)
 
-	/** 3. 치명타 관련 */
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Crit")
-	FGameplayAttributeData CritChance; // 치명타 확률
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CritChance);
+	// 공격 관련 스텟
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData Attack; // 공격력
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Attack)
+ 
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData DefenseIgnore; // 방어력 무시
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DefenseIgnore)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Crit")
-	FGameplayAttributeData CritDamage; // 치명타 피해량
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CritDamage);
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData CriticalRate; // 치명타 확률 
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CriticalRate)
 
-	/** 4. 피해량 수정 스탯 */
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | DamageMod")
-	FGameplayAttributeData DamageDealtInc; // 가하는 피해량 증가
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DamageDealtInc);
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData CriticalDamage; // 치명타 피해
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CriticalDamage)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData EffectHitRate; // 효과 명중
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectHitRate)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | DamageMod")
-	FGameplayAttributeData DamageDealtDec; // 가하는 피해량 감소
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DamageDealtDec);
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData EffectAmplify; // 효과 증폭
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectAmplify)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | DamageMod")
-	FGameplayAttributeData DamageReceivedInc; // 받는 피해량 증가
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DamageReceivedInc);
+	//피해량 수정 스탯 
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Multiplier")
+	FGameplayAttributeData OutgoingDamageMultiplier; // 가하는 피해량 
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, OutgoingDamageMultiplier)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | DamageMod")
-	FGameplayAttributeData DamageReceivedDec; // 받는 피해량 감소
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DamageReceivedDec);
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Multiplier")
+	FGameplayAttributeData IncomingDamageMultiplier; // 받는 피해량
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamageMultiplier)
 
-	/** 5. 방어 및 관통 관련 */
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Defense")
-	FGameplayAttributeData Durability; // 내구력
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Durability);
-
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Defense")
-	FGameplayAttributeData IgnoreDurability; // 내구력 무시
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IgnoreDurability);
-
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Defense")
-	FGameplayAttributeData IgnoreLevelScaling; // 레벨 무시
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IgnoreLevelScaling);
-
-	/** 6. 효과(디버프/상태이상) 관련 */
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Effect")
-	FGameplayAttributeData EffectEfficiency; // 효과 효율
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectEfficiency);
-
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Effect")
-	FGameplayAttributeData EffectProbability; // 효과 적용 확률
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectProbability);
-
-	/** 7. 성장 및 자원 */
+	// 성장
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Growth")
 	FGameplayAttributeData Level;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Level);
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Level)
 
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Growth")
 	FGameplayAttributeData Experience;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Experience);
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Experience)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Resource")
-	FGameplayAttributeData TimePower; // 시간의 힘
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, TimePower);
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Growth")
+	FGameplayAttributeData MaxExperience;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxExperience)
+	
+	//약점 관련 스텟
+	// [수르트] 저항력
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Resistance")
+	FGameplayAttributeData ResistanceSurtr;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ResistanceSurtr)
 
-	//데미지 스탯(가상)
-	/*
-	1. 전투 스킬 데미지
-	2. 상태 이상 데미지
-	3. 패링 공격 데미지
-	*/ 
+	// [펜리르] 저항력
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Resistance")
+	FGameplayAttributeData ResistanceFenrir;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ResistanceFenrir)
+
+	// [요르문간드] 저항력
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Resistance")
+	FGameplayAttributeData ResistanceJormungandr;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ResistanceJormungandr)
+
+	//메타 속성 스텟
+	// 들어오는 데미지 
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingDamage;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamage)
+
+	// 들어오는 힐
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingHeal;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
+
 };
