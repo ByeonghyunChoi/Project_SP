@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Map/EnterancePortal.h"
@@ -22,7 +22,7 @@ void AEnterancePortal::ExecuteInteraction(AActor* Interactor)
         {
             UE_LOG(LogTemp, Log, TEXT("Starting New Run from Lobby..."));
 
-            // ¡Ú ¿©±â¼­ °ÔÀÓ ½ÃÀÛ!
+            // â˜… ì—¬ê¸°ì„œ ê²Œìž„ ì‹œìž‘!
             MapManager->StartNewRun();
         }
     }
@@ -30,6 +30,6 @@ void AEnterancePortal::ExecuteInteraction(AActor* Interactor)
 
 FText AEnterancePortal::GetInteractText() const
 {
-	return FText();
+	return FText::FromString(TEXT("ê²Œìž„ ì‹œìž‘"));
 }
 

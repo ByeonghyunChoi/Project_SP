@@ -4,7 +4,7 @@
 #include "GA/SPGA_FieldAttack.h"
 #include "Character/SPGASPlayerCharacter.h"  
 #include "Character/SPGASMonsterCharacter.h" 
-#include "Subsystem/SPCombatSubsystem.h"      
+#include "Map/MapManagerSubSystem.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h" 
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"  
 #include "Kismet/GameplayStatics.h"
@@ -84,7 +84,8 @@ void USPGA_FieldAttack::OnMontageEnded()
 void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 {
 	const UCombatEncounterData* EncounterData = nullptr;
-	ECombatAdvantage Advantage;
+	ECombatAdvantage Advantage = ECombatAdvantage::PlayerAdvantage;
+	APawn* PlayerPawn = nullptr;
 
 	// --- Case A: 플레이어 -> 몬스터 (선공) ---
 	if (Attacker->IsA(ASPGASPlayerCharacter::StaticClass()))
@@ -94,6 +95,7 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 			Advantage = ECombatAdvantage::PlayerAdvantage;
 			EncounterData = Monster->EncounterData;
 		}
+		PlayerPawn = Cast<APawn>(Attacker);
 	}
 	// --- Case B: 몬스터 -> 플레이어 (기습) ---
 	else if (Attacker->IsA(ASPGASMonsterCharacter::StaticClass()))
@@ -104,22 +106,17 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 			Advantage = ECombatAdvantage::EnemyAdvantage;
 			EncounterData = MonsterAttacker->EncounterData;
 		}
+		PlayerPawn = Cast<APawn>(Victim);
 	}
 
 	// --- 전투 진입 ---
-	if (EncounterData)
+	if (EncounterData && PlayerPawn)
 	{
 		UGameInstance* GI = GetWorld()->GetGameInstance();
-		if (USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>())
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
-			CombatSys->SetPendingEncounter(EncounterData, Advantage);
-
-			// 레벨 이동 (OpenLevel)
-			// 실제로는 페이드 아웃 효과 등을 위해 약간의 딜레이나 UI 처리가 필요할 수 있음
-			if (!EncounterData->CombatLevelName.IsNone())
-			{
-				UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
-			}
+			// "야, 전투 시작해!" 한마디면 끝
+			MapManager->StartBattleEncounter(PlayerPawn, EncounterData, Advantage);
 		}
 	}
 }
