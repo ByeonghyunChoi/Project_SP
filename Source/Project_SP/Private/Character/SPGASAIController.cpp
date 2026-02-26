@@ -1,16 +1,18 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Character/SPGASAIController.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "AbilitySystemComponent.h"
+#include "Character/SPGASMonsterCharacter.h"
 #include "Character/SPGASCharacterBase.h"
-#include "Character/SPGASMonsterState.h"
+#include "Tag/SPGameplayTags.h"
+#include "TimerManager.h"
+
 
 ASPGASAIController::ASPGASAIController()
 {
-	bWantsPlayerState = true;
 }
 
 
@@ -18,23 +20,34 @@ void ASPGASAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	// »ı¼ºµÈ MonsterState·ÎºÎÅÍ ASC¸¦ °¡Á®¿È
-	if (ASPGASMonsterState* MS = GetPlayerState<ASPGASMonsterState>())
+
+	ASPGASMonsterCharacter* MonsterCharacter = Cast< ASPGASMonsterCharacter>(InPawn);
+	if (MonsterCharacter)
 	{
-		CachedASC = MS->GetAbilitySystemComponent();
+		CachedASC = MonsterCharacter->GetAbilitySystemComponent();
 		if (CachedASC)
 		{
-			// ÀüÅõ ÅÂ±× »óÅÂ º¯È­ °¨½Ã 
+			// ì „íˆ¬ íƒœê·¸ ìƒíƒœ ë³€í™” ê°ì‹œ 
 			CachedASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Mode_Battle, EGameplayTagEventType::AnyCountChange)
 				.AddUObject(this, &ASPGASAIController::OnBattleTagChanged);
+
+			CachedASC->GenericGameplayEventCallbacks
+				.FindOrAdd(FSPGameplayTags::Get().Event_Battle_TurnStart)
+				.AddUObject(this, &ASPGASAIController::OnTurnStartEvent);
 		}
 	}
 
-	// ÇÊµå BT ½ÇÇà
+	// í•„ë“œ BT ì‹¤í–‰
 	if (FieldBT)
 	{
 		RunBehaviorTree(FieldBT);
 	}
+}
+
+void ASPGASAIController::OnUnPossess()
+{
+	GetWorld()->GetTimerManager().ClearTimer(TurnEndTimerHandle);
+	Super::OnUnPossess();
 }
 
 void ASPGASAIController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount)
@@ -42,24 +55,49 @@ void ASPGASAIController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCou
 	UBehaviorTreeComponent* BTComp = Cast<UBehaviorTreeComponent>(BrainComponent);
 	if (!BTComp) return;
 
-	if (NewCount > 0) // [ÀüÅõ ¸ğµå ÁøÀÔ]
+	if (NewCount > 0) // [ì „íˆ¬ ëª¨ë“œ ì§„ì…]
 	{
-		// ½Ç½Ã°£ ÀÌµ¿ ¸í·É Áï½Ã Áß´Ü
+		// ì‹¤ì‹œê°„ ì´ë™ ëª…ë ¹ ì¦‰ì‹œ ì¤‘ë‹¨
 		StopMovement();
 
-		// ºñÇìÀÌºñ¾î Æ®¸® ÀÏ½Ã Á¤Áö (¸ğµç ÀÚÀ² ÆÇ´Ü ÁßÁö)
+		// ë¹„í—¤ì´ë¹„ì–´ íŠ¸ë¦¬ ì¼ì‹œ ì •ì§€ (ëª¨ë“  ììœ¨ íŒë‹¨ ì¤‘ì§€)
 		BTComp->StopLogic("Entered Battle Mode");
 
-		UE_LOG(LogTemp, Warning, TEXT("AI: ÀüÅõ ¸ğµå ÁøÀÔ - ÀÚÀ² ·ÎÁ÷ Á¤Áö"));
+		UE_LOG(LogTemp, Warning, TEXT("AI: ì „íˆ¬ ëª¨ë“œ ì§„ì… - ììœ¨ ë¡œì§ ì •ì§€"));
 	}
-	else // [ÇÊµå ¸ğµå º¹±Í]
+	else // [í•„ë“œ ëª¨ë“œ ë³µê·€]
 	{
-		// ºñÇìÀÌºñ¾î Æ®¸® Àç°³
+		// ë¹„í—¤ì´ë¹„ì–´ íŠ¸ë¦¬ ì¬ê°œ
 		if (FieldBT)
 		{
 			RunBehaviorTree(FieldBT);
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT("AI: ÇÊµå ¸ğµå º¹±Í - ÀÚÀ² ·ÎÁ÷ Àç°³"));
+		UE_LOG(LogTemp, Warning, TEXT("AI: í•„ë“œ ëª¨ë“œ ë³µê·€ - ììœ¨ ë¡œì§ ì¬ê°œ"));
+	}
+}
+
+void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
+{
+	// 1. ë¡œê·¸ ì¶œë ¥
+	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] ëª¬ìŠ¤í„° í„´ ì‹œì‘! (1ì´ˆ ë’¤ ì¢…ë£Œ) <<<"));
+
+	// 2. 1ì´ˆ ë’¤ì— FinishTurnDelayed í•¨ìˆ˜ ì‹¤í–‰
+	GetWorld()->GetTimerManager().SetTimer(
+		TurnEndTimerHandle,
+		this,
+		&ASPGASAIController::FinishTurnDelayed,
+		1.0f, // 1ì´ˆ ëŒ€ê¸°
+		false
+	);
+}
+
+// [ì¶”ê°€] ì‹¤ì œë¡œ í„´ì„ ë„˜ê¸°ëŠ” í•¨ìˆ˜
+void ASPGASAIController::FinishTurnDelayed()
+{
+	if (ASPGASCharacterBase* GASCharacter = Cast<ASPGASCharacterBase>(GetPawn()))
+	{
+		// GameModeì—ê²Œ í„´ ì¢…ë£Œ ì•Œë¦¼
+		GASCharacter->FinishTurn();
 	}
 }

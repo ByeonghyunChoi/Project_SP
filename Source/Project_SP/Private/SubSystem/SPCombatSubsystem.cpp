@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "SubSystem/SPCombatSubsystem.h"
@@ -10,11 +10,11 @@ void USPCombatSubsystem::SetPendingEncounter(const UCombatEncounterData* Encount
 		CurrentEncounter = EncounterData;
 		CurrentAdvantage = Advantage;
 
-		UE_LOG(LogTemp, Log, TEXT("ÀüÅõ ÁØºñ ¿Ï·á! ¸Ê: %s, À¯¸®ÇÔ: %d"),
+		UE_LOG(LogTemp, Log, TEXT("[CombatSubsystem] ì „íˆ¬ ë°ì´í„° ì €ì¥ ì™„ë£Œ! ë§µ: %s, ìƒíƒœ: %d"),
 			*EncounterData->CombatLevelName.ToString(), (int32)Advantage);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ÀüÅõ µ¥ÀÌÅÍ°¡ ºñ¾îÀÖ½À´Ï´Ù!"));
+		UE_LOG(LogTemp, Warning, TEXT("[CombatSubsystem] ì „íˆ¬ ë°ì´í„°ê°€ ë¹„ì–´ìˆìŠµë‹ˆë‹¤!"));
 	}
 }

@@ -1,8 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffectExtension.h"
+#include "Character/SPGASPlayerCharacter.h"
 
 USPGASAttributeSet::USPGASAttributeSet()  
 {
@@ -27,9 +28,6 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitLevel(1.0f);
 	InitExperience(0.0f);
 	InitMaxExperience(100.0f);
-	InitResistanceSurtr(0.0f);
-	InitResistanceFenrir(0.0f);
-	InitResistanceJormungandr(0.0f);
 	InitIncomingDamage(0.0f);
 	InitIncomingHeal(0.0f);
 }
@@ -40,7 +38,7 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 
 	if (Attribute == GetHealthAttribute())
 	{
-		// Ã¼·ÂÀº 0 ~ MaxHealth »çÀÌ¿©¾ß ÇÔ
+		// ì²´ë ¥ì€ 0 ~ MaxHealth ì‚¬ì´ì—¬ì•¼ í•¨
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxHealth());
 	}
 	else if (Attribute == GetBattlePointAttribute())
@@ -53,32 +51,32 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetActionGaugeAttribute())
 	{
-		// Çàµ¿ °ÔÀÌÁö´Â ÅÏ ¸Å´ÏÀú ±ÔÄ¢¿¡ µû¶ó 0 ~ Max
+		// í–‰ë™ ê²Œì´ì§€ëŠ” í„´ ë§¤ë‹ˆì € ê·œì¹™ì— ë”°ë¼ 0 ~ Max
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxActionGauge());
 	}
 	else if (Attribute == GetAttackAttribute())
 	{
-		// °ø°İ·ÂÀº ÃÖ¼Ò 0.0f
+		// ê³µê²©ë ¥ì€ ìµœì†Œ 0.0f
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetDefenseAttribute())
 	{
-		// ¹æ¾î·Âµµ ÃÖ¼Ò 0.0f
+		// ë°©ì–´ë ¥ë„ ìµœì†Œ 0.0f
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetSpeedAttribute())
 	{
-		// ¼Óµµ°¡ À½¼ö¸é ÅÏ °è»êÀÌ °íÀå³ª¹Ç·Î ÃÖ¼Ò 0.0f (È¤Àº ÃÖ¼Ò 1.0f)
+		// ì†ë„ê°€ ìŒìˆ˜ë©´ í„´ ê³„ì‚°ì´ ê³ ì¥ë‚˜ë¯€ë¡œ ìµœì†Œ 0.0f (í˜¹ì€ ìµœì†Œ 1.0f)
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetCriticalRateAttribute())
 	{
-		// Ä¡¸íÅ¸ È®·üÀº 0% ÀÌ»óÀÌ¾î¾ß ÇÔ
+		// ì¹˜ëª…íƒ€ í™•ë¥ ì€ 0% ì´ìƒì´ì–´ì•¼ í•¨
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{
-		// Ä¡¸íÅ¸ ÇÇÇØ´Â ±âº» 1.5
+		// ì¹˜ëª…íƒ€ í”¼í•´ëŠ” ê¸°ë³¸ 1.5
 		NewValue = FMath::Max(NewValue, 1.0f);
 	}
 	else if (Attribute == GetOutgoingDamageMultiplierAttribute() ||
@@ -92,7 +90,54 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	// ¸ŞÅ¸ ¼Ó¼º µ¥¹ÌÁö(µ¥¹ÌÁö³ª Èú ·ÎÁ÷ ÆÇÁ¤)
-	// °ÔÀÓ ÇÃ·¹ÀÌ ÀÌº¥Æ® Àü¼Û(UI ¹× ¾Ö´Ï¸ŞÀÌ¼Ç ¿¬µ¿, µ¥¹ÌÁö ¼ıÀÚ µî)
-	// »óÅÂ ÅÂ±× °ü¸®(»ç¸Á ÅÂ±× °ü¸®)
+	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
+	{
+		float Damage = GetIncomingDamage();
+		SetIncomingDamage(0.0f); // ì´ˆê¸°í™”
+
+		if (Damage > 0.0f)
+		{
+			float CurrentHealth = GetHealth();
+			SetHealth(FMath::Clamp(CurrentHealth - Damage, 0.0f, GetMaxHealth()));
+
+			UE_LOG(LogTemp, Warning, TEXT("ë°ë¯¸ì§€ ì ìš©ë¨! -%f, ë‚¨ì€ ì²´ë ¥: %f"), Damage, GetHealth());
+
+			// ğŸŒŸ [í•µì‹¬] ì²´ë ¥ì„ ê¹ì€ ë°”ë¡œ ì´ ì‹œì ì—! ì£½ì—ˆëŠ”ì§€ ì‚´ì•˜ëŠ”ì§€ í™•ì¸í•´ì•¼ í•©ë‹ˆë‹¤!
+			if (GetHealth() <= 0.0f)
+			{
+				ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetOwningActor());
+				if (PlayerCharacter)
+				{
+					if (GetTimePower() >= 20.0f)
+					{
+						// 1) ì‹œê°„ì˜ í˜ 20 ì‚­ê°
+						SetTimePower(GetTimePower() - 20.0f);
+
+						// 2) ìµœëŒ€ ì²´ë ¥ì˜ 40%ë¡œ ë¶€í™œ!
+						float ReviveHealth = GetMaxHealth() * 0.4f;
+						SetHealth(ReviveHealth);
+
+						UE_LOG(LogTemp, Warning, TEXT("ì‹œê°„ì˜ í˜ 20ì„ ì†Œëª¨í•˜ì—¬ ì²´ë ¥ %.0f(40%%)ë¡œ ë¶€í™œí•©ë‹ˆë‹¤! ë‚¨ì€ ì‹œê°„ì˜ í˜: %.0f"), ReviveHealth, GetTimePower());
+					}
+					else
+					{
+						// ì‹œê°„ì˜ í˜ ë¶€ì¡± (ì§„ì§œ ê²Œì„ ì˜¤ë²„)
+						UE_LOG(LogTemp, Error, TEXT("ì‹œê°„ì˜ í˜ì´ ë¶€ì¡±í•˜ì—¬ ì‚¬ë§í–ˆìŠµë‹ˆë‹¤."));
+						// TODO: ì‚¬ë§ ì²˜ë¦¬ ë¡œì§ í˜¸ì¶œ
+					}
+				}
+			}
+		}
+	}
+
+	// 2. ì‹œê°„ì˜ í˜(PowerOfTime)ì´ ê¹ì¸ ìƒí™©ì¸ì§€ í™•ì¸
+	if (Data.EvaluatedData.Attribute == GetTimePowerAttribute())
+	{
+		if (GetTimePower() <= 0.0f)
+		{
+			SetTimePower(0.0f);
+			UE_LOG(LogTemp, Error, TEXT("ì‹œê°„ì˜ í˜ì´ ëª¨ë‘ ê³ ê°ˆë˜ì—ˆìŠµë‹ˆë‹¤! ë¡œë¹„ë¡œ ê·€í™˜í•©ë‹ˆë‹¤."));
+			// TODO: ê°•ì œ ë¡œë¹„ ê·€í™˜ ë¡œì§ í˜¸ì¶œ
+		}
+	}
 }

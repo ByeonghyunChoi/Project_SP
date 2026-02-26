@@ -40,6 +40,9 @@ protected:
 	UPROPERTY()
 	TArray<AActor*> AllParticipants;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
+	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
+
 private:
 	FTransform GetSpawnTransformByIndex(int32 Index);
 

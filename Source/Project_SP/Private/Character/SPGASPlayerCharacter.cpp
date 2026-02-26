@@ -12,6 +12,7 @@
 #include "Components/CapsuleComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Map/MapManagerSubSystem.h"
+#include "Components/WidgetComponent.h"
 
 
 ASPGASPlayerCharacter::ASPGASPlayerCharacter()
@@ -36,6 +37,10 @@ ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	WeaponWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WeaponWidgetComponent"));
+	WeaponWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	WeaponWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
 }
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
@@ -62,7 +67,6 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		UGameInstance* GI = GetGameInstance();
 		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
 		{
-			// ★ "지금 전투 맵에 있나요?" (bIsBattleActive 확인)
 			if (MapManager->IsInBattleMap())
 			{
 				ModeTag = FSPGameplayTags::Get().State_Mode_Battle;
@@ -71,16 +75,15 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		// 3. 결정된 태그 부착
 		ASC->AddLooseGameplayTag(ModeTag);
-
-		UE_LOG(LogTemp, Log, TEXT("🏷️ Input Mode Initialized: %s"), *ModeTag.ToString());
+		//임시 이벤트 부착 나중에 제거
+		ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ASPGASPlayerCharacter::OnGameplayEffectApplied);
+		UE_LOG(LogTemp, Log, TEXT("Input Mode Initialized: %s"), *ModeTag.ToString());
 	}
 
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		if (GetAbilitySystemComponent() && AttributeSet)
 		{
-			// 로드는 무조건 GAS 초기화 이후에!
-			// (만약 SaveSystem이 GameInstance에 있다면 여기서 호출)
 			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
 			if (SaveSystem)
 			{
@@ -88,10 +91,58 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			}
 		}
 	}
+	SetCameraProfile(FieldCameraSetting);
 
 	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
 	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
+
+void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
+{
+	// 1. 타겟 저장 (GA가 시작되면 이 변수를 읽어갑니다)
+	CurrentCombatTarget = TargetActor;
+
+	// 2. 무기 데이터 확인
+	if (!WeaponConfigs.Contains(WeaponTag))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Character: 해당 무기 데이터가 없습니다 (%s)"), *WeaponTag.ToString());
+		return;
+	}
+
+	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+	TSubclassOf<UGameplayAbility> AbilityClassToActivate;
+
+	// 3. 행동 타입에 맞는 클래스 선택 (Enum 활용)
+	switch (ActionType)
+	{
+	case ESelectedActionType::NormalAttack:
+		AbilityClassToActivate = Data->NormalAttackAbility;
+		break;
+	case ESelectedActionType::WeaponSkill:
+		AbilityClassToActivate = Data->WeaponSkillAbility;
+		break;
+	case ESelectedActionType::ParrySkill:
+		AbilityClassToActivate = Data->ParrySkillAbility;
+		break;
+	}
+
+	// 4. 어빌리티 실행
+	if (AbilityClassToActivate && ASC)
+	{
+		// 클래스로 실행 (Payload 없이 실행해도 멤버 변수 CurrentCombatTarget을 읽으면 됨)
+		if (ASC->TryActivateAbilityByClass(AbilityClassToActivate))
+		{
+			UE_LOG(LogTemp, Log, TEXT("[Char] 스킬 발동 성공: %s (Target: %s)"),
+				*AbilityClassToActivate->GetName(),
+				TargetActor ? *TargetActor->GetName() : TEXT("None"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[Char] 스킬 발동 실패: %s (Cost/Cool/Tag 등 확인 필요)"), *AbilityClassToActivate->GetName());
+		}
+	}
+}
+
 
 void ASPGASPlayerCharacter::OnRep_PlayerState()
 {
@@ -182,15 +233,64 @@ void ASPGASPlayerCharacter::GiveAbilities()
 		}
 	}
 
+	GiveWeaponAbilities();
+
 	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities End ==="));
 
 	// 초기 상태 활성화
 	ASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FieldTag));
 }
 
+void ASPGASPlayerCharacter::GiveWeaponAbilities()
+{
+	UE_LOG(LogTemp, Log, TEXT("Giving Weapon Abilities... Count: %d"), WeaponConfigs.Num());
+
+	for (const auto& Pair : WeaponConfigs)
+	{
+		UWeaponAbilityData* Data = Pair.Value;
+		if (Data)
+		{
+			if (Data->NormalAttackAbility) ASC->GiveAbility(FGameplayAbilitySpec(Data->NormalAttackAbility));
+			if (Data->WeaponSkillAbility)  ASC->GiveAbility(FGameplayAbilitySpec(Data->WeaponSkillAbility));
+			if (Data->ParrySkillAbility)   ASC->GiveAbility(FGameplayAbilitySpec(Data->ParrySkillAbility));
+
+			UE_LOG(LogTemp, Log, TEXT("  -> Weapon Registered: %s"), *Pair.Key.ToString());
+		}
+	}
+}
+
+void ASPGASPlayerCharacter::OnGameplayEffectApplied(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle)
+{
+	// 쿨타임 이펙트인지 확인 (이름으로 대충 확인)
+	if (Spec.Def && Spec.Def->GetName().Contains(TEXT("Cooldown")))
+	{
+		UE_LOG(LogTemp, Error, TEXT("쿨타임 감지됨! -----------------"));
+		UE_LOG(LogTemp, Error, TEXT(" - 이펙트 이름: %s"), *Spec.Def->GetName());
+
+		// [수정] Spec.StackCount -> Spec.GetStackCount() (경고 해결)
+		UE_LOG(LogTemp, Error, TEXT(" - 스택 개수(턴): %d"), Spec.GetStackCount());
+
+		// 누가 붙였나?
+		if (const UGameplayAbility* Ability = Cast<UGameplayAbility>(Spec.GetContext().GetAbility()))
+		{
+			UE_LOG(LogTemp, Error, TEXT(" - 범인(GA): %s"), *Ability->GetName());
+		}
+
+		// C++ 함수(ApplyTurnBasedCooldown)에서 붙인 건지, 자동인지 확인
+		if (Spec.DynamicGrantedTags.HasTag(FGameplayTag::RequestGameplayTag("Cooldown.Weapon.Fenrir.Skill")))
+		{
+			UE_LOG(LogTemp, Warning, TEXT(" 이건 우리가 만든 C++ 수동 쿨타임입니다. (정상)"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT(" 이건 시스템이 몰래 붙인 자동 쿨타임입니다! (범인)"));
+		}
+	}
+}
+
 void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 {
-	if (!CameraBoom && !FollowCamera) return;
+	if (!CameraBoom || !FollowCamera) return;
 
 	CameraBoom->TargetArmLength = Profile.TargetArmLength;
 	CameraBoom->SocketOffset = Profile.SocketOffset;
@@ -199,4 +299,23 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 
 	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
+}
+
+ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
+{
+	if (WeaponConfigs.Contains(WeaponTag))
+	{
+		UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+		if (!Data) return ETargetingType::Single;
+
+		switch (ActionType)
+		{
+		case ESelectedActionType::NormalAttack: return Data->NormalAttackTargeting;
+		case ESelectedActionType::WeaponSkill:  return Data->WeaponSkillTargeting;
+		case ESelectedActionType::ParrySkill:   return Data->ParrySkillTargeting;
+		}
+	}
+	return ETargetingType::Single;
 }

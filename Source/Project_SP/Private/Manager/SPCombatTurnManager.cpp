@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Manager/SPCombatTurnManager.h"
@@ -12,6 +12,7 @@ ASPCombatTurnManager::ASPCombatTurnManager()
 {
 	bReplicates = true;
 	bAlwaysRelevant = true;
+	PrimaryActorTick.bCanEverTick = false;
 }
 
 void ASPCombatTurnManager::InitializeParticipants(const TArray<AActor*>& InParticipants)
@@ -22,12 +23,13 @@ void ASPCombatTurnManager::InitializeParticipants(const TArray<AActor*>& InParti
 
 AActor* ASPCombatTurnManager::CalculateNextTurn()
 {
+	// 1. ëŒ€ê¸°ì—´ í™•ì¸: ì´ë¯¸ ê²Œì´ì§€ê°€ ê½‰ ì°¬ ìœ ë‹›ì´ ìˆë‹¤ë©´ ë°”ë¡œ ë°˜í™˜
 	if (TurnQueue.Num() > 0)
 	{
 		AActor* NextActor = TurnQueue[0];
 		TurnQueue.RemoveAt(0);
 
-		//À¯È¿ÇÏ¸é ¹İÈ¯ ±×·¸Áö ¾ÊÀ¸¸é ´Ù½Ã ½Ãµµ
+		// ìœ íš¨ì„± ê²€ì‚¬ (ì£½ì—ˆê±°ë‚˜ ì‚¬ë¼ì¡Œìœ¼ë©´ ì¬ê·€ í˜¸ì¶œë¡œ ë‹¤ìŒ íƒ€ì ì°¾ê¸°)
 		if (IsValid(NextActor) && Participants.Contains(NextActor))
 		{
 			return NextActor;
@@ -35,28 +37,25 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		return CalculateNextTurn();
 	}
 
-	float MinTimeToAct = 9999.0f;
+	// 2. ì‹œë®¬ë ˆì´ì…˜: ê°€ì¥ ë¹¨ë¦¬ í–‰ë™í•  ìˆ˜ ìˆëŠ” ì‹œê°„(MinTimeToAct) ê³„ì‚°
+	float MinTimeToAct = 99999.0f;
 	bool bFoundValidActor = false;
 
 	for (AActor* Actor : Participants)
 	{
-		if (!IsValid(Actor))
-		{
-			continue;
-		}
+		if (!IsValid(Actor)) continue;
 
 		float Speed = GetSpeed(Actor);
 		float CurrentGauge = GetActionGauge(Actor);
 
+		// ì†ë„ê°€ 0 ì´í•˜ë©´ í–‰ë™ ë¶ˆê°€
 		if (Speed > 0.0f)
 		{
+			// ë‚¨ì€ ê±°ë¦¬ / ì†ë„ = ê±¸ë¦¬ëŠ” ì‹œê°„
 			float TimeNeeded = (MaxActionGauge - CurrentGauge) / Speed;
 
-			//¿¹¿Ü Ã³¸®
-			if (TimeNeeded < 0.f)
-			{
-				TimeNeeded = 0.f;
-			}
+			// ì´ë¯¸ 100ì„ ë„˜ì—ˆìœ¼ë©´ ì‹œê°„ì€ 0
+			if (TimeNeeded < 0.f) TimeNeeded = 0.f;
 
 			if (TimeNeeded < MinTimeToAct)
 			{
@@ -66,61 +65,58 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		}
 	}
 
+	// í–‰ë™í•  ìˆ˜ ìˆëŠ” ìœ ë‹›ì´ ì•„ë¬´ë„ ì—†ìŒ (ì „ì› ì†ë„ 0 ë“±)
 	if (!bFoundValidActor) return nullptr;
 
+	// 3. ì‹œê°„ íë¥´ê¸°: ëª¨ë“  ìœ ë‹›ì˜ ê²Œì´ì§€ ì „ì§„
 	for (AActor* Actor : Participants)
 	{
-		if (!Actor)
-		{
-			continue;
-		}
+		if (!IsValid(Actor)) continue;
 
 		float Speed = GetSpeed(Actor);
 		float CurrentGauge = GetActionGauge(Actor);
 
+		// ì´ë™ ê±°ë¦¬ = ì‹œê°„ * ì†ë„
 		float NewGauge = CurrentGauge + (Speed * MinTimeToAct);
 
+		// ê²Œì´ì§€ ì—…ë°ì´íŠ¸ (GAS Attribute ë³€ê²½)
 		SetActionGauge(Actor, NewGauge);
 
-		//¿ÀÂ÷ º¸Á¤ float¸¦ »ç¿ëÇÏ±â ¶§¹®
+		// ê²Œì´ì§€ê°€ ê½‰ ì°¼ë‹¤ë©´ ëŒ€ê¸°ì—´(Queue)ì— ì¶”ê°€
+		// (ë¶€ë™ì†Œìˆ˜ì  ì˜¤ì°¨ ê³ ë ¤í•˜ì—¬ 0.01f ì—¬ìœ )
 		if (NewGauge >= MaxActionGauge - 0.01f)
 		{
-			//Áßº¹ Âü¿© ¹æÁö
 			TurnQueue.AddUnique(Actor);
 		}
 	}
 
+	// 4. ìš°ì„ ìˆœìœ„ ì •ë ¬ (ë™ì‹œì— 100 ë„ë‹¬ ì‹œ ëˆ„ê°€ ë¨¼ì €ì¸ê°€?)
 	if (TurnQueue.Num() > 1)
 	{
 		TurnQueue.Sort([this](const AActor& A, const AActor& B) {
 
-			// 1. ¼Óµµ °¡Á®¿À±â
+			// ê¸°ì¤€ 1: ì†ë„ê°€ ë¹ ë¥¸ ìˆœì„œ
 			float SpeedA = GetSpeed(const_cast<AActor*>(&A));
 			float SpeedB = GetSpeed(const_cast<AActor*>(&B));
-
-			// ¼Óµµ°¡ ´õ ³ôÀº Ä³¸¯ÅÍ°¡ ¿ì¼±
-			// (ºÎµ¿¼Ò¼öÁ¡ ¿ÀÂ÷¸¦ ¹«½ÃÇÏ°í °ÅÀÇ °°Áö ¾Ê´Ù¸é ºñ±³)
 			if (!FMath::IsNearlyEqual(SpeedA, SpeedB))
 			{
 				return SpeedA > SpeedB;
 			}
 
-			// ¼Óµµ°¡ °°´Ù¸é ÇÃ·¹ÀÌ¾î ¿ì¼±
-			// (A°¡ ÇÃ·¹ÀÌ¾îÀÎÁö, B°¡ ÇÃ·¹ÀÌ¾îÀÎÁö È®ÀÎ)
-			bool bIsPlayerA = A.IsA(ASPGASPlayerCharacter::StaticClass());
-			bool bIsPlayerB = B.IsA(ASPGASPlayerCharacter::StaticClass());
-
-			// µÑ Áß ÇÏ³ª¸¸ ÇÃ·¹ÀÌ¾î¶ó¸é, ÇÃ·¹ÀÌ¾îÀÎ ÂÊÀÌ ¿ì¼±(true)
-			if (bIsPlayerA != bIsPlayerB)
+			// ê¸°ì¤€ 2: ì†ë„ê°€ ê°™ë‹¤ë©´ í”Œë ˆì´ì–´ ìš°ì„  (ìœ ì € ì¹œí™”ì )
+			bool bPlayerA = A.IsA(ASPGASPlayerCharacter::StaticClass());
+			bool bPlayerB = B.IsA(ASPGASPlayerCharacter::StaticClass());
+			if (bPlayerA != bPlayerB)
 			{
-				return bIsPlayerA;
+				return bPlayerA; // true(Player)ê°€ ì•ìœ¼ë¡œ ì˜´
 			}
 
-			//µÑ ´Ù ÀûÀÎ °æ¿ì ID¼øÀ¸·Î Ã³¸®
+			// ê¸°ì¤€ 3: ê·¸ë˜ë„ ê°™ë‹¤ë©´ í˜„ì¬ ê²Œì´ì§€ê°€ ë” ë†’ì€ ìˆœ (ì˜¤ë²„í”Œë¡œìš°)
 			return GetActionGauge(const_cast<AActor*>(&A)) > GetActionGauge(const_cast<AActor*>(&B));
 			});
 	}
 
+	// 5. ëŒ€ê¸°ì—´ì´ ì±„ì›Œì¡Œìœ¼ë‹ˆ ë‹¤ì‹œ í˜¸ì¶œí•˜ì—¬ 1ë²ˆ ê³¼ì • ìˆ˜í–‰
 	return CalculateNextTurn();
 }
 
@@ -128,47 +124,35 @@ void ASPCombatTurnManager::RemoveParticipant(AActor* DeadActor)
 {
 	if (!IsValid(DeadActor)) return;
 
-	// Âü°¡ÀÚ ¸ñ·Ï¿¡¼­ Á¦°Å
 	if (Participants.Contains(DeadActor))
 	{
 		Participants.Remove(DeadActor);
 	}
-
-	// ´ë±â¿­¿¡ ÀÖ´Ù¸é Á¦°Å
 	if (TurnQueue.Contains(DeadActor))
 	{
 		TurnQueue.Remove(DeadActor);
 	}
 }
 
-
 float ASPCombatTurnManager::GetSpeed(AActor* Target) const
 {
-	if (!IsValid(Target)) return 0.0f;
-
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			//ÃÖÁ¾ ½ºÇÇµå °ªÀ» °¡Á®¿È
-			float Speed = ASC->GetNumericAttribute(USPGASAttributeSet::GetSpeedAttribute());
-			return FMath::Max(0.0f, Speed);
+			// ë²„í”„/ë””ë²„í”„ê°€ ì ìš©ëœ ìµœì¢… Speed ê°’ ë°˜í™˜
+			return FMath::Max(0.0f, ASC->GetNumericAttribute(USPGASAttributeSet::GetSpeedAttribute()));
 		}
 	}
-
-	// GAS ÄÄÆ÷³ÍÆ®°¡ ¾ø´Â ¾×ÅÍ¶ó¸é 0 ¹İÈ¯ (Çàµ¿ ºÒ°¡)
 	return 0.0f;
 }
 
 float ASPCombatTurnManager::GetActionGauge(AActor* Target) const
 {
-	if (!IsValid(Target)) return 0.0f;
-
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			// ÇöÀç Çàµ¿ °ÔÀÌÁö °ª °¡Á®¿À±â
 			return ASC->GetNumericAttribute(USPGASAttributeSet::GetActionGaugeAttribute());
 		}
 	}
@@ -177,14 +161,12 @@ float ASPCombatTurnManager::GetActionGauge(AActor* Target) const
 
 void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
 {
-	if (!IsValid(Target)) return;
-
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
+			// ê²Œì´ì§€ ì„¤ì • (Base ê°’ ë³€ê²½)
 			float ClampedValue = FMath::Max(0.0f, NewValue);
-
 			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), ClampedValue);
 		}
 	}

@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Character/SPGASCharacterBase.h"
 #include "GameplayTagContainer.h"
+#include "Data/Asset/WeaponAbilityData.h"
+#include "Manager/SPGASBattleTypes.h"
 #include "SPGASPlayerCharacter.generated.h"
 
 USTRUCT(BlueprintType)
@@ -39,7 +41,10 @@ class PROJECT_SP_API ASPGASPlayerCharacter : public ASPGASCharacterBase
 public:
 	ASPGASPlayerCharacter();
 	virtual void PossessedBy(AController* NewController) override;
+	void ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor);
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	TObjectPtr<AActor> CurrentCombatTarget;
 protected:
 	virtual void OnRep_PlayerState() override;
 
@@ -55,6 +60,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "GAS | Battle")
 	TArray<TSubclassOf<class UGameplayAbility>> BattlePassiveAbilities;
 
+	UPROPERTY(EditDefaultsOnly, Category = "GAS | Battle")
+	TMap<FGameplayTag, TObjectPtr<UWeaponAbilityData>> WeaponConfigs;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<class USpringArmComponent> CameraBoom;
 
@@ -63,6 +71,11 @@ protected:
 	TObjectPtr<class UCameraComponent> FollowCamera;
 
 	void GiveAbilities();
+
+	void GiveWeaponAbilities();
+
+	//임시 함수 나중에 제거
+	void OnGameplayEffectApplied(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
@@ -74,12 +87,17 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Camera | Profile")
 	FCameraProfile CombatCameraSetting;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<class UWidgetComponent> WeaponWidgetComponent;
+
 public:
-	// GameMode에서 호출할 함수
 	void SetCameraProfile(const FCameraProfile& Profile);
 
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
 	const FCameraProfile& GetCombatCameraProfile() const { return CombatCameraSetting; }
+	TObjectPtr<class UWidgetComponent> GetWeaponWidgetComponent() { return WeaponWidgetComponent; }
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 
 };
