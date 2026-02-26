@@ -2,16 +2,18 @@
 
 
 #include "Game/ASPCombatGameMode.h"
-#include "SubSystem/SPCombatSubsystem.h"      
-#include "Data/CombatEncounterData.h"      
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/Actor.h"
-#include "Character/SPGASPlayerCharacter.h"
 #include "Manager/SPCombatTurnManager.h"
+#include "SubSystem/SPCombatSubsystem.h"
+#include "Data/CombatEncounterData.h"
+#include "Map/SPGASSpawnPoint.h"      
+#include "Kismet/GameplayStatics.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
-#include "AttributeSet/SPGASAttributeSet.h" 
+#include "AttributeSet/SPGASAttributeSet.h"
 #include "Tag/SPGameplayTags.h"
+#include "Character/SPGASCharacterBase.h"
+#include "Character/SPGASPlayerCharacter.h"
+#include "Component/SPStatusEffectComponent.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -22,80 +24,107 @@ void AASPCombatGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//서브시스템 가져오기
+	// 1. 데이터 가져오기 (Subsystem)
 	UGameInstance* GI = GetGameInstance();
-	if (!GI) return;
-
-	USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>();
-	if (!CombatSys) return;
+	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
+	const UCombatEncounterData* EncounterData = CombatSys ? CombatSys->GetPendingEncounter() : nullptr;
 
 	TArray<AActor*> SpawnedEnemies;
-	APawn* PlayerPawn = nullptr;
-
-	//전투 데이터 가져오기
-	const UCombatEncounterData* EncounterData = CombatSys ? CombatSys->GetPendingEncounter() : nullptr;
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
 	if (EncounterData)
 	{
-		UE_LOG(LogTemp, Log, TEXT("전투 모드 시작!"));
+		UE_LOG(LogTemp, Log, TEXT("전투 모드 시작! (Level: %s)"), *EncounterData->CombatLevelName.ToString());
 
-		// A. 적 스폰
-		for (const FEnemySpawnInfo& EnemyInfo : EncounterData->EnemyGroup)
+		// 2. 적 스폰
+		for (const FEnemySpawnInfo& Info : EncounterData->EnemyGroup)
 		{
-			if (EnemyInfo.EnemyClass)
-			{
-				FTransform SpawnTransform = GetSpawnTransformByIndex(EnemyInfo.SpawnPositionIndex);
-				FActorSpawnParameters SpawnParams;
-				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			if (!Info.EnemyClass) continue;
 
-				AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(EnemyInfo.EnemyClass, SpawnTransform, SpawnParams);
-				if (NewEnemy)
-				{
-					SpawnedEnemies.Add(NewEnemy);
-				}
+			// 스폰 포인트 위치 찾기
+			FTransform SpawnTransform = GetSpawnTransformByIndex(Info.SpawnPositionIndex);
+
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+			AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(Info.EnemyClass, SpawnTransform, SpawnParams);
+			if (NewEnemy)
+			{
+				SpawnedEnemies.Add(NewEnemy);
 			}
 		}
 
-		// B. 플레이어 이동
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
+		// 3. 플레이어 이동 (SpawnPoint 중 'PlayerStart' 태그가 있는 곳, 혹은 별도 로직)
+		// 여기서는 편의상 SpawnPoint_Player 태그를 가진 액터를 찾습니다.
+		if (PlayerPawn)
 		{
-			PlayerPawn = PC->GetPawn();
-			if (PlayerPawn)
+			TArray<AActor*> PlayerStarts;
+			UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("SpawnPoint_Player"), PlayerStarts);
+
+			if (PlayerStarts.Num() > 0)
 			{
-				TArray<AActor*> FoundActors;
-				UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("SpawnPoint_Player"), FoundActors);
-
-				if (FoundActors.Num() > 0)
-				{
-					AActor* PlayerSpot = FoundActors[0];
-					PlayerPawn->SetActorLocationAndRotation(
-						PlayerSpot->GetActorLocation(),
-						PlayerSpot->GetActorRotation(),
-						false, nullptr, ETeleportType::ResetPhysics
-					);
-
-					if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
-					{
-						SPPlayer->SetCameraProfile(SPPlayer->GetCombatCameraProfile());
-					}
-				}
+				PlayerPawn->SetActorTransform(PlayerStarts[0]->GetActorTransform(), false, nullptr, ETeleportType::ResetPhysics);
 			}
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("전달받은 전투 데이터가 없습니다."));
-		// 테스트용: 이미 맵에 배치된 적이 있다면 찾아서 목록에 넣음 (개발 편의성)
-		// UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASPGASMonsterCharacter::StaticClass(), SpawnedEnemies);
-		// PlayerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+		UE_LOG(LogTemp, Warning, TEXT("전투 데이터 없음"));
 	}
 
-	// 턴 시스템 초기화 및 시작
+	// 4. 전투 시스템 초기화
 	if (PlayerPawn)
 	{
 		InitializeBattle(SpawnedEnemies, PlayerPawn);
 	}
+}
+
+void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player)
+{
+	// 1. 턴 매니저 생성
+	if (TurnManagerClass && !TurnManager)
+	{
+		TurnManager = GetWorld()->SpawnActor<ASPCombatTurnManager>(TurnManagerClass);
+	}
+
+	if (!TurnManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TurnManager 생성 실패! BP_CombatGameMode에 클래스가 할당되었는지 확인하세요."));
+		return;
+	}
+
+	// 2. 참가자 등록
+	AllParticipants.Empty();
+	AllParticipants.Add(Player);
+	AllParticipants.Append(Enemies);
+
+	TurnManager->InitializeParticipants(AllParticipants);
+
+	// 3. 선제공격(Advantage) 처리
+	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		ECombatAdvantage Advantage = CombatSys->GetAdvantageState();
+
+		if (Advantage == ECombatAdvantage::PlayerAdvantage)
+		{
+			// 플레이어 선공: 게이지 50% 보너스 (밸런스에 따라 조절)
+			TurnManager->SetActionGauge(Player, 50.0f);
+			UE_LOG(LogTemp, Log, TEXT(">>> 플레이어 선제공격! (게이지 보너스)"));
+		}
+		else if (Advantage == ECombatAdvantage::EnemyAdvantage)
+		{
+			// 적 기습: 적 전체 게이지 50% 보너스
+			for (AActor* Enemy : Enemies)
+			{
+				TurnManager->SetActionGauge(Enemy, 50.0f);
+			}
+			UE_LOG(LogTemp, Warning, TEXT(">>> 적 기습! (적 게이지 보너스)"));
+		}
+	}
+
+	// 4. 첫 턴 계산 및 시작
+	AActor* FirstActor = TurnManager->CalculateNextTurn();
+	StartTurn(FirstActor);
 }
 
 void AASPCombatGameMode::StartTurn(AActor* TurnActor)
@@ -105,18 +134,45 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 	CurrentTurnActor = TurnActor;
 	UE_LOG(LogTemp, Log, TEXT("턴 시작: %s"), *TurnActor->GetName());
 
+	USPStatusEffectComponent* StatusComp = TurnActor->FindComponentByClass<USPStatusEffectComponent>();
+
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			//TurnActive 태그 부여 (입력 허용, UI 활성화)
+			
+
+			if (StatusComp)
+			{
+				StatusComp->ProcessTurnStartDoT();
+				StatusComp->ReduceStatusEffectTurns();
+			}
+
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
+
+				// 태그 지워주기 (1회용이므로)
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
+
+				// 바로 턴 종료시켜버리기
+				EndTurn(TurnActor);
+				return;
+			}
+
+			// 턴 활성화 태그 부여 (PlayerController가 입력을 받기 시작함)
 			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
-			//턴 시작 이벤트 (지속 피해, 버프 틱 등)
+			// 턴 시작 이벤트 전송
 			FGameplayEventData Payload;
 			Payload.Instigator = TurnActor;
 			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
 		}
+	}
+
+	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
+	{
+		Character->ReduceCooldowns();
 	}
 }
 
@@ -124,27 +180,50 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 {
 	if (!TurnActor) return;
 
-	UE_LOG(LogTemp, Log, TEXT("🛑 턴 종료: %s"), *TurnActor->GetName());
+	// 안전장치: 현재 턴 주인이 아닌데 종료를 요청하면 무시
+	if (CurrentTurnActor != TurnActor) return;
+
+	UE_LOG(LogTemp, Log, TEXT("턴 종료: %s"), *TurnActor->GetName());
 
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			// TurnActive 태그 제거 (입력 차단)
+			// [중요] 턴 활성화 태그 제거 (입력 차단)
 			ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
-			// 행동 게이지 리셋 (0으로 초기화)
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), 0.0f);
+			if (Cast<ASPGASPlayerCharacter>(TurnActor))
+			{
+				if (TurnEndTimeCostGE)
+				{
+					FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+					Context.AddSourceObject(this);
 
-			// 턴 종료 이벤트 (쿨타임 감소, 버프 지속시간 감소)
+					FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(TurnEndTimeCostGE, 1.0f, Context);
+					if (SpecHandle.IsValid())
+					{
+						ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+						UE_LOG(LogTemp, Warning, TEXT("[턴 종료] 플레이어의 시간의 힘이 1 감소했습니다."));
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("TurnEndTimeCostGE가 게임모드 블루프린트에 설정되지 않았습니다!"));
+				}
+			}
+
+			// 행동 게이지 0으로 초기화
+			if (TurnManager)
+			{
+				TurnManager->SetActionGauge(TurnActor, 0.0f);
+			}
+
+			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
 			FGameplayEventData Payload;
 			Payload.Instigator = TurnActor;
 			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnEnd, &Payload);
 		}
 	}
-
-	// 승패 판정 (전멸 여부 확인) -> 나중에 구현
-	// CheckBattleState();
 
 	// 다음 턴 계산 요청
 	if (TurnManager)
@@ -156,75 +235,22 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 
 FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)
 {
-	FString TagName = FString::Printf(TEXT("SpawnPoint_%d"), Index);
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName(*TagName), FoundActors);
+	// 맵에 배치된 모든 스폰 포인트 검색
+	TArray<AActor*> SpawnPoints;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASPGASSpawnPoint::StaticClass(), SpawnPoints);
 
-	if (FoundActors.Num() > 0)
+	for (AActor* Actor : SpawnPoints)
 	{
-		return FoundActors[0]->GetActorTransform();
+		if (ASPGASSpawnPoint* SP = Cast<ASPGASSpawnPoint>(Actor))
+		{
+			if (SP->SpawnIndex == Index)
+			{
+				return SP->GetActorTransform();
+			}
+		}
 	}
 
+	// 못 찾았을 경우 기본값
+	UE_LOG(LogTemp, Warning, TEXT("스폰 포인트 [%d]를 찾지 못했습니다."), Index);
 	return FTransform(FRotator::ZeroRotator, FVector(Index * 200.0f, 0.0f, 100.0f));
-}
-
-void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player)
-{
-	// 턴 매니저 생성
-	if (TurnManagerClass)
-	{
-		TurnManager = GetWorld()->SpawnActor<ASPCombatTurnManager>(TurnManagerClass);
-	}
-
-	if (!TurnManager)
-	{
-		UE_LOG(LogTemp, Error, TEXT(" TurnManager 생성 실패! BP_CombatGameMode에서 클래스를 지정했는지 확인하세요."));
-		return;
-	}
-
-	// 참가자 목록 구성
-	AllParticipants.Empty();
-	AllParticipants.Add(Player);
-	AllParticipants.Append(Enemies);
-
-	// 선공(Advantage) 처리: 행동 게이지 100% 보정
-	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
-	{
-		ECombatAdvantage Advantage = CombatSys->GetAdvantageState();
-
-		if (Advantage == ECombatAdvantage::PlayerAdvantage)
-		{
-			// 플레이어 선공
-			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Player))
-			{
-				if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-				{
-					ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), ASPCombatTurnManager::MaxActionGauge);
-					UE_LOG(LogTemp, Log, TEXT("플레이어 선공!"));
-				}
-			}
-		}
-		else if (Advantage == ECombatAdvantage::EnemyAdvantage)
-		{
-			// 적 기습 (모든 적에게 적용)
-			for (AActor* Enemy : Enemies)
-			{
-				if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Enemy))
-				{
-					if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-					{
-						ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), ASPCombatTurnManager::MaxActionGauge);
-					}
-				}
-			}
-			UE_LOG(LogTemp, Log, TEXT("적 기습!"));
-		}
-	}
-
-	//턴 매니저 시작
-	TurnManager->InitializeParticipants(AllParticipants);
-
-	//첫 번째 턴 계산
-	AActor* FirstActor = TurnManager->CalculateNextTurn();
-	StartTurn(FirstActor);
 }

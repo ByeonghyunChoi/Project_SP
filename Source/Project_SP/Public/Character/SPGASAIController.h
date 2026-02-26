@@ -7,6 +7,7 @@
 #include "Tag/SPGameplayTags.h"
 #include "SPGASAIController.generated.h"
 
+struct FGameplayEventData;
 /**
  * 
  */
@@ -20,7 +21,14 @@ public:
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+	// 턴 시작 이벤트 감지 (내 차례가 옴)
+	void OnTurnStartEvent(const FGameplayEventData* Payload);
+
+	// 턴 종료 지연 처리 함수
+	void FinishTurnDelayed();
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "AI")
@@ -30,5 +38,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
 
-	
+	//임시 턴 종료용 타이머(나중에 삭제 후 제대로 된 패턴으로 구현할 예정)
+	FTimerHandle TurnEndTimerHandle;
 };

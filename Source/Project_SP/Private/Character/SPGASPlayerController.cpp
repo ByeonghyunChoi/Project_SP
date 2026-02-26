@@ -1,24 +1,28 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Character/SPGASPlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "AbilitySystemComponent.h"
-#include "GameplayEffectTypes.h"
-#include "Character/SPGASCharacterBase.h"
+#include "AbilitySystemInterface.h"
+#include "Kismet/GameplayStatics.h"
 #include "Character/SPGASPlayerState.h"
+#include "Character/SPGASPlayerCharacter.h"  
+#include "Character/SPGASMonsterCharacter.h" 
 #include "Tag/SPGameplayTags.h"
+#include "Components/WidgetComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
+	CurrentSelectedAction = ESelectedActionType::None;
 }
 
 void ASPGASPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 마우스 커서 설정 (필드/전투 모두 사용)
 	FInputModeGameAndUI InputModeData;
 	InputModeData.SetHideCursorDuringCapture(false);
 	InputModeData.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -31,23 +35,38 @@ void ASPGASPlayerController::SetupInputComponent()
 
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(InputComponent))
 	{
-		//이동 바인딩
-		EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASPGASPlayerController::OnMove);
+		// 1. [필드] 이동 (MoveAction - WASD)
+		if (MoveAction)
+		{
+			EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASPGASPlayerController::OnMove);
+		}
 
-		// 필드 입력 바인딩
+		// 2. [전투] 타겟 변경 (BattleNavigateAction - A/D)
+		if (BattleNavigateAction)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("IA_BattleNavigate가 정상적으로 바인딩 되었습니다!")); 
+			EIC->BindAction(BattleNavigateAction, ETriggerEvent::Triggered, this, &ASPGASPlayerController::OnBattleNavigate);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("IA_BattleNavigate가 비어있습니다! BP_PlayerController를 확인하세요.")); 
+		}
+
+		// 3. [필드] 일반 액션 바인딩
 		for (const FSPInputConfig& Config : FieldInputConfigs)
 		{
 			if (Config.InputAction && Config.InputTag.IsValid())
 			{
-				EIC->BindAction(Config.InputAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnInputPressed, Config.InputTag);
+				EIC->BindAction(Config.InputAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnFieldInputPressed, Config.InputTag);
 			}
 		}
-		// 전투 입력 바인딩
+
+		// 4. [전투] 전투 액션 바인딩 (1~3, QWE)
 		for (const FSPInputConfig& Config : BattleInputConfigs)
 		{
 			if (Config.InputAction && Config.InputTag.IsValid())
 			{
-				EIC->BindAction(Config.InputAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnInputPressed, Config.InputTag);
+				EIC->BindAction(Config.InputAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnBattleInputPressed, Config.InputTag);
 			}
 		}
 	}
@@ -59,16 +78,11 @@ void ASPGASPlayerController::OnPossess(APawn* InPawn)
 	InitAbilitySystem(InPawn);
 }
 
-void ASPGASPlayerController::AcknowledgePossession(APawn* InPawn)
-{
-	Super::AcknowledgePossession(InPawn);
-	InitAbilitySystem(InPawn);
-}
-
 void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 {
 	if (!InPawn) return;
 
+	// 1. ASC 가져오기
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(InPawn))
 	{
 		CachedASC = ASI->GetAbilitySystemComponent();
@@ -80,38 +94,29 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 
 	if (CachedASC)
 	{
-		CachedASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Mode_Battle, EGameplayTagEventType::NewOrRemoved)
+		// [변수 준비] 전투 태그
+		FGameplayTag BattleTag = FSPGameplayTags::Get().State_Mode_Battle;
+
+		// 2. 이벤트 등록 (앞으로의 변화를 감지하기 위해 등록)
+		CachedASC->RegisterGameplayTagEvent(BattleTag, EGameplayTagEventType::NewOrRemoved)
 			.AddUObject(this, &ASPGASPlayerController::OnBattleTagChanged);
 
-		// [중요] 초기 상태 확인 (이미 전투 중인 상태로 빙의했을 수도 있음)
-		bool bIsBattle = CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Mode_Battle);
+		// 3. [핵심 트릭] 현재 상태를 확인해서, 강제로 콜백 함수 호출!
+		//    - 이미 전투 중이라면(HasTag), Count를 1로 보내서 "방금 켜진 것처럼" 속입니다.
+		//    - 아니라면 0을 보내서 초기화합니다.
+		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
-		// 초기 IMC 설정 (로컬 컨트롤러인 경우에만)
-		if (IsLocalController())
-		{
-			if (auto* Subsystem = GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-			{
-				Subsystem->ClearAllMappings();
-				if (bIsBattle)
-				{
-					Subsystem->AddMappingContext(BattleMappingContext, 0);
-				}
-				else
-				{
-					Subsystem->AddMappingContext(FieldMappingContext, 0);
-				}
-			}
-		}
+		// ★ 여기서 직접 호출! (별도 함수 필요 없음)
+		OnBattleTagChanged(BattleTag, bIsBattle ? 1 : 0);
+
+		UE_LOG(LogTemp, Warning, TEXT("InitAbilitySystem: 초기화 완료 (강제 호출 수행함)"));
 	}
 }
 
 void ASPGASPlayerController::OnMove(const FInputActionValue& Value)
 {
-	// 1. 상태 이상(기절 등) 체크
-	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_BlockMove))
-	{
-		return;
-	}
+	// 필드 전용 이동 로직
+	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_BlockMove)) return;
 
 	if (APawn* ControlledPawn = GetPawn())
 	{
@@ -127,56 +132,326 @@ void ASPGASPlayerController::OnMove(const FInputActionValue& Value)
 	}
 }
 
-void ASPGASPlayerController::OnInputPressed(FGameplayTag InputTag)
+void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
+{
+	// 전투 전용 타겟 변경 로직 (타겟팅 모드일 때만 작동)
+	if (!bIsSelectingTarget || AvailableTargets.Num() == 0) return;
+
+	if (CurrentTargetingType == ETargetingType::Area)
+	{
+		return;
+	}
+
+	float Direction = Value.Get<float>();
+
+	if (FMath::IsNearlyZero(Direction)) return;
+	UE_LOG(LogTemp, Warning, TEXT("키 입력 감지됨! 값: %f"), Direction);
+
+	// 1. 기존 타겟 하이라이트 끄기
+	HighlightCurrentTarget(false);
+
+	// 2. 인덱스 계산 (좌우 순환)
+	if (Direction > 0) // 오른쪽 (D)
+	{
+		CurrentTargetIndex = (CurrentTargetIndex + 1) % AvailableTargets.Num();
+	}
+	else // 왼쪽 (A)
+	{
+		// 음수 모듈러 연산 보정
+		CurrentTargetIndex = (CurrentTargetIndex - 1 + AvailableTargets.Num()) % AvailableTargets.Num();
+	}
+
+	// 3. 새 타겟 하이라이트 켜기
+	HighlightCurrentTarget(true);
+
+	UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
+}
+
+void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 {
 	if (!CachedASC) return;
-	// 해당 태그를 Trigger로 가진 어빌리티 실행 시도
+	// 필드는 즉시 실행
 	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
 }
 
+void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
+{
+	// 1. 턴 체크
+	if (!IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
+		return;
+	}
+
+	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
+
+	// 2. 무기 교체 입력 (Weapon.*)
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
+	{
+		// 타겟팅 중에 무기를 바꾸면 타겟팅 취소
+		if (bIsSelectingTarget) CancelTargetSelection();
+
+		ProcessWeaponSwitch(InputTag);
+		return;
+	}
+
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Battle.Action.TimeInterference")))
+	{
+		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
+
+		// 이미 시간 간섭 상태인지 확인 (중복 발동 방지)
+		// [수정] 버프 태그는 "State.Buff..." 로 확인!
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("State.TimeInterference")))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시스템] 이미 시간 간섭이 발동 중입니다!"));
+			return;
+		}
+
+		// 쿨타임 검사 (선생님이 추가하신 태그 아주 좋습니다!)
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Cooldown.Skill.TimeInterference")))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간 간섭 스킬이 쿨타임 중입니다! (남은 턴 대기)"));
+			return;
+		}
+
+		// 시간 간섭 GA 실행 시도
+		if (CachedASC)
+		{
+			bool bSuccess = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
+			if (bSuccess)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동 실패! (시간의 힘 부족 등)"));
+			}
+		}
+		return;
+	}
+
+	// 3. 행동 선택 입력 (Attack, Skill, Parry)
+	ESelectedActionType InputType = ESelectedActionType::None;
+
+	if (InputTag.MatchesTag(GameplayTags.Battle_Action_Attack)) InputType = ESelectedActionType::NormalAttack;
+	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Skill)) InputType = ESelectedActionType::WeaponSkill;
+	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Parry)) InputType = ESelectedActionType::ParrySkill;
+
+	if (InputType != ESelectedActionType::None)
+	{
+		// 무기 미착용 체크
+		if (!CurrentWeaponTag.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("무기를 먼저 선택하세요! (키: 1, 2, 3)"));
+			return;
+		}
+
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("State.TimeInterference")))
+		{
+			// 선택한 행동이 '무기 스킬'이 아니라면? (일반 공격이나 패링이라면)
+			if (InputType != ESelectedActionType::WeaponSkill)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭 발동 중!] 무기 스킬과 무기 교체만 사용할 수 있습니다."));
+				// 행동을 무시하고 함수 종료 (타겟팅으로 안 넘어감)
+				return;
+			}
+		}
+
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, InputType);
+		}
+
+		// [핵심 로직]
+		if (CurrentSelectedAction == InputType)
+		{
+			// A. 이미 선택된 행동을 다시 누름 -> 확정!
+			if (bIsSelectingTarget)
+			{
+				ConfirmTargetAndExecute();
+			}
+			else
+			{
+				// 예외 처리: 선택은 됐는데 타겟팅이 꺼져있다면 다시 시작
+				StartTargetSelection();
+			}
+		}
+		else
+		{
+			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
+			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
+
+			CurrentSelectedAction = InputType;
+			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
+
+			StartTargetSelection();
+		}
+	}
+}
+
+
+void ASPGASPlayerController::StartTargetSelection()
+{
+	// 1. 적 목록 찾기
+	AvailableTargets.Empty();
+	TArray<AActor*> AllActors;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), AllActors); // 태그: Enemy
+
+	for (AActor* Actor : AllActors)
+	{
+		// TODO: 나중에 죽은 적 제외 로직 추가 (IsAlive 등)
+		AvailableTargets.Add(Actor);
+	}
+
+	if (AvailableTargets.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("공격 가능한 적이 없습니다!"));
+		CancelTargetSelection();
+		return;
+	}
+
+	// 2. 초기화
+	bIsSelectingTarget = true;
+	CurrentTargetIndex = 0; 
+
+	// 3. 하이라이트 ON
+	HighlightCurrentTarget(true);
+}
+
+void ASPGASPlayerController::ConfirmTargetAndExecute()
+{
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex))
+	{
+		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex];
+
+		// 하이라이트 OFF 및 상태 리셋
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+
+		// 실행 명령
+		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
+
+		// 행동 초기화 (다음 턴을 위해)
+		CurrentSelectedAction = ESelectedActionType::None;
+	}
+}
+
+void ASPGASPlayerController::CancelTargetSelection()
+{
+	HighlightCurrentTarget(false);
+	bIsSelectingTarget = false;
+	CurrentSelectedAction = ESelectedActionType::None;
+	AvailableTargets.Empty();
+	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
+}
+
+void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
+{
+	// 1. 적이 없으면 리턴
+	if (AvailableTargets.Num() == 0) return;
+
+	// 2. [광역(Area)] 이라면 -> 모든 적 하이라이트!
+	if (CurrentTargetingType == ETargetingType::Area)
+	{
+		for (AActor* Target : AvailableTargets)
+		{
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Target))
+			{
+				Monster->SetSelectedWidget(bHighlight);
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("광역 타겟 하이라이트: %s"), bHighlight ? TEXT("ON") : TEXT("OFF"));
+	}
+	// 3. [단일(Single) 또는 랜덤(Random)] 이라면 -> 현재 인덱스만 하이라이트
+	else
+	{
+		if (AvailableTargets.IsValidIndex(CurrentTargetIndex))
+		{
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex]))
+			{
+				Monster->SetSelectedWidget(bHighlight);
+			}
+		}
+	}
+}
+
+void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor)
+{
+	if (ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EXECUTE! 무기: %s, 타겟: %s"),
+			*CurrentWeaponTag.ToString(), *TargetActor->GetName());
+
+		// 캐릭터에게 실행 요청 (타겟 정보 전달)
+		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+	}
+}
+
+
+void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
+{
+	if (CurrentWeaponTag == NewWeaponTag) return;
+	if (!CachedASC) return;
+
+	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Fenrir"));
+	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Surtr"));
+	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Jormungandr"));
+
+	CachedASC->AddLooseGameplayTag(NewWeaponTag);
+
+	CurrentWeaponTag = NewWeaponTag;
+	CurrentSelectedAction = ESelectedActionType::None; // 무기 바뀌면 행동 리셋
+
+	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	// TODO: 캐릭터에게 무기 외형 변경 요청
+	// Character->EquipWeapon(NewWeaponTag);
+}
+
+bool ASPGASPlayerController::IsMyTurn() const
+{
+	if (CachedASC)
+	{
+		return CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+	}
+	return false;
+}
 
 void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (!IsLocalController()) return;
 
+	// 1. 캐릭터 & 서브시스템 가져오기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
 	auto* Subsystem = GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
-	if (!Subsystem) return;
+	
+	if (!PlayerChar || !Subsystem) return;
 
-	FGameplayTag FieldAbilityTag = FSPGameplayTags::Get().Ability_Type_Field;
-	FGameplayTag BattleAbilityTag = FSPGameplayTags::Get().Ability_Type_Battle;
-
-	// FGameplayTagContainer는 포인터 말고 값으로 전달하는 것이 안전함
-	FGameplayTagContainer FieldAbilities(FieldAbilityTag);
-	FGameplayTagContainer BattleAbilities(BattleAbilityTag);
-
-	if (NewCount > 0) // 전투 진입
+	// 2. NewCount가 0보다 크면 전투 모드
+	if (NewCount > 0)
 	{
-		// 1. 입력 컨텍스트 교체
+		// [전투 진입]
 		Subsystem->RemoveMappingContext(FieldMappingContext);
 		Subsystem->AddMappingContext(BattleMappingContext, 0);
+		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
 
-		// 2. 어빌리티 정리 (선택 사항: 로직에 따라 ASC에서 처리하는게 더 좋을 수도 있음)
-		// 만약 이 코드가 '입력'만 바꾸는 게 아니라 실제 '어빌리티'도 끄고 켜는 것이라면
-		// 서버인 경우에도 실행되어야 함. 하지만 여기서는 IMC 변경과 묶여 있으므로 로컬 처리로 가정.
-		if (CachedASC)
-		{
-			CachedASC->CancelAbilities(&FieldAbilities);
-			// 전투 모드 패시브 활성화가 필요하다면 여기서 (하지만 보통 GiveAbilities에서 처리됨)
-			// CachedASC->TryActivateAbilitiesByTag(BattleAbilities); 
-		}
+		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
+		
 
-		UE_LOG(LogTemp, Log, TEXT("⚔️ Controller: Switched to BATTLE IMC"));
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
 	}
-	else // 필드 복귀
+	else
 	{
+		// [전투 종료/필드]
 		Subsystem->RemoveMappingContext(BattleMappingContext);
 		Subsystem->AddMappingContext(FieldMappingContext, 0);
+		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
 
-		if (CachedASC)
-		{
-			CachedASC->CancelAbilities(&BattleAbilities);
-		}
+		CancelTargetSelection();
 
-		UE_LOG(LogTemp, Log, TEXT("🎮 Controller: Switched to FIELD IMC"));
+		PlayerChar->SetCameraProfile(PlayerChar->GetFieldCameraProfile());
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
 	}
 }

@@ -6,19 +6,20 @@
 #include "GameFramework/PlayerController.h"
 #include "GameplayTagContainer.h"
 #include "InputActionValue.h"
+#include "Manager/SPGASBattleTypes.h" 
 #include "SPGASPlayerController.generated.h"
 
+// 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
 struct FSPInputConfig
 {
 	GENERATED_BODY()
 
-	//사용할 입력 액션
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<class UInputAction> InputAction;
-	//해당 입력이 실행할 액션의 태그
+
 	UPROPERTY(EditAnywhere)
-	FGameplayTag InputTag; 
+	FGameplayTag InputTag;
 };
 
 UCLASS()
@@ -33,37 +34,99 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;
-	virtual void AcknowledgePossession(APawn* InPawn) override;
+
+	// ASC 시스템 초기화 및 태그 이벤트 등록
 	void InitAbilitySystem(APawn* InPawn);
 
 protected:
-	//InputMappingContext 설정
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputMappingContext> FieldMappingContext;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputMappingContext> BattleMappingContext;
 
-	//필드용 InputAction 설정
+	// 필드용 액션 (공격, 상호작용 등)
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TArray<FSPInputConfig> FieldInputConfigs;
 
-	//전투용 InputAction 설정
+	// 전투용 액션 (무기 교체 1~3, 행동 선택 Q/W/E)
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TArray<FSPInputConfig> BattleInputConfigs;
 
-	//이동은 GA를 사용하지 않기 때문에 따로 설정
+	// 필드 이동 (WASD)
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputAction> MoveAction;
 
+	// [중요] 전투 중 타겟 변경 (A/D or Left/Right)
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<class UInputAction> BattleNavigateAction;
+
+	// 현재 들고 있는 무기 태그
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	FGameplayTag CurrentWeaponTag;
+
+	// 현재 선택된 행동 (공격/스킬/패링)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	ESelectedActionType CurrentSelectedAction;
+
+	// 현재 타겟 선택 모드인가?
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | Targeting")
+	bool bIsSelectingTarget = false;
+
+	// 현재 가리키고 있는 타겟의 인덱스
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | Targeting")
+	int32 CurrentTargetIndex = 0;
+
+	// 현재 공격 가능한 적 목록 (살아있는 적)
+	UPROPERTY()
+	TArray<AActor*> AvailableTargets;
+
+	//현재 선택된 스킬의 타겟팅 타입
+	ETargetingType CurrentTargetingType = ETargetingType::Single;
+
 protected:
+	// 필드 이동 처리
 	void OnMove(const FInputActionValue& Value);
-	void OnInputPressed(FGameplayTag InputTag);
+
+	// 전투 타겟 변경 처리 
+	void OnBattleNavigate(const FInputActionValue& Value);
+
+	// 필드 액션 
+	void OnFieldInputPressed(FGameplayTag InputTag);
+
+	// 전투 액션 (무기교체 or 행동선택 -> 타겟팅 -> 확정)
+	void OnBattleInputPressed(FGameplayTag InputTag);
+
+	// 전투/필드 상태 변경 감지 
 	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+	// 내 턴인지 확인
+	bool IsMyTurn() const;
+
+	// 타겟팅 시작
+	void StartTargetSelection();
+
+	// 타겟팅 취소
+	void CancelTargetSelection();
+
+	// 현재 타겟의 하이라이트 켜기/끄기
+	void HighlightCurrentTarget(bool bHighlight);
+
+	// 최종 확정 및 스킬 실행
+	void ConfirmTargetAndExecute();
+
+	// 실제 실행 함수
+	void ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor);
+
+public:
+	// 무기 교체 처리
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ProcessWeaponSwitch(FGameplayTag NewWeaponTag);
+	// 현재 선택한 무기가 뭔지 확인하는 용도의 Getter 함수
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	FGameplayTag GetCurrentWeaponTag() const { return CurrentWeaponTag; }
 
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-
-	
 };

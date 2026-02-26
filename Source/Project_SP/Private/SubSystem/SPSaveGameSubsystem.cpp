@@ -52,11 +52,6 @@ void USPSaveGameSubsystem::SavePlayerStats(APawn* PlayerPawn)
 	SaveData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
 	SaveData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
 
-	// 7. 저항 (Base Value)
-	SaveData.Stats.ResistanceSurtr = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceSurtrAttribute());
-	SaveData.Stats.ResistanceFenrir = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceFenrirAttribute());
-	SaveData.Stats.ResistanceJormungandr = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetResistanceJormungandrAttribute());
-
 	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Stats Saved. HP: %.1f / %.1f, Level: %.0f"),
 		SaveData.Stats.CurrentHealth, SaveData.Stats.MaxHealth, SaveData.Stats.Level);
 }
@@ -99,10 +94,6 @@ void USPSaveGameSubsystem::LoadPlayerStats(APawn* PlayerPawn)
 
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), SaveData.Stats.OutgoingDamageMultiplier);
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), SaveData.Stats.IncomingDamageMultiplier);
-
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceSurtrAttribute(), SaveData.Stats.ResistanceSurtr);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceFenrirAttribute(), SaveData.Stats.ResistanceFenrir);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetResistanceJormungandrAttribute(), SaveData.Stats.ResistanceJormungandr);
 
 	// 3. 자원 (Current Value) 복구 - 가장 마지막에!
 	// (AttributeSet의 PreAttributeChange에서 Clamp가 작동하므로, Max가 이미 설정되어 있어야 함)

@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Map/MapInfo.h"
+#include "Map/MapInfo.h"       // EMapType, EMapGrade 등 정의
 #include "Engine/DataTable.h"
-#include "Engine/LevelStreamingDynamic.h"
-#include "SubSystem/SPCombatSubsystem.h"
+#include "Data/CombatEncounterData.h"
+#include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage 정의
 #include "MapManagerSubsystem.generated.h"
 
 // 데이터 테이블 구조체
@@ -18,9 +18,6 @@ struct FMapLevelData : public FTableRowBase
 	TSoftObjectPtr<UWorld> LevelReference;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TObjectPtr<USoundBase> BackgroundMusic;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<EMapType, TSubclassOf<class AMapBase>> MapClasses;
 };
 
@@ -31,73 +28,76 @@ class PROJECT_SP_API UMapManagerSubsystem : public UGameInstanceSubsystem
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-
 	virtual void Deinitialize() override;
 
-	// 게임 시작
+	// 새 게임 시작 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartNewRun();
 
-	// 포탈을 탔을 때 호출 (다음 층 또는 다음 스테이지 이동)
-	void MoveToNextFloor(EMapType SelectedType);
-
-	// 다음 층의 선택지 생성 (UI 표시용)
-	TArray<EMapType> GenerateNextFloorOptions();
-
-	// 전투 맵 진입 
+	// 전투 맵 진입 (필드 -> 전투)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage);
 
-	// 전투 종료 후 필드 복귀 
+	// 전투 종료 후 필드 복귀 (전투 -> 필드)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ReturnToField();
 
-	// 새 레벨이 열릴 때 MapBase가 호출해주는 함수
-	void InitializeCurrentMap(class AMapBase* InMapActor);
-
-	//로비로 이동하는 함수
+	// 로비로 이동
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void GoToLobby();
 
-	//현재 전투 맵에서 전투 중인지 확인하는 함수
-	UFUNCTION(BlueprintPure, Category = "Map")
-	bool IsInBattleMap() const { return bIsBattleActive; }
+	// 현재 맵 정보 초기화 (MapBase가 호출)
+	void InitializeCurrentMap(class AMapBase* InMapActor);
+
+	// 층 이동 로직
+	void MoveToNextFloor(EMapType SelectedType);
+	TArray<EMapType> GenerateNextFloorOptions();
+
+	bool IsInBattleMap() { return bIsBattleActive; }
 
 protected:
-	//로비 레퍼런스
+	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UWorld> LobbyLevelReference;
 
-protected:
-	EMapGrade GetMapGradeByFloor(int32 Floor) const;
-	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
-	void LoadStageLevel();
-
-private:
-	int32 CurrentStage = 1;
-	int32 CurrentFloor = 1;
-
-	UPROPERTY()
-	FTransform SavedFieldTransform;
-
-	UPROPERTY()
-	TObjectPtr<class AMapBase> CurrentMapActor;
-
+	// 맵 데이터 테이블
 	UPROPERTY()
 	TObjectPtr<UDataTable> MapDataTable;
 
-	// 전투 복귀 체크용 플래그
-	bool bIsReturningFromBattle = false;
+private:
+	// 현재 스테이지 및 층 정보
+	int32 CurrentStage = 1;
+	int32 CurrentFloor = 1;
 
-	// 현재 전투중인지 확인하는 함수
-	bool bIsBattleActive = false;
-
-	// 전투 진입전 맵의 타입 저장용 복귀할 때 사용
-	UPROPERTY(VisibleAnywhere, Category = "Debug") 
+	// 현재 맵 타입 (전투 복귀 시 복구용)
+	UPROPERTY(VisibleAnywhere, Category = "Debug")
 	EMapType CurrentMapType = EMapType::NormalBattle;
 
+	// 현재 생성된 맵 액터 (BP_MapBase)
+	UPROPERTY()
+	TObjectPtr<class AMapBase> CurrentMapActor;
+
+	// [저장용] 필드 위치 저장
+	UPROPERTY()
+	FTransform SavedFieldTransform;
+
+	// [플래그] 전투에서 돌아오는 중인가?
+	bool bIsReturningFromBattle = false;
+
+	// [플래그] 현재 전투 중인가?
+	bool bIsBattleActive = false;
+
 private:
+	// 맵 생성 및 플레이어 이동 처리
 	void SpawnMapActor(EMapType MapType);
 
+	// 레벨 로드 완료 시 호출되는 콜백 (위치 복구 핵심)
 	void OnPostLoadMapWithWorld(UWorld* LoadedWorld);
+
+	// 스테이지 레벨 로드 헬퍼
+	void LoadStageLevel();
+
+	// 난이도/타입 결정 헬퍼
+	EMapGrade GetMapGradeByFloor(int32 Floor) const;
+	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
 };
