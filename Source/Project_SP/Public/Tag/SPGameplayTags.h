@@ -37,6 +37,9 @@ public:
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
 
+	// 유물(Relic)
+	FGameplayTag Relic_Bonus_Attack;
+
 	//이벤트
 	FGameplayTag Event_Interaction;
 	FGameplayTag Event_Field_Hit;

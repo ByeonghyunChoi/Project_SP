@@ -29,6 +29,8 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Oparts_CrystalSkull = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull"), TEXT("오파츠: 수정 해골"));
 	Oparts_JadeClock = Manager.AddNativeGameplayTag(FName("Oparts.JadeClock"), TEXT("오파츠: 옥시계"));
 	Oparts_GoldBug = Manager.AddNativeGameplayTag(FName("Oparts.GoldBug"), TEXT("오파츠: 골드버그"));
+
+	Relic_Bonus_Attack = Manager.AddNativeGameplayTag(FName("Relic.Bonus.Attack"), TEXT("유물 최초 획득 시 공격력 보너스"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
