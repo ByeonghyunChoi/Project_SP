@@ -14,6 +14,7 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffect.h"
 #include "Data/Asset/WeaponAbilityData.h"
+#include "Framework/Application/SlateApplication.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -44,7 +45,7 @@ void ASPGASPlayerController::SetupInputComponent()
 			EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASPGASPlayerController::OnMove);
 		}
 
-		// 2. [전투] 타겟 변경 (BattleNavigateAction - A/D)
+		// 2. [전투] 타겟 변경 
 		if (BattleNavigateAction)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("IA_BattleNavigate가 정상적으로 바인딩 되었습니다!")); 
@@ -64,13 +65,19 @@ void ASPGASPlayerController::SetupInputComponent()
 			}
 		}
 
-		// 4. [전투] 전투 액션 바인딩 (1~3, QWE)
+		// 4. [전투] 전투 액션 바인딩 
 		for (const FSPInputConfig& Config : BattleInputConfigs)
 		{
 			if (Config.InputAction && Config.InputTag.IsValid())
 			{
 				EIC->BindAction(Config.InputAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnBattleInputPressed, Config.InputTag);
 			}
+		}
+
+		// 전투 마우스 클릭 로직 바인딩
+		if (BattleClickAction)
+		{
+			EIC->BindAction(BattleClickAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnBattleClick);
 		}
 	}
 }
@@ -140,7 +147,7 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 	// 전투 전용 타겟 변경 로직 (타겟팅 모드일 때만 작동)
 	if (!bIsSelectingTarget || AvailableTargets.Num() == 0) return;
 
-	if (CurrentTargetingType == ETargetingType::Area)
+	if (CurrentTargetingType == ETargetingType::All)
 	{
 		return;
 	}
@@ -514,29 +521,40 @@ void ASPGASPlayerController::CancelTargetSelection()
 
 void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 {
-	// 1. 적이 없으면 리턴
 	if (AvailableTargets.Num() == 0) return;
 
-	// 2. [광역(Area)] 이라면 -> 모든 적 하이라이트!
-	if (CurrentTargetingType == ETargetingType::Area)
+	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	if (CurrentTargetingType == ETargetingType::All)
 	{
 		for (AActor* Target : AvailableTargets)
 		{
 			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Target))
 			{
-				Monster->SetSelectedWidget(bHighlight);
+				// 모두가 큼지막한 주 타겟 마커를 갖게 됩니다.
+				Monster->SetSelectedWidget(bHighlight, true);
 			}
 		}
-		UE_LOG(LogTemp, Log, TEXT("광역 타겟 하이라이트: %s"), bHighlight ? TEXT("ON") : TEXT("OFF"));
 	}
-	// 3. [단일(Single) 또는 랜덤(Random)] 이라면 -> 현재 인덱스만 하이라이트
+	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	else if (CurrentTargetingType == ETargetingType::Area)
+	{
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i]))
+			{
+				bool bIsPrimary = (i == CurrentTargetIndex);
+				Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+			}
+		}
+	}
+	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
 	else
 	{
 		if (AvailableTargets.IsValidIndex(CurrentTargetIndex))
 		{
 			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex]))
 			{
-				Monster->SetSelectedWidget(bHighlight);
+				Monster->SetSelectedWidget(bHighlight, true);
 			}
 		}
 	}
@@ -551,6 +569,60 @@ void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType
 
 		// 캐릭터에게 실행 요청 (타겟 정보 전달)
 		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+	}
+}
+
+void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== 1. 마우스 클릭 버튼 눌림! ==="));
+	// 타겟팅 모드 검사
+	if (!bIsSelectingTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 타겟팅 모드가 아니라서 취소됨"));
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("=== 2. 타겟팅 모드 통과! ==="));
+
+	// 마우스 커서 아래에 있는 물체(액터)를 쏩니다
+	FHitResult HitResult;
+	if (GetHitResultUnderCursor(ECC_GameTraceChannel2, false, HitResult))
+	{
+		AActor* ClickedActor = HitResult.GetActor();
+		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
+
+		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
+		int32 FoundIndex = AvailableTargets.IndexOfByKey(ClickedActor);
+
+		// 찾았다면? (적을 클릭한 게 맞다면)
+		if (FoundIndex != INDEX_NONE)
+		{
+			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
+			if (CurrentTargetingType == ETargetingType::All)
+			{
+				ConfirmTargetAndExecute();
+				return;
+			}
+
+			// [광역(Area) / 단일 / 랜덤] 이라면
+			if (FoundIndex == CurrentTargetIndex)
+			{
+				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+				ConfirmTargetAndExecute();
+			}
+			else
+			{
+				// 다른 녀석을 클릭했다면 -> 주 타겟을 그 녀석으로 변경!
+				HighlightCurrentTarget(false);
+				CurrentTargetIndex = FoundIndex;
+				HighlightCurrentTarget(true);
+
+				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 마우스 아래에 아무것도 없음 (허공 클릭)"));
 	}
 }
 

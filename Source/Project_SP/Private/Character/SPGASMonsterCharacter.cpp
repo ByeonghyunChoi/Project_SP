@@ -71,17 +71,21 @@ void ASPGASMonsterCharacter::InitializeEnemyStats(int32 NewLevel, float StatMult
 	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), NewDefense);
 }
 
-void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected)
+void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
 {
 	if (TargetIndicatorWidget)
 	{
 		TargetIndicatorWidget->SetVisibility(bSelected);
 	}
-	//외곽선
+
+	// 외곽선 (포스트 프로세스)
 	if (GetMesh())
 	{
 		GetMesh()->SetRenderCustomDepth(bSelected);
 	}
+
+	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
+	OnTargetStateChanged(bSelected, bIsPrimary);
 }
 
 

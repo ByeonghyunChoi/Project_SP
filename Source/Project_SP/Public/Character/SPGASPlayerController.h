@@ -84,6 +84,10 @@ protected:
 	//현재 선택된 스킬의 타겟팅 타입
 	ETargetingType CurrentTargetingType = ETargetingType::Single;
 
+	//전투 중 마우스 클릭 입력 액션
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<class UInputAction> BattleClickAction;
+
 protected:
 	// 필드 이동 처리
 	void OnMove(const FInputActionValue& Value);
@@ -114,6 +118,9 @@ protected:
 
 	// 실제 실행 함수
 	void ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor);
+
+	//마우스 클릭 시 실행될 함수
+	void OnBattleClick(const FInputActionValue& Value);
 
 public:
 	// 무기 교체 처리

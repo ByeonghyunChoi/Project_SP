@@ -30,7 +30,10 @@ public:
     void InitializeEnemyStats(int32 NewLevel, float StatMultiplier);
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
-    void SetSelectedWidget(bool bSelected);
+    void SetSelectedWidget(bool bSelected, bool bIsPrimary);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+    void OnTargetStateChanged(bool bSelected, bool bIsPrimary);
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
