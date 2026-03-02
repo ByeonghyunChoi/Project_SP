@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -13,11 +13,11 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// [Å×½ºÆ®¿ë] °³¹ß ÆíÀÇ¸¦ À§ÇØ ÃÊ±â ÀÚ¿ø Áö±Ş (³ªÁß¿¡ »èÁ¦)
+	// [í…ŒìŠ¤íŠ¸ìš©] ê°œë°œ í¸ì˜ë¥¼ ìœ„í•´ ì´ˆê¸° ìì› ì§€ê¸‰ (ë‚˜ì¤‘ì— ì‚­ì œ)
 	Wallet.Sand = 1000;
 	Wallet.IncompleteEnergy = 10;
 
-	// ÃÊ±â »óÅÂ UI °»½Å
+	// ì´ˆê¸° ìƒíƒœ UI ê°±ì‹ 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 }
 
@@ -26,7 +26,7 @@ void UInventoryComponent::AddSand(int32 Amount)
 	if (Amount <= 0) return;
 	Wallet.Sand += Amount;
 
-	UE_LOG(LogTemp, Log, TEXT("¸ğ·¡ È¹µæ: +%d (ÇöÀç: %d)"), Amount, Wallet.Sand);
+	UE_LOG(LogTemp, Log, TEXT("ëª¨ë˜ íšë“: +%d (í˜„ì¬: %d)"), Amount, Wallet.Sand);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 }
 
@@ -35,12 +35,12 @@ bool UInventoryComponent::ConsumeSand(int32 Amount)
 	if (Amount <= 0) return false;
 	if (Wallet.Sand < Amount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("¸ğ·¡ ºÎÁ·! ÇÊ¿ä: %d, º¸À¯: %d"), Amount, Wallet.Sand);
+		UE_LOG(LogTemp, Warning, TEXT("ëª¨ë˜ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, Wallet.Sand);
 		return false;
 	}
 
 	Wallet.Sand -= Amount;
-	UE_LOG(LogTemp, Log, TEXT("¸ğ·¡ ¼Ò¸ğ: -%d (³²Àº ¾ç: %d)"), Amount, Wallet.Sand);
+	UE_LOG(LogTemp, Log, TEXT("ëª¨ë˜ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, Wallet.Sand);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 	return true;
@@ -51,7 +51,7 @@ void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 	if (Amount <= 0) return;
 	Wallet.IncompleteEnergy += Amount;
 
-	UE_LOG(LogTemp, Log, TEXT("±â¿î È¹µæ: +%d (ÇöÀç: %d)"), Amount, Wallet.IncompleteEnergy);
+	UE_LOG(LogTemp, Log, TEXT("ê¸°ìš´ íšë“: +%d (í˜„ì¬: %d)"), Amount, Wallet.IncompleteEnergy);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 }
 
@@ -60,12 +60,12 @@ bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
 	if (Amount <= 0) return false;
 	if (Wallet.IncompleteEnergy < Amount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("±â¿î ºÎÁ·! ÇÊ¿ä: %d, º¸À¯: %d"), Amount, Wallet.IncompleteEnergy);
+		UE_LOG(LogTemp, Warning, TEXT("ê¸°ìš´ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, Wallet.IncompleteEnergy);
 		return false;
 	}
 
 	Wallet.IncompleteEnergy -= Amount;
-	UE_LOG(LogTemp, Log, TEXT("±â¿î ¼Ò¸ğ: -%d (³²Àº ¾ç: %d)"), Amount, Wallet.IncompleteEnergy);
+	UE_LOG(LogTemp, Log, TEXT("ê¸°ìš´ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, Wallet.IncompleteEnergy);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 	return true;
@@ -76,7 +76,7 @@ void UInventoryComponent::AddMoney(int32 Amount)
 	if (Amount <= 0) return;
 	Wallet.Money += Amount;
 
-	UE_LOG(LogTemp, Log, TEXT("°ñµå È¹µæ: +%d (ÇöÀç: %d)"), Amount, Wallet.Money);
+	UE_LOG(LogTemp, Log, TEXT("ê³¨ë“œ íšë“: +%d (í˜„ì¬: %d)"), Amount, Wallet.Money);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 }
 
@@ -85,12 +85,12 @@ bool UInventoryComponent::ConsumeMoney(int32 Amount)
 	if (Amount <= 0) return false;
 	if (Wallet.Money < Amount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("°ñµå ºÎÁ·! ÇÊ¿ä: %d, º¸À¯: %d"), Amount, Wallet.Money);
+		UE_LOG(LogTemp, Warning, TEXT("ê³¨ë“œ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, Wallet.Money);
 		return false;
 	}
 
 	Wallet.Money -= Amount;
-	UE_LOG(LogTemp, Log, TEXT("°ñµå ¼Ò¸ğ: -%d (³²Àº ¾ç: %d)"), Amount, Wallet.Money);
+	UE_LOG(LogTemp, Log, TEXT("ê³¨ë“œ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, Wallet.Money);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(Wallet);
 	return true;

@@ -59,6 +59,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
 	FText Description; // 해당하는 오파츠 전체 설명
 
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText UniqueAbilityName; // 예: "치명타 특화"
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText UniqueAbilityDesc; // 예: "치명타 피해량 +20%"
+
 	// 오파츠 식별 태그 (예: Item.Oparts.CrystalSkull)
 	// 장착 시 캐릭터에게 이 태그를 부착하여, 특정 상호작용이나 로직 분기에 사용합니다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")

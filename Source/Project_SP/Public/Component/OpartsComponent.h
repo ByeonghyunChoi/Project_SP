@@ -74,11 +74,22 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Oparts|Data")
 	FOpartsRuntimeData RuntimeData;
 
+	// 교체 가능한 모든 오파츠 목록 (에디터 에서 등록)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Oparts|Setup")
+	TArray<TObjectPtr<const UOpartsDefinition>> AllOpartsList;
+
 public:
 	// UI 업데이트용 이벤트
 	UPROPERTY(BlueprintAssignable, Category = "Oparts|Event")
 	FOnOpartsStateChanged OnOpartsUpdated;
 
+	//다음 오파츠로 교체 ( > 버튼)
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	void EquipNextOparts();
+
+	//이전 오파츠로 교체 ( < 버튼)
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	void EquipPreviousOparts();
 	
 	// 오파츠 장착 (기존의 SetActiveOparts 대체)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -17,7 +17,7 @@ void UOpartsComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// ASC °¡Á®¿À±â
+	// ASC ê°€ì ¸ì˜¤ê¸°
 	if (IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(GetOwner()))
 	{
 		ASC = Interface->GetAbilitySystemComponent();
@@ -28,55 +28,93 @@ void UOpartsComponent::BeginPlay()
 	}
 }
 
+void UOpartsComponent::EquipNextOparts()
+{
+	if (AllOpartsList.Num() == 0) return;
+
+	// 1. í˜„ì¬ ì¥ì°©ëœ ì˜¤íŒŒì¸ ì˜ ì¸ë±ìŠ¤ ì°¾ê¸°
+	int32 CurrentIndex = -1;
+	if (RuntimeData.Definition)
+	{
+		CurrentIndex = AllOpartsList.Find(RuntimeData.Definition);
+	}
+
+	// 2. ë‹¤ìŒ ì¸ë±ìŠ¤ ê³„ì‚° (ë§ˆì§€ë§‰ì´ë©´ ì²˜ìŒìœ¼ë¡œ ëŒì•„ê° -> ëª¨ë“ˆëŸ¬ ì—°ì‚° %)
+	// ex (0 + 1) % 3 = 1
+	// ex (2 + 1) % 3 = 0
+	int32 NextIndex = (CurrentIndex + 1) % AllOpartsList.Num();
+
+	// 3. êµì²´ ì‹¤í–‰
+	EquipOparts(AllOpartsList[NextIndex]);
+}
+
+void UOpartsComponent::EquipPreviousOparts()
+{
+	if (AllOpartsList.Num() == 0) return;
+
+	int32 CurrentIndex = -1;
+	if (RuntimeData.Definition)
+	{
+		CurrentIndex = AllOpartsList.Find(RuntimeData.Definition);
+	}
+
+	// 2. ì´ì „ ì¸ë±ìŠ¤ ê³„ì‚° (ìŒìˆ˜ê°€ ë‚˜ì˜¤ì§€ ì•Šê²Œ ì²˜ë¦¬)
+	// ex (0 - 1 + 3) % 3 = 2
+	int32 PrevIndex = (CurrentIndex - 1 + AllOpartsList.Num()) % AllOpartsList.Num();
+
+	// 3. êµì²´ ì‹¤í–‰
+	EquipOparts(AllOpartsList[PrevIndex]);
+}
+
 void UOpartsComponent::EquipOparts(const UOpartsDefinition* NewOpartsDef)
 {
 	if (!ASC || !NewOpartsDef) return;
-	if (RuntimeData.Definition == NewOpartsDef) return; // ÀÌ¹Ì °°Àº °Å ÀåÂø Áß
+	if (RuntimeData.Definition == NewOpartsDef) return; // ì´ë¯¸ ê°™ì€ ê±° ì¥ì°© ì¤‘
 
-	// 1. ±âÁ¸ °Í ½Ï ºñ¿ì±â
+	// 1. ê¸°ì¡´ ê²ƒ ì‹¹ ë¹„ìš°ê¸°
 	UnequipCurrentOparts();
 
-	// 2. »õ µ¥ÀÌÅÍ ¼¼ÆÃ (ÃÊ±â »óÅÂ: 1·¹º§, ¾ÆÆ¼ÆÑÆ® 0°³)
-	// (¸¸¾à ¼¼ÀÌºê ÆÄÀÏ¿¡¼­ ºÒ·¯¿À´Â °æ¿ì¶ó¸é ¿©±â¼­ Load ·ÎÁ÷À» ÅÂ¿ö¾ß ÇÕ´Ï´Ù)
+	// 2. ìƒˆ ë°ì´í„° ì„¸íŒ… (ì´ˆê¸° ìƒíƒœ: 1ë ˆë²¨, ì•„í‹°íŒ©íŠ¸ 0ê°œ)
+	// (ë§Œì•½ ì„¸ì´ë¸Œ íŒŒì¼ì—ì„œ ë¶ˆëŸ¬ì˜¤ëŠ” ê²½ìš°ë¼ë©´ ì—¬ê¸°ì„œ Load ë¡œì§ì„ íƒœì›Œì•¼ í•©ë‹ˆë‹¤)
 	RuntimeData.Definition = NewOpartsDef;
 	RuntimeData.CurrentLevel = 1;
 	RuntimeData.UnlockedArtifactCount = 0;
 
-	// 3. ´É·Â Àû¿ë
+	// 3. ëŠ¥ë ¥ ì ìš©
 	ApplyOpartsStatsAndAbilities();
 
-	UE_LOG(LogTemp, Log, TEXT("¿ÀÆÄÃ÷ ÀåÂø: %s"), *NewOpartsDef->DisplayName.ToString());
+	UE_LOG(LogTemp, Log, TEXT("ì˜¤íŒŒì¸  ì¥ì°©: %s"), *NewOpartsDef->DisplayName.ToString());
 }
 
 void UOpartsComponent::UnequipCurrentOparts()
 {
 	if (!ASC) return;
 
-	// 1. ±âº» ÆĞ½Ãºê Á¦°Å
+	// 1. ê¸°ë³¸ íŒ¨ì‹œë¸Œ ì œê±°
 	if (RuntimeData.PassiveAbilityHandle.IsValid())
 	{
 		ASC->ClearAbility(RuntimeData.PassiveAbilityHandle);
 	}
 
-	// 2. ±âº» ½ºÅÈ ÀÌÆåÆ® Á¦°Å
+	// 2. ê¸°ë³¸ ìŠ¤íƒ¯ ì´í™íŠ¸ ì œê±°
 	if (RuntimeData.StatEffectHandle.IsValid())
 	{
 		ASC->RemoveActiveGameplayEffect(RuntimeData.StatEffectHandle);
 	}
 
-	// 3. ¾ÆÆ¼ÆÑÆ® ´É·Âµé Á¦°Å
+	// 3. ì•„í‹°íŒ©íŠ¸ ëŠ¥ë ¥ë“¤ ì œê±°
 	for (auto& Handle : RuntimeData.ArtifactAbilityHandles)
 	{
 		if (Handle.IsValid()) ASC->ClearAbility(Handle);
 	}
 
-	// 4. ¾ÆÆ¼ÆÑÆ® ½ºÅÈµé Á¦°Å
+	// 4. ì•„í‹°íŒ©íŠ¸ ìŠ¤íƒ¯ë“¤ ì œê±°
 	for (auto& Handle : RuntimeData.ArtifactEffectHandles)
 	{
 		if (Handle.IsValid()) ASC->RemoveActiveGameplayEffect(Handle);
 	}
 
-	// µ¥ÀÌÅÍ ÃÊ±âÈ­ ¹× UI ¾Ë¸²
+	// ë°ì´í„° ì´ˆê¸°í™” ë° UI ì•Œë¦¼
 	RuntimeData.Clear();
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
 }
@@ -88,9 +126,9 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	const UOpartsDefinition* Def = RuntimeData.Definition;
 
 	// ====================================================
-	// 1. ±âº» ½ºÅÈ Àû¿ë (Infinite Duration Effect)
+	// 1. ê¸°ë³¸ ìŠ¤íƒ¯ ì ìš© (Infinite Duration Effect)
 	// ====================================================
-	// ±âÁ¸¿¡ Àû¿ëµÈ ½ºÅÈÀÌ ÀÖ´Ù¸é Á¦°Å ÈÄ ÀçÀû¿ë (·¹º§ º¯°æ ´ëÀÀ)
+	// ê¸°ì¡´ì— ì ìš©ëœ ìŠ¤íƒ¯ì´ ìˆë‹¤ë©´ ì œê±° í›„ ì¬ì ìš© (ë ˆë²¨ ë³€ê²½ ëŒ€ì‘)
 	if (RuntimeData.StatEffectHandle.IsValid())
 	{
 		ASC->RemoveActiveGameplayEffect(RuntimeData.StatEffectHandle);
@@ -102,7 +140,7 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
 		Context.AddSourceObject(this);
 
-		// [Áß¿ä] ·¹º§À» ¿ÀÆÄÃ÷ ·¹º§·Î ¼³Á¤! (CurveTable¿¡¼­ °ª ÀĞ¾î¿È)
+		// [ì¤‘ìš”] ë ˆë²¨ì„ ì˜¤íŒŒì¸  ë ˆë²¨ë¡œ ì„¤ì •! (CurveTableì—ì„œ ê°’ ì½ì–´ì˜´)
 		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(Def->BaseStatEffectClass, (float)RuntimeData.CurrentLevel, Context);
 
 		if (SpecHandle.IsValid())
@@ -112,7 +150,7 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	}
 
 	// ====================================================
-	// 2. ±âº» ÆĞ½Ãºê ´É·Â Àû¿ë (ÃÖÃÊ 1È¸¸¸)
+	// 2. ê¸°ë³¸ íŒ¨ì‹œë¸Œ ëŠ¥ë ¥ ì ìš© (ìµœì´ˆ 1íšŒë§Œ)
 	// ====================================================
 	if (!RuntimeData.PassiveAbilityHandle.IsValid() && Def->BasePassiveAbility)
 	{
@@ -121,29 +159,29 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	}
 
 	// ====================================================
-	// 3. ¾ÆÆ¼ÆÑÆ® ´É·Â/½ºÅÈ Àû¿ë (ÇöÀç ÇØ±İ ¼ö¸¸Å­ ¹İº¹)
+	// 3. ì•„í‹°íŒ©íŠ¸ ëŠ¥ë ¥/ìŠ¤íƒ¯ ì ìš© (í˜„ì¬ í•´ê¸ˆ ìˆ˜ë§Œí¼ ë°˜ë³µ)
 	// ====================================================
 
-	// ±âÁ¸ ¾ÆÆ¼ÆÑÆ® È¿°úµé ÀÏ´Ü ´Ù Á¦°Å (±ò²ûÇÏ°Ô Àç°è»ê)
-	// ÃÖÀûÈ­¸¦ À§ÇØ¼± µ¨Å¸¸¸ Àû¿ëÇÒ ¼öµµ ÀÖÁö¸¸, ¾ÈÀüÇÏ°Ô ÀüÃ¼ °»½Å ¹æ½ÄÀ» ÃßÃµ ÇØ¼­ ´Ù Áö¿ì°í ´Ù½Ã °è»êÇÏ´Â ·ÎÁ÷ ±¸¼º
+	// ê¸°ì¡´ ì•„í‹°íŒ©íŠ¸ íš¨ê³¼ë“¤ ì¼ë‹¨ ë‹¤ ì œê±° (ê¹”ë”í•˜ê²Œ ì¬ê³„ì‚°)
+	// ìµœì í™”ë¥¼ ìœ„í•´ì„  ë¸íƒ€ë§Œ ì ìš©í•  ìˆ˜ë„ ìˆì§€ë§Œ, ì•ˆì „í•˜ê²Œ ì „ì²´ ê°±ì‹  ë°©ì‹ì„ ì¶”ì²œ í•´ì„œ ë‹¤ ì§€ìš°ê³  ë‹¤ì‹œ ê³„ì‚°í•˜ëŠ” ë¡œì§ êµ¬ì„±
 	for (auto& Handle : RuntimeData.ArtifactAbilityHandles) ASC->ClearAbility(Handle);
 	for (auto& Handle : RuntimeData.ArtifactEffectHandles) ASC->RemoveActiveGameplayEffect(Handle);
 	RuntimeData.ArtifactAbilityHandles.Empty();
 	RuntimeData.ArtifactEffectHandles.Empty();
 
-	// ÇØ±İµÈ °³¼ö¸¸Å­ ¼øÈ¸
+	// í•´ê¸ˆëœ ê°œìˆ˜ë§Œí¼ ìˆœíšŒ
 	int32 MaxIndex = FMath::Min(RuntimeData.UnlockedArtifactCount, Def->Artifacts.Num());
 
 	for (int32 i = 0; i < MaxIndex; i++)
 	{
 		const FOpartsArtifactData& Artifact = Def->Artifacts[i];
 
-		// 3-1. ¾ÆÆ¼ÆÑÆ® ½ºÅÈ (GE)
+		// 3-1. ì•„í‹°íŒ©íŠ¸ ìŠ¤íƒ¯ (GE)
 		if (Artifact.ArtifactStatEffectClass)
 		{
 			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
 			Context.AddSourceObject(this);
-			// ¾ÆÆ¼ÆÑÆ®´Â º¸Åë ·¹º§ °³³äÀÌ ¾øÀ¸¹Ç·Î 1.0f °íÁ¤
+			// ì•„í‹°íŒ©íŠ¸ëŠ” ë³´í†µ ë ˆë²¨ ê°œë…ì´ ì—†ìœ¼ë¯€ë¡œ 1.0f ê³ ì •
 			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(Artifact.ArtifactStatEffectClass, 1.0f, Context);
 			if (Spec.IsValid())
 			{
@@ -152,7 +190,7 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 			}
 		}
 
-		// 3-2. ¾ÆÆ¼ÆÑÆ® ´É·Â (GA)
+		// 3-2. ì•„í‹°íŒ©íŠ¸ ëŠ¥ë ¥ (GA)
 		if (Artifact.ArtifactAbilityClass)
 		{
 			FGameplayAbilitySpec Spec(Artifact.ArtifactAbilityClass, 1, -1, this);
@@ -161,7 +199,7 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 		}
 	}
 
-	// UI °»½Å ¾Ë¸²
+	// UI ê°±ì‹  ì•Œë¦¼
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
 }
 
@@ -170,33 +208,33 @@ void UOpartsComponent::TryUpgradeLevel()
 	if (!RuntimeData.Definition) return;
 	if (RuntimeData.CurrentLevel >= 5)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ÀÌ¹Ì ÃÖ´ë ·¹º§ÀÔ´Ï´Ù."));
+		UE_LOG(LogTemp, Warning, TEXT("ì´ë¯¸ ìµœëŒ€ ë ˆë²¨ì…ë‹ˆë‹¤."));
 		return;
 	}
 
-	// 2. ÀÎº¥Åä¸® ÄÄÆ÷³ÍÆ® Ã£±â
+	// 2. ì¸ë²¤í† ë¦¬ ì»´í¬ë„ŒíŠ¸ ì°¾ê¸°
 	UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
 	if (!Inventory)
 	{
-		UE_LOG(LogTemp, Error, TEXT("ÀÎº¥Åä¸® ÄÄÆ÷³ÍÆ®¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù!"));
+		UE_LOG(LogTemp, Error, TEXT("ì¸ë²¤í† ë¦¬ ì»´í¬ë„ŒíŠ¸ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤!"));
 		return;
 	}
 	int32 Cost = RuntimeData.CurrentLevel * 100;
 
-	// 4. ÀÚ¿ø ¼Ò¸ğ ½Ãµµ
+	// 4. ìì› ì†Œëª¨ ì‹œë„
 	if (Inventory->ConsumeSand(Cost))
 	{
-		// ¼º°ø ½Ã ·¹º§¾÷ ÁøÇà
+		// ì„±ê³µ ì‹œ ë ˆë²¨ì—… ì§„í–‰
 		RuntimeData.CurrentLevel++;
 
-		// ½ºÅÈ ÀçÀû¿ë (Curve Table °ªÀÌ ¹Ù²ñ)
+		// ìŠ¤íƒ¯ ì¬ì ìš© (Curve Table ê°’ì´ ë°”ë€œ)
 		ApplyOpartsStatsAndAbilities();
 
-		UE_LOG(LogTemp, Log, TEXT("¿ÀÆÄÃ÷ ·¹º§¾÷ ¼º°ø! (Lv.%d -> Lv.%d)"), RuntimeData.CurrentLevel - 1, RuntimeData.CurrentLevel);
+		UE_LOG(LogTemp, Log, TEXT("ì˜¤íŒŒì¸  ë ˆë²¨ì—… ì„±ê³µ! (Lv.%d -> Lv.%d)"), RuntimeData.CurrentLevel - 1, RuntimeData.CurrentLevel);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("·¹º§¾÷ ½ÇÆĞ: ¸ğ·¡°¡ ºÎÁ·ÇÕ´Ï´Ù."));
+		UE_LOG(LogTemp, Warning, TEXT("ë ˆë²¨ì—… ì‹¤íŒ¨: ëª¨ë˜ê°€ ë¶€ì¡±í•©ë‹ˆë‹¤."));
 	}
 }
 
@@ -204,39 +242,39 @@ void UOpartsComponent::TryUnlockNextArtifact()
 {
 	if (!RuntimeData.Definition) return;
 
-	// 1. ÃÖ´ë ÇØ±İ Ã¼Å© (5°³)
+	// 1. ìµœëŒ€ í•´ê¸ˆ ì²´í¬ (5ê°œ)
 	if (RuntimeData.UnlockedArtifactCount >= 5)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("¸ğµç ¾ÆÆ¼ÆÑÆ®°¡ ÇØ±İµÇ¾ú½À´Ï´Ù."));
+		UE_LOG(LogTemp, Warning, TEXT("ëª¨ë“  ì•„í‹°íŒ©íŠ¸ê°€ í•´ê¸ˆë˜ì—ˆìŠµë‹ˆë‹¤."));
 		return;
 	}
 
-	// 2. ÀÎº¥Åä¸® Ã£±â
+	// 2. ì¸ë²¤í† ë¦¬ ì°¾ê¸°
 	UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
 	if (!Inventory) return;
 
-	// 3. ºñ¿ë °è»ê (±âÈ¹¼­: 1 -> 2 -> 3 -> 3 -> 4)
-	// ¹è¿­ ÀÎµ¦½º: 0(Ã¹ÇØ±İ), 1, 2, 3, 4
+	// 3. ë¹„ìš© ê³„ì‚° (ê¸°íšì„œ: 1 -> 2 -> 3 -> 3 -> 4)
+	// ë°°ì—´ ì¸ë±ìŠ¤: 0(ì²«í•´ê¸ˆ), 1, 2, 3, 4
 	int32 Costs[] = { 1, 2, 3, 3, 4 };
-	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount; // ÇöÀç 0°³¸é 0¹ø ÀÎµ¦½º ºñ¿ë(1) ÇÊ¿ä
+	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount; // í˜„ì¬ 0ê°œë©´ 0ë²ˆ ì¸ë±ìŠ¤ ë¹„ìš©(1) í•„ìš”
 
-	// ¾ÈÀüÀåÄ¡
+	// ì•ˆì „ì¥ì¹˜
 	if (!Costs[CurrentIndex]) return;
 	int32 Cost = Costs[CurrentIndex];
 
-	// 4. ÀÚ¿ø ¼Ò¸ğ ½Ãµµ
+	// 4. ìì› ì†Œëª¨ ì‹œë„
 	if (Inventory->ConsumeIncompleteEnergy(Cost))
 	{
-		// ¼º°ø ½Ã ÇØ±İ
+		// ì„±ê³µ ì‹œ í•´ê¸ˆ
 		RuntimeData.UnlockedArtifactCount++;
 
-		// ¾ÆÆ¼ÆÑÆ® ´É·Â ÀçÀû¿ë
+		// ì•„í‹°íŒ©íŠ¸ ëŠ¥ë ¥ ì¬ì ìš©
 		ApplyOpartsStatsAndAbilities();
 
-		UE_LOG(LogTemp, Log, TEXT("¾ÆÆ¼ÆÑÆ® ÇØ±İ ¼º°ø! (ÇöÀç °³¼ö: %d)"), RuntimeData.UnlockedArtifactCount);
+		UE_LOG(LogTemp, Log, TEXT("ì•„í‹°íŒ©íŠ¸ í•´ê¸ˆ ì„±ê³µ! (í˜„ì¬ ê°œìˆ˜: %d)"), RuntimeData.UnlockedArtifactCount);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ÇØ±İ ½ÇÆĞ: ºÒ¿ÏÀüÇÑ ±â¿îÀÌ ºÎÁ·ÇÕ´Ï´Ù."));
+		UE_LOG(LogTemp, Warning, TEXT("í•´ê¸ˆ ì‹¤íŒ¨: ë¶ˆì™„ì „í•œ ê¸°ìš´ì´ ë¶€ì¡±í•©ë‹ˆë‹¤."));
 	}
 }
