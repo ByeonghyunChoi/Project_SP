@@ -15,13 +15,13 @@ struct FPlayerStatsData
 
 public:
     UPROPERTY() float CurrentHealth = 100.0f;
-    UPROPERTY() float CurrentBattlePoint = 0.0f;
+    UPROPERTY() float CurrentBattlePoint = 2.0f;
     UPROPERTY() float CurrentTimePower = 200.0f;    
     UPROPERTY() float CurrentActionGauge = 0.0f;
 
     UPROPERTY() float MaxHealth = 100.0f;
     UPROPERTY() float MaxBattlePoint = 5.0f;
-    UPROPERTY() float MaxTimePower = 9999.0f;       
+    UPROPERTY() float MaxTimePower = 200.0f;       
 
     UPROPERTY() float Attack = 20.0f;
     UPROPERTY() float Defense = 10.0f;
@@ -35,18 +35,14 @@ public:
     UPROPERTY() float EffectAmplify = 0.0f;
 
     // 4. 硅啦
-    UPROPERTY() float OutgoingDamageMultiplier = 1.0f;
-    UPROPERTY() float IncomingDamageMultiplier = 1.0f;
+    UPROPERTY() float OutgoingDamageMultiplier = 0.0f;
+    UPROPERTY() float IncomingDamageMultiplier = 0.0f;
 
     // 5. 己厘
     UPROPERTY() float Level = 1.0f;
     UPROPERTY() float Experience = 0.0f;
     UPROPERTY() float MaxExperience = 100.0f;
 
-    // 6. 加己 历亲
-    UPROPERTY() float ResistanceSurtr = 0.0f;
-    UPROPERTY() float ResistanceFenrir = 0.0f;
-    UPROPERTY() float ResistanceJormungandr = 0.0f;
 };
 
 USTRUCT(BlueprintType)

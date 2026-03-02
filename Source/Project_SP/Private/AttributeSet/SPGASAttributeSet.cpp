@@ -9,10 +9,10 @@ USPGASAttributeSet::USPGASAttributeSet()
 {
 	InitHealth(100.0f);
 	InitMaxHealth(100.0f);
-	InitBattlePoint(0.0f);
+	InitBattlePoint(2.0f);
 	InitMaxBattlePoint(5.0f);
 	InitTimePower(200.0f);
-	InitMaxTimePower(9999.0f);
+	InitMaxTimePower(200.0f);
 	InitDefense(10.0f);
 	InitSpeed(100.0f);
 	InitActionGauge(0.0f);
@@ -23,8 +23,8 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitCriticalDamage(1.5f);
 	InitEffectHitRate(0.0f);
 	InitEffectAmplify(0.0f);
-	InitOutgoingDamageMultiplier(1.0f);
-	InitIncomingDamageMultiplier(1.0f);
+	InitOutgoingDamageMultiplier(0.0f);
+	InitIncomingDamageMultiplier(0.0f);
 	InitLevel(1.0f);
 	InitExperience(0.0f);
 	InitMaxExperience(100.0f);

@@ -88,6 +88,20 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputAction> BattleClickAction;
 
+	//필드 용 UI
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> FieldHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> FieldHUDWidget;
+
+	//전투 용 UI
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> BattleHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> BattleHUDWidget;
+
 protected:
 	// 필드 이동 처리
 	void OnMove(const FInputActionValue& Value);
@@ -144,6 +158,12 @@ public:
 	//행동의 Cost를 가져오는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	int32 GetSkillCost(FGameplayTag ActionTag) const;
+	// HP 퍼센트 가져오기 (0.0 ~ 1.0)
+	UFUNCTION(BlueprintPure, Category = "Combat | UI")
+	float GetHealthPercent() const;
+	// 시간의 힘 퍼센트 가져오기 (0.0 ~ 1.0)
+	UFUNCTION(BlueprintPure, Category = "Combat | UI")
+	float GetTimePowerPercent() const;
 
 private:
 	UPROPERTY()

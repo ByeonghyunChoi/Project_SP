@@ -11,6 +11,7 @@
 #include "Character/SPGASMonsterCharacter.h" 
 #include "Tag/SPGameplayTags.h"
 #include "Components/WidgetComponent.h"
+#include "Blueprint/UserWidget.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffect.h"
 #include "Data/Asset/WeaponAbilityData.h"
@@ -31,6 +32,26 @@ void ASPGASPlayerController::BeginPlay()
 	InputModeData.SetHideCursorDuringCapture(false);
 	InputModeData.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputModeData);
+
+	if (FieldHUDClass && !FieldHUDWidget)
+	{
+		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
+		if (FieldHUDWidget)
+		{
+			FieldHUDWidget->AddToViewport();
+			FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+	}
+
+	if (BattleHUDClass && !BattleHUDWidget)
+	{
+		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
+		if (BattleHUDWidget)
+		{
+			BattleHUDWidget->AddToViewport();
+			BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
 }
 
 void ASPGASPlayerController::SetupInputComponent()
@@ -463,6 +484,35 @@ int32 ASPGASPlayerController::GetSkillCost(FGameplayTag ActionTag) const
 	return 0;
 }
 
+float ASPGASPlayerController::GetHealthPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+
+	if (MaxHP > 0.0f)
+	{
+		return FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
+
+float ASPGASPlayerController::GetTimePowerPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+	float MaxTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+	if (MaxTP > 0.0f)
+	{
+		return FMath::Clamp(CurrentTP / MaxTP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
 
 void ASPGASPlayerController::StartTargetSelection()
 {
@@ -666,6 +716,18 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 	
 	if (!PlayerChar || !Subsystem) return;
 
+	if (!FieldHUDWidget && FieldHUDClass)
+	{
+		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
+		if (FieldHUDWidget) FieldHUDWidget->AddToViewport();
+	}
+
+	if (!BattleHUDWidget && BattleHUDClass)
+	{
+		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
 	// 2. NewCount가 0보다 크면 전투 모드
 	if (NewCount > 0)
 	{
@@ -674,6 +736,9 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(BattleMappingContext, 0);
 		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
 		PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
+		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
 
 		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
 		
@@ -688,6 +753,8 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(FieldMappingContext, 0);
 		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
 		PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
+		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Visible);
 
 		CancelTargetSelection();
 
