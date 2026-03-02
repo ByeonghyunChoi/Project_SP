@@ -41,6 +41,10 @@ ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 	WeaponWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WeaponWidgetComponent"));
 	WeaponWidgetComponent->SetupAttachment(GetCapsuleComponent());
 	WeaponWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+
+	ActionWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("ActionWidgetComponent"));
+	ActionWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	ActionWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
 }
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
@@ -318,4 +322,13 @@ ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, E
 		}
 	}
 	return ETargetingType::Single;
+}
+
+TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
+{
+	if (const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag))
+	{
+		return *FoundData;
+	}
+	return nullptr;
 }

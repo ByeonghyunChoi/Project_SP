@@ -1,21 +1,21 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "SPGASBattleTypes.generated.h"
 
-//³»ºÎ ·ÎÁ÷ Á¦¾î¿ë Enum
+//ë‚´ë¶€ ë¡œì§ ì œì–´ìš© Enum
 UENUM(BlueprintType)
 enum class EBattleState : uint8
 {
-	Ready,              // ÀüÅõ ÁøÀÔ ¹× ÃÊ±âÈ­
-	DetermineNextTurn,  // ´ÙÀ½ ÅÏ ÁÖÀÎ°ø °áÁ¤
-	ActiveTurn,         // ÇöÀç À¯´Ö Çàµ¿ Áß (ÀÔ·Â ´ë±â Æ÷ÇÔ)
-	ActionExecuting,    // Çàµ¿ ½ÇÇà Áß (¸ùÅ¸ÁÖ Àç»ı µî)
-	Victory,            // ÇÃ·¹ÀÌ¾î ½Â¸®
-	Defeat              // ÇÃ·¹ÀÌ¾î ÆĞ¹è
+	Ready,              // ì „íˆ¬ ì§„ì… ë° ì´ˆê¸°í™”
+	DetermineNextTurn,  // ë‹¤ìŒ í„´ ì£¼ì¸ê³µ ê²°ì •
+	ActiveTurn,         // í˜„ì¬ ìœ ë‹› í–‰ë™ ì¤‘ (ì…ë ¥ ëŒ€ê¸° í¬í•¨)
+	ActionExecuting,    // í–‰ë™ ì‹¤í–‰ ì¤‘ (ëª½íƒ€ì£¼ ì¬ìƒ ë“±)
+	Victory,            // í”Œë ˆì´ì–´ ìŠ¹ë¦¬
+	Defeat              // í”Œë ˆì´ì–´ íŒ¨ë°°
 };
 
-// ÀüÅõ Çàµ¿ Å¸ÀÔ (°ø°İ, ½ºÅ³, ÆĞ¸µ)
+// ì „íˆ¬ í–‰ë™ íƒ€ì… (ê³µê²©, ìŠ¤í‚¬, íŒ¨ë§)
 UENUM(BlueprintType)
 enum class ESelectedActionType : uint8
 {
@@ -25,13 +25,14 @@ enum class ESelectedActionType : uint8
 	ParrySkill
 };
 
-//Å¸°ÙÆÃ Å¸ÀÔ Á¤ÀÇ
+//íƒ€ê²ŸíŒ… íƒ€ì… ì •ì˜
 UENUM(BlueprintType)
 enum class ETargetingType : uint8
 {
-	Single      UMETA(DisplayName = "Single Target"), // ´ÜÀÏ (È­»ìÇ¥ 1°³)
-	Area        UMETA(DisplayName = "Area of Effect"), // ±¤¿ª (¸ğµÎ È­»ìÇ¥)
-	Self        UMETA(DisplayName = "Self"),          // ÀÚ½Å (¹öÇÁ µî)
-	Random      UMETA(DisplayName = "Random")         // ·£´ı (È­»ìÇ¥ 1°³)
+	Single      UMETA(DisplayName = "ë‹¨ì¼ê¸°"), // ë‹¨ì¼ (í™”ì‚´í‘œ 1ê°œ)
+	Area        UMETA(DisplayName = "ê´‘ì—­ê¸°"), // ê´‘ì—­ (ëª¨ë‘ í™”ì‚´í‘œ)
+	All			UMETA(DisplayName = "ì „ì²´ íƒ€ê²Ÿ"),
+	Self        UMETA(DisplayName = "ë‚˜ ìì‹ "),          // ìì‹  (ë²„í”„ ë“±)
+	Random      UMETA(DisplayName = "ëœë¤")         // ëœë¤ (í™”ì‚´í‘œ 1ê°œ)
 };
 

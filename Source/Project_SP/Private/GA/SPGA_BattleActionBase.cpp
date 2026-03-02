@@ -231,6 +231,23 @@ TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
 	return OutActors;
 }
 
+TArray<AActor*> USPGA_BattleActionBase::GetSecondaryTargets(AActor* PrimaryTarget) const
+{
+	TArray<AActor*> AllEnemies = GetAllEnemies();
+	TArray<AActor*> SecondaryTargets;
+
+	for (AActor* Enemy : AllEnemies)
+	{
+		// 주 타겟과 동일한 액터가 아니면 보조 타겟 배열에 추가합니다.
+		if (Enemy != PrimaryTarget)
+		{
+			SecondaryTargets.Add(Enemy);
+		}
+	}
+
+	return SecondaryTargets;
+}
+
 AActor* USPGA_BattleActionBase::GetRandomEnemy() const
 {
 	TArray<AActor*> Enemies = GetAllEnemies();

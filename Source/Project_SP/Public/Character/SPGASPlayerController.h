@@ -84,6 +84,24 @@ protected:
 	//현재 선택된 스킬의 타겟팅 타입
 	ETargetingType CurrentTargetingType = ETargetingType::Single;
 
+	//전투 중 마우스 클릭 입력 액션
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<class UInputAction> BattleClickAction;
+
+	//필드 용 UI
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> FieldHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> FieldHUDWidget;
+
+	//전투 용 UI
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> BattleHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> BattleHUDWidget;
+
 protected:
 	// 필드 이동 처리
 	void OnMove(const FInputActionValue& Value);
@@ -93,9 +111,6 @@ protected:
 
 	// 필드 액션 
 	void OnFieldInputPressed(FGameplayTag InputTag);
-
-	// 전투 액션 (무기교체 or 행동선택 -> 타겟팅 -> 확정)
-	void OnBattleInputPressed(FGameplayTag InputTag);
 
 	// 전투/필드 상태 변경 감지 
 	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
@@ -118,6 +133,9 @@ protected:
 	// 실제 실행 함수
 	void ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor);
 
+	//마우스 클릭 시 실행될 함수
+	void OnBattleClick(const FInputActionValue& Value);
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -125,6 +143,27 @@ public:
 	// 현재 선택한 무기가 뭔지 확인하는 용도의 Getter 함수
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	FGameplayTag GetCurrentWeaponTag() const { return CurrentWeaponTag; }
+	// 전투 액션 (무기교체 or 행동선택 -> 타겟팅 -> 확정)
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void OnBattleInputPressed(FGameplayTag InputTag);
+	//쿨타임 가져오는 함수
+	UFUNCTION(BlueprintPure, Category = "Combat|Cooldown")
+	int32 GetSkillCooldownTurns(FGameplayTag SkillTag) const;
+	//현재 배틀 포인트를 가져오는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	int32 GetCurrentBP() const;
+	//현재 시간의 힘을 가져오는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	int32 GetCurrentTimePower() const;
+	//행동의 Cost를 가져오는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	int32 GetSkillCost(FGameplayTag ActionTag) const;
+	// HP 퍼센트 가져오기 (0.0 ~ 1.0)
+	UFUNCTION(BlueprintPure, Category = "Combat | UI")
+	float GetHealthPercent() const;
+	// 시간의 힘 퍼센트 가져오기 (0.0 ~ 1.0)
+	UFUNCTION(BlueprintPure, Category = "Combat | UI")
+	float GetTimePowerPercent() const;
 
 private:
 	UPROPERTY()

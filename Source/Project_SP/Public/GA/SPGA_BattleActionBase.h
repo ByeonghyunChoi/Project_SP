@@ -63,6 +63,10 @@ protected:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	TArray<AActor*> GetAllEnemies() const;
 
+	// 주 타겟을 제외한 나머지 보조 타겟들만 가져오기
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	TArray<AActor*> GetSecondaryTargets(AActor* PrimaryTarget) const;
+
 	/** 랜덤한 적 1명 가져오기 (바운스용) */
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	AActor* GetRandomEnemy() const;
