@@ -18,6 +18,11 @@ ASPGASMonsterCharacter::ASPGASMonsterCharacter()
 	TargetIndicatorWidget->SetupAttachment(GetRootComponent());
 	TargetIndicatorWidget->SetWidgetSpace(EWidgetSpace::Screen);
 	TargetIndicatorWidget->SetVisibility(false);
+
+	StatusWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("StatusWidgetComponent"));
+	StatusWidgetComponent->SetupAttachment(GetRootComponent());
+	StatusWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+	StatusWidgetComponent->SetVisibility(false);
 }
 
 void ASPGASMonsterCharacter::BeginPlay()
@@ -27,6 +32,12 @@ void ASPGASMonsterCharacter::BeginPlay()
 	if (ASC)
 	{
 		ASC->InitAbilityActorInfo(this, this);
+
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
+			.AddUObject(this, &ASPGASMonsterCharacter::OnHealthChanged);
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxHealthAttribute())
+			.AddUObject(this, &ASPGASMonsterCharacter::OnMaxHealthChanged);
+
 		if (WeaknessTags.IsValid())
 		{
 			ASC->AddLooseGameplayTags(WeaknessTags);
@@ -45,6 +56,22 @@ void ASPGASMonsterCharacter::BeginPlay()
 	{
 		GetMesh()->SetCustomDepthStencilValue(1); 
 	}
+
+	ReportReadyToGameMode();
+}
+
+void ASPGASMonsterCharacter::OnBattleStarted()
+{
+	Super::OnBattleStarted();
+
+	if (StatusWidgetComponent)
+	{
+		StatusWidgetComponent->SetVisibility(true);
+	}
+
+	// 전투 시작 시 현재 체력과 약점 정보를 방송해줍니다!
+	BroadcastHPUI();
+	OnMonsterWeaknessInitialized.Broadcast(WeaknessTags);
 }
 
 void ASPGASMonsterCharacter::InitializeEnemyStats(int32 NewLevel, float StatMultiplier)
@@ -86,6 +113,24 @@ void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
 
 	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
 	OnTargetStateChanged(bSelected, bIsPrimary);
+}
+
+void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
+{
+	BroadcastHPUI();
+}
+
+void ASPGASMonsterCharacter::OnMaxHealthChanged(const FOnAttributeChangeData& Data)
+{
+	BroadcastHPUI();
+}
+
+void ASPGASMonsterCharacter::BroadcastHPUI()
+{
+	if (!ASC) return;
+	float CurrentHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	OnMonsterHPChanged.Broadcast(CurrentHP, MaxHP);
 }
 
 

@@ -7,7 +7,11 @@
 #include "GameplayTagContainer.h"
 #include "InputActionValue.h"
 #include "Manager/SPGASBattleTypes.h" 
+#include "GameplayEffectTypes.h"
 #include "SPGASPlayerController.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -136,6 +140,12 @@ protected:
 	//마우스 클릭 시 실행될 함수
 	void OnBattleClick(const FInputActionValue& Value);
 
+	//배틀 포인트 변경시 실행될 함수
+	void OnBattlePointChanged(const FOnAttributeChangeData& Data);
+
+	//배틀 포인트 최대값 변경시 실행될 함수
+	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -152,6 +162,9 @@ public:
 	//현재 배틀 포인트를 가져오는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	int32 GetCurrentBP() const;
+	//최대 배틀 포인트를 가져오는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	int32 GetMaxBP() const;
 	//현재 시간의 힘을 가져오는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	int32 GetCurrentTimePower() const;
@@ -165,7 +178,30 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat | UI")
 	float GetTimePowerPercent() const;
 
+	//전투 UI 활성화 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void SetupAndShowBattleUI();
+
+	//전투 UI 비활성화, 필드 UI 활성화 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void HideBattleUIAndShowFieldUI();
+
+	//배틀 포인트 변화를 알리는 함수
+	UFUNCTION(BlueprintCallable)
+	void RefreshBattlePointUI();
+
+	//턴 순서 UI를 업데이트 하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnBattlePointUpdatedDelegate OnBattlePointUIUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
 };

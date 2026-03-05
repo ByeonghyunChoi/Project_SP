@@ -39,5 +39,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "GAS | Turn")
     virtual void ReduceCooldowns();
 
+    // 전투 준비가 끝났을 때 알리는 함수
+    UFUNCTION(BlueprintCallable, Category = "GAS | ReadyCheck")
+    virtual void ReportReadyToGameMode();
+
+    // 전투가 시작할 때 사용할 함수(UI 키기 등)
+    UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+    virtual void OnBattleStarted();
+
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 };

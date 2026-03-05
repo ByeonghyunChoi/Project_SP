@@ -8,7 +8,8 @@
 #include "Tag/SPGameplayTags.h"
 #include "SPGASMonsterCharacter.generated.h"
 
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMonsterHPChangedDelegate, float, CurrentHP, float, MaxHP);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMonsterWeaknessDelegate, const FGameplayTagContainer&, Weaknesses);
 
 UCLASS()
 class PROJECT_SP_API ASPGASMonsterCharacter : public ASPGASCharacterBase
@@ -18,6 +19,7 @@ class PROJECT_SP_API ASPGASMonsterCharacter : public ASPGASCharacterBase
 public:
     ASPGASMonsterCharacter();
     virtual void BeginPlay() override;
+    virtual void OnBattleStarted() override;
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
@@ -38,6 +40,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
 
+    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+    FOnMonsterHPChangedDelegate OnMonsterHPChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+    FOnMonsterWeaknessDelegate OnMonsterWeaknessInitialized;
+protected:
+
+    void OnHealthChanged(const struct FOnAttributeChangeData& Data);
+
+    void OnMaxHealthChanged(const struct FOnAttributeChangeData& Data);
+
+    // UI 갱신 방송 함수
+    void BroadcastHPUI();
 
 protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Stats")
@@ -49,4 +64,8 @@ protected:
     //몬스터 등급 태그
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster | Tags")
     FGameplayTag MonsterRankTag;
+
+    //몬스터 정보 위젯
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
 };
