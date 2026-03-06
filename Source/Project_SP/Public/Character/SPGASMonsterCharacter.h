@@ -10,6 +10,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMonsterHPChangedDelegate, float, CurrentHP, float, MaxHP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMonsterWeaknessDelegate, const FGameplayTagContainer&, Weaknesses);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMonsterStatusEffectChangedDelegate);
 
 UCLASS()
 class PROJECT_SP_API ASPGASMonsterCharacter : public ASPGASCharacterBase
@@ -34,8 +35,15 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void SetSelectedWidget(bool bSelected, bool bIsPrimary);
 
+    //상태이상 태그과 남은 턴 수를 가져올 함수
+    UFUNCTION(BlueprintPure, Category = "Combat | UI")
+    TMap<FGameplayTag, int32> GetActiveDebuffs() const;
+
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
     void OnTargetStateChanged(bool bSelected, bool bIsPrimary);
+
+    // UI 갱신 방송 함수(상태이상)
+    void BroadcastStatusUI();
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
@@ -45,13 +53,16 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
     FOnMonsterWeaknessDelegate OnMonsterWeaknessInitialized;
+
+    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+    FOnMonsterStatusEffectChangedDelegate OnMonsterStatusChanged;
 protected:
 
     void OnHealthChanged(const struct FOnAttributeChangeData& Data);
 
     void OnMaxHealthChanged(const struct FOnAttributeChangeData& Data);
 
-    // UI 갱신 방송 함수
+    // UI 갱신 방송 함수(HP)
     void BroadcastHPUI();
 
 protected:

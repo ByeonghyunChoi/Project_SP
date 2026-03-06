@@ -20,6 +20,11 @@ UAbilitySystemComponent* ASPGASCharacterBase::GetAbilitySystemComponent() const
     return ASC;
 }
 
+void ASPGASCharacterBase::BroadcastDamageText(float DamageAmount, bool bIsCritical)
+{
+	OnDamageTaken.Broadcast(DamageAmount, bIsCritical);
+}
+
 void ASPGASCharacterBase::FinishTurn()
 {
 	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(UGameplayStatics::GetGameMode(this)))

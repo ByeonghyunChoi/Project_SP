@@ -5,6 +5,7 @@
 #include "AbilitySystemInterface.h"
 #include "SPGASCharacterBase.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, DamageAmount, bool, bIsCritical);
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySystemInterface
@@ -14,6 +15,7 @@ class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySys
 public:
     ASPGASCharacterBase();
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+    virtual void BroadcastDamageText(float DamageAmount, bool bIsCritical);
 
 protected:
     UPROPERTY(EditAnywhere, Category = "GAS")
@@ -24,6 +26,10 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
+    
+public:
+    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+    FOnDamageTakenDelegate OnDamageTaken;
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }

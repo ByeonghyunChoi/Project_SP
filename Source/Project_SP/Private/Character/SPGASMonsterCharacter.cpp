@@ -115,6 +115,37 @@ void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
 	OnTargetStateChanged(bSelected, bIsPrimary);
 }
 
+TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const
+{
+	TMap<FGameplayTag, int32> ActiveDebuffs;
+	if (!ASC) return ActiveDebuffs;
+
+	// 내 몸에 붙은 모든 버프/디버프 바구니(Active Effect)를 뒤져봅니다.
+	FGameplayEffectQuery Query;
+	TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+	{
+		const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(Handle);
+		if (!ActiveGE) continue;
+
+		FGameplayTagContainer GrantedTags;
+		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+
+		// 태그 중에 "Debuff"로 시작하는 놈이 있다면?
+		for (const FGameplayTag& Tag : GrantedTags)
+		{
+			if (Tag.MatchesTag(FGameplayTag::RequestGameplayTag("Debuff")))
+			{
+				// 남은 스택(턴 수)을 가져와서 Map에 [태그 : 남은 턴] 형태로 저장!
+				int32 TurnsLeft = ASC->GetCurrentStackCount(Handle);
+				ActiveDebuffs.Add(Tag, TurnsLeft);
+			}
+		}
+	}
+	return ActiveDebuffs;
+}
+
 void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	BroadcastHPUI();
@@ -131,6 +162,11 @@ void ASPGASMonsterCharacter::BroadcastHPUI()
 	float CurrentHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
 	float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
 	OnMonsterHPChanged.Broadcast(CurrentHP, MaxHP);
+}
+
+void ASPGASMonsterCharacter::BroadcastStatusUI()
+{
+	OnMonsterStatusChanged.Broadcast();
 }
 
 
