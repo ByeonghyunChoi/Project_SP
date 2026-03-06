@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AttributeSet/SPGASAttributeSet.h"
+#include "Character/SPGASMonsterCharacter.h"
 
 // Sets default values for this component's properties
 USPStatusEffectComponent::USPStatusEffectComponent()
@@ -228,6 +229,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 			}
 		}
 	}
+
+	if (TargetASC)
+	{
+		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetASC->GetAvatarActor()))
+		{
+			Monster->BroadcastStatusUI();
+		}
+	}
 }
 
 void USPStatusEffectComponent::ProcessTurnStartDoT()
@@ -352,6 +361,11 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 			}
 		}
 	}
+
+	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetOwner()))
+	{
+		Monster->BroadcastStatusUI();
+	}
 }
 
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
@@ -361,8 +375,12 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 	FGameplayTagContainer TagContainer;
 	TagContainer.AddTag(StatusTagToRemove);
 
-	// 🌟 Query를 만드는 대신, GAS의 가장 확실한 내장 함수 사용!
 	TargetASC->RemoveActiveEffectsWithGrantedTags(TagContainer);
+
+	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetOwner()))
+	{
+		Monster->BroadcastStatusUI();
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 제거됨: %s"), *StatusTagToRemove.ToString());
 }

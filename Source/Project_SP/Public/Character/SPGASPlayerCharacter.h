@@ -93,15 +93,19 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<class UWidgetComponent> ActionWidgetComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<class UWidgetComponent> BattlePointWidgetComponent;
+
 public:
 	void SetCameraProfile(const FCameraProfile& Profile);
-
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
 	const FCameraProfile& GetCombatCameraProfile() const { return CombatCameraSetting; }
 	TObjectPtr<class UWidgetComponent> GetWeaponWidgetComponent() { return WeaponWidgetComponent; }
 	TObjectPtr<class UWidgetComponent> GetActionWidgetComponent() { return ActionWidgetComponent; }
+	TObjectPtr<class UWidgetComponent> GetBattlePointWidgetComponent() { return BattlePointWidgetComponent; }
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
+	virtual void OnBattleStarted() override;
 };

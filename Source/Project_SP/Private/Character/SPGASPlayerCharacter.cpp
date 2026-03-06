@@ -45,6 +45,10 @@ ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 	ActionWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("ActionWidgetComponent"));
 	ActionWidgetComponent->SetupAttachment(GetCapsuleComponent());
 	ActionWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+
+	BattlePointWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("BattlePointWidgetComponent"));
+	BattlePointWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	BattlePointWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
 }
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
@@ -64,10 +68,10 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (ASC)
 	{
-		// 1. 기본은 필드 태그
+		// 기본은 필드 태그
 		FGameplayTag ModeTag = FSPGameplayTags::Get().State_Mode_Field;
 
-		// 2. 매니저에게 현재 상태 확인
+		// 매니저에게 현재 상태 확인
 		UGameInstance* GI = GetGameInstance();
 		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
 		{
@@ -77,7 +81,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			}
 		}
 
-		// 3. 결정된 태그 부착
+		// 결정된 태그 부착
 		ASC->AddLooseGameplayTag(ModeTag);
 		//임시 이벤트 부착 나중에 제거
 		ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ASPGASPlayerCharacter::OnGameplayEffectApplied);
@@ -97,16 +101,18 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	}
 	SetCameraProfile(FieldCameraSetting);
 
+	ReportReadyToGameMode();
+
 	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
 	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
 
 void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
 {
-	// 1. 타겟 저장 (GA가 시작되면 이 변수를 읽어갑니다)
+	// 타겟 저장 (GA가 시작되면 이 변수를 읽어갑니다)
 	CurrentCombatTarget = TargetActor;
 
-	// 2. 무기 데이터 확인
+	// 무기 데이터 확인
 	if (!WeaponConfigs.Contains(WeaponTag))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Character: 해당 무기 데이터가 없습니다 (%s)"), *WeaponTag.ToString());
@@ -116,7 +122,7 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
 	TSubclassOf<UGameplayAbility> AbilityClassToActivate;
 
-	// 3. 행동 타입에 맞는 클래스 선택 (Enum 활용)
+	// 행동 타입에 맞는 클래스 선택 (Enum 활용)
 	switch (ActionType)
 	{
 	case ESelectedActionType::NormalAttack:
@@ -130,7 +136,7 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 		break;
 	}
 
-	// 4. 어빌리티 실행
+	// 어빌리티 실행
 	if (AbilityClassToActivate && ASC)
 	{
 		// 클래스로 실행 (Payload 없이 실행해도 멤버 변수 CurrentCombatTarget을 읽으면 됨)
@@ -168,7 +174,7 @@ void ASPGASPlayerCharacter::OnRep_PlayerState()
 
 void ASPGASPlayerCharacter::GiveAbilities()
 {
-	// 1. 권한 확인 로그
+	// 권한 확인 로그
 	if (!HasAuthority())
 	{
 		UE_LOG(LogTemp, Error, TEXT("GiveAbilities Failed: Not Authority (Client tried to run this?)"));
@@ -182,7 +188,7 @@ void ASPGASPlayerCharacter::GiveAbilities()
 
 	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities Start: %s ==="), *GetName());
 
-	// 2. 필드 입력 GA 확인
+	// 필드 입력 GA 확인
 	UE_LOG(LogTemp, Log, TEXT("FieldInputAbilities Count: %d"), FieldInputAbilities.Num());
 	for (const auto& Pair : FieldInputAbilities)
 	{
@@ -199,7 +205,7 @@ void ASPGASPlayerCharacter::GiveAbilities()
 		}
 	}
 
-	// 3. 전투 입력 GA 확인
+	// 전투 입력 GA 확인
 	UE_LOG(LogTemp, Log, TEXT("BattleInputAbilities Count: %d"), BattleInputAbilities.Num());
 	for (const auto& Pair : BattleInputAbilities)
 	{
@@ -211,7 +217,7 @@ void ASPGASPlayerCharacter::GiveAbilities()
 		}
 	}
 
-	// 4. 필드 패시브 GA 확인
+	// 필드 패시브 GA 확인
 	UE_LOG(LogTemp, Log, TEXT("FieldPassiveAbilities Count: %d"), FieldPassiveAbilities.Num());
 	FGameplayTag FieldTag = FSPGameplayTags::Get().Ability_Type_Field; // 이름 수정 확인 필요 (Ability_Type_Auto_Field 인지 확인)
 	for (const auto& AbilityClass : FieldPassiveAbilities)
@@ -224,7 +230,7 @@ void ASPGASPlayerCharacter::GiveAbilities()
 		}
 	}
 
-	// 5. 전투 패시브 GA 확인
+	// 전투 패시브 GA 확인
 	UE_LOG(LogTemp, Log, TEXT("BattlePassiveAbilities Count: %d"), BattlePassiveAbilities.Num());
 	FGameplayTag BattleTag = FSPGameplayTags::Get().Ability_Type_Battle;
 	for (const auto& AbilityClass : BattlePassiveAbilities)
@@ -270,8 +276,6 @@ void ASPGASPlayerCharacter::OnGameplayEffectApplied(UAbilitySystemComponent* Tar
 	{
 		UE_LOG(LogTemp, Error, TEXT("쿨타임 감지됨! -----------------"));
 		UE_LOG(LogTemp, Error, TEXT(" - 이펙트 이름: %s"), *Spec.Def->GetName());
-
-		// [수정] Spec.StackCount -> Spec.GetStackCount() (경고 해결)
 		UE_LOG(LogTemp, Error, TEXT(" - 스택 개수(턴): %d"), Spec.GetStackCount());
 
 		// 누가 붙였나?
@@ -331,4 +335,13 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 		return *FoundData;
 	}
 	return nullptr;
+}
+
+void ASPGASPlayerCharacter::OnBattleStarted()
+{
+	Super::OnBattleStarted();
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
+	{
+		PC->SetupAndShowBattleUI();
+	}
 }

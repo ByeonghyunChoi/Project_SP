@@ -7,6 +7,14 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Character/SPGASPlayerCharacter.h"
 
+// 턴 시뮬레이션 구조체
+struct FSimulatedActor
+{
+	AActor* Actor;
+	float Speed;
+	float Gauge;
+};
+
 
 ASPCombatTurnManager::ASPCombatTurnManager()
 {
@@ -170,4 +178,98 @@ void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
 			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), ClampedValue);
 		}
 	}
+}
+
+TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
+{
+	TArray<AActor*> PredictedOrder;
+
+	// 이미 대기열(TurnQueue)에 있는 유닛들은 무조건 최우선 확정 턴입니다.
+	for (AActor* QueuedActor : TurnQueue)
+	{
+		if (PredictedOrder.Num() >= PredictionCount) return PredictedOrder;
+		PredictedOrder.Add(QueuedActor);
+	}
+
+	// 실제 게이지를 건드리지 않기 위해 가상 리스트(SimList)에 복사본을 만듭니다.
+	TArray<FSimulatedActor> SimList;
+	for (AActor* Actor : Participants)
+	{
+		if (IsValid(Actor))
+		{
+			SimList.Add({ Actor, GetSpeed(Actor), GetActionGauge(Actor) });
+		}
+	}
+
+	// 목표 개수(6개)를 채울 때까지 평행우주의 시간을 무한히 돌립니다.
+	while (PredictedOrder.Num() < PredictionCount)
+	{
+		float MinTime = 99999.0f;
+		bool bValid = false;
+
+		// 누구의 게이지가 가장 먼저 100에 도달할지 '최소 시간' 찾기
+		for (const FSimulatedActor& Sim : SimList)
+		{
+			if (Sim.Speed > 0.0f)
+			{
+				float TimeNeeded = (MaxActionGauge - Sim.Gauge) / Sim.Speed;
+				if (TimeNeeded < 0.0f) TimeNeeded = 0.0f;
+
+				if (TimeNeeded < MinTime)
+				{
+					MinTime = TimeNeeded;
+					bValid = true;
+				}
+			}
+		}
+
+		// (전원 속도가 0이거나 스턴이라 영원히 턴이 안 오는 버그 방지)
+		if (!bValid) break;
+
+		// 찾은 '최소 시간'만큼 모두의 가상 게이지 전진!
+		TArray<int32> WinnerIndices; // 100에 도달한 승자들의 인덱스
+		for (int32 i = 0; i < SimList.Num(); ++i)
+		{
+			if (SimList[i].Speed > 0.0f)
+			{
+				SimList[i].Gauge += (SimList[i].Speed * MinTime);
+
+				// 100 달성! (부동소수점 오차 방지)
+				if (SimList[i].Gauge >= MaxActionGauge - 0.01f)
+				{
+					WinnerIndices.Add(i);
+				}
+			}
+		}
+
+		// 만약 동시에 100에 도달했다면? 
+		if (WinnerIndices.Num() > 1)
+		{
+			WinnerIndices.Sort([&SimList](const int32 A, const int32 B) {
+				const FSimulatedActor& SimA = SimList[A];
+				const FSimulatedActor& SimB = SimList[B];
+
+				if (!FMath::IsNearlyEqual(SimA.Speed, SimB.Speed)) return SimA.Speed > SimB.Speed;
+
+				bool bPlayerA = SimA.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+				bool bPlayerB = SimB.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+				if (bPlayerA != bPlayerB) return bPlayerA; // 플레이어 우선
+
+				return SimA.Gauge > SimB.Gauge;
+				});
+		}
+
+		// 승자를 예측 목록에 넣고, 그 녀석의 가상 게이지를 0으로 리셋! (다음 턴 예측을 위해)
+		for (int32 WinnerIndex : WinnerIndices)
+		{
+			if (PredictedOrder.Num() >= PredictionCount) break;
+
+			PredictedOrder.Add(SimList[WinnerIndex].Actor);
+
+			// 한 번 턴을 잡은 애는 게이지를 0으로 만들어서 다시 꼴찌부터 뛰게 만듭니다.
+			SimList[WinnerIndex].Gauge = 0.0f;
+		}
+	}
+
+	return PredictedOrder;
 }

@@ -14,6 +14,7 @@
 #include "Character/SPGASCharacterBase.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
+#include "Character/SPGASPlayerController.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -122,9 +123,42 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 		}
 	}
 
-	// 4. 첫 턴 계산 및 시작
-	AActor* FirstActor = TurnManager->CalculateNextTurn();
-	StartTurn(FirstActor);
+	// 전투 총 인원 수 준비
+	TotalExpectedParticipants = AllParticipants.Num();
+	bIsBattleInitialized = true;
+
+	CheckAndStartBattle();
+}
+
+void AASPCombatGameMode::FinalizeBattleSetup()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[GameMode] 전원 세팅 완료! 전투 UI를 띄우고 즉시 전투를 시작합니다."));
+
+	// 1. [UI 출력] 플레이어 컨트롤러에게 명령!
+	for (AActor* Participant : AllParticipants)
+	{
+		if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(Participant))
+		{
+			// 다형성(Polymorphism) 폭발! 
+			// 플레이어면 컨트롤러 UI가 켜지고, 몬스터면 머리 위 위젯이 켜집니다.
+			Character->OnBattleStarted();
+		}
+	}
+
+	// 2. [전투 시작] 턴 매니저에게 첫 턴을 물어보고 시작!
+	if (TurnManager)
+	{
+		AActor* FirstActor = TurnManager->CalculateNextTurn();
+		StartTurn(FirstActor);
+	}
+}
+
+void AASPCombatGameMode::CheckAndStartBattle()
+{
+	if (bIsBattleInitialized && ReadyParticipants.Num() >= TotalExpectedParticipants)
+	{
+		FinalizeBattleSetup();
+	}
 }
 
 void AASPCombatGameMode::StartTurn(AActor* TurnActor)
@@ -167,6 +201,20 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 			FGameplayEventData Payload;
 			Payload.Instigator = TurnActor;
 			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
+		}
+	}
+
+	if (TurnManager)
+	{
+		TArray<AActor*> PredictedOrder = TurnManager->PredictTurnOrder(6);
+
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (PlayerPawn)
+		{
+			if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+			{
+				PC->UpdateTurnTimelineUI(PredictedOrder);
+			}
 		}
 	}
 
@@ -231,6 +279,13 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 		AActor* NextActor = TurnManager->CalculateNextTurn();
 		StartTurn(NextActor);
 	}
+}
+
+void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
+{
+	if (ReadyParticipants.Contains(Character)) return;
+	ReadyParticipants.Add(Character);
+	CheckAndStartBattle();
 }
 
 FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)

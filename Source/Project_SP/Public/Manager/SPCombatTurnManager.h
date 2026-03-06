@@ -33,6 +33,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "TurnManager")
 	static float GetMaxActionGauge() { return MaxActionGauge; }
 
+	//턴 순서 시뮬레이션 함수
+	UFUNCTION(BlueprintCallable, Category = "TurnManager")
+	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
+
 public:
 	static constexpr float MaxActionGauge = 100.0f;
 

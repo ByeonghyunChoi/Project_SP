@@ -4,6 +4,7 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffectExtension.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASCharacterBase.h"
 
 USPGASAttributeSet::USPGASAttributeSet()  
 {
@@ -101,6 +102,12 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 			SetHealth(FMath::Clamp(CurrentHealth - Damage, 0.0f, GetMaxHealth()));
 
 			UE_LOG(LogTemp, Warning, TEXT("데미지 적용됨! -%f, 남은 체력: %f"), Damage, GetHealth());
+
+			if (ASPGASCharacterBase* TargetChar = Cast<ASPGASCharacterBase>(GetOwningActor()))
+			{
+				// (크리티컬 여부는 임시로 false로 넘김. 나중에 ExecCalc에서 메타 속성으로 넘겨받을 수 있습니다)
+				TargetChar->BroadcastDamageText(Damage, false);
+			}
 
 			// 🌟 [핵심] 체력을 깎은 바로 이 시점에! 죽었는지 살았는지 확인해야 합니다!
 			if (GetHealth() <= 0.0f)

@@ -5,6 +5,7 @@
 #include "AbilitySystemInterface.h"
 #include "SPGASCharacterBase.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, DamageAmount, bool, bIsCritical);
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySystemInterface
@@ -14,6 +15,7 @@ class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySys
 public:
     ASPGASCharacterBase();
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+    virtual void BroadcastDamageText(float DamageAmount, bool bIsCritical);
 
 protected:
     UPROPERTY(EditAnywhere, Category = "GAS")
@@ -24,6 +26,10 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
+    
+public:
+    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+    FOnDamageTakenDelegate OnDamageTaken;
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
@@ -38,6 +44,14 @@ public:
     //턴 시작 시 쿨타임 감소
     UFUNCTION(BlueprintCallable, Category = "GAS | Turn")
     virtual void ReduceCooldowns();
+
+    // 전투 준비가 끝났을 때 알리는 함수
+    UFUNCTION(BlueprintCallable, Category = "GAS | ReadyCheck")
+    virtual void ReportReadyToGameMode();
+
+    // 전투가 시작할 때 사용할 함수(UI 키기 등)
+    UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+    virtual void OnBattleStarted();
 
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 };

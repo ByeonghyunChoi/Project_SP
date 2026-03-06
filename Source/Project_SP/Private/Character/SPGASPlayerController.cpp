@@ -15,6 +15,7 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffect.h"
 #include "Data/Asset/WeaponAbilityData.h"
+#include "Map/MapManagerSubSystem.h"
 #include "Framework/Application/SlateApplication.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
@@ -33,13 +34,22 @@ void ASPGASPlayerController::BeginPlay()
 	InputModeData.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputModeData);
 
+	bool bIsBattleMap = false;
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		bIsBattleMap = MapManager->IsInBattleMap();
+	}
+
 	if (FieldHUDClass && !FieldHUDWidget)
 	{
 		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
 		if (FieldHUDWidget)
 		{
 			FieldHUDWidget->AddToViewport();
-			FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+			// 전투 맵이라면 처음부터 필드 UI를 숨긴 채로 만들고, 필드일 때만 켭니다!
+			FieldHUDWidget->SetVisibility(bIsBattleMap ? ESlateVisibility::Hidden : ESlateVisibility::SelfHitTestInvisible);
 		}
 	}
 
@@ -125,19 +135,21 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 
 	if (CachedASC)
 	{
-		// [변수 준비] 전투 태그
+		// 전투 태그
 		FGameplayTag BattleTag = FSPGameplayTags::Get().State_Mode_Battle;
 
-		// 2. 이벤트 등록 (앞으로의 변화를 감지하기 위해 등록)
+		// 이벤트 등록 (앞으로의 변화를 감지하기 위해 등록)
 		CachedASC->RegisterGameplayTagEvent(BattleTag, EGameplayTagEventType::NewOrRemoved)
 			.AddUObject(this, &ASPGASPlayerController::OnBattleTagChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetBattlePointAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnBattlePointChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxBattlePointAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
 
-		// 3. [핵심 트릭] 현재 상태를 확인해서, 강제로 콜백 함수 호출!
-		//    - 이미 전투 중이라면(HasTag), Count를 1로 보내서 "방금 켜진 것처럼" 속입니다.
-		//    - 아니라면 0을 보내서 초기화합니다.
+		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
-		// ★ 여기서 직접 호출! (별도 함수 필요 없음)
+		//
 		OnBattleTagChanged(BattleTag, bIsBattle ? 1 : 0);
 
 		UE_LOG(LogTemp, Warning, TEXT("InitAbilitySystem: 초기화 완료 (강제 호출 수행함)"));
@@ -406,6 +418,14 @@ int32 ASPGASPlayerController::GetCurrentBP() const
 	return FMath::FloorToInt(CurrentBP);
 }
 
+int32 ASPGASPlayerController::GetMaxBP() const
+{
+	if (!CachedASC) return 0;
+
+	float MaxBP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxBattlePointAttribute());
+	return FMath::FloorToInt(MaxBP);
+}
+
 int32 ASPGASPlayerController::GetCurrentTimePower() const
 {
 	if (!CachedASC) return 0;
@@ -490,7 +510,6 @@ float ASPGASPlayerController::GetHealthPercent() const
 
 	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
 	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
-
 	if (MaxHP > 0.0f)
 	{
 		return FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f);
@@ -513,6 +532,65 @@ float ASPGASPlayerController::GetTimePowerPercent() const
 	return 0.0f;
 }
 
+void ASPGASPlayerController::SetupAndShowBattleUI()
+{
+	// 1. ASC 및 캐릭터 안전하게 쥐기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+	if (PlayerChar)
+	{
+		CachedASC = PlayerChar->GetAbilitySystemComponent();
+
+		// 화면 UI가 켜질 때 위젯 컴포넌트도 여기서 한 번에 켭니다!
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
+	}
+
+	// 2. 위젯 생성 및 스위치!
+	if (!BattleHUDWidget && BattleHUDClass)
+	{
+		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
+}
+
+void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
+{
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
+	}
+
+	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
+	CancelTargetSelection();
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
+}
+
+void ASPGASPlayerController::RefreshBattlePointUI()
+{
+	if (!CachedASC) return;
+
+	int32 CurrentBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetBattlePointAttribute()));
+	int32 MaxBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxBattlePointAttribute()));
+	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
+}
+
+void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
+{
+	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
+}
 
 void ASPGASPlayerController::StartTargetSelection()
 {
@@ -676,6 +754,16 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 	}
 }
 
+void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
+void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
 
 void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 {
@@ -716,30 +804,12 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 	
 	if (!PlayerChar || !Subsystem) return;
 
-	if (!FieldHUDWidget && FieldHUDClass)
-	{
-		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
-		if (FieldHUDWidget) FieldHUDWidget->AddToViewport();
-	}
-
-	if (!BattleHUDWidget && BattleHUDClass)
-	{
-		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
-	}
-
 	// 2. NewCount가 0보다 크면 전투 모드
 	if (NewCount > 0)
 	{
 		// [전투 진입]
 		Subsystem->RemoveMappingContext(FieldMappingContext);
 		Subsystem->AddMappingContext(BattleMappingContext, 0);
-		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
-		PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
-		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-
 		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
 		
 
@@ -751,11 +821,6 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		// [전투 종료/필드]
 		Subsystem->RemoveMappingContext(BattleMappingContext);
 		Subsystem->AddMappingContext(FieldMappingContext, 0);
-		PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
-		PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
-		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Visible);
-
 		CancelTargetSelection();
 
 		PlayerChar->SetCameraProfile(PlayerChar->GetFieldCameraProfile());
