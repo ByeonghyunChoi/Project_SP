@@ -95,7 +95,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
 			if (SaveSystem)
 			{
-				SaveSystem->LoadPlayerStats(this);
+				SaveSystem->RestoreRunDataToPlayer(this);
 			}
 		}
 	}

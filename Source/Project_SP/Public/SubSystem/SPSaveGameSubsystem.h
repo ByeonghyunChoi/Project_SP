@@ -16,21 +16,63 @@ class PROJECT_SP_API USPSaveGameSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void SavePlayerStats(APawn* PlayerPawn);
+	// 런 데이터 제어
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void CacheRunDataFromPlayer(APawn* PlayerPawn);
 
-	// 불러오기: Subsystem -> Player
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void LoadPlayerStats(APawn* PlayerPawn);
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void RestoreRunDataToPlayer(APawn* PlayerPawn);
 
-	// 초기화
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void ResetSaveData();
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void ResetRunData(); // 사망, 보스 클리어 시 호출
 
-	// 데이터 확인용 Getter
-	const FPlayerPersistentData& GetCurrentSaveData() const { return SaveData; }
+	// 영구 데이터 제어
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void CachePermDataFromPlayer(APawn* PlayerPawn);
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void RestorePermDataToPlayer(APawn* PlayerPawn);
+
+	//데이터 초기화(새로 하기할 때 호출)
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Core")
+	void ResetAllData();
+
+	//Getter
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
+	const FPlayerRunData& GetRunData() const { return RunData; }
+
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
+	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
+
+public:
+	//세이브 파일 관리
+
+	// 런 데이터 파일 관리
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	void SaveRunToDisk();
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	bool LoadRunFromDisk(); 
+
+	// 영구 데이터 파일 관리
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	void SavePermToDisk();
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	bool LoadPermFromDisk();
+
+	//이어하기 여부 체크
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
+	bool HasValidRunSave() const;
 
 private:
 	UPROPERTY()
-	FPlayerPersistentData SaveData;
+	FPlayerRunData RunData;
+
+	UPROPERTY()
+	FPlayerMetaProgressionData PermData;
+
+	//저장될 파일 이름
+	const FString RunSlotName = TEXT("Slot_Run");
+	const FString PermSlotName = TEXT("Slot_Perm");
 };

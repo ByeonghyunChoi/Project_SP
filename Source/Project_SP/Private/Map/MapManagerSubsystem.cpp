@@ -36,11 +36,12 @@ void UMapManagerSubsystem::StartNewRun()
 	// 새 게임 시작 시 데이터 초기화
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		SaveSys->ResetSaveData();
+		SaveSys->ResetRunData();
 	}
 
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
+	bIsRoomCleared = false;
 	CurrentStage = 1;
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
@@ -64,26 +65,21 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	bIsReturningFromBattle = true;
 	bIsBattleActive = true;
 
-	// 2. [스탯 저장] SaveSubsystem에게 플레이어 정보 저장 위임
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveSys->SavePlayerStats(PlayerPawn);
-	}
-
-	// 3. [전투 정보] CombatSubsystem 설정 (데이터 전달)
+	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
 	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
 		CombatSys->SetPendingEncounter(EncounterData, Advantage);
 	}
 
-	// 4. [이동] 전투 레벨로 전환
+	// 3. [이동] 전투 레벨로 전환
 	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
 	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
 }
 
-void UMapManagerSubsystem::ReturnToField()
+void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 {
 	bIsBattleActive = false;
+	bIsRoomCleared = bIsVictory;
 
 	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
 	LoadStageLevel();
@@ -152,15 +148,17 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 		if (Player)
 		{
-			if (bIsReturningFromBattle)
+			if (bIsReturningFromBattle || bIsLoadingSave)
 			{
-				// 전투 복귀: 저장된 위치로
 				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
-				bIsReturningFromBattle = false; // 플래그 초기화
+
+				// 플래그 초기화
+				bIsReturningFromBattle = false;
+				bIsLoadingSave = false;
 			}
 			else
 			{
-				// 새 진입: 스폰 포인트로
+				// 새 진입 (포탈 타고 넘어옴)
 				TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
 				if (Spawns.Num() > 0)
 				{
@@ -175,7 +173,7 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 			}
 		}
 
-		CurrentMapActor->InitializeMap(MapType);
+		CurrentMapActor->InitializeMap(MapType, bIsRoomCleared);
 	}
 }
 
@@ -188,6 +186,8 @@ void UMapManagerSubsystem::LoadStageLevel()
 
 void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 {
+	bIsRoomCleared = false;
+
 	if (CurrentFloor >= 11 && CurrentStage < 3)
 	{
 		// 다음 스테이지로
@@ -237,6 +237,24 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	Options.Add(GetRandomTypeFromGrade(NextGrade));
 	Options.Add(GetRandomTypeFromGrade(NextGrade));
 	return Options;
+}
+
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, bool bSavedIsRoomCleared, FTransform SavedTransform)
+{
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	bIsRoomCleared = bSavedIsRoomCleared;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
+
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	LoadStageLevel();
 }
 
 void UMapManagerSubsystem::GoToLobby()

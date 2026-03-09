@@ -7,6 +7,8 @@
 #include "Data/CombatEncounterData.h"
 #include "Map/SPGASSpawnPoint.h"      
 #include "Kismet/GameplayStatics.h"
+#include "Map/MapManagerSubsystem.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
@@ -286,6 +288,70 @@ void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 	if (ReadyParticipants.Contains(Character)) return;
 	ReadyParticipants.Add(Character);
 	CheckAndStartBattle();
+}
+
+void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
+{
+	if (TurnManager)
+	{
+		TurnManager->RemoveParticipant(DeadActor);
+	}
+
+	// 2. 월드에 남은 "Enemy"가 몇 마리인지 셉니다.
+	TArray<AActor*> RemainingEnemies;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), RemainingEnemies);
+
+	int32 AliveEnemiesCount = 0;
+	for (AActor* Enemy : RemainingEnemies)
+	{
+		// 아직 삭제(Destroy) 대기 중인 방금 죽은 애는 빼고 셉니다.
+		if (Enemy != DeadActor && IsValid(Enemy))
+		{
+			AliveEnemiesCount++;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("남은 적 수: %d"), AliveEnemiesCount);
+
+	// 3. 남은 적이 0마리라면? 플레이어 승리!
+	if (AliveEnemiesCount <= 0)
+	{
+		EndBattle(true);
+	}
+}
+
+void AASPCombatGameMode::EndBattle(bool bPlayerWon)
+{
+	if (bPlayerWon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
+
+		UGameInstance* GI = GetGameInstance();
+		if (!GI) return;
+
+		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
+		// (이걸 안 하면 필드로 돌아갈 때 전투 전 풀피 상태로 돌아가 버립니다)
+		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
+		{
+			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				SaveSys->RestoreRunDataToPlayer(PlayerPawn);
+			}
+		}
+
+		// 2. 🌟 맵 매니저에게 필드 복귀 명령!
+		// (선생님이 짜두신 ReturnToField -> LoadStageLevel -> OnPostLoadMapWithWorld 가 연쇄적으로 작동합니다)
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->ReturnToField(true);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("전투 패배... 게임 오버 화면을 띄웁니다."));
+		// 게임 오버 처리
+	}
 }
 
 FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)

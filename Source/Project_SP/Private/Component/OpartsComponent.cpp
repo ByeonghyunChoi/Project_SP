@@ -77,8 +77,19 @@ void UOpartsComponent::EquipOparts(const UOpartsDefinition* NewOpartsDef)
 	// 2. 새 데이터 세팅 (초기 상태: 1레벨, 아티팩트 0개)
 	// (만약 세이브 파일에서 불러오는 경우라면 여기서 Load 로직을 태워야 합니다)
 	RuntimeData.Definition = NewOpartsDef;
-	RuntimeData.CurrentLevel = 1;
-	RuntimeData.UnlockedArtifactCount = 0;
+	
+	if (OpartsProgressMap.Contains(NewOpartsDef))
+	{
+		RuntimeData.CurrentLevel = OpartsProgressMap[NewOpartsDef].Level;
+		RuntimeData.UnlockedArtifactCount = OpartsProgressMap[NewOpartsDef].UnlockedArtifactCount;
+	}
+	else
+	{
+		RuntimeData.CurrentLevel = 1;
+		RuntimeData.UnlockedArtifactCount = 0;
+		// 새 오파츠 장부에 등록
+		OpartsProgressMap.Add(NewOpartsDef, FOpartsProgressData());
+	}
 
 	// 3. 능력 적용
 	ApplyOpartsStatsAndAbilities();
@@ -117,6 +128,21 @@ void UOpartsComponent::UnequipCurrentOparts()
 	// 데이터 초기화 및 UI 알림
 	RuntimeData.Clear();
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
+}
+
+void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
+{
+	OpartsProgressMap = SavedData.ProgressMap;
+
+	// 저장된 오파츠가 있다면 장착! (없으면 기본값 세팅)
+	if (SavedData.EquippedOparts)
+	{
+		EquipOparts(SavedData.EquippedOparts);
+	}
+	else if (AllOpartsList.Num() > 0)
+	{
+		EquipOparts(AllOpartsList[0]);
+	}
 }
 
 void UOpartsComponent::ApplyOpartsStatsAndAbilities()
@@ -226,6 +252,7 @@ void UOpartsComponent::TryUpgradeLevel()
 	{
 		// 성공 시 레벨업 진행
 		RuntimeData.CurrentLevel++;
+		OpartsProgressMap[RuntimeData.Definition].Level = RuntimeData.CurrentLevel;
 
 		// 스탯 재적용 (Curve Table 값이 바뀜)
 		ApplyOpartsStatsAndAbilities();
@@ -267,6 +294,7 @@ void UOpartsComponent::TryUnlockNextArtifact()
 	{
 		// 성공 시 해금
 		RuntimeData.UnlockedArtifactCount++;
+		OpartsProgressMap[RuntimeData.Definition].UnlockedArtifactCount = RuntimeData.UnlockedArtifactCount;
 
 		// 아티팩트 능력 재적용
 		ApplyOpartsStatsAndAbilities();

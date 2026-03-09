@@ -26,6 +26,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
 	void ReportCharacterReady(AActor* Character);
 
+	void OnCharacterDied(AActor* DeadActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void EndBattle(bool bPlayerWon);
+
 protected:
 	// 블루프린트에서 BP_TurnManager를 지정해야 함
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")

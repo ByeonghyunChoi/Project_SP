@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "Data/Asset/RelicDefinition.h"
 #include "GameplayEffectTypes.h"
+#include "Data/SPDataStructs.h"
 #include "RelicComponent.generated.h"
 
 
@@ -56,4 +57,8 @@ public:
     // 4. 스테이지와 전체 유물 목록을 받아, 3개의 유물을 뽑아주는 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
     TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool);
+
+    //세이브 시스템에서 호출할 로드 전용 함수
+    UFUNCTION(BlueprintCallable, Category = "Relic")
+    void LoadRelicData(const FPlayerRelicData& SavedRelicData);
 };

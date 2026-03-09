@@ -5,6 +5,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "GameFramework/Character.h"
 #include "Tag/SPGameplayTags.h"
+#include "Character/SPGASPlayerCharacter.h"
 
 URelicComponent::URelicComponent()
 {
@@ -214,4 +215,67 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 	}
 
 	return FinalRewards;
+}
+
+void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
+{
+	ResetAllRelics();
+
+	ASPGASPlayerCharacter* OwnerCharacter = Cast<ASPGASPlayerCharacter>(GetOwner());
+	if (!OwnerCharacter) return;
+
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+	if (!ASC) return;
+
+	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)
+	{
+		if (HistroyRelic)
+		{
+			AcquiredHistory.Add(HistroyRelic);
+
+			// (AddRelic에 있던 등급별 보너스 부여 로직 재실행)
+			if (RarityAttackBonusEffectClass)
+			{
+				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
+				FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
+
+				if (BonusSpec.IsValid())
+				{
+					float BonusValue = 0.0f;
+					switch (HistroyRelic->Rarity)
+					{
+					case ERelicRarity::Normal:  BonusValue = 1.007f; break;
+					case ERelicRarity::Rare:    BonusValue = 1.01f;  break;
+					case ERelicRarity::Unique:  BonusValue = 1.02f;  break;
+					}
+					BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
+					ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
+				}
+			}
+		}
+	}
+
+	for (const URelicDefinition* EquippedRelic : SavedRelicData.EquippedRelics)
+	{
+		if (EquippedRelic)
+		{
+			EquippedRelics.Add(EquippedRelic);
+
+			// 고유 효과(GE) 다시 발라주기
+			if (EquippedRelic->RelicEffectClass)
+			{
+				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+				Context.AddSourceObject(this);
+
+				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EquippedRelic->RelicEffectClass, 1.0f, Context);
+				if (SpecHandle.IsValid())
+				{
+					FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+					RelicEffectHandles.Add(ActiveHandle);
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Relic] 세이브 로드 완료! (장착: %d개, 이력: %d개)"), EquippedRelics.Num(), AcquiredHistory.Num());
 }

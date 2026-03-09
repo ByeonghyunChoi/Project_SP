@@ -40,7 +40,7 @@ public:
 
 	// 전투 종료 후 필드 복귀 (전투 -> 필드)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void ReturnToField();
+	void ReturnToField(bool bIsVictory);
 
 	// 로비로 이동
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
@@ -54,6 +54,16 @@ public:
 	TArray<EMapType> GenerateNextFloorOptions();
 
 	bool IsInBattleMap() { return bIsBattleActive; }
+
+	//Getter
+	int32 GetCurrentStage() const { return CurrentStage; }
+	int32 GetCurrentFloor() const { return CurrentFloor; }
+	EMapType GetCurrentMapType() const { return CurrentMapType; }
+	bool GetIsRoomCleared() const { return bIsRoomCleared; }
+
+	// 로드 시스템
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, bool bSavedIsRoomCleared, FTransform SavedTransform);
 
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
@@ -86,6 +96,12 @@ private:
 
 	// [플래그] 현재 전투 중인가?
 	bool bIsBattleActive = false;
+
+	// [플래그] 현재 방이 클리어된 상태인가?
+	bool bIsRoomCleared = false;
+
+	// [플래그] 세이브 파일에서 로드하여 맵에 진입하는 중인가?
+	bool bIsLoadingSave = false;
 
 private:
 	// 맵 생성 및 플레이어 이동 처리

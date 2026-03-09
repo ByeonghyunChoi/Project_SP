@@ -45,6 +45,10 @@ public:
     // UI 갱신 방송 함수(상태이상)
     void BroadcastStatusUI();
 
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void Die();
+
+public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
 
