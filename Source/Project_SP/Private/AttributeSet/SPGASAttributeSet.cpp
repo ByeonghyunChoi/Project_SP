@@ -4,6 +4,7 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffectExtension.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASMonsterCharacter.h"
 #include "Character/SPGASCharacterBase.h"
 
 USPGASAttributeSet::USPGASAttributeSet()  
@@ -113,6 +114,8 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 			if (GetHealth() <= 0.0f)
 			{
 				ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetOwningActor());
+				ASPGASMonsterCharacter* MonsterChar = Cast<ASPGASMonsterCharacter>(GetOwningActor());
+
 				if (PlayerCharacter)
 				{
 					if (GetTimePower() >= 20.0f)
@@ -132,6 +135,10 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 						UE_LOG(LogTemp, Error, TEXT("시간의 힘이 부족하여 사망했습니다."));
 						// TODO: 사망 처리 로직 호출
 					}
+				}
+				else if (MonsterChar)
+				{
+					MonsterChar->Die();
 				}
 			}
 		}

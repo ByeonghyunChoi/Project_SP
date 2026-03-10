@@ -43,11 +43,13 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetMapState(EMapState NewState);
-	void InitializeMap(EMapType InType);
+	void InitializeMap(EMapType InType, bool bIsCleared);
 
 protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Map | State")
 	void OnMapStateChanged(EMapState OldState, EMapState NewState);
+
+	void ClearFieldMonsters();
 
 private:
 	void HandleStateInProgress();

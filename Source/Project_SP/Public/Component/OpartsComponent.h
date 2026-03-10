@@ -8,6 +8,7 @@
 #include "GameplayAbilitySpecHandle.h"
 #include "GameplayEffectTypes.h"
 #include "Data/Asset/OpartsDefinition.h"
+#include "Data/SPDataStructs.h"
 #include "OpartsComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -83,6 +84,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Oparts|Event")
 	FOnOpartsStateChanged OnOpartsUpdated;
 
+	//오파츠 부위 별 강화 진행 상태
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts|Data")
+	TMap<TObjectPtr<const UOpartsDefinition>, FOpartsProgressData> OpartsProgressMap;
+
+public:
 	//다음 오파츠로 교체 ( > 버튼)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void EquipNextOparts();
@@ -111,6 +117,10 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category = "Oparts")
 	const FOpartsRuntimeData& GetCurrentOpartsData() const { return RuntimeData; }
+
+	//데이터 로드 함수
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	void LoadOpartsData(const FPlayerOpartsData& SavedData);
 
 private:
 	// 내부 헬퍼: 현재 상태(레벨, 아티팩트)에 맞춰 GAS 능력/스탯 재적용

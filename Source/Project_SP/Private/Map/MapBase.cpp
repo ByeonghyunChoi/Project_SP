@@ -3,6 +3,7 @@
 #include "Map/PortalActor.h"
 #include "Components/SceneComponent.h"
 #include "Map/RewardBox.h"
+#include "Kismet/GameplayStatics.h"
 
 AMapBase::AMapBase()
 {
@@ -78,10 +79,31 @@ void AMapBase::SetMapState(EMapState NewState)
 	OnMapStateChanged(OldState, NewState);
 }
 
-void AMapBase::InitializeMap(EMapType InType)
+void AMapBase::InitializeMap(EMapType InType, bool bIsCleared)
 {
 	MapType = InType;
 	SetMapState(EMapState::InProgress);
+
+	if (bIsCleared)
+	{
+		ClearFieldMonsters(); 
+		SetMapState(EMapState::Reward); 
+	}
+}
+
+void AMapBase::ClearFieldMonsters()
+{
+	TArray<AActor*> FieldMonsters;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FieldMonsters);
+
+	for (AActor* Monster : FieldMonsters)
+	{
+		if (IsValid(Monster))
+		{
+			Monster->Destroy();
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("방이 클리어되어 필드 몬스터를 모두 청소했습니다."));
 }
 
 void AMapBase::HandleStateInProgress()
