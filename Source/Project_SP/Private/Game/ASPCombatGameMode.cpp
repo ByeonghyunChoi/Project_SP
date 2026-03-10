@@ -68,6 +68,9 @@ void AASPCombatGameMode::BeginPlay()
 			{
 				PlayerPawn->SetActorTransform(PlayerStarts[0]->GetActorTransform(), false, nullptr, ETeleportType::ResetPhysics);
 			}
+
+			FTimerHandle RestoreTimerHandle;
+			GetWorld()->GetTimerManager().SetTimer(RestoreTimerHandle, this, &AASPCombatGameMode::ApplyPlayerSavedData, 0.1f, false);
 		}
 	}
 	else
@@ -160,6 +163,22 @@ void AASPCombatGameMode::CheckAndStartBattle()
 	if (bIsBattleInitialized && ReadyParticipants.Num() >= TotalExpectedParticipants)
 	{
 		FinalizeBattleSetup();
+	}
+}
+
+void AASPCombatGameMode::ApplyPlayerSavedData()
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (PlayerPawn)
+	{
+		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			// ASC가 완벽하게 준비된 상태이므로 스탯이 찰떡같이 들어갑니다!
+			SaveSys->RestorePermDataToPlayer(PlayerPawn);
+			SaveSys->RestoreRunDataToPlayer(PlayerPawn);
+
+			UE_LOG(LogTemp, Warning, TEXT("[지연 적용 성공] 전투 진입: 오파츠 및 런 데이터 완벽 연동 완료!"));
+		}
 	}
 }
 
@@ -322,26 +341,28 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 
 void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 {
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
 	if (bPlayerWon)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
 
-		UGameInstance* GI = GetGameInstance();
-		if (!GI) return;
-
 		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
-		// (이걸 안 하면 필드로 돌아갈 때 전투 전 풀피 상태로 돌아가 버립니다)
 		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
 		{
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
-				SaveSys->RestoreRunDataToPlayer(PlayerPawn);
+				// 🌟 [수정됨] Restore(불러오기) ❌ -> Cache(메모리 덮어쓰기) ⭕
+				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+
+				// 안전하게 하드디스크에 한 번 구워줍니다.
+				SaveSys->SaveRunToDisk();
 			}
 		}
 
-		// 2. 🌟 맵 매니저에게 필드 복귀 명령!
-		// (선생님이 짜두신 ReturnToField -> LoadStageLevel -> OnPostLoadMapWithWorld 가 연쇄적으로 작동합니다)
+		// 2. 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->ReturnToField(true);
@@ -349,8 +370,19 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("전투 패배... 게임 오버 화면을 띄웁니다."));
-		// 게임 오버 처리
+		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
+
+		// 1. [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
+		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			SaveSys->ResetRunData();
+		}
+
+		// 2. 맵 매니저를 통해 로비 맵으로 강제 이동
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->GoToLobby();
+		}
 	}
 }
 

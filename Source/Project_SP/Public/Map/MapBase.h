@@ -43,7 +43,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetMapState(EMapState NewState);
-	void InitializeMap(EMapType InType, bool bIsCleared);
+	void InitializeMap(EMapType InType, EMapState InitialState);
 
 protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Map | State")

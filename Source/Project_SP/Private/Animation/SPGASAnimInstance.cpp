@@ -42,10 +42,6 @@ void USPGASAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		{
 			const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-			// 태그 기반 상태 업데이트 예시
-			/*bIsInBattle = ASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle);
-			bIsMyTurn = ASC->HasMatchingGameplayTag(SPTags.State_Turn_Active);
-			bIsDead = ASC->HasMatchingGameplayTag(SPTags.State_Status_Dead);*/
 		}
 	}
 }

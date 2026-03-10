@@ -33,18 +33,28 @@ void UMapManagerSubsystem::Deinitialize()
 
 void UMapManagerSubsystem::StartNewRun()
 {
-	// 새 게임 시작 시 데이터 초기화
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
+	APawn* LobbyPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (SaveSys)
 	{
 		SaveSys->ResetRunData();
+		//맵이 넘어가기 전, 로비 플레이어의 '오파츠 장착 및 강화 상태'를 영구 데이터에 덮어쓰기!
+		if (LobbyPlayer)
+		{
+			SaveSys->CachePermDataFromPlayer(LobbyPlayer);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Warning, TEXT("필드 진입 전: 로비에서 세팅한 오파츠 데이터를 저장했습니다!"));
+		}
 	}
 
+	//맵 진행도 초기화
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
-	bIsRoomCleared = false;
+	CurrentRoomState = EMapState::InProgress;
 	CurrentStage = 1;
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
+	bIsInLobby = false;
 
 	LoadStageLevel();
 }
@@ -60,10 +70,17 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 		return;
 	}
 
-	// 1. [위치 저장] 필드에서의 현재 위치 저장
+	// 필드에서의 현재 위치 저장
 	SavedFieldTransform = PlayerPawn->GetActorTransform();
 	bIsReturningFromBattle = true;
 	bIsBattleActive = true;
+
+	// 플레이어 정보 저장
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+		SaveSys->SaveRunToDisk(); 
+	}
 
 	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
 	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
@@ -79,7 +96,7 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 {
 	bIsBattleActive = false;
-	bIsRoomCleared = bIsVictory;
+	CurrentRoomState = bIsVictory ? EMapState::Reward : EMapState::InProgress;
 
 	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
 	LoadStageLevel();
@@ -151,10 +168,6 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 			if (bIsReturningFromBattle || bIsLoadingSave)
 			{
 				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
-
-				// 플래그 초기화
-				bIsReturningFromBattle = false;
-				bIsLoadingSave = false;
 			}
 			else
 			{
@@ -171,14 +184,37 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 			{
 				MoveComp->StopMovementImmediately();
 			}
+
+			if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 1. 오파츠 및 영구 강화 스탯 적용 (새로 스폰될 때마다 필수!)
+				SaveSys->RestorePermDataToPlayer(Player);
+
+				// 2. 현재 체력 및 런 중에 먹은 유물 적용
+				SaveSys->RestoreRunDataToPlayer(Player);
+
+				// 3. 타이틀 화면에서 '이어하기'로 들어온 게 아니라면, 
+				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!
+				if (!bIsLoadingSave)
+				{
+					SaveSys->CacheRunDataFromPlayer(Player);
+					SaveSys->SaveRunToDisk();
+					UE_LOG(LogTemp, Warning, TEXT("[오토세이브] 맵 진입 완료 (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+				}
+			}
+
+			// 플래그 초기화
+			bIsReturningFromBattle = false;
+			bIsLoadingSave = false;
 		}
 
-		CurrentMapActor->InitializeMap(MapType, bIsRoomCleared);
+		CurrentMapActor->InitializeMap(MapType, CurrentRoomState);
 	}
 }
 
 void UMapManagerSubsystem::LoadStageLevel()
 {
+	bIsInLobby = false;
 	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
 	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
 	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
@@ -186,7 +222,7 @@ void UMapManagerSubsystem::LoadStageLevel()
 
 void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 {
-	bIsRoomCleared = false;
+	CurrentRoomState = EMapState::InProgress;
 
 	if (CurrentFloor >= 11 && CurrentStage < 3)
 	{
@@ -239,27 +275,42 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	return Options;
 }
 
-void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, bool bSavedIsRoomCleared, FTransform SavedTransform)
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby)
 {
 	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
 	CurrentStage = SavedStage;
 	CurrentFloor = SavedFloor;
 	CurrentMapType = SavedMapType;
-	bIsRoomCleared = bSavedIsRoomCleared;
+	CurrentRoomState = SavedRoomState;
 	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
 
 	// 플래그 세팅
 	bIsLoadingSave = true;
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
+	bIsInLobby = bSavedInLobby;
 
 	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
-	LoadStageLevel();
+	if (bIsInLobby)
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
+	}
+	else
+	{
+		LoadStageLevel();
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
+	}
 }
 
 void UMapManagerSubsystem::GoToLobby()
 {
-	StartNewRun(); // 데이터 초기화
+	bIsInLobby = true;
+	// 로비로 돌아오면 런 데이터 초기화
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetRunData();
+	}
 	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
 }
 

@@ -66,10 +66,10 @@ struct FPlayerPermanentWallet
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Sand = 0; // 모래
+    int32 Sand = 1000; // 모래
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 0; // 불완전한 기운
+    int32 IncompleteEnergy = 10; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)
@@ -131,7 +131,11 @@ struct FPlayerMapProgressData
 
     // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    bool bIsRoomCleared = false;
+    EMapState CurrentRoomState = EMapState::InProgress;
+
+    //로비 맵에서 저장 했는 지 확인(필드 맵과 구분하기 위함)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsSavedInLobby = true;
 
     // 플레이어가 마지막으로 서 있던 위치
     UPROPERTY(EditAnywhere, BlueprintReadWrite)

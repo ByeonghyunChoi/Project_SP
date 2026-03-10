@@ -1,9 +1,10 @@
-#include "Map/MapBase.h"
+ï»¿#include "Map/MapBase.h"
 #include "Map/MapManagerSubsystem.h"
 #include "Map/PortalActor.h"
 #include "Components/SceneComponent.h"
 #include "Map/RewardBox.h"
 #include "Kismet/GameplayStatics.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
 AMapBase::AMapBase()
 {
@@ -24,17 +25,17 @@ void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// ³»°¡ °ü¸®ÇÏ´ø Æ÷Å»µé ½Ï ´Ù Á¦°Å
+	// ë‚´ê°€ ê´€ë¦¬í•˜ë˜ í¬íƒˆë“¤ ì‹¹ ë‹¤ ì œê±°
 	for (APortalActor* Portal : SpawnedPortals)
 	{
-		// Æ÷Å»ÀÌ À¯È¿ÇÏ´Ù¸é(¾ÆÁ÷ ¿ùµå¿¡ ÀÖ´Ù¸é) ÆÄ±«
+		// í¬íƒˆì´ ìœ íš¨í•˜ë‹¤ë©´(ì•„ì§ ì›”ë“œì— ìˆë‹¤ë©´) íŒŒê´´
 		if (IsValid(Portal))
 		{
 			Portal->Destroy();
 		}
 	}
 
-	// ¹è¿­ ºñ¿ì±â
+	// ë°°ì—´ ë¹„ìš°ê¸°
 	SpawnedPortals.Empty();
 
 	UE_LOG(LogTemp, Log, TEXT("MapBase Destroyed: All Portals Cleaned up."));
@@ -79,15 +80,21 @@ void AMapBase::SetMapState(EMapState NewState)
 	OnMapStateChanged(OldState, NewState);
 }
 
-void AMapBase::InitializeMap(EMapType InType, bool bIsCleared)
+void AMapBase::InitializeMap(EMapType InType, EMapState InitialState)
 {
 	MapType = InType;
 	SetMapState(EMapState::InProgress);
 
-	if (bIsCleared)
+	if (InitialState == EMapState::Reward)
 	{
-		ClearFieldMonsters(); 
-		SetMapState(EMapState::Reward); 
+		ClearFieldMonsters();
+		SetMapState(EMapState::Reward); // Reward ë°œë™ -> ìƒì ìŠ¤í°ë¨
+	}
+	else if (InitialState == EMapState::Cleared)
+	{
+		ClearFieldMonsters();
+		// Reward ë‹¨ê³„ë¥¼ ê±´ë„ˆë›°ê³  ë°”ë¡œ Clearedë¡œ ì§í–‰! -> ìƒì ì ˆëŒ€ ì•ˆ ë‚˜ì˜´! í¬íƒˆë§Œ í™œì„±í™”ë¨!
+		SetMapState(EMapState::Cleared);
 	}
 }
 
@@ -103,7 +110,7 @@ void AMapBase::ClearFieldMonsters()
 			Monster->Destroy();
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("¹æÀÌ Å¬¸®¾îµÇ¾î ÇÊµå ¸ó½ºÅÍ¸¦ ¸ğµÎ Ã»¼ÒÇß½À´Ï´Ù."));
+	UE_LOG(LogTemp, Warning, TEXT("ë°©ì´ í´ë¦¬ì–´ë˜ì–´ í•„ë“œ ëª¬ìŠ¤í„°ë¥¼ ëª¨ë‘ ì²­ì†Œí–ˆìŠµë‹ˆë‹¤."));
 }
 
 void AMapBase::HandleStateInProgress()
@@ -111,21 +118,36 @@ void AMapBase::HandleStateInProgress()
 	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
 	if (!MapManager || !PortalClass) return;
 
-	// ´ÙÀ½ Ãş ¼±ÅÃÁö ¹Ì¸® °è»ê
+	// ë‹¤ìŒ ì¸µ ì„ íƒì§€ ë¯¸ë¦¬ ê³„ì‚°
 	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
 	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
 
 	SpawnedPortals.Empty();
 
-	// Æ÷Å» ½ºÆù (ºñÈ°¼ºÈ­)
+	// í¬íƒˆ ìŠ¤í° (ë¹„í™œì„±í™”)
 	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
 	{
 		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
 		if (NewPortal)
 		{
 			NewPortal->SetPortalTargetType(Options[i]);
-			NewPortal->ActivatePortal(false); //ºñÈ°¼ºÈ­ »óÅÂ·Î ½ÃÀÛ
+			NewPortal->ActivatePortal(false); //ë¹„í™œì„±í™” ìƒíƒœë¡œ ì‹œì‘
 			SpawnedPortals.Add(NewPortal);
+		}
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			// (ë§µ ë§¤ë‹ˆì €ì—ì„œ ìœ„ì¹˜ë¥¼ ì¡ì•„ì¤€ ì§í›„ì´ë¯€ë¡œ, ìŠ¤íƒ¯/ìœ ë¬¼ì„ ì…í˜€ì¤Œ)
+			SaveSys->RestoreRunDataToPlayer(Player);
+
+			// í˜„ì¬ ë§µ ì •ë³´ ìºì‹± í›„ ë””ìŠ¤í¬ ì €ì¥
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] ë§µ ì§„ì…: ì§„í–‰ ìƒí™© ì €ì¥ ì™„ë£Œ"));
 		}
 	}
 }
@@ -134,7 +156,7 @@ void AMapBase::HandleStateReward()
 {
 	if (!RewardChestClass)
 	{
-		// »óÀÚ°¡ ¾øÀ¸¸é ¹Ù·Î Å¬¸®¾î Ã³¸®
+		// ìƒìê°€ ì—†ìœ¼ë©´ ë°”ë¡œ í´ë¦¬ì–´ ì²˜ë¦¬
 		SetMapState(EMapState::Cleared);
 		return;
 	}
@@ -146,9 +168,20 @@ void AMapBase::HandleStateReward()
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams); // ÆÄ¶ó¹ÌÅÍ Àü´Ş
+		GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams); // íŒŒë¼ë¯¸í„° ì „ë‹¬
 
 		UE_LOG(LogTemp, Log, TEXT("Reward Chest Spawned!"));
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] ë³´ìƒ ë°©: ì „íˆ¬ ìŠ¹ë¦¬ ìƒíƒœ ì €ì¥ ì™„ë£Œ"));
+		}
 	}
 }
 
@@ -159,6 +192,26 @@ void AMapBase::HandleStateCleared()
 		if (Portal)
 		{
 			Portal->ActivatePortal(true);
+		}
+	}
+
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->SetCurrentRoomState(EMapState::Cleared);
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+
+			// í˜¹ì‹œ ì˜êµ¬ ì¬í™”ë¥¼ ë¨¹ì—ˆì„ ìˆ˜ë„ ìˆìœ¼ë‹ˆ Permë„ ê°±ì‹ 
+			SaveSys->CachePermDataFromPlayer(Player);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] í´ë¦¬ì–´: ë³´ìƒ íšë“ ë° í¬íƒˆ ê°œë°© ìƒíƒœ ì €ì¥ ì™„ë£Œ"));
 		}
 	}
 }

@@ -45,13 +45,6 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 		PC->bShowMouseCursor = true;
 	}
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	AActor* MapActor = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
-	if (AMapBase* CurrentMap = Cast<AMapBase>(MapActor))
-	{
-		CurrentMap->SetMapState(EMapState::Cleared);
-	}
-
 	Destroy();
 }
 

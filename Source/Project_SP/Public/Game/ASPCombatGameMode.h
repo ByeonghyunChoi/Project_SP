@@ -69,4 +69,7 @@ private:
 	void FinalizeBattleSetup();
 
 	void CheckAndStartBattle();
+
+	//데이터 연동 함수
+	void ApplyPlayerSavedData();
 };

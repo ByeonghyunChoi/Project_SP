@@ -71,8 +71,10 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 		RunData.MapProgress.CurrentStage = MapManager->GetCurrentStage();
 		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
 		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
-		RunData.MapProgress.bIsRoomCleared = MapManager->GetIsRoomCleared();
+		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
 
+		// 로비 맵인지 확인 정보 캐싱
+		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
 		// 플레이어의 현재 실제 위치 캐싱
 		RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
 	}
