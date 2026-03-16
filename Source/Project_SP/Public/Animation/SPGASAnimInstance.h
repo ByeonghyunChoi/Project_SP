@@ -28,6 +28,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
 	TObjectPtr<class UCharacterMovementComponent> Movement;
 
+	UPROPERTY()
+	TWeakObjectPtr<class UAbilitySystemComponent> CachedASC;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
 	FVector Velocity;
 

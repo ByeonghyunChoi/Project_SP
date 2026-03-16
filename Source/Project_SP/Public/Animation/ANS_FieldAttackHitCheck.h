@@ -20,9 +20,13 @@ public:
 private:
 	// 판정 범위 (반지름)
 	UPROPERTY(EditAnywhere, Category = "Combat", meta = (AllowPrivateAccess = "true"))
-	float AttackRadius = 100.0f;
+	float AttackRadius = 40.0f;
 
-	// 판정 거리 (앞으로 얼마나 나갈지)
-	UPROPERTY(EditAnywhere, Category = "Combat", meta = (AllowPrivateAccess = "true"))
-	float AttackRange = 150.0f;
+	// 판정을 추적한 소켓의 이름
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	FName WeaponSocketName = FName("WeaponSocket");
+
+	// 디버그 온, 오프
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	bool bShowDebug = false;
 };

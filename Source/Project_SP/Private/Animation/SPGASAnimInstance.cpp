@@ -20,6 +20,10 @@ void USPGASAnimInstance::NativeInitializeAnimation()
 	if (Character)
 	{
 		Movement = Character->GetCharacterMovement();
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Character))
+		{
+			CachedASC = ASI->GetAbilitySystemComponent();
+		}
 	}
 }
 
@@ -35,13 +39,11 @@ void USPGASAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		bIsFalling = Movement->IsFalling();
 	}
 
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Character))
+	if (CachedASC.IsValid())
 	{
-		UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
-		if (ASC)
-		{
-			const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-		}
+		const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+		bIsInBattle = CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle);
+		bIsMyTurn = CachedASC->HasMatchingGameplayTag(SPTags.State_Battle_TurnActive);
+		bIsDead = CachedASC->HasMatchingGameplayTag(SPTags.State_Death);
 	}
 }

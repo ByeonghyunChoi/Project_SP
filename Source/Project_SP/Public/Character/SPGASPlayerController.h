@@ -82,8 +82,7 @@ protected:
 	int32 CurrentTargetIndex = 0;
 
 	// 현재 공격 가능한 적 목록 (살아있는 적)
-	UPROPERTY()
-	TArray<AActor*> AvailableTargets;
+	TArray<TWeakObjectPtr<AActor>> AvailableTargets;
 
 	//현재 선택된 스킬의 타겟팅 타입
 	ETargetingType CurrentTargetingType = ETargetingType::Single;
@@ -146,6 +145,7 @@ protected:
 	//배틀 포인트 최대값 변경시 실행될 함수
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
 
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -204,4 +204,5 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+
 };

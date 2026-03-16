@@ -28,16 +28,16 @@ void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag Weap
 		return;
 	}*/
 
-	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	FGameplayTag StatusToApply;
 
 	// 무기 태그 -> 상태이상 태그 변환
-	if (WeaponTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon.Fenrir")))
-		StatusToApply = Tags.Debuff_Basic_Weathering;
-	else if (WeaponTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon.Surtr")))
-		StatusToApply = Tags.Debuff_Basic_Burn;
-	else if (WeaponTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon.Jormungandr")))
-		StatusToApply = Tags.Debuff_Basic_Poison;
+	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
+		StatusToApply = SPTags.Debuff_Basic_Weathering;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
+		StatusToApply = SPTags.Debuff_Basic_Burn;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
+		StatusToApply = SPTags.Debuff_Basic_Poison;
 
 	if (StatusToApply.IsValid())
 	{
@@ -50,72 +50,72 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 {
 	if (!TargetASC || !StatusEffectDataAsset) return;
 
-	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	// 풍화(Weathering)
-	if (IncomingStatusTag == Tags.Debuff_Basic_Weathering)
+	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
 	{
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Burn))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Burn);
-			ProcessStatusEffect(Tags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Poison))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Poison);
-			ProcessStatusEffect(Tags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
 	}
 	// 화상(Burn)
-	else if (IncomingStatusTag == Tags.Debuff_Basic_Burn)
+	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
 	{
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Weathering))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Weathering);
-			ProcessStatusEffect(Tags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Poison))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Poison);
-			ProcessStatusEffect(Tags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
 	}
 	// 중독(Poison)
-	else if (IncomingStatusTag == Tags.Debuff_Basic_Poison)
+	else if (IncomingStatusTag == SPTags.Debuff_Basic_Poison)
 	{
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Weathering))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Weathering);
-			ProcessStatusEffect(Tags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Basic_Burn))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Basic_Burn);
-			ProcessStatusEffect(Tags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
 	}
 	// 열풍(HeatWind) / 역병(Plague) -> 최종 진화 (치명상)
-	else if (IncomingStatusTag == Tags.Debuff_Mix_HeatWind)
+	else if (IncomingStatusTag == SPTags.Debuff_Mix_HeatWind)
 	{
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Mix_Plague))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_Plague))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Mix_Plague);
-			ProcessStatusEffect(Tags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_Plague);
+			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}
 	}
-	else if (IncomingStatusTag == Tags.Debuff_Mix_Plague)
+	else if (IncomingStatusTag == SPTags.Debuff_Mix_Plague)
 	{
-		if (TargetASC->HasMatchingGameplayTag(Tags.Debuff_Mix_HeatWind))
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_HeatWind))
 		{
-			RemoveStatusEffectByTag(TargetASC, Tags.Debuff_Mix_HeatWind);
-			ProcessStatusEffect(Tags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_HeatWind);
+			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}
 	}
@@ -133,7 +133,11 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		{
 			// 기존 상태이상을 싹 지워버립니다! (턴 수 누적 방지)
 			RemoveStatusEffectByTag(TargetASC, IncomingStatusTag);
-			UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *TargetASC->GetAvatarActor()->GetName(), *IncomingStatusTag.ToString());
+			AActor* AvatarActor = TargetASC->GetAvatarActor();
+			if (AvatarActor)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *AvatarActor->GetName(), *IncomingStatusTag.ToString());
+			}
 		}
 
 		FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
@@ -164,19 +168,19 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 
 		// 2. 상태이상 별 처리
 		// [혼절] 일반 상태이상 공식을 타야 하므로 StatusDamage 사용!
-		if (IncomingStatusTag == Tags.Debuff_Mix_Faint)
+		if (IncomingStatusTag == SPTags.Debuff_Mix_Faint)
 		{
 			FinalDamage = Config->InstantDamageCoefficient; // 계수만 넘김 (예: 1.2)
 			DamageClassToApply = StatusDamageEffectClass;   // 🌟 혼절은 StatusDamage 총알 장전!
 
-			TargetASC->AddLooseGameplayTag(Tags.State_Status_SkipTurn);
+			TargetASC->AddLooseGameplayTag(SPTags.State_Status_SkipTurn);
 			UE_LOG(LogTemp, Warning, TEXT("[혼절] %s 가 행동 불능에 빠집니다!"), *TargetASC->GetAvatarActor()->GetName());
 		}
 		// [치명상] 일반 몹: 즉사 / 보스 몹: 2턴 DoT
-		else if (IncomingStatusTag == Tags.Debuff_Fatal_FatalWound)
+		else if (IncomingStatusTag == SPTags.Debuff_Fatal_FatalWound)
 		{
-			bool bIsBossOrEpic = TargetASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Enemy.Rank.Boss")) ||
-				TargetASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Enemy.Rank.Epic"));
+			bool bIsBossOrEpic = TargetASC->HasMatchingGameplayTag(SPTags.Enemy_Rank_Boss) ||
+				TargetASC->HasMatchingGameplayTag(SPTags.Enemy_Rank_Epic);
 
 			if (bIsBossOrEpic)
 			{
@@ -215,14 +219,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 			{
 				UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
 					SpecHandle,
-					FGameplayTag::RequestGameplayTag(FName("Data.Damage")),
+					SPTags.Data_Damage,
 					FinalDamage
 				);
 
 				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
 				if (bIsExecute)
 				{
-					SpecHandle.Data->DynamicAssetTags.AddTag(FGameplayTag::RequestGameplayTag("Damage.Type.Execute"));
+					SpecHandle.Data->DynamicAssetTags.AddTag(SPTags.Damage_Type_Execute);
 				}
 
 				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
@@ -245,6 +249,8 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Owner);
 
 	if (!OwnerASC || !StatusEffectDataAsset || !StatusDamageEffectClass) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	// 1. 내 몸(Owner)에 붙어있는 모든 활성화된 이펙트를 가져옵니다.
 	FGameplayEffectQuery Query;
@@ -299,7 +305,7 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 						// 계산기(DamageCalculation)로 '계수'만 던져줌
 						UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
 							DamageSpec,
-							FGameplayTag::RequestGameplayTag(FName("Data.Damage")),
+							SPTags.Data_Damage,
 							TargetCoefficient
 						);
 

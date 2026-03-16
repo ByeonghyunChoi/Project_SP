@@ -132,9 +132,22 @@ void UOpartsComponent::UnequipCurrentOparts()
 
 void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
 {
+	if (!ASC && GetOwner())
+	{
+		if (IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(GetOwner()))
+		{
+			ASC = Interface->GetAbilitySystemComponent();
+		}
+		else
+		{
+			ASC = GetOwner()->FindComponentByClass<UAbilitySystemComponent>();
+		}
+	}
+
+	// 1. 강화 진행도 덮어쓰기
 	OpartsProgressMap = SavedData.ProgressMap;
 
-	// 저장된 오파츠가 있다면 장착! (없으면 기본값 세팅)
+	// 2. 저장된 오파츠가 있다면 장착! (이제 ASC가 있으므로 튕기지 않고 정상 장착됩니다)
 	if (SavedData.EquippedOparts)
 	{
 		EquipOparts(SavedData.EquippedOparts);

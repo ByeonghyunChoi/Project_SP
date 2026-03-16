@@ -1,1520 +1,926 @@
-﻿UCLASS()
-class PROJECT_SP_API UWeaponAbilityData : public UPrimaryDataAsset
+﻿struct FSimulatedActor
 {
-	GENERATED_BODY()
-	
-public:
-	// �� �����Ͱ� � �������� (��: Weapon.Fenrir)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	FGameplayTag WeaponTag;
-
-	// 1. �Ϲ� ���� GA Ŭ����
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
-	TSubclassOf<UGameplayAbility> NormalAttackAbility;
-
-	// 2. ���� ��ų GA Ŭ����
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
-	TSubclassOf<UGameplayAbility> WeaponSkillAbility;
-
-	// 3. �и� ��ų GA Ŭ����
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
-	TSubclassOf<UGameplayAbility> ParrySkillAbility;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
-	ETargetingType NormalAttackTargeting = ETargetingType::Single;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
-	ETargetingType WeaponSkillTargeting = ETargetingType::Single;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
-	ETargetingType ParrySkillTargeting = ETargetingType::Single;
+	AActor* Actor;
+	float Speed;
+	float Gauge;
 };
+
+
+ASPCombatTurnManager::ASPCombatTurnManager()
+{
+	bReplicates = true;
+	bAlwaysRelevant = true;
+	PrimaryActorTick.bCanEverTick = false;
+}
+
+void ASPCombatTurnManager::InitializeParticipants(const TArray<AActor*>& InParticipants)
+{
+	Participants = InParticipants;
+	TurnQueue.Empty();
+}
+
+AActor* ASPCombatTurnManager::CalculateNextTurn()
+{
+	// 1. 대기열 확인: 이미 게이지가 꽉 찬 유닛이 있다면 바로 반환
+	if (TurnQueue.Num() > 0)
+	{
+		AActor* NextActor = TurnQueue[0];
+		TurnQueue.RemoveAt(0);
+
+		// 유효성 검사 (죽었거나 사라졌으면 재귀 호출로 다음 타자 찾기)
+		if (IsValid(NextActor) && Participants.Contains(NextActor))
+		{
+			return NextActor;
+		}
+		return CalculateNextTurn();
+	}
+
+	// 2. 시뮬레이션: 가장 빨리 행동할 수 있는 시간(MinTimeToAct) 계산
+	float MinTimeToAct = 99999.0f;
+	bool bFoundValidActor = false;
+
+	for (AActor* Actor : Participants)
+	{
+		if (!IsValid(Actor)) continue;
+
+		float Speed = GetSpeed(Actor);
+		float CurrentGauge = GetActionGauge(Actor);
+
+		// 속도가 0 이하면 행동 불가
+		if (Speed > 0.0f)
+		{
+			// 남은 거리 / 속도 = 걸리는 시간
+			float TimeNeeded = (MaxActionGauge - CurrentGauge) / Speed;
+
+			// 이미 100을 넘었으면 시간은 0
+			if (TimeNeeded < 0.f) TimeNeeded = 0.f;
+
+			if (TimeNeeded < MinTimeToAct)
+			{
+				MinTimeToAct = TimeNeeded;
+				bFoundValidActor = true;
+			}
+		}
+	}
+
+	// 행동할 수 있는 유닛이 아무도 없음 (전원 속도 0 등)
+	if (!bFoundValidActor) return nullptr;
+
+	// 3. 시간 흐르기: 모든 유닛의 게이지 전진
+	for (AActor* Actor : Participants)
+	{
+		if (!IsValid(Actor)) continue;
+
+		float Speed = GetSpeed(Actor);
+		float CurrentGauge = GetActionGauge(Actor);
+
+		// 이동 거리 = 시간 * 속도
+		float NewGauge = CurrentGauge + (Speed * MinTimeToAct);
+
+		// 게이지 업데이트 (GAS Attribute 변경)
+		SetActionGauge(Actor, NewGauge);
+
+		// 게이지가 꽉 찼다면 대기열(Queue)에 추가
+		// (부동소수점 오차 고려하여 0.01f 여유)
+		if (NewGauge >= MaxActionGauge - 0.01f)
+		{
+			TurnQueue.AddUnique(Actor);
+		}
+	}
+
+	// 4. 우선순위 정렬 (동시에 100 도달 시 누가 먼저인가?)
+	if (TurnQueue.Num() > 1)
+	{
+		TurnQueue.Sort([this](const AActor& A, const AActor& B) {
+
+			// 기준 1: 속도가 빠른 순서
+			float SpeedA = GetSpeed(&A);
+			float SpeedB = GetSpeed(&B);
+			if (!FMath::IsNearlyEqual(SpeedA, SpeedB))
+			{
+				return SpeedA > SpeedB;
+			}
+
+			// 기준 2: 속도가 같다면 플레이어 우선 (유저 친화적)
+			bool bPlayerA = A.IsA(ASPGASPlayerCharacter::StaticClass());
+			bool bPlayerB = B.IsA(ASPGASPlayerCharacter::StaticClass());
+			if (bPlayerA != bPlayerB)
+			{
+				return bPlayerA; // true(Player)가 앞으로 옴
+			}
+
+			// 기준 3: 그래도 같다면 현재 게이지가 더 높은 순 (오버플로우)
+			return GetActionGauge(const_cast<AActor*>(&A)) > GetActionGauge(const_cast<AActor*>(&B));
+			});
+	}
+
+	// 5. 대기열이 채워졌으니 다시 호출하여 1번 과정 수행
+	return CalculateNextTurn();
+}
+
+void ASPCombatTurnManager::RemoveParticipant(AActor* DeadActor)
+{
+	if (!IsValid(DeadActor)) return;
+
+	if (Participants.Contains(DeadActor))
+	{
+		Participants.Remove(DeadActor);
+	}
+	if (TurnQueue.Contains(DeadActor))
+	{
+		TurnQueue.Remove(DeadActor);
+	}
+}
+
+float ASPCombatTurnManager::GetSpeed(const AActor* Target) const
+{
+	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			// 버프/디버프가 적용된 최종 Speed 값 반환
+			return FMath::Max(0.0f, ASC->GetNumericAttribute(USPGASAttributeSet::GetSpeedAttribute()));
+		}
+	}
+	return 0.0f;
+}
+
+float ASPCombatTurnManager::GetActionGauge(const AActor* Target) const
+{
+	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			return ASC->GetNumericAttribute(USPGASAttributeSet::GetActionGaugeAttribute());
+		}
+	}
+	return 0.0f;
+}
+
+void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
+{
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			// 게이지 설정 (Base 값 변경)
+			float ClampedValue = FMath::Max(0.0f, NewValue);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), ClampedValue);
+		}
+	}
+}
+
+TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
+{
+	TArray<AActor*> PredictedOrder;
+
+	// 이미 대기열(TurnQueue)에 있는 유닛들은 무조건 최우선 확정 턴입니다.
+	for (AActor* QueuedActor : TurnQueue)
+	{
+		if (PredictedOrder.Num() >= PredictionCount) return PredictedOrder;
+		PredictedOrder.Add(QueuedActor);
+	}
+
+	// 실제 게이지를 건드리지 않기 위해 가상 리스트(SimList)에 복사본을 만듭니다.
+	TArray<FSimulatedActor> SimList;
+	for (AActor* Actor : Participants)
+	{
+		if (IsValid(Actor))
+		{
+			SimList.Add({ Actor, GetSpeed(Actor), GetActionGauge(Actor) });
+		}
+	}
+
+	// 목표 개수(6개)를 채울 때까지 평행우주의 시간을 무한히 돌립니다.
+	while (PredictedOrder.Num() < PredictionCount)
+	{
+		float MinTime = 99999.0f;
+		bool bValid = false;
+
+		// 누구의 게이지가 가장 먼저 100에 도달할지 '최소 시간' 찾기
+		for (const FSimulatedActor& Sim : SimList)
+		{
+			if (Sim.Speed > 0.0f)
+			{
+				float TimeNeeded = (MaxActionGauge - Sim.Gauge) / Sim.Speed;
+				if (TimeNeeded < 0.0f) TimeNeeded = 0.0f;
+
+				if (TimeNeeded < MinTime)
+				{
+					MinTime = TimeNeeded;
+					bValid = true;
+				}
+			}
+		}
+
+		// (전원 속도가 0이거나 스턴이라 영원히 턴이 안 오는 버그 방지)
+		if (!bValid) break;
+
+		// 찾은 '최소 시간'만큼 모두의 가상 게이지 전진!
+		TArray<int32> WinnerIndices; // 100에 도달한 승자들의 인덱스
+		for (int32 i = 0; i < SimList.Num(); ++i)
+		{
+			if (SimList[i].Speed > 0.0f)
+			{
+				SimList[i].Gauge += (SimList[i].Speed * MinTime);
+
+				// 100 달성! (부동소수점 오차 방지)
+				if (SimList[i].Gauge >= MaxActionGauge - 0.01f)
+				{
+					WinnerIndices.Add(i);
+				}
+			}
+		}
+
+		// 만약 동시에 100에 도달했다면? 
+		if (WinnerIndices.Num() > 1)
+		{
+			WinnerIndices.Sort([&SimList](const int32 A, const int32 B) {
+				const FSimulatedActor& SimA = SimList[A];
+				const FSimulatedActor& SimB = SimList[B];
+
+				if (!FMath::IsNearlyEqual(SimA.Speed, SimB.Speed)) return SimA.Speed > SimB.Speed;
+
+				bool bPlayerA = SimA.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+				bool bPlayerB = SimB.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+				if (bPlayerA != bPlayerB) return bPlayerA; // 플레이어 우선
+
+				return SimA.Gauge > SimB.Gauge;
+				});
+		}
+
+		// 승자를 예측 목록에 넣고, 그 녀석의 가상 게이지를 0으로 리셋! (다음 턴 예측을 위해)
+		for (int32 WinnerIndex : WinnerIndices)
+		{
+			if (PredictedOrder.Num() >= PredictionCount) break;
+
+			PredictedOrder.Add(SimList[WinnerIndex].Actor);
+
+			// 한 번 턴을 잡은 애는 게이지를 0으로 만들어서 다시 꼴찌부터 뛰게 만듭니다.
+			SimList[WinnerIndex].Gauge -= MaxActionGauge;
+		}
+	}
+
+	return PredictedOrder;
+}
 // ==========================================
-// FILE: CombatEncounterData.h
+// FILE: EnterancePortal.cpp
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#pragma once
 
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "CombatEncounterData.generated.h"
+#include "Map/EnterancePortal.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
 
-/**
- * 
- */
-
-USTRUCT(BlueprintType)
-struct FEnemySpawnInfo
+// Sets default values
+AEnterancePortal::AEnterancePortal()
 {
-	GENERATED_BODY()
+    MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+    RootComponent = MeshComp;
+}
 
-public:
-	// ������ �� Ŭ���� (��: BP_Goblin)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
-	TSubclassOf<class AActor> EnemyClass = nullptr;
-
-	// ���� ��ġ �ε��� (���� �ʿ� �̸� ��ġ�� SpawnPoint�� ��ȣ)
-	// 0=�߾�, 1=����, 2=����
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
-	int32 SpawnPositionIndex = 0;
-
-};
-
-UCLASS()
-class PROJECT_SP_API UCombatEncounterData : public UPrimaryDataAsset
+void AEnterancePortal::ExecuteInteraction(AActor* Interactor)
 {
-	GENERATED_BODY()
-
-public:
-	// �� ������ ������ ������ ���
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
-	TArray<FEnemySpawnInfo> EnemyGroup;
-
-	// ������ ������ ������ �̸�
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
-	FName CombatLevelName;
-	
-};
-// ==========================================
-// FILE: ShopDataStructs.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataTable.h" //
-#include "ShopDataStructs.generated.h" //
-
-/**
- * 
- */
-USTRUCT(BlueprintType)
-struct FShopItemRow : public FTableRowBase
-{
-	GENERATED_BODY()
-
-public:
-	// ������ ID
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName ItemID;
-
-	// [�߰�] UI�� ǥ���� �̸� (��: "ȸ�� ����")
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FText DisplayName;
-
-	// [�߰�] UI�� ǥ���� ������
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TObjectPtr<UTexture2D> Icon;
-
-	// �Ǹ� ����
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Price = 100;
-
-	// ��� (-1�̸� ����)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Stock = -1;
-};
-// ==========================================
-// FILE: SPDataStructs.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Data/Asset/RelicDefinition.h"
-#include "Data/Asset/OpartsDefinition.h"
-#include "Map/MapInfo.h"
-#include "SPDataStructs.generated.h"
-
-/**
- * 
- */
-USTRUCT(BlueprintType)
-struct FPlayerStatsData
-{
-	GENERATED_BODY()
-
-public:
-    UPROPERTY() float CurrentHealth = 100.0f;
-    UPROPERTY() float CurrentBattlePoint = 2.0f;
-    UPROPERTY() float CurrentTimePower = 200.0f;    
-    UPROPERTY() float CurrentActionGauge = 0.0f;
-
-    UPROPERTY() float MaxHealth = 100.0f;
-    UPROPERTY() float MaxBattlePoint = 5.0f;
-    UPROPERTY() float MaxTimePower = 200.0f;       
-
-    UPROPERTY() float Attack = 20.0f;
-    UPROPERTY() float Defense = 10.0f;
-    UPROPERTY() float Speed = 100.0f;               
-
-    // 3. 전투 보조 스탯
-    UPROPERTY() float DefenseIgnore = 0.0f;
-    UPROPERTY() float CriticalRate = 0.05f;
-    UPROPERTY() float CriticalDamage = 1.5f;
-    UPROPERTY() float EffectHitRate = 0.0f;
-    UPROPERTY() float EffectAmplify = 0.0f;
-
-    // 4. 배율
-    UPROPERTY() float OutgoingDamageMultiplier = 0.0f;
-    UPROPERTY() float IncomingDamageMultiplier = 0.0f;
-
-    // 5. 성장
-    UPROPERTY() float Level = 1.0f;
-    UPROPERTY() float Experience = 0.0f;
-    UPROPERTY() float MaxExperience = 100.0f;
-
-};
-
-USTRUCT(BlueprintType)
-struct FPlayerRunWallet
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Money = 0; // 골드
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Fragment = 0; // 파편
-};
-
-USTRUCT(BlueprintType)
-struct FPlayerPermanentWallet
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Sand = 1000; // 모래
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 10; // 불완전한 기운
-};
-
-USTRUCT(BlueprintType)
-struct FPlayerRelicData
-{
-    GENERATED_BODY()
-
-    // 현재 장착 중인 유물
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<TObjectPtr<const URelicDefinition>> EquippedRelics;
-
-    // 획득했던 이력 (유물 효과 유지용)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<TObjectPtr<const URelicDefinition>> AcquiredHistory;
-};
-
-// 개별 오파츠의 성장도를 기억
-USTRUCT(BlueprintType)
-struct FOpartsProgressData
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Level = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 UnlockedArtifactCount = 0;
-};
-
-// 🌟 세이브 파일에 들어갈 오파츠 마스터 데이터
-USTRUCT(BlueprintType)
-struct FPlayerOpartsData
-{
-    GENERATED_BODY()
-
-    // 현재 마지막으로 장착하고 있던 오파츠
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TObjectPtr<const UOpartsDefinition> EquippedOparts = nullptr;
-
-    // 핵심! 모든 오파츠의 성장도를 기록하는 장부 (Key: 오파츠, Value: 성장도)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<TObjectPtr<const UOpartsDefinition>, FOpartsProgressData> ProgressMap;
-};
-
-
-USTRUCT(BlueprintType)
-struct FPlayerMapProgressData
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 CurrentStage = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 CurrentFloor = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EMapType CurrentMapType = EMapType::NormalBattle;
-
-    // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EMapState CurrentRoomState = EMapState::InProgress;
-
-    //로비 맵에서 저장 했는 지 확인(필드 맵과 구분하기 위함)
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    bool bIsSavedInLobby = true;
-
-    // 플레이어가 마지막으로 서 있던 위치
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FTransform SavedPlayerTransform;
-};
-
-USTRUCT(BlueprintType)
-struct FPlayerMetaProgressionData //영구 데이터
-{
-    GENERATED_BODY()
-
-    UPROPERTY()
-    FPlayerPermanentWallet PermanentWallet; // 영구적 재화
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FPlayerOpartsData OpartsData;
-
-    void Reset()
+    UGameInstance* GI = GetGameInstance();
+    if (GI)
     {
-        // 지갑 0원으로 초기화
-        PermanentWallet = FPlayerPermanentWallet();
-        // 오파츠 장착 해제 및 장부(Map) 싹 비우기
-        OpartsData = FPlayerOpartsData();
+        UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+        if (MapManager)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Starting New Run from Lobby..."));
+
+            // ★ 여기서 게임 시작!
+            MapManager->StartNewRun();
+        }
     }
-};
+}
 
-USTRUCT(BlueprintType)
-struct FPlayerRunData // 런 데이터
+FText AEnterancePortal::GetInteractText() const
 {
-    GENERATED_BODY()
+	return FText::FromString(TEXT("게임 시작"));
+}
 
-    UPROPERTY()
-    FPlayerRunWallet RunWallet; // 일시적 재화
-
-    // 스탯 데이터 포함 (계층 구조)
-    UPROPERTY()
-    FPlayerStatsData Stats; // 스탯
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FPlayerRelicData RelicData; // 유물
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FPlayerMapProgressData MapProgress;
-
-    bool IsValid() const { return Stats.CurrentHealth >= 0.0f; }
-
-    // 초기화
-    void Reset()
-    {
-        Stats = FPlayerStatsData();
-        RunWallet = FPlayerRunWallet();
-        RelicData = FPlayerRelicData();
-        MapProgress = FPlayerMapProgressData();
-    }
-};
 // ==========================================
-// FILE: SPGA_BattleActionBase.h
+// FILE: MapBase.cpp
 // ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+#include "Map/MapBase.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Map/PortalActor.h"
+#include "Components/SceneComponent.h"
+#include "Map/RewardBox.h"
+#include "Kismet/GameplayStatics.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
-#include "SPGA_BattleActionBase.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGA_BattleActionBase : public UGameplayAbility
+AMapBase::AMapBase()
 {
-	GENERATED_BODY()
-	
-public:
-	USPGA_BattleActionBase();
-	virtual bool CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
-	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
-	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
+	PrimaryActorTick.bCanEverTick = false;
 
-	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
-	bool ConsumeTimeInterferenceStack();
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SetRootComponent(SceneRoot);
 
-protected:
-	/** ������ ����� GE (GE_BattleDamage) */
-	UPROPERTY(EditDefaultsOnly, Category = "Combat")
-	TSubclassOf<UGameplayEffect> DamageEffectClass;
+	CurrentState = EMapState::None;
+}
 
-	/** ��Ÿ�� ����� GE (GE_TurnBasedCooldown - Infinite, Stack ���) */
-	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")
-	TSubclassOf<UGameplayEffect> CooldownEffectClass;
-
-	/** �� ��ų�� ��Ÿ�� �� �� (0�̸� ��Ÿ�� ����) */
-	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")
-	int32 CooldownTurns = 0;
-
-	/** ��Ÿ�� ���� �ο��� �±� (��: Cooldown.Weapon.Fenrir.Skill) */
-	UPROPERTY(EditDefaultsOnly, Category = "Cooldown")
-	FGameplayTag CooldownTag;
-
-	/**
-	 * Ÿ�ٿ��� �������� �����ϴ�.
-	 * @param TargetActor   ���� ���
-	 * @param DamageMultiplier ��ų ��� (��: 1.0 = 100%, 2.2 = 220%)
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier);
-
-	/**
-	 * ���� ��Ÿ���� �����մϴ�.
-	 * CooldownTurns ��ŭ ������ �װ�, CooldownTag�� �ο��մϴ�.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void ApplyTurnBasedCooldown();
-
-	/** �÷��̾� ��Ʈ�ѷ��� ������ ���� Ÿ�� �������� */
-	UFUNCTION(BlueprintPure, Category = "Combat")
-	AActor* GetSingleTarget() const;
-
-	/** ��� ��(Enemy �±�) �������� (�������) */
-	UFUNCTION(BlueprintPure, Category = "Combat")
-	TArray<AActor*> GetAllEnemies() const;
-
-	// �� Ÿ���� ������ ������ ���� Ÿ�ٵ鸸 ��������
-	UFUNCTION(BlueprintPure, Category = "Combat")
-	TArray<AActor*> GetSecondaryTargets(AActor* PrimaryTarget) const;
-
-	/** ������ �� 1�� �������� (�ٿ��) */
-	UFUNCTION(BlueprintPure, Category = "Combat")
-	AActor* GetRandomEnemy() const;
-};
-// ==========================================
-// FILE: SPGA_FieldAttack.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
-#include "SPGA_FieldAttack.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGA_FieldAttack : public UGameplayAbility
+void AMapBase::BeginPlay()
 {
-	GENERATED_BODY()
-public:
-	USPGA_FieldAttack();
+	Super::BeginPlay();
+}
 
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-	
-protected:
-	// ���� ���� �̺�Ʈ
-	UFUNCTION()
-	void OnEventReceived(FGameplayEventData Payload);
-
-	// ��Ÿ�ְ� ������ ��(Ȥ�� ĵ������ ��) ����
-	UFUNCTION()
-	void OnMontageEnded();
-
-	// ���� ���� ���� ���� �Լ� (�ٽ� ����)
-	void ResolveBattleEncounter(AActor* Attacker, AActor* Victim);
-};
-// ==========================================
-// FILE: SPGA_Interact.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
-#include "SPGA_Interact.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGA_Interact : public UGameplayAbility
+void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	GENERATED_BODY()
-	
-public:
-	USPGA_Interact();
+	Super::EndPlay(EndPlayReason);
 
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	// 내가 관리하던 포탈들 싹 다 제거
+	for (APortalActor* Portal : SpawnedPortals)
+	{
+		// 포탈이 유효하다면(아직 월드에 있다면) 파괴
+		if (IsValid(Portal))
+		{
+			Portal->Destroy();
+		}
+	}
 
-};
-// ==========================================
-// FILE: ASPCombatGameMode.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+	// 배열 비우기
+	SpawnedPortals.Empty();
 
-#pragma once
+	UE_LOG(LogTemp, Log, TEXT("MapBase Destroyed: All Portals Cleaned up."));
+}
 
-#include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
-#include "ASPCombatGameMode.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API AASPCombatGameMode : public AGameModeBase
+TArray<FTransform> AMapBase::GetSpawnTransformsByTag(FName PointTag) const
 {
-	GENERATED_BODY()
-	
-public:
-	AASPCombatGameMode();
-	virtual void BeginPlay() override;
+	TArray<FTransform> FoundTransforms;
+	TArray<USceneComponent*> Components;
+	GetComponents<USceneComponent>(Components);
 
-	void StartTurn(AActor* TurnActor);
+	for (USceneComponent* Comp : Components)
+	{
+		if (Comp && Comp->ComponentHasTag(PointTag))
+		{
+			FoundTransforms.Add(Comp->GetComponentTransform());
+		}
+	}
+	return FoundTransforms;
+}
 
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void EndTurn(AActor* TurnActor);
-
-	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
-	void ReportCharacterReady(AActor* Character);
-
-	void OnCharacterDied(AActor* DeadActor);
-
-	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
-	void EndBattle(bool bPlayerWon);
-
-protected:
-	// �������Ʈ���� BP_TurnManager�� �����ؾ� ��
-	UPROPERTY(EditDefaultsOnly, Category = "Battle")
-	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
-
-	// ���� ������ �Ŵ���
-	UPROPERTY(BlueprintReadOnly, Category = "Battle")
-	TObjectPtr <class ASPCombatTurnManager> TurnManager;
-
-	// ���� �� ����
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
-	TObjectPtr<AActor> CurrentTurnActor;
-
-	// ���� ������ ���
-	UPROPERTY()
-	TArray<AActor*> AllParticipants;
-
-	//���� �غ� �Ϸ�� ������ ��� 
-	UPROPERTY()
-	TSet<AActor*> ReadyParticipants;
-
-	bool bIsBattleInitialized = false;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
-	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
-
-	//���� ��ü ���� ��
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
-	int32 TotalExpectedParticipants = 0;
-
-private:
-	FTransform GetSpawnTransformByIndex(int32 Index);
-
-	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
-
-	void FinalizeBattleSetup();
-
-	void CheckAndStartBattle();
-
-	//������ ���� �Լ�
-	void ApplyPlayerSavedData();
-};
-// ==========================================
-// FILE: InteractionActorBase.h
-// ==========================================
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Interface/InteractableInterface.h"
-#include "InteractionActorBase.generated.h"
-
-UCLASS()
-class PROJECT_SP_API AInteractionActorBase : public AActor, public IInteractableInterface
+void AMapBase::SetMapState(EMapState NewState)
 {
-	GENERATED_BODY()
-	
-public:	
-	AInteractionActorBase();
+	if (CurrentState == NewState) return;
 
-protected:
-	virtual void BeginPlay() override;
+	EMapState OldState = CurrentState;
+	CurrentState = NewState;
 
-	virtual void ExecuteInteraction(class AActor* Interactor) override;
+	switch (CurrentState)
+	{
+	case EMapState::InProgress:
+		HandleStateInProgress();
+		break;
+	case EMapState::Reward:
+		HandleStateReward();
+		break;
+	case EMapState::Cleared:
+		HandleStateCleared();
+		break;
+	}
 
-	virtual FText GetInteractText()const override;
+	OnMapStateChanged(OldState, NewState);
+}
 
-};
-// ==========================================
-// FILE: InteractableInterface.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "UObject/Interface.h"
-#include "InteractableInterface.generated.h"
-
-// This class does not need to be modified.
-UINTERFACE(MinimalAPI)
-class UInteractableInterface : public UInterface
+void AMapBase::InitializeMap(EMapType InType, EMapState InitialState)
 {
-	GENERATED_BODY()
-};
+	MapType = InType;
+	SetMapState(EMapState::InProgress);
 
-/**
- * 
- */
-class PROJECT_SP_API IInteractableInterface
+	if (InitialState == EMapState::Reward)
+	{
+		ClearFieldMonsters();
+		SetMapState(EMapState::Reward); // Reward 발동 -> 상자 스폰됨
+	}
+	else if (InitialState == EMapState::Cleared)
+	{
+		ClearFieldMonsters();
+		// Reward 단계를 건너뛰고 바로 Cleared로 직행! -> 상자 절대 안 나옴! 포탈만 활성화됨!
+		SetMapState(EMapState::Cleared);
+	}
+}
+
+void AMapBase::ClearFieldMonsters()
 {
-	GENERATED_BODY()
+	TArray<AActor*> FieldMonsters;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FieldMonsters);
 
-	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
-public:
-	//��ȣ�ۿ��� ������ �� ȣ��
-	virtual void ExecuteInteraction(AActor* Interactor) = 0;
-	//UI�� ǥ���� ��ȣ�ۿ� �ؽ�Ʈ ��ȯ
-	virtual FText GetInteractText() const = 0;
-	//���� ��ȣ�ۿ��� ������ �������� Ȯ��
-	virtual bool CanInteract(AActor* Interactor) const { return true; }
-};
-// ==========================================
-// FILE: SPCombatTurnManager.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+	for (AActor* Monster : FieldMonsters)
+	{
+		if (IsValid(Monster))
+		{
+			Monster->Destroy();
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("방이 클리어되어 필드 몬스터를 모두 청소했습니다."));
+}
 
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Info.h"
-#include "SPCombatTurnManager.generated.h"
-
-/**
- * 
- */
-UCLASS(Blueprintable)
-class PROJECT_SP_API ASPCombatTurnManager : public AInfo
+void AMapBase::HandleStateInProgress()
 {
-	GENERATED_BODY()
+	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+	if (!MapManager || !PortalClass) return;
 
-public:
-	ASPCombatTurnManager();
+	// 다음 층 선택지 미리 계산
+	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
+	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
 
-	// ���� ������ ��� (GameMode���� ȣ��)
-	void InitializeParticipants(const TArray<AActor*>& InParticipants);
+	SpawnedPortals.Empty();
 
-	// ���� �ൿ�� ���� ��� (������ 100 �� ������ �ùķ��̼�)
-	AActor* CalculateNextTurn();
+	// 포탈 스폰 (비활성화)
+	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
+	{
+		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
+		if (NewPortal)
+		{
+			NewPortal->SetPortalTargetType(Options[i]);
+			NewPortal->ActivatePortal(false); //비활성화 상태로 시작
+			SpawnedPortals.Add(NewPortal);
+		}
+	}
+}
 
-	// ���� ���� ���� (���� �� ��� �� ȣ��)
-	void RemoveParticipant(AActor* DeadActor);
-
-	// Ư�� ������ ������ ���� ���� (�������� ���ʽ�, �� ���� �� ���¿�)
-	void SetActionGauge(AActor* Target, float NewValue);
-
-	// �ִ� �ൿ ������ (���: 100)
-	UFUNCTION(BlueprintPure, Category = "TurnManager")
-	static float GetMaxActionGauge() { return MaxActionGauge; }
-
-	//�� ���� �ùķ��̼� �Լ�
-	UFUNCTION(BlueprintCallable, Category = "TurnManager")
-	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
-
-public:
-	static constexpr float MaxActionGauge = 100.0f;
-
-private:
-	// ��ü ������ ���
-	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
-	TArray<AActor*> Participants;
-
-	// �ൿ ���� ���°� �� ���ֵ��� ��⿭
-	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
-	TArray<AActor*> TurnQueue;
-
-	// GAS Helper Functions
-	float GetSpeed(AActor* Target) const;
-	float GetActionGauge(AActor* Target) const;
-};
-// ==========================================
-// FILE: SPGASBattleTypes.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "SPGASBattleTypes.generated.h"
-
-//내부 로직 제어용 Enum
-UENUM(BlueprintType)
-enum class EBattleState : uint8
+void AMapBase::HandleStateReward()
 {
-	Ready,              // 전투 진입 및 초기화
-	DetermineNextTurn,  // 다음 턴 주인공 결정
-	ActiveTurn,         // 현재 유닛 행동 중 (입력 대기 포함)
-	ActionExecuting,    // 행동 실행 중 (몽타주 재생 등)
-	Victory,            // 플레이어 승리
-	Defeat              // 플레이어 패배
-};
+	if (!RewardChestClass)
+	{
+		// 상자가 없으면 바로 클리어 처리
+		SetMapState(EMapState::Cleared);
+		return;
+	}
 
-// 전투 행동 타입 (공격, 스킬, 패링)
-UENUM(BlueprintType)
-enum class ESelectedActionType : uint8
+	TArray<FTransform> RewardPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Reward"));
+	UE_LOG(LogTemp, Warning, TEXT("Reward Points Found: %d"), RewardPoints.Num());
+	if (RewardPoints.Num() > 0)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams); // 파라미터 전달
+
+		UE_LOG(LogTemp, Log, TEXT("Reward Chest Spawned!"));
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] 보상 방: 전투 승리 상태 저장 완료"));
+		}
+	}
+}
+
+void AMapBase::HandleStateCleared()
 {
-	None,
-	NormalAttack,
-	WeaponSkill,
-	ParrySkill
-};
+	for (APortalActor* Portal : SpawnedPortals)
+	{
+		if (Portal)
+		{
+			Portal->ActivatePortal(true);
+		}
+	}
 
-//타겟팅 타입 정의
-UENUM(BlueprintType)
-enum class ETargetingType : uint8
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->SetCurrentRoomState(EMapState::Cleared);
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+
+			// 혹시 영구 재화를 먹었을 수도 있으니 Perm도 갱신
+			SaveSys->CachePermDataFromPlayer(Player);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] 클리어: 보상 획득 및 포탈 개방 상태 저장 완료"));
+		}
+	}
+}
+// ==========================================
+// FILE: MapManagerSubsystem.cpp
+// ==========================================
+#include "Map/MapManagerSubsystem.h"
+#include "Map/MapBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+
+
+void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-	Single      UMETA(DisplayName = "단일기"), // 단일 (화살표 1개)
-	Area        UMETA(DisplayName = "광역기"), // 광역 (모두 화살표)
-	All			UMETA(DisplayName = "전체 타겟"),
-	Self        UMETA(DisplayName = "나 자신"),          // 자신 (버프 등)
-	Random      UMETA(DisplayName = "랜덤")         // 랜덤 (화살표 1개)
-};
+	Super::Initialize(Collection);
 
-// ==========================================
-// FILE: EnterancePortal.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+	// 데이터 테이블 로드
+	FString DTPath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapLevelData.DT_MapLevelData'");
+	MapDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DTPath));
 
-#pragma once
+	if (!MapDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("FATAL: MapDataTable Load Failed! Path: %s"), *DTPath);
+	}
 
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Interface/InteractableInterface.h"
-#include "EnterancePortal.generated.h"
+	// 레벨 로드 완료 델리게이트 등록
+	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UMapManagerSubsystem::OnPostLoadMapWithWorld);
 
-UCLASS()
-class PROJECT_SP_API AEnterancePortal : public AActor, public IInteractableInterface
+	// 로비 레벨 경로
+	LobbyLevelReference = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Script/Engine.World'/Game/Field/GameLevel/TestMap01_Field.TestMap01_Field'")));
+}
+
+void UMapManagerSubsystem::Deinitialize()
 {
-	GENERATED_BODY()
-	
-public:	
-	AEnterancePortal();
+	FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
+	Super::Deinitialize();
+}
 
-	virtual void ExecuteInteraction(AActor* Interactor) override;
-	virtual FText GetInteractText() const override;
-
-protected:
-	UPROPERTY(VisibleAnywhere)
-	UStaticMeshComponent* MeshComp;
-
-};
-// ==========================================
-// FILE: MapBase.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Map/MapInfo.h"
-#include "MapBase.generated.h"
-
-UCLASS()
-class PROJECT_SP_API AMapBase : public AActor
+void UMapManagerSubsystem::StartNewRun()
 {
-	GENERATED_BODY()
+	USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
+	APawn* LobbyPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (SaveSys)
+	{
+		SaveSys->ResetRunData();
+		//맵이 넘어가기 전, 로비 플레이어의 '오파츠 장착 및 강화 상태'를 영구 데이터에 덮어쓰기!
+		if (LobbyPlayer)
+		{
+			SaveSys->CachePermDataFromPlayer(LobbyPlayer);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Warning, TEXT("필드 진입 전: 로비에서 세팅한 오파츠 데이터를 저장했습니다!"));
+		}
+	}
 
-public:
-	AMapBase();
+	//맵 진행도 초기화
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	CurrentRoomState = EMapState::InProgress;
+	CurrentStage = 1;
+	CurrentFloor = 1;
+	CurrentMapType = EMapType::NormalBattle;
+	bIsInLobby = false;
 
-protected:
-	virtual void BeginPlay() override;
+	LoadStageLevel();
+}
 
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | Layout")
-	TObjectPtr<USceneComponent> SceneRoot;
-
-	UPROPERTY(EditAnywhere, Category = "Map | Setup")
-	TSubclassOf<class APortalActor> PortalClass;
-
-	// ������ ���� ���� Ŭ����
-	UPROPERTY(EditAnywhere, Category = "Map | Setup")
-	TSubclassOf<class ARewardBox> RewardChestClass;
-
-	// ���� ���� ������ ��Ż��
-	UPROPERTY()
-	TArray<class APortalActor*> SpawnedPortals;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
-	EMapState CurrentState;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
-	EMapType MapType;
-
-public:
-	TArray<FTransform> GetSpawnTransformsByTag(FName PointTag) const;
-
-	UFUNCTION(BlueprintCallable)
-	void SetMapState(EMapState NewState);
-	void InitializeMap(EMapType InType, EMapState InitialState);
-
-protected:
-	UFUNCTION(BlueprintImplementableEvent, Category = "Map | State")
-	void OnMapStateChanged(EMapState OldState, EMapState NewState);
-
-	void ClearFieldMonsters();
-
-private:
-	void HandleStateInProgress();
-	void HandleStateReward();
-	void HandleStateCleared(); 
-};
-// ==========================================
-// FILE: MapInfo.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "MapInfo.generated.h"
-
-UENUM(BlueprintType)
-enum class EMapState :uint8
+void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage)
 {
-    None,
-    InProgress UMETA(DisplayName = "맵 진행 중"),
-    Reward UMETA(DisplayName = "보상 수령 중"),
-    Cleared UMETA(DisplatName = "맵 클리어")
-};
+	if (!PlayerPawn || !EncounterData) return;
 
-UENUM(BlueprintType)
-enum class EMapType :uint8
+	if (EncounterData->CombatLevelName.IsNone())
+	{
+		UE_LOG(LogTemp, Error, TEXT("전투 레벨 이름이 없습니다!"));
+		return;
+	}
+
+	// 필드에서의 현재 위치 저장
+	SavedFieldTransform = PlayerPawn->GetActorTransform();
+	bIsReturningFromBattle = false;
+	bIsBattleActive = true;
+
+	// 플레이어 정보 저장
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+		SaveSys->SaveRunToDisk(); 
+	}
+
+	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
+	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		CombatSys->SetPendingEncounter(EncounterData, Advantage);
+	}
+
+	// 3. [이동] 전투 레벨로 전환
+	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
+	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
+}
+
+void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 {
-    // "일반" 등급 맵 유형
-    Rest            UMETA(DisplayName = "쉼터"),
-    NormalBattle    UMETA(DisplayName = "일반 전투"),
-    // "에픽" 등급 맵 유형
-    StrongEnemyBattle UMETA(DisplayName = "강적 전투"),
-    Jester            UMETA(DisplayName = "광대 맵"),
-    // "준비" 등급 맵 유형
-    Prepare           UMETA(DisplayName = "준비 맵"),
-    // "보스" 등급 맵 유형
-    BossBattle        UMETA(DisplayName = "보스 전투")
-};
+	bIsBattleActive = false;
+	bIsReturningFromBattle = true;
+	CurrentRoomState = bIsVictory ? EMapState::Reward : EMapState::InProgress;
 
-UENUM(BlueprintType)
-enum class EMapGrade : uint8
+	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
+	LoadStageLevel();
+
+	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
+}
+
+void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 {
-    Normal UMETA(DisplayName = "일반 등급 맵"),
-    Epic UMETA(DisplayName = "에픽 등급 맵"),
-    Prepare UMETA(DisplayName = "준비 등급 맵"),
-    Boss UMETA(DisplayName = "보스 등급 맵")
-};
-// ==========================================
-// FILE: MapManagerSubSystem.h
-// ==========================================
-#pragma once
+	if (!MapDataTable) return;
 
-#include "CoreMinimal.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "Map/MapInfo.h"       // EMapType, EMapGrade �� ����
-#include "Engine/DataTable.h"
-#include "Data/CombatEncounterData.h"
-#include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage ����
-#include "MapManagerSubsystem.generated.h"
+	if (bIsBattleActive)
+	{
+		UE_LOG(LogTemp, Log, TEXT("전투 레벨 로드 완료 - 맵 스폰을 건너뜁니다."));
+		return;
+	}
 
-// ������ ���̺� ����ü
-USTRUCT(BlueprintType)
-struct FMapLevelData : public FTableRowBase
+	if (bIsReturningFromBattle || bIsLoadingSave)
+	{
+		// 로비로 돌아온 게 아니라면 맵을 스폰합니다!
+		if (!bIsInLobby)
+		{
+			SpawnMapActor(CurrentMapType);
+			UE_LOG(LogTemp, Log, TEXT("전투/세이브 복귀 완료! (Floor %d)"), CurrentFloor);
+		}
+	}
+	// 2. 처음으로(로비에서) 새 런을 시작하거나, 다음 층으로 넘어온 경우
+	else if (!bIsInLobby && !CurrentMapActor.IsValid())
+	{
+		SpawnMapActor(CurrentMapType);
+		UE_LOG(LogTemp, Log, TEXT("새 스테이지/층 진입! (Floor %d)"), CurrentFloor);
+	}
+}
+
+void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 {
-	GENERATED_BODY()
+	CurrentMapType = MapType;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSoftObjectPtr<UWorld> LevelReference;
+	// 1. 기존 맵 제거
+	if (CurrentMapActor.IsValid())
+	{
+		CurrentMapActor->Destroy();
+	}
+	CurrentMapActor = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TMap<EMapType, TSubclassOf<class AMapBase>> MapClasses;
-};
+	// 2. 맵 액터 스폰
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("SpawnMap"));
 
-UCLASS()
-class PROJECT_SP_API UMapManagerSubsystem : public UGameInstanceSubsystem
+	if (Data && Data->MapClasses.Contains(MapType))
+	{
+		TSubclassOf<AMapBase> MapClassToSpawn = Data->MapClasses[MapType];
+		if (MapClassToSpawn)
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			CurrentMapActor = GetWorld()->SpawnActor<AMapBase>(MapClassToSpawn, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+		}
+	}
+
+	// 3. 플레이어 위치 설정
+	if (CurrentMapActor.IsValid())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			if (bIsReturningFromBattle || bIsLoadingSave)
+			{
+				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
+			}
+			else
+			{
+				// 새 진입 (포탈 타고 넘어옴)
+				TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
+				if (Spawns.Num() > 0)
+				{
+					Player->SetActorTransform(Spawns[0], false, nullptr, ETeleportType::ResetPhysics);
+				}
+			}
+
+			// 물리 관성 초기화
+			if (auto* MoveComp = Player->FindComponentByClass<UCharacterMovementComponent>())
+			{
+				MoveComp->StopMovementImmediately();
+			}
+
+			if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 1. 오파츠 및 영구 강화 스탯 적용 (새로 스폰될 때마다 필수!)
+				SaveSys->RestorePermDataToPlayer(Player);
+
+				// 2. 현재 체력 및 런 중에 먹은 유물 적용
+				SaveSys->RestoreRunDataToPlayer(Player);
+
+				// 3. 타이틀 화면에서 '이어하기'로 들어온 게 아니라면, 
+				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!
+				if (!bIsLoadingSave)
+				{
+					SaveSys->CacheRunDataFromPlayer(Player);
+					SaveSys->SaveRunToDisk();
+					UE_LOG(LogTemp, Warning, TEXT("[오토세이브] 맵 진입 완료 (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+				}
+			}
+
+			// 플래그 초기화
+			bIsReturningFromBattle = false;
+			bIsLoadingSave = false;
+		}
+
+		CurrentMapActor->InitializeMap(MapType, CurrentRoomState);
+	}
+}
+
+void UMapManagerSubsystem::LoadStageLevel()
 {
-	GENERATED_BODY()
+	bIsInLobby = false;
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
+	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+}
 
-public:
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void Deinitialize() override;
-
-	// �� ���� ���� 
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void StartNewRun();
-
-	// ���� �� ���� (�ʵ� -> ����)
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage);
-
-	// ���� ���� �� �ʵ� ���� (���� -> �ʵ�)
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void ReturnToField(bool bIsVictory);
-
-	// �κ�� �̵�
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void GoToLobby();
-
-	// ���� �� ���� �ʱ�ȭ (MapBase�� ȣ��)
-	void InitializeCurrentMap(class AMapBase* InMapActor);
-
-	// �� �̵� ����
-	void MoveToNextFloor(EMapType SelectedType);
-	TArray<EMapType> GenerateNextFloorOptions();
-
-	bool IsInBattleMap() { return bIsBattleActive; }
-	
-	//�κ� �� �ǵ���
-	bool GetIsInLobby() const { return bIsInLobby; }
-
-	//Getter
-	int32 GetCurrentStage() const { return CurrentStage; }
-	int32 GetCurrentFloor() const { return CurrentFloor; }
-	EMapType GetCurrentMapType() const { return CurrentMapType; }
-	EMapState GetCurrentRoomState() const { return CurrentRoomState; }
-
-	//Setter
-	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
-
-	// �ε� �ý���
-	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby);
-
-protected:
-	// �κ� ���� ���۷��� (�����Ϳ��� ��� Ȯ�� �ʿ�)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSoftObjectPtr<UWorld> LobbyLevelReference;
-
-	// �� ������ ���̺�
-	UPROPERTY()
-	TObjectPtr<UDataTable> MapDataTable;
-
-private:
-	// ���� �������� �� �� ����
-	int32 CurrentStage = 1;
-	int32 CurrentFloor = 1;
-
-	// ���� �� Ÿ�� (���� ���� �� ������)
-	UPROPERTY(VisibleAnywhere, Category = "Debug")
-	EMapType CurrentMapType = EMapType::NormalBattle;
-
-	// ���� ������ �� ���� (BP_MapBase)
-	UPROPERTY()
-	TObjectPtr<class AMapBase> CurrentMapActor;
-
-	// [�����] �ʵ� ��ġ ����
-	UPROPERTY()
-	FTransform SavedFieldTransform;
-
-	// [�÷���] �������� ���ƿ��� ���ΰ�?
-	bool bIsReturningFromBattle = false;
-
-	// [�÷���] ���� ���� ���ΰ�?
-	bool bIsBattleActive = false;
-
-	// [�÷���] ���� ���� Ŭ����� �����ΰ�?
-	EMapState CurrentRoomState = EMapState::InProgress;
-
-	// [�÷���] ���̺� ���Ͽ��� �ε��Ͽ� �ʿ� �����ϴ� ���ΰ�?
-	bool bIsLoadingSave = false;
-
-	// [�÷���] �÷��̾ �κ� �ʿ� �ִ°�?
-	bool bIsInLobby = true;
-
-private:
-	// �� ���� �� �÷��̾� �̵� ó��
-	void SpawnMapActor(EMapType MapType);
-
-	// ���� �ε� �Ϸ� �� ȣ��Ǵ� �ݹ� (��ġ ���� �ٽ�)
-	void OnPostLoadMapWithWorld(UWorld* LoadedWorld);
-
-	// �������� ���� �ε� ����
-	void LoadStageLevel();
-
-	// ���̵�/Ÿ�� ���� ����
-	EMapGrade GetMapGradeByFloor(int32 Floor) const;
-	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
-};
-// ==========================================
-// FILE: PortalActor.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Interface/InteractableInterface.h" 
-#include "Map/MapInfo.h"
-#include "PortalActor.generated.h"
-
-UCLASS()
-class PROJECT_SP_API APortalActor : public AActor, public IInteractableInterface
+void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 {
-	GENERATED_BODY()
+	CurrentRoomState = EMapState::InProgress;
 
-public:
-	APortalActor();
+	if (CurrentFloor >= 11 && CurrentStage < 3)
+	{
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+}
 
-	// --- �������̽� ���� ---
-	virtual void ExecuteInteraction(AActor* Interactor) override;
-	virtual FText GetInteractText() const override;
-	virtual bool CanInteract(AActor* Interactor) const override;
-
-	//�Ŵ����� ��Ż�� ������ �� ������ Ÿ���� �������ִ� �Լ�
-	void SetPortalTargetType(EMapType InType);
-
-	//��Ż�� Ȱ��ȭ �ϴ� �Լ�
-	void ActivatePortal(bool bActive);
-
-
-protected:
-	UPROPERTY(VisibleAnywhere, Category = "Portal | Components")
-	TObjectPtr<UStaticMeshComponent> MeshComponent;
-
-	// �� ��Ż�� Ÿ�� �̵��ϰ� �� �� ����
-	UPROPERTY(VisibleAnywhere, Category = "Portal | Data")
-	EMapType TargetMapType;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Portal")
-	bool bIsActive = false; // �⺻�� ��Ȱ��ȭ
-
-protected:
-	// Ȱ��ȭ/��Ȱ��ȭ �� �ð��� ��ȭ�� �ֱ� ���� �̺�Ʈ
-	UFUNCTION(BlueprintImplementableEvent)
-	void OnPortalStateChanged(bool bActive);
-
-	//��Ż�� ������ �ٲٴ� �Լ�
-	UFUNCTION(BlueprintImplementableEvent, Category = "Portal")
-	void OnUpdatePortalColor(EMapType MapType);
-};
-// ==========================================
-// FILE: RewardBox.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Interface/InteractableInterface.h"
-#include "RewardBox.generated.h"
-
-
-UCLASS()
-class PROJECT_SP_API ARewardBox : public AActor, public IInteractableInterface
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
 {
-	GENERATED_BODY()
-	
-public:	
-	ARewardBox();
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
+}
 
-	//상호작용을 실행할 때 호출
-	virtual void ExecuteInteraction(AActor* Interactor) override;
-	//UI에 표시할 상호작용 텍스트 반환
-	virtual FText GetInteractText() const override;
-
-protected:
-	UPROPERTY(VisibleAnywhere)
-	UStaticMeshComponent* MeshComp;
-
-	//에디터에서 WBP_RelicReward를 할당할 변수
-	UPROPERTY(EditAnywhere, Category = "UI")
-	TSubclassOf<UUserWidget> RelicRewardWidgetClass;
-
-	// 상자가 위치한 현재 스테이지 (확률 계산용)
-	UPROPERTY(EditAnywhere, Category = "Reward")
-	int32 StageLevel = 1;
-
-	bool bIsOpened = false;
-
-};
-// ==========================================
-// FILE: SPGASSpawnPoint.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "Components/ArrowComponent.h"
-#include "SPGASSpawnPoint.generated.h"
-
-UCLASS()
-class PROJECT_SP_API ASPGASSpawnPoint : public AActor
+EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
 {
-	GENERATED_BODY()
-	
-public:
-	ASPGASSpawnPoint();
+	switch (Grade)
+	{
+	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
+	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
+	case EMapGrade::Prepare: return EMapType::Prepare;
+	case EMapGrade::Boss: return EMapType::BossBattle;
+	default: return EMapType::NormalBattle;
+	}
+}
 
-public:
-	// ���� ��ġ �ε��� (EncounterData�� SpawnPositionIndex�� ��Ī)
-	// 0=�߾�, 1=����, 2=����
-	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Spawn")
-	int32 SpawnIndex = 0;
-
-protected:
-	// �����Ϳ��� ȭ��ǥ�� ������ ���� ����
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TObjectPtr<UArrowComponent> ArrowComponent;
-#endif
-};
-// ==========================================
-// FILE: SPPermSaveGame.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/SaveGame.h"
-#include "Data/SPDataStructs.h"
-#include "SPPermSaveGame.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPPermSaveGame : public USaveGame
+TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 {
-	GENERATED_BODY()
-	
-public:
-	UPROPERTY(VisibleAnywhere, Category = "SaveData")
-	FPlayerMetaProgressionData PermData;
-};
-// ==========================================
-// FILE: SPRunSaveGame.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+	TArray<EMapType> Options;
+	int32 NextFloor = CurrentFloor + 1;
+	if (NextFloor > 11) { Options.Add(EMapType::NormalBattle); return Options; }
+	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+	Options.Add(GetRandomTypeFromGrade(NextGrade));
+	Options.Add(GetRandomTypeFromGrade(NextGrade));
+	return Options;
+}
 
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/SaveGame.h"
-#include "Data/SPDataStructs.h"
-#include "SPRunSaveGame.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPRunSaveGame : public USaveGame
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby)
 {
-	GENERATED_BODY()
-	
-public:
-	UPROPERTY(VisibleAnywhere, Category = "SaveData")
-	FPlayerRunData RunData;
-};
-// ==========================================
-// FILE: SoundManagerSubsystem.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	CurrentRoomState = SavedRoomState;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
 
-#pragma once
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	bIsInLobby = bSavedInLobby;
 
-#include "CoreMinimal.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "Components/AudioComponent.h"
-#include "SoundManagerSubsystem.generated.h"
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	if (bIsInLobby)
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
+	}
+	else
+	{
+		LoadStageLevel();
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
+	}
+}
 
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USoundManagerSubsystem : public UGameInstanceSubsystem
+void UMapManagerSubsystem::GoToLobby()
 {
-	GENERATED_BODY()
-	
-public:
-	// 1. �ʱ�ȭ �� ����
-	virtual void Deinitialize() override;
+	bIsInLobby = true;
+	// 로비로 돌아오면 런 데이터 초기화
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetRunData();
+	}
+	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+}
 
-	// 2. �ܺο��� ȣ���� �Լ���
-	UFUNCTION(BlueprintCallable, Category = "Audio")
-	void PlayFieldBGM(USoundBase* NewBGM); // �ʵ� ���� ���
-
-	UFUNCTION(BlueprintCallable, Category = "Audio")
-	void SwitchToBattleBGM(USoundBase* BattleBGM); // ���� �������� ��ȯ
-
-	UFUNCTION(BlueprintCallable, Category = "Audio")
-	void ReturnToFieldBGM(); // �ʵ� �������� ����
-
-	//������ �����ϴ� �Լ�
-	UFUNCTION(BlueprintCallable, Category = "Audio")
-	void SetBGMVolume(float NewVolume);
-
-	UFUNCTION(BlueprintPure, Category = "Audio")
-	float GetCurrentBGMVolume() const { return CurrentBGMVolume; }
-
-protected:
-	// 3. ���� ������ ����ϴ� ����Ŀ 2��
-	UPROPERTY()
-	TObjectPtr<UAudioComponent> FieldAudioComp;
-
-	UPROPERTY()
-	TObjectPtr<UAudioComponent> BattleAudioComp;
-
-	// ���̵� ȿ�� �ð� (��)
-	const float FadeDuration = 1.0f;
-	
-	//���� BGM ����
-	float CurrentBGMVolume = 1.0f;
-
-	UPROPERTY()
-	TObjectPtr<USoundBase> LastFieldBGMAsset;
-};
-// ==========================================
-// FILE: SPCombatSubsystem.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "Data/CombatEncounterData.h"
-#include "SPCombatSubsystem.generated.h"
-
-/**
- * 
- */
-
-UENUM(BlueprintType)
-enum class ECombatAdvantage : uint8
+void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
 {
-	PlayerAdvantage, //�÷��̾� ����
-	EnemyAdvantage  //�÷��̾� �ǰ�
-};
+	// MapBase가 BeginPlay에서 호출해줌
+	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
+}
+// ==========================================
+// FILE: PortalActor.cpp
+// ==========================================
+#include "Map/PortalActor.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
 
-UCLASS()
-class PROJECT_SP_API USPCombatSubsystem : public UGameInstanceSubsystem
+APortalActor::APortalActor()
 {
-	GENERATED_BODY()
+	PrimaryActorTick.bCanEverTick = false;
+	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortalMesh"));
+	SetRootComponent(MeshComponent);
+}
 
-public:
-	// ���� ������ �����ϰ� �غ��Ŵ
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void SetPendingEncounter(const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage);
-	
-	// ����� ���� ������ ��ȯ
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	const UCombatEncounterData* GetPendingEncounter() const { return CurrentEncounter; }
-
-	// ����� ����Ƽ�� ���� ��ȯ
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	ECombatAdvantage GetAdvantageState() const { return CurrentAdvantage; }
-
-private:
-	// ���� ������ ����� ���� ������ (�����ϰ� ���� ��)
-	UPROPERTY(VisibleAnywhere, Category = "Combat")
-	TObjectPtr<const UCombatEncounterData> CurrentEncounter;
-
-	// ���� ����
-	UPROPERTY(VisibleAnywhere, Category = "Combat")
-	ECombatAdvantage CurrentAdvantage;
-};
-// ==========================================
-// FILE: SPSaveGameSubsystem.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "Data/SPDataStructs.h"
-#include "SPSaveGameSubsystem.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPSaveGameSubsystem : public UGameInstanceSubsystem
+void APortalActor::ExecuteInteraction(AActor* Interactor)
 {
-	GENERATED_BODY()
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
 
-public:
-	// �� ������ ����
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
-	void CacheRunDataFromPlayer(APawn* PlayerPawn);
+	if (!bIsActive)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Portal is not active yet!"));
+		return;
+	}
 
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
-	void RestoreRunDataToPlayer(APawn* PlayerPawn);
+	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+	if (MapManager)
+	{
+		bIsActive = false;
+		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
+		MapManager->MoveToNextFloor(TargetMapType);
+	}
+}
 
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
-	void ResetRunData(); // ���, ���� Ŭ���� �� ȣ��
-
-	// ���� ������ ����
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
-	void CachePermDataFromPlayer(APawn* PlayerPawn);
-
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
-	void RestorePermDataToPlayer(APawn* PlayerPawn);
-
-	//������ �ʱ�ȭ(���� �ϱ��� �� ȣ��)
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Core")
-	void ResetAllData();
-
-	//Getter
-	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerRunData& GetRunData() const { return RunData; }
-
-	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
-
-public:
-	//���̺� ���� ����
-
-	// �� ������ ���� ����
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
-	void SaveRunToDisk();
-
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
-	bool LoadRunFromDisk(); 
-
-	// ���� ������ ���� ����
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
-	void SavePermToDisk();
-
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
-	bool LoadPermFromDisk();
-
-	//�̾��ϱ� ���� üũ
-	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
-	bool HasValidRunSave() const;
-
-private:
-	UPROPERTY()
-	FPlayerRunData RunData;
-
-	UPROPERTY()
-	FPlayerMetaProgressionData PermData;
-
-	//����� ���� �̸�
-	const FString RunSlotName = TEXT("Slot_Run");
-	const FString PermSlotName = TEXT("Slot_Perm");
-};
-// ==========================================
-// FILE: SPGameplayTags.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameplayTagContainer.h"
-
-/**
- * 
- */
-struct FSPGameplayTags
+FText APortalActor::GetInteractText() const
 {
-public:
-	static const FSPGameplayTags& Get() { return GameplayTags; }
-	static void InitializeNativeGameplayTags();
+	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
+	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
 
-public:
-	// 상태(State)
-	FGameplayTag State_Mode_Field;
-	FGameplayTag State_Mode_Battle;
-	FGameplayTag State_Turn_Active;
-	FGameplayTag State_Status_BlockMove;
-	FGameplayTag State_Battle_TurnActive;
-	FGameplayTag State_Cooldown;
-	FGameplayTag State_Status_SkipTurn;
-	FGameplayTag State_TimeInterference;
+	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
+	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
+}
 
-	// 입력(Input)
-	FGameplayTag Input_Action_Interact;
-	FGameplayTag Input_Action_FieldAttack;
-	//테스트용 치트 버튼(나중에 제거)
-	FGameplayTag Input_Action_CheatReturn;
+bool APortalActor::CanInteract(AActor* Interactor) const
+{
+	return bIsActive;
+}
 
-	// 타입(Ability Type)
-	FGameplayTag Ability_Type_Field;
-	FGameplayTag Ability_Type_Battle;
+void APortalActor::SetPortalTargetType(EMapType InType)
+{
+	TargetMapType = InType;
 
-	// 오파츠(Oparts)
-	FGameplayTag Oparts_CrystalSkull;
-	FGameplayTag Oparts_JadeClock;
-	FGameplayTag Oparts_GoldBug;
+	// 타겟 타입이 정해지는 즉시 블루프린트에 알림
+	OnUpdatePortalColor(TargetMapType);
+}
 
-	// 유물(Relic)
-	FGameplayTag Relic_Bonus_Attack;
+void APortalActor::ActivatePortal(bool bActive)
+{
+	bIsActive = bActive;
 
-	//이벤트
-	FGameplayTag Event_Interaction;
-	FGameplayTag Event_Field_Hit;
-	FGameplayTag Event_Battle_TurnStart;
-	FGameplayTag Event_Battle_TurnEnd;
-	FGameplayTag Event_Montage_Hit;
-	FGameplayTag Event_Hit_Start;
-	FGameplayTag Event_Hit_Bounce;
-	FGameplayTag Event_Hit_AoE;
-
-	// 무기(Weapon)
-	FGameplayTag Weapon_Fenrir;
-	FGameplayTag Weapon_Surtr;
-	FGameplayTag Weapon_Jormungandr;
-
-	//약점(Weakness)
-	FGameplayTag Weakness_Fenrir;
-	FGameplayTag Weakness_Surtr;
-	FGameplayTag Weakness_Jormungandr;
-
-	//쿨타임(Cooldown)
-	FGameplayTag Cooldown_Weapon_Fenrir_Skill;
-	FGameplayTag Cooldown_Weapon_Fenrir_Parry;
-	FGameplayTag Cooldown_Weapon_Surtr_Skill;
-	FGameplayTag Cooldown_Weapon_Surtr_Parry;
-	FGameplayTag Cooldown_Weapon_Jormungandr_Skill;
-	FGameplayTag Cooldown_Weapon_Jormungandr_Parry;
-	FGameplayTag Cooldown_Skill_TimeInterference;
-
-	//상태 이상(Debuff)
-	FGameplayTag Debuff_Basic_Weathering;  // 풍화
-	FGameplayTag Debuff_Basic_Burn;        // 화상
-	FGameplayTag Debuff_Basic_Poison;      // 중독
-	FGameplayTag Debuff_Mix_HeatWind;      // 열풍
-	FGameplayTag Debuff_Mix_Plague;        // 역병
-	FGameplayTag Debuff_Mix_Faint;         // 혼절
-	FGameplayTag Debuff_Fatal_FatalWound;  // 치명상
-
-	// 전투 행동(Battle.Action)
-	FGameplayTag Battle_Action_Attack;
-	FGameplayTag Battle_Action_Skill;
-	FGameplayTag Battle_Action_Parry;
-	FGameplayTag Battle_Action_TimeInterference;
-
-	//데미지 종류
-	FGameplayTag Damage_Type_Normal;
-	FGameplayTag Damage_Type_Status; 
-	FGameplayTag Damage_Type_Fixed;
-	FGameplayTag Damage_Type_Execute;
-	
-	//몬스터 등급
-	FGameplayTag Enemy_Rank_Normal;
-	FGameplayTag Enemy_Rank_Epic;
-	FGameplayTag Enemy_Rank_Boss;
-
-	//데이터 전달(Data)
-	FGameplayTag Data_Damage;
-
-protected:
-	void AddAllTags(class UGameplayTagsManager& Manager);
-
-private:
-	static FSPGameplayTags GameplayTags;
-};
+	// 시각적 효과 (블루프린트에서 파티클 켜기/끄기 구현)
+	OnPortalStateChanged(bActive);
+}
 // ==========================================
-// FILE: BattleHUD.h
+// FILE: RewardBox.cpp
 // ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/HUD.h"
+#include "Map/RewardBox.h"
+#include "Map/MapBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
 #include "Blueprint/UserWidget.h"
-#include "BattleHUD.generated.h"
 
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API ABattleHUD : public AHUD
+ARewardBox::ARewardBox()
 {
-	GENERATED_BODY()
-	
-public:
-	ABattleHUD();
+	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+	RootComponent = MeshComp;
+}
 
-	//���� ���۽� �⺻ UI
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TSubclassOf<UUserWidget> BattleUIWidgetClass;
-
-	//�������� ������ �迭
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TArray<UUserWidget*> ActiveWidgets;
-
-protected:
-	virtual void BeginPlay() override;
-
-public:
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	UUserWidget* CreateAndAddWidget(TSubclassOf<UUserWidget> WidgetClass, int32 ZOrder = 0);
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	void RemoveCurrentWidget(UUserWidget* WidgetToRemove);
-
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	void RemoveAllWidgets();
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI")
-	UUserWidget* GetWidgetByClass(TSubclassOf<UUserWidget> WidgetClass) const;
-};
-// ==========================================
-// FILE: SPInteractionWidget.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
-#include "SPInteractionWidget.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPInteractionWidget : public UUserWidget
+void ARewardBox::ExecuteInteraction(AActor* Interactor)
 {
-	GENERATED_BODY()
+	if (bIsOpened) return;
 
-public:
-	void UpdateInteractionText(const FText& Text);
+	// 상호작용한 Actor가 플레이어인지 확인
+	APlayerController* PC = Cast<APlayerController>(Cast<ACharacter>(Interactor)->GetController());
+	if (!PC) return;
 
-protected:
-	virtual void NativeConstruct() override;
+	bIsOpened = true;
 
-protected:
-	UPROPERTY(meta = (BindWidget))
-	TObjectPtr<class UTextBlock> Txt_ActionName;
-	
-};
-// ==========================================
-// FILE: Project_SP.cpp
-// ==========================================
-// Copyright Epic Games, Inc. All Rights Reserved.
-
-#include "Project_SP.h"
-#include "Modules/ModuleManager.h"
-
-IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, Project_SP, "Project_SP" );
-
-DEFINE_LOG_CATEGORY(LogProject_SP)
- 
-// ==========================================
-// FILE: Project_SP.h
-// ==========================================
-// Copyright Epic Games, Inc. All Rights Reserved.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#define ECC_Interaction ECC_GameTraceChannel1
-
-DECLARE_LOG_CATEGORY_EXTERN(LogProject_SP, Log, All);
+	//보상 지급 코드를 여기서 구현
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// 1. 유물 보상 위젯 생성
+	UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
+	if (RewardUI)
+	{
+		// 2. 위젯에 현재 스테이지 값 전달 (WBP_RelicReward의 CurrentStage 변수 이름과 일치해야 함)

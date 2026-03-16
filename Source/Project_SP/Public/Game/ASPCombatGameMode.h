@@ -31,6 +31,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
 	void EndBattle(bool bPlayerWon);
 
+	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
+
 protected:
 	// 블루프린트에서 BP_TurnManager를 지정해야 함
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")

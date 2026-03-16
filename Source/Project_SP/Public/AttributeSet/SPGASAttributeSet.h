@@ -13,6 +13,8 @@
 	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, bool);
+
 UCLASS()
 class PROJECT_SP_API USPGASAttributeSet : public UAttributeSet
 {
@@ -20,6 +22,9 @@ class PROJECT_SP_API USPGASAttributeSet : public UAttributeSet
 	
 public:
 	USPGASAttributeSet();
+
+	//데미지를 받으면 방송(델리게이트)
+	FOnDamageTakenDelegate OnDamageTakenEvent;
 
 	// 수치가 변경될 때 제한(Clamping)을 거는 함수
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
@@ -129,5 +134,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
 	FGameplayAttributeData IncomingHeal;
 	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
+
+	// 치명타 여부
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingIsCritical;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingIsCritical)
 
 };

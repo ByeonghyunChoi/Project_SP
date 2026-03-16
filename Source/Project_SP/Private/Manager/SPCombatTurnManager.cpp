@@ -104,8 +104,8 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		TurnQueue.Sort([this](const AActor& A, const AActor& B) {
 
 			// 기준 1: 속도가 빠른 순서
-			float SpeedA = GetSpeed(const_cast<AActor*>(&A));
-			float SpeedB = GetSpeed(const_cast<AActor*>(&B));
+			float SpeedA = GetSpeed(&A);
+			float SpeedB = GetSpeed(&B);
 			if (!FMath::IsNearlyEqual(SpeedA, SpeedB))
 			{
 				return SpeedA > SpeedB;
@@ -142,9 +142,9 @@ void ASPCombatTurnManager::RemoveParticipant(AActor* DeadActor)
 	}
 }
 
-float ASPCombatTurnManager::GetSpeed(AActor* Target) const
+float ASPCombatTurnManager::GetSpeed(const AActor* Target) const
 {
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
+	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
@@ -155,9 +155,9 @@ float ASPCombatTurnManager::GetSpeed(AActor* Target) const
 	return 0.0f;
 }
 
-float ASPCombatTurnManager::GetActionGauge(AActor* Target) const
+float ASPCombatTurnManager::GetActionGauge(const AActor* Target) const
 {
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
+	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
@@ -267,7 +267,7 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
 			PredictedOrder.Add(SimList[WinnerIndex].Actor);
 
 			// 한 번 턴을 잡은 애는 게이지를 0으로 만들어서 다시 꼴찌부터 뛰게 만듭니다.
-			SimList[WinnerIndex].Gauge = 0.0f;
+			SimList[WinnerIndex].Gauge -= MaxActionGauge;
 		}
 	}
 

@@ -39,6 +39,11 @@ void ASPGASMonsterCharacter::BeginPlay()
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxHealthAttribute())
 			.AddUObject(this, &ASPGASMonsterCharacter::OnMaxHealthChanged);
 
+		if (USPGASAttributeSet* SPAS = Cast<USPGASAttributeSet>(AttributeSet))
+		{
+			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
+		}
+
 		if (WeaknessTags.IsValid())
 		{
 			ASC->AddLooseGameplayTags(WeaknessTags);
@@ -150,6 +155,11 @@ TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const
 void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	BroadcastHPUI();
+	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
+		Die(); // 몬스터 사망 함수 호출
+	}
 }
 
 void ASPGASMonsterCharacter::OnMaxHealthChanged(const FOnAttributeChangeData& Data)
@@ -187,8 +197,13 @@ void ASPGASMonsterCharacter::Die()
 		GM->OnCharacterDied(this);
 	}
 
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
+		ASC->CancelAllAbilities();
+	}
 	// 4. (선택) 몬스터 파괴 - 나중에 죽는 애니메이션(몽타주)이 끝나면 파괴하도록 블루프린트로 빼도 됩니다.
-	Destroy();
+	SetLifeSpan(1.5f);
 }
 
 

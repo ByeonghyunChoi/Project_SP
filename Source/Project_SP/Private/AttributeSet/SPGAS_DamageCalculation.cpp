@@ -67,6 +67,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	if (!SourceASC || !TargetASC) return;
 
 	//태그 정보 가져옴
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	const FGameplayEffectSpec& Spec = ExecutionParams.GetOwningSpec();
 	const FGameplayTagContainer* SourceTags = Spec.CapturedSourceTags.GetAggregatedTags();
 	const FGameplayTagContainer* TargetTags = Spec.CapturedTargetTags.GetAggregatedTags();
@@ -114,18 +115,19 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	float TargetLevel = TargetASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
 
 	// [스킬 계수] (SetByCaller: Data.Damage)
-	float Coefficient = Spec.GetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.Damage")), false, 1.0f);
+	float Coefficient = Spec.GetSetByCallerMagnitude(SPTags.Data_Damage, false, 1.0f);
 
 	float FinalDamage = 0.0f;
+	bool bIsActualCritical = false;
 
-	if (EffectTags.HasTag(FGameplayTag::RequestGameplayTag("Damage.Type.Execute")))
+	if (EffectTags.HasTag(SPTags.Damage_Type_Execute))
 	{
 		FinalDamage = Coefficient;
 
 		UE_LOG(LogTemp, Warning, TEXT("[처형] 일반 몬스터 즉사! 데미지: %.0f"), FinalDamage);
 	}
 	//상태 이상 데미지
-	else if (EffectTags.HasTag(FGameplayTag::RequestGameplayTag("Damage.Type.Status")))
+	else if (EffectTags.HasTag(SPTags.Damage_Type_Status))
 	{
 		// 기본 데미지
 		float BaseDamage = Attack * (Coefficient * (1 + EffectAmplify));
@@ -134,9 +136,9 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		float DamageMultiCoefficient = 1.0f + OutgoingMulti + IncomingMulti;
 
 		// 방어력 계수
-		float DamageReduction = Defense / (Defense + 1000.0f);
-		float DefenseCoefficient = 1.0f - (DamageReduction + DefIgnore) / 2;
-		DefenseCoefficient = FMath::Clamp(DefenseCoefficient, 0.0f, 1.0f);
+		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		//레벨 계수
 		float LevelDiff = SourceLevel - TargetLevel;
@@ -158,7 +160,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 			FinalDamage, BaseDamage, DamageMultiCoefficient, DefenseCoefficient, LevelCoefficient);
 	}
 	//고정 데미지
-	else if (EffectTags.HasTag(FGameplayTag::RequestGameplayTag("Damage.Type.Fixed")))
+	else if (EffectTags.HasTag(SPTags.Damage_Type_Fixed))
 	{
 		// 기본 데미지
 		float BaseDamage = Attack * (Coefficient * (1 + EffectAmplify));
@@ -185,6 +187,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		if (bIsCritical)
 		{
 			CriticalCoefficient = 1.5f + CritDamageVal;
+			bIsActualCritical = true;
 			UE_LOG(LogTemp, Log, TEXT("치명타!"));
 		}
 
@@ -192,27 +195,27 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		float DamageMultiCoefficient = 1.0f + OutgoingMulti + IncomingMulti;
 
 		// 방어력 계수
-		float DamageReduction = Defense / (Defense + 1000.0f);
-		float DefenseCoefficient = (1.0f - DamageReduction) + DefIgnore;
-		DefenseCoefficient = FMath::Clamp(DefenseCoefficient, 0.0f, 1.0f);
+		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		// 약점 계수
 		float WeaknessCoefficient = 1.0f;
 
-		if (SourceTags->HasTag(FGameplayTag::RequestGameplayTag("Weapon.Fenrir")) &&
-			TargetTags->HasTag(FGameplayTag::RequestGameplayTag("Weakness.Fenrir")))
+		if (SourceTags->HasTag(SPTags.Weapon_Fenrir) &&
+			TargetTags->HasTag(SPTags.Weakness_Fenrir))
 		{
 			WeaknessCoefficient = 1.2f;
 			UE_LOG(LogTemp, Log, TEXT("약점 공격(펜리르)"));
 		}
-		else if (SourceTags->HasTag(FGameplayTag::RequestGameplayTag("Weapon.Surtr")) &&
-			TargetTags->HasTag(FGameplayTag::RequestGameplayTag("Weakness.Surtr")))
+		else if (SourceTags->HasTag(SPTags.Weapon_Surtr) &&
+			TargetTags->HasTag(SPTags.Weakness_Surtr))
 		{
 			WeaknessCoefficient = 1.2f;
 			UE_LOG(LogTemp, Log, TEXT("약점 공격(수르트)"));
 		}
-		else if (SourceTags->HasTag(FGameplayTag::RequestGameplayTag("Weapon.Jormungandr")) &&
-			TargetTags->HasTag(FGameplayTag::RequestGameplayTag("Weakness.Jormungandr")))
+		else if (SourceTags->HasTag(SPTags.Weapon_Jormungandr) &&
+			TargetTags->HasTag(SPTags.Weakness_Jormungandr))
 		{
 			WeaknessCoefficient = 1.2f;
 			UE_LOG(LogTemp, Log, TEXT("약점 공격(요르문간드)"));
@@ -242,13 +245,17 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 	// 최소 데미지 1 보장
 	FinalDamage = FMath::Max<float>(FinalDamage, 1.0f);
-	if (FinalDamage > 0.f)
+	// 메타 속성(IncomingDamage)에 값 누적
+	OutExecutionOutput.AddOutputModifier(
+		FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingDamageAttribute(), EGameplayModOp::Additive, FinalDamage)
+	);
+
+	//치명타 여부 추가
+	if (bIsActualCritical)
 	{
-		// 메타 속성(IncomingDamage)에 값 누적
 		OutExecutionOutput.AddOutputModifier(
-			FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingDamageAttribute(), EGameplayModOp::Additive, FinalDamage)
+			FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingIsCriticalAttribute(), EGameplayModOp::Additive, 1.0f)
 		);
 	}
-
 }
 

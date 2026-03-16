@@ -72,6 +72,7 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
 		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
 		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
+		RunData.MapProgress.SavedPortalOptions = MapManager->GetCurrentPortalOptions();
 
 		// 로비 맵인지 확인 정보 캐싱
 		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
@@ -216,6 +217,11 @@ bool USPSaveGameSubsystem::LoadRunFromDisk()
 		}
 	}
 	return false;
+}
+
+bool USPSaveGameSubsystem::HasValidPermSave() const
+{
+	return UGameplayStatics::DoesSaveGameExist(PermSlotName, 0);
 }
 
 bool USPSaveGameSubsystem::HasValidRunSave() const

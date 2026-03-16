@@ -25,6 +25,8 @@ void USPGA_FieldAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 		return;
 	}
 
+	HitTargets.Empty();
+
 	UAnimMontage* MontageToPlay = nullptr;
 	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(ActorInfo->AvatarActor))
 	{
@@ -56,7 +58,7 @@ void USPGA_FieldAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	// * 중요: 애니메이션 몽타주에 AnimNotify_SendGameplayEvent를 심어서 이 태그를 보내줘야 함
 	UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
 		this,
-		FGameplayTag::RequestGameplayTag(FName("Event.Field.Hit"))
+		FSPGameplayTags::Get().Event_Field_Hit
 	);
 
 	WaitEventTask->EventReceived.AddDynamic(this, &USPGA_FieldAttack::OnEventReceived);
@@ -71,6 +73,12 @@ void USPGA_FieldAttack::OnEventReceived(FGameplayEventData Payload)
 
 	if (Attacker && Victim)
 	{
+		if (HitTargets.Contains(Victim))
+		{
+			return; // 중복 타격 방지
+		}
+
+		HitTargets.Add(Victim);
 		ResolveBattleEncounter(Attacker, Victim);
 	}
 }
@@ -88,20 +96,19 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 	APawn* PlayerPawn = nullptr;
 
 	// --- Case A: 플레이어 -> 몬스터 (선공) ---
-	if (Attacker->IsA(ASPGASPlayerCharacter::StaticClass()))
+	if (ASPGASPlayerCharacter* PlayerAttacker = Cast<ASPGASPlayerCharacter>(Attacker))
 	{
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Victim))
 		{
 			Advantage = ECombatAdvantage::PlayerAdvantage;
 			EncounterData = Monster->EncounterData;
 		}
-		PlayerPawn = Cast<APawn>(Attacker);
+		PlayerPawn = PlayerAttacker;
 	}
 	// --- Case B: 몬스터 -> 플레이어 (기습) ---
-	else if (Attacker->IsA(ASPGASMonsterCharacter::StaticClass()))
+	else if (ASPGASMonsterCharacter* MonsterAttacker = Cast<ASPGASMonsterCharacter>(Attacker))
 	{
-		ASPGASMonsterCharacter* MonsterAttacker = Cast<ASPGASMonsterCharacter>(Attacker);
-		if (MonsterAttacker && Victim->IsA(ASPGASPlayerCharacter::StaticClass()))
+		if (Victim->IsA(ASPGASPlayerCharacter::StaticClass())) 
 		{
 			Advantage = ECombatAdvantage::EnemyAdvantage;
 			EncounterData = MonsterAttacker->EncounterData;
@@ -115,7 +122,6 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 		UGameInstance* GI = GetWorld()->GetGameInstance();
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
-			// "야, 전투 시작해!" 한마디면 끝
 			MapManager->StartBattleEncounter(PlayerPawn, EncounterData, Advantage);
 		}
 	}

@@ -1,0 +1,926 @@
+﻿		FProperty* StageProp = RewardUI->GetClass()->FindPropertyByName(FName("CurrentStage"));
+		if (StageProp)
+		{
+			if (FIntProperty* IntProp = CastField<FIntProperty>(StageProp))
+			{
+				IntProp->SetPropertyValue_InContainer(RewardUI, StageLevel);
+			}
+		}
+
+		// 3. 화면에 표시 및 입력 모드 설정
+		RewardUI->AddToViewport();
+
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = true;
+	}
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	Destroy();
+}
+
+FText ARewardBox::GetInteractText() const
+{
+	return FText::FromString(TEXT("상자 열기"));
+}
+// ==========================================
+// FILE: SPGASSpawnPoint.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Map/SPGASSpawnPoint.h"
+
+ASPGASSpawnPoint::ASPGASSpawnPoint()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	// ��Ʈ ������Ʈ ����
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+
+	// �����Ϳ��� ���� �� ��� ȭ��ǥ �߰�
+#if WITH_EDITORONLY_DATA
+	ArrowComponent = CreateDefaultSubobject<UArrowComponent>(TEXT("Arrow"));
+	ArrowComponent->SetupAttachment(RootComponent);
+	ArrowComponent->ArrowSize = 1.0f;
+	ArrowComponent->SetHiddenInGame(true); // ���� �߿��� ����
+#endif
+}
+
+// ==========================================
+// FILE: SPPermSaveGame.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Save/SPPermSaveGame.h"
+
+// ==========================================
+// FILE: SPRunSaveGame.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Save/SPRunSaveGame.h"
+
+// ==========================================
+// FILE: SoundManagerSubsystem.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "SubSystem/SoundManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+
+void USoundManagerSubsystem::Deinitialize()
+{
+	if (FieldAudioComp && FieldAudioComp->IsValidLowLevel()) FieldAudioComp->Stop();
+	if (BattleAudioComp && BattleAudioComp->IsValidLowLevel()) BattleAudioComp->Stop();
+	Super::Deinitialize();
+}
+
+void USoundManagerSubsystem::PlayFieldBGM(USoundBase* NewBGM)
+{
+	if (!NewBGM) return;
+
+	LastFieldBGMAsset = NewBGM;
+
+	// �̹� �Ȱ��� �뷡�� ������ �ִٸ� ���� (�� �̵��ص� ���� ����)
+	if (FieldAudioComp && FieldAudioComp->IsPlaying() && FieldAudioComp->Sound == NewBGM)
+	{
+		FieldAudioComp->SetVolumeMultiplier(CurrentBGMVolume);
+		return;
+	}
+
+	// ���� ���� ���
+	if (FieldAudioComp)
+	{
+		FieldAudioComp->Stop();
+	}
+
+	// �� ���� ���� �� ��� (Fade In)
+	FieldAudioComp = UGameplayStatics::CreateSound2D(GetGameInstance(), NewBGM);
+	if (FieldAudioComp)
+	{
+		FieldAudioComp->Play();
+		FieldAudioComp->FadeIn(FadeDuration, CurrentBGMVolume);
+	}
+}
+
+void USoundManagerSubsystem::SwitchToBattleBGM(USoundBase* BattleBGM)
+{
+	// 1. �ʵ� ���� ���̱� (������ �ʰ� ������ 0���� -> ���߿� �̾� ��������)
+	// ������ ���� �Ѱ� ������ Stop() �ϼŵ� �˴ϴ�. ���⼱ ������ ���Դϴ�.
+	if (FieldAudioComp && FieldAudioComp->IsPlaying())
+	{
+		FieldAudioComp->FadeOut(FadeDuration, 0.0f);
+	}
+
+	// 2. ���� ���� �ѱ�
+	if (BattleBGM)
+	{
+		// ���� ���� ������Ʈ ���� Ȥ�� �����
+		if (BattleAudioComp) BattleAudioComp->Stop();
+
+		BattleAudioComp = UGameplayStatics::CreateSound2D(GetGameInstance(), BattleBGM);
+		if (BattleAudioComp)
+		{
+			BattleAudioComp->Play();
+			BattleAudioComp->FadeIn(FadeDuration, CurrentBGMVolume);
+		}
+	}
+}
+
+void USoundManagerSubsystem::ReturnToFieldBGM()
+{
+	// 1. ���� ���� ��� (Fade Out)
+	if (BattleAudioComp && BattleAudioComp->IsPlaying())
+	{
+		BattleAudioComp->FadeOut(FadeDuration, 0.0f);
+	}
+
+	PlayFieldBGM(LastFieldBGMAsset);
+}
+
+void USoundManagerSubsystem::SetBGMVolume(float NewVolume)
+{
+	CurrentBGMVolume = FMath::Clamp(NewVolume, 0.0f, 1.0f);
+
+	// 1. �ʵ� ���� ���� ����
+	if (FieldAudioComp && FieldAudioComp->IsValidLowLevel())
+	{
+		FieldAudioComp->SetVolumeMultiplier(CurrentBGMVolume);
+	}
+
+	// 2. ���� ���� ���� ����
+	if (BattleAudioComp && BattleAudioComp->IsValidLowLevel())
+	{
+		BattleAudioComp->SetVolumeMultiplier(CurrentBGMVolume);
+	}
+}
+
+// ==========================================
+// FILE: SPCombatSubsystem.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "SubSystem/SPCombatSubsystem.h"
+
+void USPCombatSubsystem::SetPendingEncounter(const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage)
+{
+	if (EncounterData)
+	{
+		CurrentEncounter = EncounterData;
+		CurrentAdvantage = Advantage;
+
+		UE_LOG(LogTemp, Log, TEXT("[CombatSubsystem] 전투 데이터 저장 완료! 맵: %s, 상태: %d"),
+			*EncounterData->CombatLevelName.ToString(), (int32)Advantage);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[CombatSubsystem] 전투 데이터가 비어있습니다!"));
+	}
+}
+// ==========================================
+// FILE: SPSaveGameSubsystem.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "SubSystem/SPSaveGameSubsystem.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "AbilitySystemInterface.h"
+#include "AbilitySystemComponent.h"
+#include "Component/InventoryComponent.h"
+#include "Component/RelicComponent.h"
+#include "Component/OpartsComponent.h"
+#include "Map/MapManagerSubSystem.h"
+#include "Save/SPRunSaveGame.h"
+#include "Save/SPPermSaveGame.h"
+#include "Kismet/GameplayStatics.h"
+
+void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+
+	// 1. 스탯 저장
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			bool bFound = false;
+			RunData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
+			RunData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
+			RunData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
+			RunData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
+
+			RunData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
+			RunData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
+			RunData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+			RunData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
+			RunData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
+			RunData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
+
+			RunData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
+			RunData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
+			RunData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
+			RunData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
+			RunData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
+
+			RunData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
+			RunData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
+			RunData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
+			RunData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
+			RunData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
+		}
+	}
+
+	// 2. 런 지갑 (골드, 파편) 저장
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		RunData.RunWallet.Money = InventoryComp->GetMoney();
+		RunData.RunWallet.Fragment = InventoryComp->GetFragment();
+	}
+
+	// 3. 유물 저장
+	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
+	{
+		RunData.RelicData.EquippedRelics = RelicComp->EquippedRelics;
+		RunData.RelicData.AcquiredHistory = RelicComp->AcquiredHistory;
+	}
+
+	// 4. 맵 진행도 저장
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		// 맵 매니저가 들고 있는 진행 정보 캐싱
+		RunData.MapProgress.CurrentStage = MapManager->GetCurrentStage();
+		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
+		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
+		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
+
+		// 로비 맵인지 확인 정보 캐싱
+		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
+		// 플레이어의 현재 실제 위치 캐싱
+		RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
+	}
+}
+
+void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn || !RunData.IsValid()) return;
+
+	// 1. 스탯 복구
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), RunData.Stats.MaxHealth);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute(), RunData.Stats.MaxBattlePoint);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute(), RunData.Stats.MaxTimePower);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), RunData.Stats.Level);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), RunData.Stats.Experience);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), RunData.Stats.MaxExperience);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), RunData.Stats.Attack);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), RunData.Stats.Defense);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), RunData.Stats.Speed);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute(), RunData.Stats.DefenseIgnore);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), RunData.Stats.CriticalRate);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute(), RunData.Stats.CriticalDamage);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute(), RunData.Stats.EffectHitRate);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute(), RunData.Stats.EffectAmplify);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), RunData.Stats.OutgoingDamageMultiplier);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), RunData.Stats.IncomingDamageMultiplier);
+
+			// 자원 (Current) 복구 - 마지막에!
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), RunData.Stats.CurrentHealth);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), RunData.Stats.CurrentBattlePoint);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), RunData.Stats.CurrentTimePower);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), RunData.Stats.CurrentActionGauge);
+		}
+	}
+
+	// 2. 유물 복구 (스탯 기반으로 적용되므로 스탯 이후에 호출)
+	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
+	{
+		RelicComp->LoadRelicData(RunData.RelicData);
+	}
+
+	// 3. 런/영구 지갑 일괄 세팅 (UI 갱신을 위해 한 번에 넘겨줌)
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		InventoryComp->LoadWalletData(RunData.RunWallet, PermData.PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 런 데이터 복구 완료!"));
+}
+
+void USPSaveGameSubsystem::ResetRunData()
+{
+	RunData.Reset();
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0))
+	{
+		UGameplayStatics::DeleteGameInSlot(RunSlotName, 0);
+	}
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 사망/클리어: 런(Run) 데이터만 초기화되었습니다."));
+}
+
+void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+
+	// 1. 영구 지갑 저장
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
+		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
+	}
+
+	// 2. 오파츠 저장
+	if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+	{
+		PermData.OpartsData.EquippedOparts = OpartsComp->GetCurrentOpartsData().Definition;
+		PermData.OpartsData.ProgressMap = OpartsComp->OpartsProgressMap;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 영구 데이터 캐싱 완료!"));
+}
+
+void USPSaveGameSubsystem::RestorePermDataToPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+
+	// 1. 오파츠 복구
+	if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+	{
+		OpartsComp->LoadOpartsData(PermData.OpartsData);
+	}
+
+	// 2. 지갑 복구 (로비 진입 시 영구 데이터만 먼저 불릴 수 있으므로 여기서도 세팅)
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		InventoryComp->LoadWalletData(RunData.RunWallet, PermData.PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 영구 데이터 복구 완료!"));
+}
+
+void USPSaveGameSubsystem::ResetAllData()
+{
+	RunData.Reset();
+	PermData.Reset();
+
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0)) UGameplayStatics::DeleteGameInSlot(RunSlotName, 0);
+	if (UGameplayStatics::DoesSaveGameExist(PermSlotName, 0)) UGameplayStatics::DeleteGameInSlot(PermSlotName, 0);
+
+	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 새로하기: 영구 데이터와 런 데이터가 모두 공장 초기화되었습니다! (Hard Reset)"));
+}
+
+
+void USPSaveGameSubsystem::SaveRunToDisk()
+{
+	USPRunSaveGame* SaveInst = Cast<USPRunSaveGame>(UGameplayStatics::CreateSaveGameObject(USPRunSaveGame::StaticClass()));
+	if (SaveInst)
+	{
+		SaveInst->RunData = RunData; // 서브시스템 메모리 데이터를 껍데기에 복사
+		UGameplayStatics::SaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
+		UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 저장 완료! [%s]"), *RunSlotName);
+	}
+}
+
+bool USPSaveGameSubsystem::LoadRunFromDisk()
+{
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0))
+	{
+		USPRunSaveGame* LoadInst = Cast<USPRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSlotName, 0));
+		if (LoadInst)
+		{
+			RunData = LoadInst->RunData; // 디스크 데이터를 서브시스템 메모리로 가져오기
+			UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 로드 성공!"));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool USPSaveGameSubsystem::HasValidRunSave() const
+{
+	return UGameplayStatics::DoesSaveGameExist(RunSlotName, 0);
+}
+
+void USPSaveGameSubsystem::SavePermToDisk()
+{
+	USPPermSaveGame* SaveInst = Cast<USPPermSaveGame>(UGameplayStatics::CreateSaveGameObject(USPPermSaveGame::StaticClass()));
+	if (SaveInst)
+	{
+		SaveInst->PermData = PermData;
+		UGameplayStatics::SaveGameToSlot(SaveInst, PermSlotName, 0);
+		UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 저장 완료! [%s]"), *PermSlotName);
+	}
+}
+
+bool USPSaveGameSubsystem::LoadPermFromDisk()
+{
+	if (UGameplayStatics::DoesSaveGameExist(PermSlotName, 0))
+	{
+		USPPermSaveGame* LoadInst = Cast<USPPermSaveGame>(UGameplayStatics::LoadGameFromSlot(PermSlotName, 0));
+		if (LoadInst)
+		{
+			PermData = LoadInst->PermData;
+			UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 로드 성공!"));
+			return true;
+		}
+	}
+	return false;
+}
+// ==========================================
+// FILE: SPGameplayTags.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Tag/SPGameplayTags.h"
+#include "GameplayTagsManager.h"
+
+FSPGameplayTags FSPGameplayTags::GameplayTags;
+
+
+void FSPGameplayTags::InitializeNativeGameplayTags()
+{
+	GameplayTags.AddAllTags(UGameplayTagsManager::Get());
+}
+
+void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
+{
+	State_Mode_Field = Manager.AddNativeGameplayTag(FName("State.Mode.Field"), TEXT("필드 상태"));
+	State_Mode_Battle = Manager.AddNativeGameplayTag(FName("State.Mode.Battle"), TEXT("전투 상태"));
+	State_Status_BlockMove = Manager.AddNativeGameplayTag(FName("State.Status.BlockMove"), TEXT("이동 불가 상태"));
+	State_Battle_TurnActive = Manager.AddNativeGameplayTag(FName("State.Battle.TurnActive"), TEXT("턴 활성화 상태"));
+	State_Cooldown = Manager.AddNativeGameplayTag(FName("State.Cooldown"), TEXT("쿨타임 적용 중"));
+	State_Status_SkipTurn = Manager.AddNativeGameplayTag(FName("State.Status.SkipTurn"),TEXT("턴 스킵(행동 불가)"));
+	State_TimeInterference = Manager.AddNativeGameplayTag(FName("State.TimeInterference"), TEXT("시간 간섭"));
+	State_Death = Manager.AddNativeGameplayTag(FName("State.Death"), TEXT("전투 중 사망 상태"));
+
+	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
+	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
+
+	Ability_Type_Field = Manager.AddNativeGameplayTag(FName("Ability.Type.Field"), TEXT("필드 타입 어빌리티"));
+	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
+
+	Oparts_CrystalSkull = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull"), TEXT("오파츠: 수정 해골"));
+	Oparts_JadeClock = Manager.AddNativeGameplayTag(FName("Oparts.JadeClock"), TEXT("오파츠: 옥시계"));
+	Oparts_GoldBug = Manager.AddNativeGameplayTag(FName("Oparts.GoldBug"), TEXT("오파츠: 골드버그"));
+
+	Relic_Bonus_Attack = Manager.AddNativeGameplayTag(FName("Relic.Bonus.Attack"), TEXT("유물 최초 획득 시 공격력 보너스"));
+	
+	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
+	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
+	Event_Battle_TurnStart = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnStart"), TEXT("턴 시작 시 이벤트 활성화"));
+	Event_Battle_TurnEnd = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnEnd"), TEXT("턴 종료 시 이벤트 활성화"));
+	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
+	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
+	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
+	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
+	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
+
+	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
+	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
+	Weapon_Jormungandr = Manager.AddNativeGameplayTag(FName("Weapon.Jormungandr"), TEXT("요르문간드 무기 장착"));
+
+	Weakness_Fenrir = Manager.AddNativeGameplayTag(FName("Weakness.Fenrir"), TEXT("약점: 펜리르"));
+	Weakness_Surtr = Manager.AddNativeGameplayTag(FName("Weakness.Surtr"), TEXT("약점: 수르트"));
+	Weakness_Jormungandr = Manager.AddNativeGameplayTag(FName("Weakness.Jormungandr"), TEXT("약점: 요르문간드"));
+
+	Cooldown_Weapon_Fenrir_Skill = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Fenrir.Skill"), TEXT("쿨타임: 펜리르 스킬"));
+	Cooldown_Weapon_Fenrir_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Fenrir.Parry"), TEXT("쿨타임: 펜리르 패링"));
+	Cooldown_Weapon_Surtr_Skill = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Surtr.Skill"), TEXT("쿨타임: 수르트 스킬"));
+	Cooldown_Weapon_Surtr_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Surtr.Parry"), TEXT("쿨타임: 수르트 패링"));
+	Cooldown_Weapon_Jormungandr_Skill = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Skill"), TEXT("쿨타임: 요르문간드 스킬"));
+	Cooldown_Weapon_Jormungandr_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Parry"), TEXT("쿨타임: 요르문간드 패링"));
+	Cooldown_Skill_TimeInterference = Manager.AddNativeGameplayTag(FName("Cooldown.Skill.TimeInterference"), TEXT("쿨타임: 시간 간섭"));
+
+	Debuff_Basic_Weathering = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Weathering"), TEXT("상태이상: 풍화"));
+	Debuff_Basic_Burn = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Burn"), TEXT("상태이상: 화상"));
+	Debuff_Basic_Poison = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Poison"), TEXT("상태이상: 중독"));
+	Debuff_Mix_HeatWind = Manager.AddNativeGameplayTag(FName("Debuff.Mix.HeatWind"), TEXT("상태이상: 열풍"));
+	Debuff_Mix_Plague = Manager.AddNativeGameplayTag(FName("Debuff.Mix.Plague"), TEXT("상태이상: 역병"));
+	Debuff_Mix_Faint = Manager.AddNativeGameplayTag(FName("Debuff.Mix.Faint"), TEXT("상태이상: 혼절"));
+	Debuff_Fatal_FatalWound = Manager.AddNativeGameplayTag(FName("Debuff.Fatal.FatalWound"), TEXT("상태이상: 치명상"));
+
+	Battle_Action_Attack = Manager.AddNativeGameplayTag(FName("Battle.Action.Attack"), TEXT("일반 공격"));
+	Battle_Action_Skill = Manager.AddNativeGameplayTag(FName("Battle.Action.Skill"), TEXT("무기 스킬"));
+	Battle_Action_Parry = Manager.AddNativeGameplayTag(FName("Battle.Action.Parry"), TEXT("패링 스킬"));
+	Battle_Action_TimeInterference = Manager.AddNativeGameplayTag(FName("Battle.Action.TimeInterference"), TEXT("시간 간섭"));
+
+	Damage_Type_Normal = Manager.AddNativeGameplayTag(FName("Damage.Type.Normal"), TEXT("일반 데미지"));
+	Damage_Type_Status = Manager.AddNativeGameplayTag(FName("Damage.Type.Status"), TEXT("상태이상 데미지"));
+	Damage_Type_Fixed = Manager.AddNativeGameplayTag(FName("Damage.Type.Fixed"), TEXT("고정 데미지"));
+	Damage_Type_Execute = Manager.AddNativeGameplayTag(FName("Damage.Type.Execute"), TEXT("처형 데미지"));
+
+	Enemy_Rank_Normal = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Normal"), TEXT("일반 몬스터"));
+	Enemy_Rank_Epic = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Epic"), TEXT("에픽 몬스터"));
+	Enemy_Rank_Boss = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Boss"), TEXT("보스 몬스터"));
+
+	Data_Damage = Manager.AddNativeGameplayTag(FName("Data.Damage"), TEXT("데미지 배율 전달용"));
+
+}
+// ==========================================
+// FILE: BattleHUD.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "UI/BattleHUD.h"
+
+ABattleHUD::ABattleHUD()
+{
+}
+
+void ABattleHUD::BeginPlay()
+{
+	Super::BeginPlay();
+	CreateAndAddWidget(BattleUIWidgetClass);
+}
+
+UUserWidget* ABattleHUD::CreateAndAddWidget(TSubclassOf<UUserWidget> WidgetClass, int32 ZOrder)
+{
+	if (WidgetClass && GetWorld())
+	{
+		UUserWidget* NewWidget = CreateWidget<UUserWidget>(GetWorld(), WidgetClass);
+		if (NewWidget)
+		{
+			NewWidget->AddToViewport(ZOrder);
+			ActiveWidgets.Add(NewWidget);
+			APlayerController* PlayerController = GetOwningPlayerController();
+			if (PlayerController)
+			{
+				PlayerController->SetShowMouseCursor(true);
+				PlayerController->SetInputMode(FInputModeGameAndUI());
+			}
+			UE_LOG(LogTemp, Log, TEXT("위젯 생성 및 추가 완료: %s"), *WidgetClass->GetName());
+			return NewWidget;
+		}
+	}
+	return nullptr;
+}
+
+void ABattleHUD::RemoveCurrentWidget(UUserWidget* WidgetToRemove)
+{
+	if (WidgetToRemove && ActiveWidgets.Contains(WidgetToRemove))
+	{
+		WidgetToRemove->RemoveFromParent();
+		ActiveWidgets.Remove(WidgetToRemove);
+		UE_LOG(LogTemp, Log, TEXT("위젯 제거 완료: %s"), *WidgetToRemove->GetName());
+		if (ActiveWidgets.Num() == 0) // 모든 위젯 제거 시 마우스 초기화
+		{
+			APlayerController* PlayerController = GetOwningPlayerController();
+			if (PlayerController)
+			{
+				PlayerController->SetShowMouseCursor(false);
+				PlayerController->SetInputMode(FInputModeGameOnly());
+			}
+		}
+	}
+}
+
+void ABattleHUD::RemoveAllWidgets()
+{
+	for (UUserWidget* Widget : ActiveWidgets)
+	{
+		if (Widget) Widget->RemoveFromParent();
+	}
+	ActiveWidgets.Empty();
+	UE_LOG(LogTemp, Log, TEXT("모든 위젯 제거 완료."));
+	APlayerController* PlayerController = GetOwningPlayerController();
+	if (PlayerController)
+	{
+		PlayerController->SetShowMouseCursor(false);
+		PlayerController->SetInputMode(FInputModeGameOnly());
+	}
+}
+
+UUserWidget* ABattleHUD::GetWidgetByClass(TSubclassOf<UUserWidget> WidgetClass) const
+{
+	for (UUserWidget* Widget : ActiveWidgets)
+	{
+		if (Widget && Widget->IsA(WidgetClass)) return Widget;
+	}
+	return nullptr;
+}
+// ==========================================
+// FILE: SPInteractionWidget.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "UI/SPInteractionWidget.h"
+#include "Components/TextBlock.h"
+
+void USPInteractionWidget::UpdateInteractionText(const FText& Text)
+{
+	if (Txt_ActionName)
+	{
+		Txt_ActionName->SetText(Text);
+	}
+}
+
+void USPInteractionWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	if (Txt_ActionName)
+	{
+		Txt_ActionName->SetText(FText::GetEmpty());
+	}
+}
+// ==========================================
+// FILE: ANS_FieldAttackHitCheck.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "ANS_FieldAttackHitCheck.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UANS_FieldAttackHitCheck : public UAnimNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+
+private:
+	// ���� ���� (������)
+	UPROPERTY(EditAnywhere, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	float AttackRadius = 40.0f;
+
+	// ������ ������ ������ �̸�
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	FName WeaponSocketName = FName("WeaponSocket");
+
+	// ����� ��, ����
+	UPROPERTY(EditAnywhere, Category = "Combat")
+	bool bShowDebug = false;
+};
+// ==========================================
+// FILE: SPGASAnimInstance.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Animation/AnimInstance.h"
+#include "SPGASAnimInstance.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGASAnimInstance : public UAnimInstance
+{
+	GENERATED_BODY()
+	
+public:
+	USPGASAnimInstance();
+
+	virtual void NativeInitializeAnimation() override;
+	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+protected:
+	//�⺻ ������
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	TObjectPtr<class ASPGASCharacterBase> Character;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character")
+	TObjectPtr<class UCharacterMovementComponent> Movement;
+
+	UPROPERTY()
+	TWeakObjectPtr<class UAbilitySystemComponent> CachedASC;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	FVector Velocity;
+
+	UPROPERTY(EditAnywhere,BlueprintReadOnly, Category = "Movement")
+	float GroundSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	uint8 bIsIdle : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	uint8 bIsFalling : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Movement")
+	float MovingThreshold;
+
+	// ���� ������
+	UPROPERTY(BlueprintReadOnly, Category = "GAS State")
+	bool bIsInBattle; // ���� ��� ����
+
+	UPROPERTY(BlueprintReadOnly, Category = "GAS State")
+	bool bIsMyTurn;   // ���� �ڽ��� ������ ����
+
+	UPROPERTY(BlueprintReadOnly, Category = "GAS State")
+	bool bIsDead;     // ��� ���� ����
+};
+// ==========================================
+// FILE: SPGASAssetManager.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/AssetManager.h"
+#include "SPGASAssetManager.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGASAssetManager : public UAssetManager
+{
+	GENERATED_BODY()
+
+public:
+	static USPGASAssetManager& Get();
+
+protected:
+	virtual void StartInitialLoading() override;
+	
+};
+// ==========================================
+// FILE: SPGASAttributeSet.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "AttributeSet.h"
+#include "AbilitySystemComponent.h"
+#include "SPGASAttributeSet.generated.h"
+
+#define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
+	GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
+	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
+
+UCLASS()
+class PROJECT_SP_API USPGASAttributeSet : public UAttributeSet
+{
+	GENERATED_BODY()
+	
+public:
+	USPGASAttributeSet();
+
+	// ��ġ�� ����� �� ����(Clamping)�� �Ŵ� �Լ�
+	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
+
+	// ������ ó�� ���� ���� ���� ���� ȣ��Ǵ� �Լ�
+	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
+
+public:
+	// �⺻ ���� �� �ڿ� ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData Health;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Health)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData MaxHealth;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxHealth)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData BattlePoint; // ��Ʋ ����Ʈ
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, BattlePoint)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData MaxBattlePoint; // ��Ʋ ����Ʈ �ִ� ��
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxBattlePoint)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData TimePower; // �ð��� ��
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, TimePower)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData MaxTimePower; // �ð��� �� �ִ� ��
+ 	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxTimePower)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData Defense; // ����
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Defense)
+
+	// �ӵ� �� �ൿ ������ ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Basic")
+	FGameplayAttributeData Speed; // �ӵ�
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Speed)
+
+	// �ൿ ������ (0 ~ Max)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Turn")
+	FGameplayAttributeData ActionGauge;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, ActionGauge)
+
+	// �ൿ ������ �ִ�ġ (���� ������� ���� ���ɼ��� ����)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Turn")
+	FGameplayAttributeData MaxActionGauge;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxActionGauge)
+
+	// ���� ���� ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData Attack; // ���ݷ�
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Attack)
+ 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData DefenseIgnore; // ���� ����
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, DefenseIgnore)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData CriticalRate; // ġ��Ÿ Ȯ�� 
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CriticalRate)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData CriticalDamage; // ġ��Ÿ ����
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, CriticalDamage)
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData EffectHitRate; // ȿ�� ����
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectHitRate)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Offense")
+	FGameplayAttributeData EffectAmplify; // ȿ�� ����
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, EffectAmplify)
+
+	//���ط� ���� ���� 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Multiplier")
+	FGameplayAttributeData OutgoingDamageMultiplier; // ���ϴ� ���ط� 
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, OutgoingDamageMultiplier)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Multiplier")
+	FGameplayAttributeData IncomingDamageMultiplier; // �޴� ���ط�
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamageMultiplier)
+
+	// ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Growth")
+	FGameplayAttributeData Level;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Level)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Growth")
+	FGameplayAttributeData Experience;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, Experience)
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Growth")
+	FGameplayAttributeData MaxExperience;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, MaxExperience)
+	
+	//��Ÿ �Ӽ� ����
+	// ������ ������ 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingDamage;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamage)
+
+	// ������ ��
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingHeal;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
+
+};
+// ==========================================
+// FILE: SPGAS_DamageCalculation.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameplayEffectExecutionCalculation.h"
+#include "SPGAS_DamageCalculation.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
+{
+	GENERATED_BODY()
+public:
+	USPGAS_DamageCalculation();
+	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
+	
+};
+// ==========================================
+// FILE: MerchantNPC.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Interface/InteractableInterface.h"

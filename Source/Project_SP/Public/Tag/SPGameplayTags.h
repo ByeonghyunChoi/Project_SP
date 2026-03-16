@@ -24,12 +24,11 @@ public:
 	FGameplayTag State_Cooldown;
 	FGameplayTag State_Status_SkipTurn;
 	FGameplayTag State_TimeInterference;
+	FGameplayTag State_Death;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
 	FGameplayTag Input_Action_FieldAttack;
-	//테스트용 치트 버튼(나중에 제거)
-	FGameplayTag Input_Action_CheatReturn;
 
 	// 타입(Ability Type)
 	FGameplayTag Ability_Type_Field;
@@ -48,6 +47,7 @@ public:
 	FGameplayTag Event_Field_Hit;
 	FGameplayTag Event_Battle_TurnStart;
 	FGameplayTag Event_Battle_TurnEnd;
+	FGameplayTag Event_Battle_ExecuteAction;
 	FGameplayTag Event_Montage_Hit;
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;

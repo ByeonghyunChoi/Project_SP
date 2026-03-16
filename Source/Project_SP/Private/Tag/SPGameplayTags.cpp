@@ -21,10 +21,10 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_Cooldown = Manager.AddNativeGameplayTag(FName("State.Cooldown"), TEXT("쿨타임 적용 중"));
 	State_Status_SkipTurn = Manager.AddNativeGameplayTag(FName("State.Status.SkipTurn"),TEXT("턴 스킵(행동 불가)"));
 	State_TimeInterference = Manager.AddNativeGameplayTag(FName("State.TimeInterference"), TEXT("시간 간섭"));
+	State_Death = Manager.AddNativeGameplayTag(FName("State.Death"), TEXT("전투 중 사망 상태"));
 
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
-	Input_Action_CheatReturn = Manager.AddNativeGameplayTag(FName("Input.Action.CheatReturn"), TEXT("전투 복귀 치트 입력"));
 
 	Ability_Type_Field = Manager.AddNativeGameplayTag(FName("Ability.Type.Field"), TEXT("필드 타입 어빌리티"));
 	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
@@ -39,6 +39,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
 	Event_Battle_TurnStart = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnStart"), TEXT("턴 시작 시 이벤트 활성화"));
 	Event_Battle_TurnEnd = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnEnd"), TEXT("턴 종료 시 이벤트 활성화"));
+	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
 	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));

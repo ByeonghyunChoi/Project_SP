@@ -61,7 +61,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadPermFromDisk();
 
-	//이어하기 여부 체크
+	//영구 데이터 존재 여부 확인
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
+	bool HasValidPermSave() const;
+
+	//런 데이터 존재 여부 확인
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
 

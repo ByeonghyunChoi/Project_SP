@@ -37,6 +37,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
 	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
 
+	// GAS Helper Functions
+	float GetSpeed(const AActor* Target) const;
+	float GetActionGauge(const AActor* Target) const;
+
 public:
 	static constexpr float MaxActionGauge = 100.0f;
 
@@ -49,7 +53,5 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
 	TArray<AActor*> TurnQueue;
 
-	// GAS Helper Functions
-	float GetSpeed(AActor* Target) const;
-	float GetActionGauge(AActor* Target) const;
+	
 };

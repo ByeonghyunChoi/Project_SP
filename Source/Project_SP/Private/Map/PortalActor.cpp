@@ -23,6 +23,7 @@ void APortalActor::ExecuteInteraction(AActor* Interactor)
 	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
 	if (MapManager)
 	{
+		bIsActive = false;
 		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
 		MapManager->MoveToNextFloor(TargetMapType);
 	}

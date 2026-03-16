@@ -3,6 +3,7 @@
 #include "Character/SPGASPlayerCharacter.h"
 #include "Character/SPGASPlayerState.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Tag/SPGameplayTags.h"
 #include "Component/SPInteractionComponent.h"
 #include "Character/SPGASPlayerController.h"
@@ -13,6 +14,8 @@
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Map/MapManagerSubSystem.h"
 #include "Components/WidgetComponent.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+
 
 
 ASPGASPlayerCharacter::ASPGASPlayerCharacter()
@@ -61,6 +64,18 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		ASC = SPGAS->GetAbilitySystemComponent();
 		AttributeSet = SPGAS->GetAttributeSet();
 		ASC->InitAbilityActorInfo(SPGAS, this);
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
+			.AddUObject(this, &ASPGASPlayerCharacter::OnHealthChanged);
+
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetTimePowerAttribute())
+			.AddUObject(this, &ASPGASPlayerCharacter::OnTimePowerChanged);
+
+		if (USPGASAttributeSet* SPAS = Cast<USPGASAttributeSet>(AttributeSet))
+		{
+			SPAS->OnDamageTakenEvent.RemoveAll(this);
+			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
+		}
+		
 		GiveAbilities();
 
 		UE_LOG(LogTemp, Warning, TEXT("[Server] GAS Initialized & Abilities Given"));
@@ -83,8 +98,6 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		// 결정된 태그 부착
 		ASC->AddLooseGameplayTag(ModeTag);
-		//임시 이벤트 부착 나중에 제거
-		ASC->OnGameplayEffectAppliedDelegateToSelf.AddUObject(this, &ASPGASPlayerCharacter::OnGameplayEffectApplied);
 		UE_LOG(LogTemp, Log, TEXT("Input Mode Initialized: %s"), *ModeTag.ToString());
 	}
 
@@ -96,6 +109,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			if (SaveSystem)
 			{
 				SaveSystem->RestoreRunDataToPlayer(this);
+				SaveSys->RestorePermDataToPlayer(this);
 			}
 		}
 	}
@@ -107,11 +121,9 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
 
+
 void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
 {
-	// 타겟 저장 (GA가 시작되면 이 변수를 읽어갑니다)
-	CurrentCombatTarget = TargetActor;
-
 	// 무기 데이터 확인
 	if (!WeaponConfigs.Contains(WeaponTag))
 	{
@@ -139,16 +151,26 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 	// 어빌리티 실행
 	if (AbilityClassToActivate && ASC)
 	{
-		// 클래스로 실행 (Payload 없이 실행해도 멤버 변수 CurrentCombatTarget을 읽으면 됨)
-		if (ASC->TryActivateAbilityByClass(AbilityClassToActivate))
+		FGameplayEventData Payload;
+		Payload.Instigator = this;       // 공격자 
+		Payload.Target = TargetActor;    // 타겟
+
+		FGameplayTag TriggerTag = FSPGameplayTags::Get().Event_Battle_ExecuteAction;
+		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 		{
-			UE_LOG(LogTemp, Log, TEXT("[Char] 스킬 발동 성공: %s (Target: %s)"),
-				*AbilityClassToActivate->GetName(),
-				TargetActor ? *TargetActor->GetName() : TEXT("None"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Char] 스킬 발동 실패: %s (Cost/Cool/Tag 등 확인 필요)"), *AbilityClassToActivate->GetName());
+			// 클래스가 일치하는 바로 그 어빌리티를 찾았다면
+			if (Spec.Ability && Spec.Ability->GetClass() == AbilityClassToActivate)
+			{
+				// 이 특정 스펙(Spec)에만 이벤트(Payload)를 전달하여 단독 실행시킵니다.
+				ASC->TriggerAbilityFromGameplayEvent(
+					Spec.Handle,
+					ASC->AbilityActorInfo.Get(),
+					TriggerTag,
+					&Payload,
+					*ASC
+				);
+				break; // 목표를 찾아 실행했으니 반복문 종료
+			}
 		}
 	}
 }
@@ -269,33 +291,6 @@ void ASPGASPlayerCharacter::GiveWeaponAbilities()
 	}
 }
 
-void ASPGASPlayerCharacter::OnGameplayEffectApplied(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle)
-{
-	// 쿨타임 이펙트인지 확인 (이름으로 대충 확인)
-	if (Spec.Def && Spec.Def->GetName().Contains(TEXT("Cooldown")))
-	{
-		UE_LOG(LogTemp, Error, TEXT("쿨타임 감지됨! -----------------"));
-		UE_LOG(LogTemp, Error, TEXT(" - 이펙트 이름: %s"), *Spec.Def->GetName());
-		UE_LOG(LogTemp, Error, TEXT(" - 스택 개수(턴): %d"), Spec.GetStackCount());
-
-		// 누가 붙였나?
-		if (const UGameplayAbility* Ability = Cast<UGameplayAbility>(Spec.GetContext().GetAbility()))
-		{
-			UE_LOG(LogTemp, Error, TEXT(" - 범인(GA): %s"), *Ability->GetName());
-		}
-
-		// C++ 함수(ApplyTurnBasedCooldown)에서 붙인 건지, 자동인지 확인
-		if (Spec.DynamicGrantedTags.HasTag(FGameplayTag::RequestGameplayTag("Cooldown.Weapon.Fenrir.Skill")))
-		{
-			UE_LOG(LogTemp, Warning, TEXT(" 이건 우리가 만든 C++ 수동 쿨타임입니다. (정상)"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT(" 이건 시스템이 몰래 붙인 자동 쿨타임입니다! (범인)"));
-		}
-	}
-}
-
 void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 {
 	if (!CameraBoom || !FollowCamera) return;
@@ -343,5 +338,51 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
 	{
 		PC->SetupAndShowBattleUI();
+	}
+}
+
+void ASPGASPlayerCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
+{
+	// 방금 전까지 체력이 0보다 컸는데, 지금 0 이하가 되었다면? (사망 순간)
+	if (Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
+	{
+		if (ASC)
+		{
+			float CurrentTimePower = ASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+
+			// 부활 기믹 조건 충족
+			if (CurrentTimePower >= 20.0f)
+			{
+				// 1) 시간의 힘 20 삭감
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), CurrentTimePower - 20.0f);
+
+				// 2) 최대 체력의 40%로 부활
+				float MaxHealth = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+				float ReviveHealth = MaxHealth * 0.4f;
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), ReviveHealth);
+
+				UE_LOG(LogTemp, Warning, TEXT("[플레이어] 시간의 힘 20 소모하여 부활! (체력: %.0f)"), ReviveHealth);
+			}
+			else
+			{
+				// 진짜 사망 (시간의 힘 부족)
+				UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 부족하여 사망했습니다."));
+
+				// TODO: 애니메이션 재생, 게임 오버 UI 호출 등
+				// Die(); 
+			}
+		}
+	}
+}
+
+void ASPGASPlayerCharacter::OnTimePowerChanged(const FOnAttributeChangeData& Data)
+{
+	// 방금 전까지 0보다 컸는데, 지금 0 이하가 되었다면?
+	if (Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 모두 고갈되었습니다! 로비로 귀환합니다."));
+		UGameInstance* GI = GetGameInstance();
+		UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr;
+		MapManager->GoToLobby();
 	}
 }

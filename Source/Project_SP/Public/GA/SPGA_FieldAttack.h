@@ -29,4 +29,9 @@ protected:
 
 	// 전투 진입 여부 결정 함수 (핵심 로직)
 	void ResolveBattleEncounter(AActor* Attacker, AActor* Victim);
+
+private:
+	// 공격한 적을 기억하는 배열(다단 히트 방지)
+	UPROPERTY()
+	TArray<AActor*> HitTargets;
 };

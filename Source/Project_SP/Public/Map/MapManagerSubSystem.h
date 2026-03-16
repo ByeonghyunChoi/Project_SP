@@ -63,13 +63,13 @@ public:
 	int32 GetCurrentFloor() const { return CurrentFloor; }
 	EMapType GetCurrentMapType() const { return CurrentMapType; }
 	EMapState GetCurrentRoomState() const { return CurrentRoomState; }
-
+	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
 
 	// 로드 시스템
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby);
+	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
 
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
@@ -89,13 +89,16 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Debug")
 	EMapType CurrentMapType = EMapType::NormalBattle;
 
-	// 현재 생성된 맵 액터 (BP_MapBase)
-	UPROPERTY()
-	TObjectPtr<class AMapBase> CurrentMapActor;
+	// 현재 생성된 맵 액터
+	TWeakObjectPtr<class AMapBase> CurrentMapActor;
 
 	// [저장용] 필드 위치 저장
 	UPROPERTY()
 	FTransform SavedFieldTransform;
+
+	// [저장용] 현재 포탈 연결 목록
+	UPROPERTY()
+	TArray<EMapType> CurrentPortalOptions;
 
 	// [플래그] 전투에서 돌아오는 중인가?
 	bool bIsReturningFromBattle = false;
@@ -125,4 +128,5 @@ private:
 	// 난이도/타입 결정 헬퍼
 	EMapGrade GetMapGradeByFloor(int32 Floor) const;
 	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
+
 };

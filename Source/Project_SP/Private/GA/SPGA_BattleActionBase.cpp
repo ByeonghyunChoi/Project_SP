@@ -4,6 +4,7 @@
 #include "GA/SPGA_BattleActionBase.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Character/SPGASCharacterBase.h"
+#include "AttributeSet/SPGASAttributeSet.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
@@ -26,36 +27,44 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
 			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
-			return true; // 쿨타임 2턴이 남아있어도 프리패스!
+			return true; 
 		}
 	}
-	// 1. 부모 클래스(GAS 기본 로직)의 비용 검사를 먼저 실행합니다.
-	// (여기서 우리가 등록한 GE_Cost_WeaponSkill_BP를 확인해서 BP가 2 이상인지 체크합니다)
 	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
 
-	// 2. 만약 BP가 부족해서 검사를 통과하지 못했다면?
 	if (!bCanAfford)
 	{
-		// 🌟 여기에 BP 부족 로그를 띄웁니다!
 		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
-
-		// (나중에 UI 연동하실 때, 여기서 화면에 "BP 부족!" 위젯을 띄우는 이벤트를 호출하시면 완벽합니다)
 	}
 
-	// 3. 검사 결과 반환 (false면 GAS가 알아서 스킬 발동을 취소시켜 줍니다)
 	return bCanAfford;
 }
 
 bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
 {
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+
+	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			return true; // 쿨타임 2턴이 남아있어도 프리패스!
-		}
+		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
+		return true;
 	}
+
+	// 🌟 2. 수동 쿨타임 검사 (기존에 블루프린트 Blocked Tag로 막던 것을 여기서 처리)
+	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
+	{
+		// 쿨타임 태그가 내 몸에 있다면? 스킬 발동 차단!
+		if (OptionalRelevantTags)
+		{
+			OptionalRelevantTags->AddTag(CooldownTag);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GAS 시스템: 쿨타임 중이라 발동 불가 (%s)"), *CooldownTag.ToString());
+		return false;
+	}
+
+	// 3. 기본 쿨타임 체크
 	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
 }
 
@@ -67,18 +76,31 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
-			return; // 결제 안 하고 그냥 도망침!
+			return; 
 		}
 	}
 	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
 }
+
+void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	if(TriggerEventData)
+	{
+		CachedEventData = *TriggerEventData;
+	}
+
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+}
+
 bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (!ASC) return false;
 
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
 	// 우리가 에디터에서 만든 시간 간섭 태그
-	FGameplayTag TimeInterferenceTag = FGameplayTag::RequestGameplayTag("State.TimeInterference");
+	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
 
 	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
 	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
@@ -125,6 +147,8 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 		return;
 	}
 
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
 	// Spec 핸들 생성 (이펙트 명세서)
 	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(DamageEffectClass);
 
@@ -134,7 +158,7 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 		// Tag: Data.Damage -> 데미지 계산기(ExecCalc)가 이 값을 읽어서 공격력에 곱합니다.
 		UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
 			SpecHandle,
-			FGameplayTag::RequestGameplayTag(FName("Data.Damage")),
+			SPTags.Data_Damage,
 			DamageMultiplier
 		);
 
@@ -147,27 +171,29 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetActor)
 		);
 
-		if (AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_Attack))
+		if (AbilityTags.HasTag(SPTags.Battle_Action_Attack))
 		{
 			ASPGASCharacterBase* AvatarChar = Cast<ASPGASCharacterBase>(GetAvatarActorFromActorInfo());
 			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 
-			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent())
+			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent() && IsValid(TargetActor))
 			{
-				FGameplayTag EquippedWeaponTag;
-
-				// 2. 현재 내 몸(ASC)에 어떤 무기 태그가 붙어있는지 확인
-				if (ASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Fenrir")))
-					EquippedWeaponTag = FGameplayTag::RequestGameplayTag("Weapon.Fenrir");
-				else if (ASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Surtr")))
-					EquippedWeaponTag = FGameplayTag::RequestGameplayTag("Weapon.Surtr");
-				else if (ASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Jormungandr")))
-					EquippedWeaponTag = FGameplayTag::RequestGameplayTag("Weapon.Jormungandr");
-
-				// 3. 컴포넌트에게 "지금 때렸으니까 상태이상 굴려봐!" 라고 명령
-				if (EquippedWeaponTag.IsValid())
+				// 타겟의 체력이 0이하라면 상태이상을 적용하지 않음
+				UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+				if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
 				{
-					AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+					FGameplayTag EquippedWeaponTag;
+					if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir))
+						EquippedWeaponTag = SPTags.Weapon_Fenrir;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr))
+						EquippedWeaponTag = SPTags.Weapon_Surtr;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr))
+						EquippedWeaponTag = SPTags.Weapon_Jormungandr;
+
+					if (EquippedWeaponTag.IsValid())
+					{
+						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+					}
 				}
 			}
 		}
@@ -179,8 +205,10 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (!ASC) return;
 
-	if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference) &&
+		!AbilityTags.HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
 		return;
@@ -215,19 +243,36 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 
 AActor* USPGA_BattleActionBase::GetSingleTarget() const
 {
-	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))
-	{
-		return PlayerChar->CurrentCombatTarget;
-	}
-	return nullptr;
+	return const_cast<AActor*>(CachedEventData.Target.Get());
 }
 
 TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
 {
 	TArray<AActor*> OutActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), OutActors);
+	TArray<AActor*> FoundActors;
 
-	// (TODO: HP가 0 이하인 적은 제외하는 로직을 추가하면 좋습니다)
+	// 일단 월드의 모든 캐릭터나 전투 참여자를 찾습니다. 
+	// (가장 좋은 건 TurnManager가 살아있는 적 리스트를 주는 것이지만, 일단 유지합시다)
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundActors);
+
+	AActor* MyAvatar = GetAvatarActorFromActorInfo();
+
+	for (AActor* Actor : FoundActors)
+	{
+		// 1. 나 자신은 때리지 않음 (몬스터가 이 스킬을 쓸 때 자해 방지)
+		if (Actor == MyAvatar) continue;
+
+		// 2. 체력이 0보다 큰 '살아있는' 녀석만 타겟으로 잡음
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Actor))
+		{
+			UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent();
+			if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
+			{
+				OutActors.Add(Actor);
+			}
+		}
+	}
+
 	return OutActors;
 }
 

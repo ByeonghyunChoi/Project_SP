@@ -135,21 +135,6 @@ void AMapBase::HandleStateInProgress()
 			SpawnedPortals.Add(NewPortal);
 		}
 	}
-
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-		if (Player)
-		{
-			// (맵 매니저에서 위치를 잡아준 직후이므로, 스탯/유물을 입혀줌)
-			SaveSys->RestoreRunDataToPlayer(Player);
-
-			// 현재 맵 정보 캐싱 후 디스크 저장
-			SaveSys->CacheRunDataFromPlayer(Player);
-			SaveSys->SaveRunToDisk();
-			UE_LOG(LogTemp, Log, TEXT("[AutoSave] 맵 진입: 진행 상황 저장 완료"));
-		}
-	}
 }
 
 void AMapBase::HandleStateReward()

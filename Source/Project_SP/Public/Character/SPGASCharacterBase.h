@@ -3,9 +3,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "AttributeSet/SPGASAttributeSet.h"
 #include "SPGASCharacterBase.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, DamageAmount, bool, bIsCritical);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCharacterDamageDelegate, float, DamageAmount, bool, bIsCritical);
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySystemInterface
@@ -26,10 +27,10 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
-    
+
 public:
-    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
-    FOnDamageTakenDelegate OnDamageTaken;
+    UPROPERTY(BlueprintAssignable, Category = "Combat|UI")
+    FCharacterDamageDelegate OnDamageTaken;
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }

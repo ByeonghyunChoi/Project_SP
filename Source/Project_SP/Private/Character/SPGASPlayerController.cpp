@@ -17,6 +17,7 @@
 #include "Data/Asset/WeaponAbilityData.h"
 #include "Map/MapManagerSubSystem.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Game/ASPCombatGameMode.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -145,7 +146,7 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnBattlePointChanged);
 		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxBattlePointAttribute())
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
-
+		
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
@@ -178,7 +179,7 @@ void ASPGASPlayerController::OnMove(const FInputActionValue& Value)
 void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 {
 	// 전투 전용 타겟 변경 로직 (타겟팅 모드일 때만 작동)
-	if (!bIsSelectingTarget || AvailableTargets.Num() == 0) return;
+	if (!bIsSelectingTarget || AvailableTargets.IsEmpty()) return;
 
 	if (CurrentTargetingType == ETargetingType::All)
 	{
@@ -204,10 +205,19 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 		CurrentTargetIndex = (CurrentTargetIndex - 1 + AvailableTargets.Num()) % AvailableTargets.Num();
 	}
 
-	// 3. 새 타겟 하이라이트 켜기
-	HighlightCurrentTarget(true);
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+	{
+		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
 
-	UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
+		// 3. 새 타겟 하이라이트 켜기
+		HighlightCurrentTarget(true);
+		UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
+	}
+	else
+	{
+		AvailableTargets.RemoveAt(CurrentTargetIndex);
+		OnBattleNavigate(0);
+	}
 }
 
 void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
@@ -219,15 +229,14 @@ void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 
 void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
+	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
+
 	// 1. 턴 체크
 	if (!IsMyTurn())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
 		return;
 	}
-
-	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
-
 	// 2. 무기 교체 입력 (Weapon.*)
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
 	{
@@ -243,20 +252,20 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		return;
 	}
 
-	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Battle.Action.TimeInterference")))
+	if (InputTag.MatchesTag(GameplayTags.Battle_Action_TimeInterference))
 	{
 		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
 
 		// 이미 시간 간섭 상태인지 확인 (중복 발동 방지)
 		// [수정] 버프 태그는 "State.Buff..." 로 확인!
-		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("State.TimeInterference")))
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 이미 시간 간섭이 발동 중입니다!"));
 			return;
 		}
 
 		// 쿨타임 검사 (선생님이 추가하신 태그 아주 좋습니다!)
-		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("Cooldown.Skill.TimeInterference")))
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.Cooldown_Skill_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간 간섭 스킬이 쿨타임 중입니다! (남은 턴 대기)"));
 			return;
@@ -303,8 +312,10 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			// 1. 쿨타임 검사
-			if (GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
+
+			// 1. 쿨타임 검사 (수정됨: 시간 간섭 상태가 '아닐 때만' 쿨타임을 막습니다!)
+			if (!bIsTimeInterference && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
 				return; // 타겟팅 진입 차단!
@@ -312,7 +323,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 			// 2. BP 및 프리패스(시간 간섭) 검사
 			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
-			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
 
 			// 시간 간섭 버프가 없는데, BP마저 부족하다면?
 			if (!bIsTimeInterference && GetCurrentBP() < Cost)
@@ -322,7 +332,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			}
 		}
 
-		if (CachedASC && CachedASC->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag("State.TimeInterference")))
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference))
 		{
 			// 선택한 행동이 '무기 스킬'이 아니라면? (일반 공격이나 패링이라면)
 			if (InputType != ESelectedActionType::WeaponSkill)
@@ -596,13 +606,18 @@ void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
 	AvailableTargets.Empty();
-	TArray<AActor*> AllActors;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), AllActors); // 태그: Enemy
 
-	for (AActor* Actor : AllActors)
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		// TODO: 나중에 죽은 적 제외 로직 추가 (IsAlive 등)
-		AvailableTargets.Add(Actor);
+		TArray<AActor*> BattleEnemies = GM->GetCurrentEnemies();
+
+		for (AActor* Actor : BattleEnemies)
+		{
+			if (IsValid(Actor))
+			{
+				AvailableTargets.Add(Actor);
+			}
+		}
 	}
 
 	if (AvailableTargets.Num() == 0)
@@ -622,9 +637,9 @@ void ASPGASPlayerController::StartTargetSelection()
 
 void ASPGASPlayerController::ConfirmTargetAndExecute()
 {
-	if (AvailableTargets.IsValidIndex(CurrentTargetIndex))
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 	{
-		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex];
+		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
 
 		// 하이라이트 OFF 및 상태 리셋
 		HighlightCurrentTarget(false);
@@ -635,6 +650,18 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 
 		// 행동 초기화 (다음 턴을 위해)
 		CurrentSelectedAction = ESelectedActionType::None;
+	}
+	else
+	{
+		// 🌟 3. (옵션) 타겟을 확정하려 했으나 이미 파괴된 경우의 예외 처리
+		UE_LOG(LogTemp, Warning, TEXT("타겟 확정 실패: 타겟이 이미 파괴되었거나 유효하지 않습니다."));
+
+		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+		CurrentSelectedAction = ESelectedActionType::None;
+
+		StartTargetSelection();
 	}
 }
 
@@ -654,12 +681,14 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
 	if (CurrentTargetingType == ETargetingType::All)
 	{
-		for (AActor* Target : AvailableTargets)
+		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
 		{
-			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Target))
+			if (TargetPtr.IsValid())
 			{
-				// 모두가 큼지막한 주 타겟 마커를 갖게 됩니다.
-				Monster->SetSelectedWidget(bHighlight, true);
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				{
+					Monster->SetSelectedWidget(bHighlight, true);
+				}
 			}
 		}
 	}
@@ -668,19 +697,22 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 	{
 		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
 		{
-			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i]))
+			if (AvailableTargets[i].IsValid())
 			{
-				bool bIsPrimary = (i == CurrentTargetIndex);
-				Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
+				{
+					bool bIsPrimary = (i == CurrentTargetIndex);
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+				}
 			}
 		}
 	}
 	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
 	else
 	{
-		if (AvailableTargets.IsValidIndex(CurrentTargetIndex))
+		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 		{
-			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex]))
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
 			{
 				Monster->SetSelectedWidget(bHighlight, true);
 			}
@@ -716,10 +748,22 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 	if (GetHitResultUnderCursor(ECC_GameTraceChannel2, false, HitResult))
 	{
 		AActor* ClickedActor = HitResult.GetActor();
+		if (!IsValid(ClickedActor))
+		{
+			return;
+		}
 		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
 
 		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
-		int32 FoundIndex = AvailableTargets.IndexOfByKey(ClickedActor);
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
 
 		// 찾았다면? (적을 클릭한 게 맞다면)
 		if (FoundIndex != INDEX_NONE)
@@ -735,7 +779,11 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 			if (FoundIndex == CurrentTargetIndex)
 			{
 				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
-				ConfirmTargetAndExecute();
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+					ConfirmTargetAndExecute();
+				}
 			}
 			else
 			{
@@ -767,12 +815,19 @@ void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeDat
 
 void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 {
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
 	if (CurrentWeaponTag == NewWeaponTag) return;
 	if (!CachedASC) return;
 
-	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Fenrir"));
-	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Surtr"));
-	CachedASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag("Weapon.Jormungandr"));
+	if (bIsSelectingTarget)
+	{
+		CancelTargetSelection();
+	}
+
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
 
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 
@@ -781,8 +836,6 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
 
-	// TODO: 캐릭터에게 무기 외형 변경 요청
-	// Character->EquipWeapon(NewWeaponTag);
 }
 
 bool ASPGASPlayerController::IsMyTurn() const

@@ -32,6 +32,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitMaxExperience(100.0f);
 	InitIncomingDamage(0.0f);
 	InitIncomingHeal(0.0f);
+	InitIncomingIsCritical(0.0f);
 }
 
 void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -95,63 +96,34 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
 		float Damage = GetIncomingDamage();
-		SetIncomingDamage(0.0f); // 초기화
+		bool bIsCritical = GetIncomingIsCritical() > 0.0f;
+		SetIncomingDamage(0.0f); 
+		SetIncomingIsCritical(0.0f);
 
 		if (Damage > 0.0f)
 		{
 			float CurrentHealth = GetHealth();
 			SetHealth(FMath::Clamp(CurrentHealth - Damage, 0.0f, GetMaxHealth()));
 
-			UE_LOG(LogTemp, Warning, TEXT("데미지 적용됨! -%f, 남은 체력: %f"), Damage, GetHealth());
-
-			if (ASPGASCharacterBase* TargetChar = Cast<ASPGASCharacterBase>(GetOwningActor()))
-			{
-				// (크리티컬 여부는 임시로 false로 넘김. 나중에 ExecCalc에서 메타 속성으로 넘겨받을 수 있습니다)
-				TargetChar->BroadcastDamageText(Damage, false);
-			}
-
-			// 🌟 [핵심] 체력을 깎은 바로 이 시점에! 죽었는지 살았는지 확인해야 합니다!
-			if (GetHealth() <= 0.0f)
-			{
-				ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetOwningActor());
-				ASPGASMonsterCharacter* MonsterChar = Cast<ASPGASMonsterCharacter>(GetOwningActor());
-
-				if (PlayerCharacter)
-				{
-					if (GetTimePower() >= 20.0f)
-					{
-						// 1) 시간의 힘 20 삭감
-						SetTimePower(GetTimePower() - 20.0f);
-
-						// 2) 최대 체력의 40%로 부활!
-						float ReviveHealth = GetMaxHealth() * 0.4f;
-						SetHealth(ReviveHealth);
-
-						UE_LOG(LogTemp, Warning, TEXT("시간의 힘 20을 소모하여 체력 %.0f(40%%)로 부활합니다! 남은 시간의 힘: %.0f"), ReviveHealth, GetTimePower());
-					}
-					else
-					{
-						// 시간의 힘 부족 (진짜 게임 오버)
-						UE_LOG(LogTemp, Error, TEXT("시간의 힘이 부족하여 사망했습니다."));
-						// TODO: 사망 처리 로직 호출
-					}
-				}
-				else if (MonsterChar)
-				{
-					MonsterChar->Die();
-				}
-			}
+			OnDamageTakenEvent.Broadcast(Damage, bIsCritical);
 		}
 	}
 
-	// 2. 시간의 힘(PowerOfTime)이 깎인 상황인지 확인
-	if (Data.EvaluatedData.Attribute == GetTimePowerAttribute())
+	else if (Data.EvaluatedData.Attribute == GetIncomingHealAttribute())
 	{
-		if (GetTimePower() <= 0.0f)
+		float Heal = GetIncomingHeal();
+		SetIncomingHeal(0.0f); 
+
+		if (Heal > 0.0f)
 		{
-			SetTimePower(0.0f);
-			UE_LOG(LogTemp, Error, TEXT("시간의 힘이 모두 고갈되었습니다! 로비로 귀환합니다."));
-			// TODO: 강제 로비 귀환 로직 호출
+			float CurrentHealth = GetHealth();
+			SetHealth(FMath::Clamp(CurrentHealth + Heal, 0.0f, GetMaxHealth()));
 		}
+	}
+
+	else if (Data.EvaluatedData.Attribute == GetTimePowerAttribute())
+	{
+		float CurrentPower = GetTimePower();
+		SetTimePower(FMath::Clamp(CurrentPower, 0.0f, GetMaxTimePower()));
 	}
 }

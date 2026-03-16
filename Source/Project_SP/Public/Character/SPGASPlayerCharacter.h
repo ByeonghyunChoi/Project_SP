@@ -43,8 +43,6 @@ public:
 	virtual void PossessedBy(AController* NewController) override;
 	void ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	TObjectPtr<AActor> CurrentCombatTarget;
 protected:
 	virtual void OnRep_PlayerState() override;
 
@@ -74,9 +72,9 @@ protected:
 
 	void GiveWeaponAbilities();
 
-	//임시 함수 나중에 제거
-	void OnGameplayEffectApplied(UAbilitySystemComponent* TargetASC, const FGameplayEffectSpec& Spec, FActiveGameplayEffectHandle Handle);
+	void OnHealthChanged(const struct FOnAttributeChangeData& Data);
 
+	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;

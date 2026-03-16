@@ -68,9 +68,6 @@ void AASPCombatGameMode::BeginPlay()
 			{
 				PlayerPawn->SetActorTransform(PlayerStarts[0]->GetActorTransform(), false, nullptr, ETeleportType::ResetPhysics);
 			}
-
-			FTimerHandle RestoreTimerHandle;
-			GetWorld()->GetTimerManager().SetTimer(RestoreTimerHandle, this, &AASPCombatGameMode::ApplyPlayerSavedData, 0.1f, false);
 		}
 	}
 	else
@@ -203,6 +200,14 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				StatusComp->ReduceStatusEffectTurns();
 			}
 
+			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
+
+				CurrentTurnActor = nullptr;
+				return;
+			}
+
 			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
@@ -284,7 +289,9 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
-				TurnManager->SetActionGauge(TurnActor, 0.0f);
+				float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
+				float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
+				TurnManager->SetActionGauge(TurnActor, OverflowGauge);
 			}
 
 			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
@@ -306,6 +313,12 @@ void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 {
 	if (ReadyParticipants.Contains(Character)) return;
 	ReadyParticipants.Add(Character);
+
+	if (Character == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+	{
+		ApplyPlayerSavedData();
+	}
+
 	CheckAndStartBattle();
 }
 
@@ -317,18 +330,8 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	}
 
 	// 2. 월드에 남은 "Enemy"가 몇 마리인지 셉니다.
-	TArray<AActor*> RemainingEnemies;
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), RemainingEnemies);
-
-	int32 AliveEnemiesCount = 0;
-	for (AActor* Enemy : RemainingEnemies)
-	{
-		// 아직 삭제(Destroy) 대기 중인 방금 죽은 애는 빼고 셉니다.
-		if (Enemy != DeadActor && IsValid(Enemy))
-		{
-			AliveEnemiesCount++;
-		}
-	}
+	TArray<TObjectPtr<AActor>> AliveEnemies = GetCurrentEnemies();
+	int32 AliveEnemiesCount = AliveEnemies.Num();
 
 	UE_LOG(LogTemp, Warning, TEXT("남은 적 수: %d"), AliveEnemiesCount);
 
@@ -384,6 +387,30 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 			MapManager->GoToLobby();
 		}
 	}
+}
+
+TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
+{
+	TArray<TObjectPtr<AActor>> AliveEnemies;
+
+	// GameMode가 이미 들고 있는 참가자 명단을 순회합니다.
+	for (AActor* Participant : AllParticipants)
+	{
+		// 1. 유효성 및 'Enemy' 태그 검사
+		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))
+		{
+			// 2. 살아있는지 체력 검사
+			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
+			{
+				UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
+				if (ASC && ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
+				{
+					AliveEnemies.Add(Participant);
+				}
+			}
+		}
+	}
+	return AliveEnemies;
 }
 
 FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)

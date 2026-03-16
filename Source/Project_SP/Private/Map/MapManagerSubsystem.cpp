@@ -51,6 +51,7 @@ void UMapManagerSubsystem::StartNewRun()
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
 	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
 	CurrentStage = 1;
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
@@ -72,14 +73,17 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 
 	// 필드에서의 현재 위치 저장
 	SavedFieldTransform = PlayerPawn->GetActorTransform();
-	bIsReturningFromBattle = true;
+	bIsReturningFromBattle = false;
 	bIsBattleActive = true;
 
 	// 플레이어 정보 저장
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
-		SaveSys->SaveRunToDisk(); 
+		SaveSys->SaveRunToDisk();
+
+		SaveSys->CachePermDataFromPlayer(PlayerPawn);
+		SaveSys->SavePermToDisk();
 	}
 
 	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
@@ -96,6 +100,7 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 {
 	bIsBattleActive = false;
+	bIsReturningFromBattle = true;
 	CurrentRoomState = bIsVictory ? EMapState::Reward : EMapState::InProgress;
 
 	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
@@ -108,28 +113,26 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 {
 	if (!MapDataTable) return;
 
-	// 현재 로드된 레벨이 '스테이지 레벨'인지 확인
-	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
-	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("CheckStage"));
-
-	if (Data && Data->LevelReference.GetAssetName() == LoadedWorld->GetName())
+	if (bIsBattleActive)
 	{
-		// [CASE A] 전투에서 돌아온 경우 -> 기존 맵 복구 및 플레이어 위치 이동
-		if (bIsReturningFromBattle)
+		UE_LOG(LogTemp, Log, TEXT("전투 레벨 로드 완료 - 맵 스폰을 건너뜁니다."));
+		return;
+	}
+
+	if (bIsReturningFromBattle || bIsLoadingSave)
+	{
+		// 로비로 돌아온 게 아니라면 맵을 스폰합니다!
+		if (!bIsInLobby)
 		{
 			SpawnMapActor(CurrentMapType);
-			UE_LOG(LogTemp, Log, TEXT("전투 복귀 완료! 저장된 위치로 이동합니다. (Floor %d)"), CurrentFloor);
+			UE_LOG(LogTemp, Log, TEXT("전투/세이브 복귀 완료! (Floor %d)"), CurrentFloor);
 		}
-		// [CASE B] 게임 시작 / 스테이지 이동 / 로드 게임
-		else
-		{
-			// 맵 액터가 없으면 새로 생성 (첫 진입)
-			if (!CurrentMapActor)
-			{
-				SpawnMapActor(CurrentMapType);
-				UE_LOG(LogTemp, Log, TEXT("새 스테이지 진입! (Floor %d)"), CurrentFloor);
-			}
-		}
+	}
+	// 2. 처음으로(로비에서) 새 런을 시작하거나, 다음 층으로 넘어온 경우
+	else if (!bIsInLobby && !CurrentMapActor.IsValid())
+	{
+		SpawnMapActor(CurrentMapType);
+		UE_LOG(LogTemp, Log, TEXT("새 스테이지/층 진입! (Floor %d)"), CurrentFloor);
 	}
 }
 
@@ -138,11 +141,11 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 	CurrentMapType = MapType;
 
 	// 1. 기존 맵 제거
-	if (CurrentMapActor)
+	if (CurrentMapActor.IsValid())
 	{
 		CurrentMapActor->Destroy();
-		CurrentMapActor = nullptr;
 	}
+	CurrentMapActor = nullptr;
 
 	// 2. 맵 액터 스폰
 	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
@@ -160,7 +163,7 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 	}
 
 	// 3. 플레이어 위치 설정
-	if (CurrentMapActor)
+	if (CurrentMapActor.IsValid())
 	{
 		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 		if (Player)
@@ -197,6 +200,7 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!
 				if (!bIsLoadingSave)
 				{
+					GenerateNextFloorOptions();
 					SaveSys->CacheRunDataFromPlayer(Player);
 					SaveSys->SaveRunToDisk();
 					UE_LOG(LogTemp, Warning, TEXT("[오토세이브] 맵 진입 완료 (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
@@ -223,6 +227,7 @@ void UMapManagerSubsystem::LoadStageLevel()
 void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 {
 	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
 
 	if (CurrentFloor >= 11 && CurrentStage < 3)
 	{
@@ -266,16 +271,27 @@ EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
 
 TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 {
-	TArray<EMapType> Options;
+	if (CurrentPortalOptions.Num() > 0)
+	{
+		return CurrentPortalOptions;
+	}
+
+	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
 	int32 NextFloor = CurrentFloor + 1;
-	if (NextFloor > 11) { Options.Add(EMapType::NormalBattle); return Options; }
+	if (NextFloor > 11)
+	{
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
 	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
-	Options.Add(GetRandomTypeFromGrade(NextGrade));
-	Options.Add(GetRandomTypeFromGrade(NextGrade));
-	return Options;
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+
+	return CurrentPortalOptions;
 }
 
-void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby)
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions)
 {
 	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
 	CurrentStage = SavedStage;
@@ -289,6 +305,7 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
 	bIsInLobby = bSavedInLobby;
+	CurrentPortalOptions = SavedPortalOptions;
 
 	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
 	if (bIsInLobby)
@@ -317,5 +334,5 @@ void UMapManagerSubsystem::GoToLobby()
 void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
 {
 	// MapBase가 BeginPlay에서 호출해줌
-	if (!CurrentMapActor) CurrentMapActor = InMapActor;
+	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
 }

@@ -140,6 +140,10 @@ struct FPlayerMapProgressData
     // 플레이어가 마지막으로 서 있던 위치
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FTransform SavedPlayerTransform;
+
+    //포탈 목적지 목록
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<EMapType> SavedPortalOptions;
 };
 
 USTRUCT(BlueprintType)
