@@ -1157,7 +1157,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
 			if (SaveSystem)
 			{
-				SaveSystem->LoadPlayerStats(this);
+				SaveSystem->RestoreRunDataToPlayer(this);
 			}
 		}
 	}
@@ -2668,6 +2668,21 @@ bool UInventoryComponent::ConsumeFragment(int32 Amount)
 	return true;
 }
 
+void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet)
+{
+	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씁니다.
+	RunWallet = InRunWallet;
+	PermanentWallet = InPermWallet;
+
+	// 2. 돈이 바뀌었으니 UI(위젯) 숫자도 바뀌어야겠죠? 방송을 켭니다!
+	if (OnInventoryUpdated.IsBound())
+	{
+		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Inventory] 지갑 복구 완료! 골드: %d / 모래: %d"), RunWallet.Money, PermanentWallet.Sand);
+}
+
 // ==========================================
 // FILE: OpartsComponent.cpp
 // ==========================================
@@ -2751,8 +2766,19 @@ void UOpartsComponent::EquipOparts(const UOpartsDefinition* NewOpartsDef)
 	// 2. 새 데이터 세팅 (초기 상태: 1레벨, 아티팩트 0개)
 	// (만약 세이브 파일에서 불러오는 경우라면 여기서 Load 로직을 태워야 합니다)
 	RuntimeData.Definition = NewOpartsDef;
-	RuntimeData.CurrentLevel = 1;
-	RuntimeData.UnlockedArtifactCount = 0;
+	
+	if (OpartsProgressMap.Contains(NewOpartsDef))
+	{
+		RuntimeData.CurrentLevel = OpartsProgressMap[NewOpartsDef].Level;
+		RuntimeData.UnlockedArtifactCount = OpartsProgressMap[NewOpartsDef].UnlockedArtifactCount;
+	}
+	else
+	{
+		RuntimeData.CurrentLevel = 1;
+		RuntimeData.UnlockedArtifactCount = 0;
+		// 새 오파츠 장부에 등록
+		OpartsProgressMap.Add(NewOpartsDef, FOpartsProgressData());
+	}
 
 	// 3. 능력 적용
 	ApplyOpartsStatsAndAbilities();
@@ -2791,6 +2817,21 @@ void UOpartsComponent::UnequipCurrentOparts()
 	// 데이터 초기화 및 UI 알림
 	RuntimeData.Clear();
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
+}
+
+void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
+{
+	OpartsProgressMap = SavedData.ProgressMap;
+
+	// 저장된 오파츠가 있다면 장착! (없으면 기본값 세팅)
+	if (SavedData.EquippedOparts)
+	{
+		EquipOparts(SavedData.EquippedOparts);
+	}
+	else if (AllOpartsList.Num() > 0)
+	{
+		EquipOparts(AllOpartsList[0]);
+	}
 }
 
 void UOpartsComponent::ApplyOpartsStatsAndAbilities()
@@ -2900,6 +2941,7 @@ void UOpartsComponent::TryUpgradeLevel()
 	{
 		// 성공 시 레벨업 진행
 		RuntimeData.CurrentLevel++;
+		OpartsProgressMap[RuntimeData.Definition].Level = RuntimeData.CurrentLevel;
 
 		// 스탯 재적용 (Curve Table 값이 바뀜)
 		ApplyOpartsStatsAndAbilities();
@@ -2941,6 +2983,7 @@ void UOpartsComponent::TryUnlockNextArtifact()
 	{
 		// 성공 시 해금
 		RuntimeData.UnlockedArtifactCount++;
+		OpartsProgressMap[RuntimeData.Definition].UnlockedArtifactCount = RuntimeData.UnlockedArtifactCount;
 
 		// 아티팩트 능력 재적용
 		ApplyOpartsStatsAndAbilities();
@@ -2964,6 +3007,7 @@ void UOpartsComponent::TryUnlockNextArtifact()
 #include "AbilitySystemBlueprintLibrary.h"
 #include "GameFramework/Character.h"
 #include "Tag/SPGameplayTags.h"
+#include "Character/SPGASPlayerCharacter.h"
 
 URelicComponent::URelicComponent()
 {
@@ -3173,6 +3217,69 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 	}
 
 	return FinalRewards;
+}
+
+void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
+{
+	ResetAllRelics();
+
+	ASPGASPlayerCharacter* OwnerCharacter = Cast<ASPGASPlayerCharacter>(GetOwner());
+	if (!OwnerCharacter) return;
+
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+	if (!ASC) return;
+
+	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)
+	{
+		if (HistroyRelic)
+		{
+			AcquiredHistory.Add(HistroyRelic);
+
+			// (AddRelic에 있던 등급별 보너스 부여 로직 재실행)
+			if (RarityAttackBonusEffectClass)
+			{
+				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
+				FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
+
+				if (BonusSpec.IsValid())
+				{
+					float BonusValue = 0.0f;
+					switch (HistroyRelic->Rarity)
+					{
+					case ERelicRarity::Normal:  BonusValue = 1.007f; break;
+					case ERelicRarity::Rare:    BonusValue = 1.01f;  break;
+					case ERelicRarity::Unique:  BonusValue = 1.02f;  break;
+					}
+					BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
+					ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
+				}
+			}
+		}
+	}
+
+	for (const URelicDefinition* EquippedRelic : SavedRelicData.EquippedRelics)
+	{
+		if (EquippedRelic)
+		{
+			EquippedRelics.Add(EquippedRelic);
+
+			// 고유 효과(GE) 다시 발라주기
+			if (EquippedRelic->RelicEffectClass)
+			{
+				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+				Context.AddSourceObject(this);
+
+				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EquippedRelic->RelicEffectClass, 1.0f, Context);
+				if (SpecHandle.IsValid())
+				{
+					FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+					RelicEffectHandles.Add(ActiveHandle);
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Relic] 세이브 로드 완료! (장착: %d개, 이력: %d개)"), EquippedRelics.Num(), AcquiredHistory.Num());
 }
 
 // ==========================================
@@ -4752,7 +4859,7 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 		{
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
-				SaveSys->SavePlayerStats(PlayerPawn);
+				SaveSys->RestoreRunDataToPlayer(PlayerPawn);
 			}
 		}
 
@@ -5405,7 +5512,7 @@ void UMapManagerSubsystem::StartNewRun()
 	// 새 게임 시작 시 데이터 초기화
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		SaveSys->ResetSaveData();
+		SaveSys->ResetRunData();
 	}
 
 	bIsReturningFromBattle = false;
@@ -5434,19 +5541,13 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	bIsReturningFromBattle = true;
 	bIsBattleActive = true;
 
-	// 2. [스탯 저장] SaveSubsystem에게 플레이어 정보 저장 위임
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveSys->SavePlayerStats(PlayerPawn);
-	}
-
-	// 3. [전투 정보] CombatSubsystem 설정 (데이터 전달)
+	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
 	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
 		CombatSys->SetPendingEncounter(EncounterData, Advantage);
 	}
 
-	// 4. [이동] 전투 레벨로 전환
+	// 3. [이동] 전투 레벨로 전환
 	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
 	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
 }
@@ -5523,15 +5624,17 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 		if (Player)
 		{
-			if (bIsReturningFromBattle)
+			if (bIsReturningFromBattle || bIsLoadingSave)
 			{
-				// 전투 복귀: 저장된 위치로
 				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
-				bIsReturningFromBattle = false; // 플래그 초기화
+
+				// 플래그 초기화
+				bIsReturningFromBattle = false;
+				bIsLoadingSave = false;
 			}
 			else
 			{
-				// 새 진입: 스폰 포인트로
+				// 새 진입 (포탈 타고 넘어옴)
 				TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
 				if (Spawns.Num() > 0)
 				{
@@ -5610,6 +5713,24 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	Options.Add(GetRandomTypeFromGrade(NextGrade));
 	Options.Add(GetRandomTypeFromGrade(NextGrade));
 	return Options;
+}
+
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, bool bSavedIsRoomCleared, FTransform SavedTransform)
+{
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	bIsRoomCleared = bSavedIsRoomCleared;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
+
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	LoadStageLevel();
 }
 
 void UMapManagerSubsystem::GoToLobby()
@@ -5781,6 +5902,26 @@ ASPGASSpawnPoint::ASPGASSpawnPoint()
 
 
 // ==========================================
+// FILE: SPPermSaveGame.cpp
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Save/SPPermSaveGame.h"
+
+
+// ==========================================
+// FILE: SPRunSaveGame.cpp
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Save/SPRunSaveGame.h"
+
+
+// ==========================================
 // FILE: SoundManagerSubsystem.cpp
 // ==========================================
 
@@ -5914,110 +6055,246 @@ void USPCombatSubsystem::SetPendingEncounter(const UCombatEncounterData* Encount
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
+#include "Component/InventoryComponent.h"
+#include "Component/RelicComponent.h"
+#include "Component/OpartsComponent.h"
+#include "Map/MapManagerSubSystem.h"
+#include "Save/SPRunSaveGame.h"
+#include "Save/SPPermSaveGame.h"
+#include "Kismet/GameplayStatics.h"
 
-void USPSaveGameSubsystem::SavePlayerStats(APawn* PlayerPawn)
+void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 {
 	if (!PlayerPawn) return;
 
-	IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn);
-	if (!ASI) return;
-
-	UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
-	if (!ASC) return;
-
-	// [저장 로직]
-	// 1. 자원 (Health, TimePower) -> 현재 값(Current Value) 저장
-	//    이유: 맞아서 깎인 체력 그대로 다음 맵으로 가야 하니까.
-	bool bFound = false;
-	// 1. 자원 (Current Value)
-	SaveData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
-	SaveData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
-	SaveData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
-	SaveData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
-
-	// 2. 최대치 (Base Value) - 아이템으로 늘어난 Max는 아이템 로직이 처리
-	SaveData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
-	SaveData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
-	SaveData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
-
-	// 3. 기본 스탯 (Base Value)
-	SaveData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
-	SaveData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
-	SaveData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
-
-	// 4. 전투 보조 (Base Value)
-	SaveData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
-	SaveData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
-	SaveData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
-	SaveData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
-	SaveData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
-
-	// 5. 배율 (Base Value)
-	SaveData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
-	SaveData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
-
-	// 6. 성장 (Base Value)
-	SaveData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
-	SaveData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
-	SaveData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
-
-	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Stats Saved. HP: %.1f / %.1f, Level: %.0f"),
-		SaveData.Stats.CurrentHealth, SaveData.Stats.MaxHealth, SaveData.Stats.Level);
-}
-
-void USPSaveGameSubsystem::LoadPlayerStats(APawn* PlayerPawn)
-{
-	if (!PlayerPawn) return;
-
-	if (!SaveData.IsValid())
+	// 1. 스탯 저장
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] No Valid Data to Load."));
-		return;
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			bool bFound = false;
+			RunData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
+			RunData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
+			RunData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
+			RunData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
+
+			RunData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
+			RunData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
+			RunData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+			RunData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
+			RunData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
+			RunData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
+
+			RunData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
+			RunData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
+			RunData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
+			RunData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
+			RunData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
+
+			RunData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
+			RunData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
+			RunData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
+			RunData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
+			RunData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
+		}
 	}
 
-	IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn);
-	if (!ASI) return;
+	// 2. 런 지갑 (골드, 파편) 저장
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		RunData.RunWallet.Money = InventoryComp->GetMoney();
+		RunData.RunWallet.Fragment = InventoryComp->GetFragment();
+	}
 
-	UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
-	if (!ASC) return;
+	// 3. 유물 저장
+	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
+	{
+		RunData.RelicData.EquippedRelics = RelicComp->EquippedRelics;
+		RunData.RelicData.AcquiredHistory = RelicComp->AcquiredHistory;
+	}
 
-	// 1. 최대치 및 성장 스탯 먼저 복구 (SetBase)
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), SaveData.Stats.MaxHealth);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute(), SaveData.Stats.MaxBattlePoint);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute(), SaveData.Stats.MaxTimePower);
+	// 4. 맵 진행도 저장
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		// 맵 매니저가 들고 있는 진행 정보 캐싱
+		RunData.MapProgress.CurrentStage = MapManager->GetCurrentStage();
+		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
+		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
+		RunData.MapProgress.bIsRoomCleared = MapManager->GetIsRoomCleared();
 
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), SaveData.Stats.Level);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), SaveData.Stats.Experience);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), SaveData.Stats.MaxExperience);
-
-	// 2. 기본 스탯 복구
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), SaveData.Stats.Attack);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), SaveData.Stats.Defense);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), SaveData.Stats.Speed);
-
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute(), SaveData.Stats.DefenseIgnore);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), SaveData.Stats.CriticalRate);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute(), SaveData.Stats.CriticalDamage);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute(), SaveData.Stats.EffectHitRate);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute(), SaveData.Stats.EffectAmplify);
-
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), SaveData.Stats.OutgoingDamageMultiplier);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), SaveData.Stats.IncomingDamageMultiplier);
-
-	// 3. 자원 (Current Value) 복구 - 가장 마지막에!
-	// (AttributeSet의 PreAttributeChange에서 Clamp가 작동하므로, Max가 이미 설정되어 있어야 함)
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), SaveData.Stats.CurrentHealth);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), SaveData.Stats.CurrentBattlePoint);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), SaveData.Stats.CurrentTimePower);
-	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), SaveData.Stats.CurrentActionGauge);
-
-	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Stats Loaded. HP: %.1f, Level: %.0f"), SaveData.Stats.CurrentHealth, SaveData.Stats.Level);
+		// 플레이어의 현재 실제 위치 캐싱
+		RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
+	}
 }
 
-void USPSaveGameSubsystem::ResetSaveData()
+void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
 {
-	SaveData.Reset();
-	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] Data Reset."));
+	if (!PlayerPawn || !RunData.IsValid()) return;
+
+	// 1. 스탯 복구
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), RunData.Stats.MaxHealth);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute(), RunData.Stats.MaxBattlePoint);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute(), RunData.Stats.MaxTimePower);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), RunData.Stats.Level);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), RunData.Stats.Experience);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), RunData.Stats.MaxExperience);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), RunData.Stats.Attack);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), RunData.Stats.Defense);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), RunData.Stats.Speed);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute(), RunData.Stats.DefenseIgnore);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), RunData.Stats.CriticalRate);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute(), RunData.Stats.CriticalDamage);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute(), RunData.Stats.EffectHitRate);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute(), RunData.Stats.EffectAmplify);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), RunData.Stats.OutgoingDamageMultiplier);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), RunData.Stats.IncomingDamageMultiplier);
+
+			// 자원 (Current) 복구 - 마지막에!
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), RunData.Stats.CurrentHealth);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), RunData.Stats.CurrentBattlePoint);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), RunData.Stats.CurrentTimePower);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), RunData.Stats.CurrentActionGauge);
+		}
+	}
+
+	// 2. 유물 복구 (스탯 기반으로 적용되므로 스탯 이후에 호출)
+	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
+	{
+		RelicComp->LoadRelicData(RunData.RelicData);
+	}
+
+	// 3. 런/영구 지갑 일괄 세팅 (UI 갱신을 위해 한 번에 넘겨줌)
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		InventoryComp->LoadWalletData(RunData.RunWallet, PermData.PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 런 데이터 복구 완료!"));
+}
+
+void USPSaveGameSubsystem::ResetRunData()
+{
+	RunData.Reset();
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0))
+	{
+		UGameplayStatics::DeleteGameInSlot(RunSlotName, 0);
+	}
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 사망/클리어: 런(Run) 데이터만 초기화되었습니다."));
+}
+
+void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+
+	// 1. 영구 지갑 저장
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
+		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
+	}
+
+	// 2. 오파츠 저장
+	if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+	{
+		PermData.OpartsData.EquippedOparts = OpartsComp->GetCurrentOpartsData().Definition;
+		PermData.OpartsData.ProgressMap = OpartsComp->OpartsProgressMap;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 영구 데이터 캐싱 완료!"));
+}
+
+void USPSaveGameSubsystem::RestorePermDataToPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+
+	// 1. 오파츠 복구
+	if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+	{
+		OpartsComp->LoadOpartsData(PermData.OpartsData);
+	}
+
+	// 2. 지갑 복구 (로비 진입 시 영구 데이터만 먼저 불릴 수 있으므로 여기서도 세팅)
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		InventoryComp->LoadWalletData(RunData.RunWallet, PermData.PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 영구 데이터 복구 완료!"));
+}
+
+void USPSaveGameSubsystem::ResetAllData()
+{
+	RunData.Reset();
+	PermData.Reset();
+
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0)) UGameplayStatics::DeleteGameInSlot(RunSlotName, 0);
+	if (UGameplayStatics::DoesSaveGameExist(PermSlotName, 0)) UGameplayStatics::DeleteGameInSlot(PermSlotName, 0);
+
+	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 새로하기: 영구 데이터와 런 데이터가 모두 공장 초기화되었습니다! (Hard Reset)"));
+}
+
+
+void USPSaveGameSubsystem::SaveRunToDisk()
+{
+	USPRunSaveGame* SaveInst = Cast<USPRunSaveGame>(UGameplayStatics::CreateSaveGameObject(USPRunSaveGame::StaticClass()));
+	if (SaveInst)
+	{
+		SaveInst->RunData = RunData; // 서브시스템 메모리 데이터를 껍데기에 복사
+		UGameplayStatics::SaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
+		UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 저장 완료! [%s]"), *RunSlotName);
+	}
+}
+
+bool USPSaveGameSubsystem::LoadRunFromDisk()
+{
+	if (UGameplayStatics::DoesSaveGameExist(RunSlotName, 0))
+	{
+		USPRunSaveGame* LoadInst = Cast<USPRunSaveGame>(UGameplayStatics::LoadGameFromSlot(RunSlotName, 0));
+		if (LoadInst)
+		{
+			RunData = LoadInst->RunData; // 디스크 데이터를 서브시스템 메모리로 가져오기
+			UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 로드 성공!"));
+			return true;
+		}
+	}
+	return false;
+}
+
+bool USPSaveGameSubsystem::HasValidRunSave() const
+{
+	return UGameplayStatics::DoesSaveGameExist(RunSlotName, 0);
+}
+
+void USPSaveGameSubsystem::SavePermToDisk()
+{
+	USPPermSaveGame* SaveInst = Cast<USPPermSaveGame>(UGameplayStatics::CreateSaveGameObject(USPPermSaveGame::StaticClass()));
+	if (SaveInst)
+	{
+		SaveInst->PermData = PermData;
+		UGameplayStatics::SaveGameToSlot(SaveInst, PermSlotName, 0);
+		UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 저장 완료! [%s]"), *PermSlotName);
+	}
+}
+
+bool USPSaveGameSubsystem::LoadPermFromDisk()
+{
+	if (UGameplayStatics::DoesSaveGameExist(PermSlotName, 0))
+	{
+		USPPermSaveGame* LoadInst = Cast<USPPermSaveGame>(UGameplayStatics::LoadGameFromSlot(PermSlotName, 0));
+		if (LoadInst)
+		{
+			PermData = LoadInst->PermData;
+			UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 로드 성공!"));
+			return true;
+		}
+	}
+	return false;
 }
 
 // ==========================================
@@ -7437,6 +7714,10 @@ public:
 	// 권능의 파편 소모 (성공 시 true 반환)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeFragment(int32 Amount);
+
+	//로드 시스템
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet);
 };
 
 // ==========================================
@@ -7453,6 +7734,7 @@ public:
 #include "GameplayAbilitySpecHandle.h"
 #include "GameplayEffectTypes.h"
 #include "Data/Asset/OpartsDefinition.h"
+#include "Data/SPDataStructs.h"
 #include "OpartsComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -7528,6 +7810,11 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Oparts|Event")
 	FOnOpartsStateChanged OnOpartsUpdated;
 
+	//오파츠 부위 별 강화 진행 상태
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Oparts|Data")
+	TMap<TObjectPtr<const UOpartsDefinition>, FOpartsProgressData> OpartsProgressMap;
+
+public:
 	//다음 오파츠로 교체 ( > 버튼)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void EquipNextOparts();
@@ -7557,6 +7844,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Oparts")
 	const FOpartsRuntimeData& GetCurrentOpartsData() const { return RuntimeData; }
 
+	//데이터 로드 함수
+	UFUNCTION(BlueprintCallable, Category = "Oparts")
+	void LoadOpartsData(const FPlayerOpartsData& SavedData);
+
 private:
 	// 내부 헬퍼: 현재 상태(레벨, 아티팩트)에 맞춰 GAS 능력/스탯 재적용
 	void ApplyOpartsStatsAndAbilities();
@@ -7574,6 +7865,7 @@ private:
 #include "Components/ActorComponent.h"
 #include "Data/Asset/RelicDefinition.h"
 #include "GameplayEffectTypes.h"
+#include "Data/SPDataStructs.h"
 #include "RelicComponent.generated.h"
 
 
@@ -7624,6 +7916,10 @@ public:
     // 4. 스테이지와 전체 유물 목록을 받아, 3개의 유물을 뽑아주는 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
     TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool);
+
+    //세이브 시스템에서 호출할 로드 전용 함수
+    UFUNCTION(BlueprintCallable, Category = "Relic")
+    void LoadRelicData(const FPlayerRelicData& SavedRelicData);
 };
 
 // ==========================================
@@ -8382,6 +8678,9 @@ public:
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Data/Asset/RelicDefinition.h"
+#include "Data/Asset/OpartsDefinition.h"
+#include "Map/MapInfo.h"
 #include "SPDataStructs.generated.h"
 
 /**
@@ -8448,14 +8747,90 @@ struct FPlayerPermanentWallet
     int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
+USTRUCT(BlueprintType)
+struct FPlayerRelicData
+{
+    GENERATED_BODY()
+
+    // 현재 장착 중인 유물
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<TObjectPtr<const URelicDefinition>> EquippedRelics;
+
+    // 획득했던 이력 (유물 효과 유지용)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<TObjectPtr<const URelicDefinition>> AcquiredHistory;
+};
+
+// 개별 오파츠의 성장도를 기억
+USTRUCT(BlueprintType)
+struct FOpartsProgressData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Level = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 UnlockedArtifactCount = 0;
+};
+
+// 🌟 세이브 파일에 들어갈 오파츠 마스터 데이터
+USTRUCT(BlueprintType)
+struct FPlayerOpartsData
+{
+    GENERATED_BODY()
+
+    // 현재 마지막으로 장착하고 있던 오파츠
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TObjectPtr<const UOpartsDefinition> EquippedOparts = nullptr;
+
+    // 핵심! 모든 오파츠의 성장도를 기록하는 장부 (Key: 오파츠, Value: 성장도)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<TObjectPtr<const UOpartsDefinition>, FOpartsProgressData> ProgressMap;
+};
+
+
+USTRUCT(BlueprintType)
+struct FPlayerMapProgressData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 CurrentStage = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 CurrentFloor = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EMapType CurrentMapType = EMapType::NormalBattle;
+
+    // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsRoomCleared = false;
+
+    // 플레이어가 마지막으로 서 있던 위치
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FTransform SavedPlayerTransform;
+};
 
 USTRUCT(BlueprintType)
 struct FPlayerMetaProgressionData //영구 데이터
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
     UPROPERTY()
     FPlayerPermanentWallet PermanentWallet; // 영구적 재화
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPlayerOpartsData OpartsData;
+
+    void Reset()
+    {
+        // 지갑 0원으로 초기화
+        PermanentWallet = FPlayerPermanentWallet();
+        // 오파츠 장착 해제 및 장부(Map) 싹 비우기
+        OpartsData = FPlayerOpartsData();
+    }
 };
 
 USTRUCT(BlueprintType)
@@ -8470,6 +8845,12 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY()
     FPlayerStatsData Stats; // 스탯
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPlayerRelicData RelicData; // 유물
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPlayerMapProgressData MapProgress;
+
     bool IsValid() const { return Stats.CurrentHealth >= 0.0f; }
 
     // 초기화
@@ -8477,6 +8858,8 @@ struct FPlayerRunData // 런 데이터
     {
         Stats = FPlayerStatsData();
         RunWallet = FPlayerRunWallet();
+        RelicData = FPlayerRelicData();
+        MapProgress = FPlayerMapProgressData();
     }
 };
 
@@ -9099,6 +9482,16 @@ public:
 
 	bool IsInBattleMap() { return bIsBattleActive; }
 
+	//Getter
+	int32 GetCurrentStage() const { return CurrentStage; }
+	int32 GetCurrentFloor() const { return CurrentFloor; }
+	EMapType GetCurrentMapType() const { return CurrentMapType; }
+	bool GetIsRoomCleared() const { return bIsRoomCleared; }
+
+	// 로드 시스템
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, bool bSavedIsRoomCleared, FTransform SavedTransform);
+
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -9133,6 +9526,9 @@ private:
 
 	// [플래그] 현재 방이 클리어된 상태인가?
 	bool bIsRoomCleared = false;
+
+	// [플래그] 세이브 파일에서 로드하여 맵에 진입하는 중인가?
+	bool bIsLoadingSave = false;
 
 private:
 	// 맵 생성 및 플레이어 이동 처리
@@ -9281,6 +9677,58 @@ protected:
 };
 
 // ==========================================
+// FILE: SPPermSaveGame.h
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/SaveGame.h"
+#include "Data/SPDataStructs.h"
+#include "SPPermSaveGame.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPPermSaveGame : public USaveGame
+{
+	GENERATED_BODY()
+	
+public:
+	UPROPERTY(VisibleAnywhere, Category = "SaveData")
+	FPlayerMetaProgressionData PermData;
+};
+
+// ==========================================
+// FILE: SPRunSaveGame.h
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/SaveGame.h"
+#include "Data/SPDataStructs.h"
+#include "SPRunSaveGame.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPRunSaveGame : public USaveGame
+{
+	GENERATED_BODY()
+	
+public:
+	UPROPERTY(VisibleAnywhere, Category = "SaveData")
+	FPlayerRunData RunData;
+};
+
+// ==========================================
 // FILE: SoundManagerSubsystem.h
 // ==========================================
 
@@ -9414,23 +9862,65 @@ class PROJECT_SP_API USPSaveGameSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void SavePlayerStats(APawn* PlayerPawn);
+	// 런 데이터 제어
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void CacheRunDataFromPlayer(APawn* PlayerPawn);
 
-	// 불러오기: Subsystem -> Player
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void LoadPlayerStats(APawn* PlayerPawn);
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void RestoreRunDataToPlayer(APawn* PlayerPawn);
 
-	// 초기화
-	UFUNCTION(BlueprintCallable, Category = "SaveSystem")
-	void ResetSaveData();
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void ResetRunData(); // 사망, 보스 클리어 시 호출
 
-	// 데이터 확인용 Getter
-	const FPlayerPersistentData& GetCurrentSaveData() const { return SaveData; }
+	// 영구 데이터 제어
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void CachePermDataFromPlayer(APawn* PlayerPawn);
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void RestorePermDataToPlayer(APawn* PlayerPawn);
+
+	//데이터 초기화(새로 하기할 때 호출)
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Core")
+	void ResetAllData();
+
+	//Getter
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
+	const FPlayerRunData& GetRunData() const { return RunData; }
+
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
+	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
+
+public:
+	//세이브 파일 관리
+
+	// 런 데이터 파일 관리
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	void SaveRunToDisk();
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	bool LoadRunFromDisk(); 
+
+	// 영구 데이터 파일 관리
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	void SavePermToDisk();
+
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
+	bool LoadPermFromDisk();
+
+	//이어하기 여부 체크
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
+	bool HasValidRunSave() const;
 
 private:
 	UPROPERTY()
-	FPlayerPersistentData SaveData;
+	FPlayerRunData RunData;
+
+	UPROPERTY()
+	FPlayerMetaProgressionData PermData;
+
+	//저장될 파일 이름
+	const FString RunSlotName = TEXT("Slot_Run");
+	const FString PermSlotName = TEXT("Slot_Perm");
 };
 
 // ==========================================
