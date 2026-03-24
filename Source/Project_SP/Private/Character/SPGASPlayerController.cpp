@@ -111,6 +111,18 @@ void ASPGASPlayerController::SetupInputComponent()
 		{
 			EIC->BindAction(BattleClickAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnBattleClick);
 		}
+
+		// 패링 액션 바인딩
+		if (ParryAction)
+		{
+			EIC->BindAction(ParryAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnParryPressed);
+		}
+
+		// 반격 모드 토글 바인딩
+		if (ToggleCounterModeAction)
+		{
+			EIC->BindAction(ToggleCounterModeAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnToggleCounterModePressed);
+		}
 	}
 }
 
@@ -231,13 +243,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
 	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
 
-	// 1. 턴 체크
-	if (!IsMyTurn())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
-		return;
-	}
-	// 2. 무기 교체 입력 (Weapon.*)
+	// 무기 교체 입력 
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
 	{
 		if (CurrentWeaponTag == InputTag)
@@ -252,6 +258,13 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		return;
 	}
 
+	// 턴 체크
+	if (!IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
+		return;
+	}
+	
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_TimeInterference))
 	{
 		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
@@ -299,7 +312,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_Attack)) InputType = ESelectedActionType::NormalAttack;
 	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Skill)) InputType = ESelectedActionType::WeaponSkill;
-	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Parry)) InputType = ESelectedActionType::ParrySkill;
 
 	if (InputType != ESelectedActionType::None)
 	{
@@ -802,6 +814,41 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 	}
 }
 
+void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
+{
+	if (!CachedASC) return;
+
+	if (IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("지금은 내 턴입니다. 패링을 사용할 수 없습니다."));
+		return;
+	}
+
+	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
+
+	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+}
+
+void ASPGASPlayerController::OnToggleCounterModePressed(const FInputActionValue& Value)
+{
+	if (!CachedASC) return;
+
+	// 아까 추가하신 태그 사전을 통해 반격 모드 태그를 가져옵니다.
+	FGameplayTag CounterModeTag = FSPGameplayTags::Get().State_CounterMode;
+
+	// 토글 로직: 태그가 있으면 빼고, 없으면 넣습니다!
+	if (CachedASC->HasMatchingGameplayTag(CounterModeTag))
+	{
+		CachedASC->RemoveLooseGameplayTag(CounterModeTag);
+		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [OFF]"));
+	}
+	else
+	{
+		CachedASC->AddLooseGameplayTag(CounterModeTag);
+		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [ON]"));
+	}
+}
+
 void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
 {
 	RefreshBattlePointUI();
@@ -865,7 +912,7 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(BattleMappingContext, 0);
 		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
 		
-
+		PlayerChar->SwitchCameraMode(true);
 
 		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
 	}
@@ -876,7 +923,7 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(FieldMappingContext, 0);
 		CancelTargetSelection();
 
-		PlayerChar->SetCameraProfile(PlayerChar->GetFieldCameraProfile());
+		PlayerChar->SwitchCameraMode(false);
 
 		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
 	}

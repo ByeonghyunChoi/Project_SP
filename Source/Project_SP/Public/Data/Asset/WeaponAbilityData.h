@@ -42,4 +42,5 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
 	ETargetingType ParrySkillTargeting = ETargetingType::Single;
+
 };

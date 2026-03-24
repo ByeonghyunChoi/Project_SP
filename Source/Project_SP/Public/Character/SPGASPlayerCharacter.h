@@ -68,6 +68,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<class UCameraComponent> FollowCamera;
 
+	//전투용 카메라
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<class UCineCameraComponent> CombatCineCamera;
+
 	void GiveAbilities();
 
 	void GiveWeaponAbilities();
@@ -95,6 +99,13 @@ protected:
 	TObjectPtr<class UWidgetComponent> BattlePointWidgetComponent;
 
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Weapon")
+	class USkeletalMeshComponent* WeaponMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Target")
+	TObjectPtr<AActor> LastParriedTarget;
+
+public:
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
@@ -106,4 +117,5 @@ public:
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
 	virtual void OnBattleStarted() override;
+	void SwitchCameraMode(bool bIsBattle);
 };

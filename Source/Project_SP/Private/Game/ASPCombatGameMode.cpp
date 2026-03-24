@@ -13,8 +13,10 @@
 #include "AbilitySystemComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Tag/SPGameplayTags.h"
+#include "Data/Asset/WeaponAbilityData.h"
 #include "Character/SPGASCharacterBase.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASMonsterCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
 
@@ -192,7 +194,44 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
+
+				// 딱지는 1회용이므로 떼어줍니다.
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+
+				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
+				{
+					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+					{
+						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+
+						// 선생님이 만드신 'GetWeaponData' 함수 활용!
+						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
+						if (WeaponData && WeaponData->ParrySkillAbility)
+						{
+							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
+							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+							{
+								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
+								{
+									ASC->TryActivateAbility(Spec.Handle);
+									UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+									break; // 발동했으니 반복문 종료
+								}
+							}
+						}
+						else
+						{
+							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
+						}
+					}
+				}
+			}
 
 			if (StatusComp)
 			{
@@ -205,6 +244,12 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
 
 				CurrentTurnActor = nullptr;
+				if (TurnManager)
+				{
+					AActor* NextActor = TurnManager->CalculateNextTurn();
+					StartTurn(NextActor);
+				}
+
 				return;
 			}
 
@@ -289,9 +334,19 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
-				float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
-				float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
-				TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				if (bIsCurrentTurnInterrupt)
+				{
+					// VIP 턴이었다면 게이지를 깎지 않고, 다음을 위해 상태만 해제합니다.
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링/추가 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
+					bIsCurrentTurnInterrupt = false; // 리셋
+				}
+				else
+				{
+					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.
+					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
+					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
+					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				}
 			}
 
 			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
@@ -301,10 +356,28 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 		}
 	}
 
-	// 다음 턴 계산 요청
 	if (TurnManager)
 	{
+		// 🌟 1. 대기열(Queue) 검사: 턴 매니저가 직접 꺼내주도록 함수(Pop) 사용!
+		if (AActor* VIPActor = TurnManager->PopInterruptActor())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[통제 시스템] VIP 대기열 발견! %s 에게 즉시 턴을 부여합니다."), *VIPActor->GetName());
+
+			// 🌟 2. [핵심] 이 턴은 VIP 턴이므로, 나중에 끝날 때 게이지를 깎지 않도록 플래그를 켜줍니다!
+			bIsCurrentTurnInterrupt = true;
+
+			StartTurn(VIPActor); // 턴 즉시 부여!
+			return; // 일반 턴 계산으로 넘어가지 않고 여기서 종료
+		}
+
+		// 3. 대기열에 아무도 없으면 평소처럼 행동 게이지로 다음 타자 찾기
 		AActor* NextActor = TurnManager->CalculateNextTurn();
+
+		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
+		{
+			bIsCurrentTurnInterrupt = true;
+		}
+
 		StartTurn(NextActor);
 	}
 }

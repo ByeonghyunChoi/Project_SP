@@ -34,6 +34,8 @@ void ASPGASMonsterCharacter::BeginPlay()
 	{
 		ASC->InitAbilityActorInfo(this, this);
 
+		GiveDefaultAbilities();
+
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
 			.AddUObject(this, &ASPGASMonsterCharacter::OnHealthChanged);
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxHealthAttribute())
@@ -173,6 +175,22 @@ void ASPGASMonsterCharacter::BroadcastHPUI()
 	float CurrentHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
 	float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
 	OnMonsterHPChanged.Broadcast(CurrentHP, MaxHP);
+}
+
+void ASPGASMonsterCharacter::GiveDefaultAbilities()
+{
+	// ASC가 없거나, 서버 권한이 없으면(싱글이면 항상 통과) 무시
+	if (!ASC || !HasAuthority()) return;
+
+	// 배열에 등록된 모든 GA를 ASC에 꽂아줍니다!
+	for (TSubclassOf<UGameplayAbility> Ability : DefaultAbilities)
+	{
+		if (Ability)
+		{
+			// 레벨 1, 입력 키 없음(INDEX_NONE), 주체는 나 자신(this)으로 스킬을 부여합니다.
+			ASC->GiveAbility(FGameplayAbilitySpec(Ability, 1, INDEX_NONE, this));
+		}
+	}
 }
 
 void ASPGASMonsterCharacter::BroadcastStatusUI()

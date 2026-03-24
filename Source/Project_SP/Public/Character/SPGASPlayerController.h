@@ -91,6 +91,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputAction> BattleClickAction;
 
+	// 패링 액션
+	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
+	TObjectPtr<class UInputAction> ParryAction;
+
+	// 반격 모드 토글 액션
+	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
+	TObjectPtr<class UInputAction> ToggleCounterModeAction;
+
 	//필드 용 UI
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> FieldHUDClass;
@@ -138,6 +146,12 @@ protected:
 
 	//마우스 클릭 시 실행될 함수
 	void OnBattleClick(const FInputActionValue& Value);
+
+	// 패링 키 클릭 시 실행 함수
+	void OnParryPressed(const FInputActionValue& Value);
+
+	// 반격 모드 토글 키 클릭 시 실행 함수
+	void OnToggleCounterModePressed(const FInputActionValue& Value);
 
 	//배틀 포인트 변경시 실행될 함수
 	void OnBattlePointChanged(const FOnAttributeChangeData& Data);

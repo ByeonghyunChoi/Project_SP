@@ -81,3 +81,27 @@ void ASPGASCharacterBase::OnBattleStarted()
 {
 	// 추후 공통된 작업을 여기서 실행 
 }
+
+void ASPGASCharacterBase::AddLooseTagToASC(FGameplayTag TagToAdd)
+{
+	if (ASC && TagToAdd.IsValid())
+	{
+		ASC->AddLooseGameplayTag(TagToAdd);
+	}
+}
+
+void ASPGASCharacterBase::RemoveLooseTagFromASC(FGameplayTag TagToRemove)
+{
+	if (ASC && TagToRemove.IsValid())
+	{
+		ASC->RemoveLooseGameplayTag(TagToRemove);
+	}
+}
+
+void ASPGASCharacterBase::CancelAbilitiesWithTag(FGameplayTagContainer WithTags)
+{
+	if (ASC)
+	{
+		ASC->CancelAbilities(&WithTags, nullptr, nullptr);
+	}
+}

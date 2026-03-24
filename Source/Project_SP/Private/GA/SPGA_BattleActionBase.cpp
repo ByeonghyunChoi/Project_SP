@@ -1,7 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "GA/SPGA_BattleActionBase.h"
+﻿#include "GA/SPGA_BattleActionBase.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Character/SPGASCharacterBase.h"
 #include "AttributeSet/SPGASAttributeSet.h"
@@ -11,7 +8,7 @@
 #include "Game/ASPCombatGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
-
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 
 USPGA_BattleActionBase::USPGA_BattleActionBase()
 {
@@ -84,9 +81,17 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 
 void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	if(TriggerEventData)
+	if (TriggerEventData) CachedEventData = *TriggerEventData;
+
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		FSPGameplayTags::Get().Event_Battle_ApplyDamage
+	);
+
+	if (WaitDamageEventTask)
 	{
-		CachedEventData = *TriggerEventData;
+		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
+		WaitDamageEventTask->ReadyForActivation();
 	}
 
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -170,6 +175,11 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			SpecHandle,
 			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetActor)
 		);
+
+		if (HitCameraShakeClass && GetWorld())
+		{
+			UGameplayStatics::PlayWorldCameraShake(GetWorld(), HitCameraShakeClass, TargetActor->GetActorLocation(), 0.0f, 1000.0f, 1.0f);
+		}
 
 		if (AbilityTags.HasTag(SPTags.Battle_Action_Attack))
 		{
@@ -302,3 +312,56 @@ AActor* USPGA_BattleActionBase::GetRandomEnemy() const
 	int32 RandIndex = FMath::RandRange(0, Enemies.Num() - 1);
 	return Enemies[RandIndex];
 }
+
+
+void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
+{
+	float PrimaryMultiplier = (Payload.EventMagnitude > 0.0f) ? Payload.EventMagnitude : DefaultDamageMultiplier;
+	float Ratio = (DefaultDamageMultiplier > 0.0f) ? (PrimaryMultiplier / DefaultDamageMultiplier) : 1.0f;
+	float SecondaryMultiplier = SecondaryDamageMultiplier * Ratio;
+
+	switch (SkillTargetingType)
+	{
+	case ETargetingType::Single:
+	{
+		if (AActor* Target = GetSingleTarget())
+		{
+			ApplyDamageToTarget(Target, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Area:
+	{
+		AActor* PrimaryTarget = GetSingleTarget();
+		if (PrimaryTarget)
+		{
+			ApplyDamageToTarget(PrimaryTarget, PrimaryMultiplier);
+
+			TArray<AActor*> SecTargets = GetSecondaryTargets(PrimaryTarget);
+			for (AActor* SecTarget : SecTargets)
+			{
+				ApplyDamageToTarget(SecTarget, SecondaryMultiplier);
+			}
+		}
+		break;
+	}
+	case ETargetingType::All:
+	{
+		TArray<AActor*> AllEnemies = GetAllEnemies();
+		for (AActor* Enemy : AllEnemies)
+		{
+			ApplyDamageToTarget(Enemy, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Random:
+	{
+		if (AActor* RandomTarget = GetRandomEnemy())
+		{
+			ApplyDamageToTarget(RandomTarget, PrimaryMultiplier);
+		}
+		break;
+	}
+	}
+}
+

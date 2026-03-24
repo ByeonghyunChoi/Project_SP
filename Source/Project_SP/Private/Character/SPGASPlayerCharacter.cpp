@@ -7,8 +7,10 @@
 #include "Tag/SPGameplayTags.h"
 #include "Component/SPInteractionComponent.h"
 #include "Character/SPGASPlayerController.h"
+#include "Character/SPGASMonsterCharacter.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "CineCameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
@@ -37,9 +39,17 @@ ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 	CameraBoom->bInheritYaw = false;
 	CameraBoom->bInheritRoll = false;
 
+	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	WeaponMesh->SetupAttachment(GetMesh(), FName("RightHandSocket"));
+
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
+
+	CombatCineCamera = CreateDefaultSubobject<UCineCameraComponent>(TEXT("CombatCineCamera"));
+	CombatCineCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	CombatCineCamera->bUsePawnControlRotation = false;
+	CombatCineCamera->bAutoActivate = false;
 
 	WeaponWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WeaponWidgetComponent"));
 	WeaponWidgetComponent->SetupAttachment(GetCapsuleComponent());
@@ -303,6 +313,8 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 
+	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
+	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
 }
 
@@ -340,6 +352,33 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 		PC->SetupAndShowBattleUI();
 	}
 }
+
+void ASPGASPlayerCharacter::SwitchCameraMode(bool bIsBattle)
+{
+	if (bIsBattle)
+	{
+		// 1. 일반 카메라 끄고, 시네 카메라 켜기
+		FollowCamera->Deactivate();
+		CombatCineCamera->Activate();
+
+		// 2. 선생님이 짜두신 전투용 거리/각도(Profile) 적용
+		SetCameraProfile(CombatCameraSetting);
+
+		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 전투용 CineCamera 활성화"));
+	}
+	else
+	{
+		// 1. 시네 카메라 끄고, 일반 카메라 켜기
+		CombatCineCamera->Deactivate();
+		FollowCamera->Activate();
+
+		// 2. 필드용 거리/각도(Profile) 적용
+		SetCameraProfile(FieldCameraSetting);
+
+		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 필드용 FollowCamera 활성화"));
+	}
+}
+
 
 void ASPGASPlayerCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 {

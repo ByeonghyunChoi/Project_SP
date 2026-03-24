@@ -63,6 +63,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
 	int32 TotalExpectedParticipants = 0;
 
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnInterrupt = false;
+
 private:
 	FTransform GetSpawnTransformByIndex(int32 Index);
 
@@ -74,4 +77,5 @@ private:
 
 	//데이터 연동 함수
 	void ApplyPlayerSavedData();
+
 };

@@ -22,7 +22,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_Status_SkipTurn = Manager.AddNativeGameplayTag(FName("State.Status.SkipTurn"),TEXT("턴 스킵(행동 불가)"));
 	State_TimeInterference = Manager.AddNativeGameplayTag(FName("State.TimeInterference"), TEXT("시간 간섭"));
 	State_Death = Manager.AddNativeGameplayTag(FName("State.Death"), TEXT("전투 중 사망 상태"));
-
+	State_ParryWindow = Manager.AddNativeGameplayTag(FName("State.ParryWindow"), TEXT("패링 타이밍 상태"));
+	State_CounterMode = Manager.AddNativeGameplayTag(FName("State.CounterMode"), TEXT("반격 모드 상태"));
+	State_AutoCounterReady = Manager.AddNativeGameplayTag(FName("State.AutoCounterReady"), TEXT("반격 예약"));
+	
+	
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
 
@@ -40,10 +44,12 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Battle_TurnStart = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnStart"), TEXT("턴 시작 시 이벤트 활성화"));
 	Event_Battle_TurnEnd = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnEnd"), TEXT("턴 종료 시 이벤트 활성화"));
 	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
+	Event_Battle_ApplyDamage = Manager.AddNativeGameplayTag(FName("Event.Battle.ApplyDamage"), TEXT("데미지 받을 때 이벤트"));
 	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
+	Event_Battle_Parried = Manager.AddNativeGameplayTag(FName("Event.Battle.Parried"), TEXT("패링 알림"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -72,7 +78,10 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Battle_Action_Attack = Manager.AddNativeGameplayTag(FName("Battle.Action.Attack"), TEXT("일반 공격"));
 	Battle_Action_Skill = Manager.AddNativeGameplayTag(FName("Battle.Action.Skill"), TEXT("무기 스킬"));
 	Battle_Action_Parry = Manager.AddNativeGameplayTag(FName("Battle.Action.Parry"), TEXT("패링 스킬"));
+	Battle_Action_CounterAttack = Manager.AddNativeGameplayTag(FName("Battle.Action.CounterAttack"), TEXT("자동 반격 스킬"));
 	Battle_Action_TimeInterference = Manager.AddNativeGameplayTag(FName("Battle.Action.TimeInterference"), TEXT("시간 간섭"));
+	Battle_Monster_BasicAttack = Manager.AddNativeGameplayTag(FName("Battle.Monster.BasicAttack"), TEXT("임시 몬스터 기본 공격"));
+
 
 	Damage_Type_Normal = Manager.AddNativeGameplayTag(FName("Damage.Type.Normal"), TEXT("일반 데미지"));
 	Damage_Type_Status = Manager.AddNativeGameplayTag(FName("Damage.Type.Status"), TEXT("상태이상 데미지"));

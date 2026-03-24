@@ -69,6 +69,8 @@ protected:
     // UI 갱신 방송 함수(HP)
     void BroadcastHPUI();
 
+    void GiveDefaultAbilities();
+
 protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Stats")
     EEnemyRank EnemyRank = EEnemyRank::Normal;
@@ -83,4 +85,8 @@ protected:
     //몬스터 정보 위젯
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS | Abilities")
+    TArray<TSubclassOf<class UGameplayAbility>> DefaultAbilities;
 };

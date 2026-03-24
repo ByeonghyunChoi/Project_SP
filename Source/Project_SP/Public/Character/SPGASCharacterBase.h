@@ -54,5 +54,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat | UI")
     virtual void OnBattleStarted();
 
+    UFUNCTION(BlueprintCallable, Category = "GAS | Tags")
+    void AddLooseTagToASC(FGameplayTag TagToAdd);
+
+    UFUNCTION(BlueprintCallable, Category = "GAS | Tags")
+    void RemoveLooseTagFromASC(FGameplayTag TagToRemove);
+
+    UFUNCTION(BlueprintCallable, Category = "GAS | Abilities")
+    void CancelAbilitiesWithTag(FGameplayTagContainer WithTags);
+
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 };

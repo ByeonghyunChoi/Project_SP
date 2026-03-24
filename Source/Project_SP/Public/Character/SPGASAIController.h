@@ -37,7 +37,4 @@ protected:
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-
-	//임시 턴 종료용 타이머(나중에 삭제 후 제대로 된 패턴으로 구현할 예정)
-	FTimerHandle TurnEndTimerHandle;
 };

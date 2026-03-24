@@ -25,6 +25,9 @@ public:
 	FGameplayTag State_Status_SkipTurn;
 	FGameplayTag State_TimeInterference;
 	FGameplayTag State_Death;
+	FGameplayTag State_ParryWindow;
+	FGameplayTag State_CounterMode;
+	FGameplayTag State_AutoCounterReady;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
@@ -48,10 +51,13 @@ public:
 	FGameplayTag Event_Battle_TurnStart;
 	FGameplayTag Event_Battle_TurnEnd;
 	FGameplayTag Event_Battle_ExecuteAction;
+	FGameplayTag Event_Battle_ApplyDamage;
+	FGameplayTag Event_Battle_Parried;
 	FGameplayTag Event_Montage_Hit;
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
+	
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;
@@ -85,7 +91,9 @@ public:
 	FGameplayTag Battle_Action_Attack;
 	FGameplayTag Battle_Action_Skill;
 	FGameplayTag Battle_Action_Parry;
+	FGameplayTag Battle_Action_CounterAttack;
 	FGameplayTag Battle_Action_TimeInterference;
+	FGameplayTag Battle_Monster_BasicAttack; // 임시 몬스터 공격 태그
 
 	//데미지 종류
 	FGameplayTag Damage_Type_Normal;

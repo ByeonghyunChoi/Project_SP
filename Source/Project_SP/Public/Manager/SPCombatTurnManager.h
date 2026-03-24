@@ -37,6 +37,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
 	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
 
+	//패링 사용시 자동으로 발동할 턴(붕스 필살기 느낌)
+	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
+	void RequestInterruptTurn(AActor* Interrupter);
+
+	AActor* PopInterruptActor();
+
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
@@ -52,6 +58,10 @@ private:
 	// 행동 가능 상태가 된 유닛들의 대기열
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
 	TArray<AActor*> TurnQueue;
+
+	// 행동 게이지를 무시하고 우선적으로 턴을 받는 대기열
+	UPROPERTY(VisibleAnywhere, Category = "TurnManager | Interrupt")
+	TArray<AActor*> InterruptQueue;
 
 	
 };

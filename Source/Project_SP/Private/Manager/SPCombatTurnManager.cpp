@@ -31,7 +31,20 @@ void ASPCombatTurnManager::InitializeParticipants(const TArray<AActor*>& InParti
 
 AActor* ASPCombatTurnManager::CalculateNextTurn()
 {
-	// 1. 대기열 확인: 이미 게이지가 꽉 찬 유닛이 있다면 바로 반환
+	// 대기열 확인
+	if (InterruptQueue.Num() > 0)
+	{
+		AActor* VIPActor = InterruptQueue[0];
+		InterruptQueue.RemoveAt(0);
+
+		if (IsValid(VIPActor) && Participants.Contains(VIPActor))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TurnManager] VIP 턴 발동! %s 가 게이지를 무시하고 턴을 잡습니다!"), *VIPActor->GetName());
+			return VIPActor;
+		}
+		return CalculateNextTurn(); // 죽었거나 유효하지 않으면 다음 타자 검색
+	}
+
 	if (TurnQueue.Num() > 0)
 	{
 		AActor* NextActor = TurnQueue[0];
@@ -45,7 +58,7 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		return CalculateNextTurn();
 	}
 
-	// 2. 시뮬레이션: 가장 빨리 행동할 수 있는 시간(MinTimeToAct) 계산
+	// 시뮬레이션: 가장 빨리 행동할 수 있는 시간(MinTimeToAct) 계산
 	float MinTimeToAct = 99999.0f;
 	bool bFoundValidActor = false;
 
@@ -167,6 +180,7 @@ float ASPCombatTurnManager::GetActionGauge(const AActor* Target) const
 	return 0.0f;
 }
 
+
 void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
 {
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
@@ -272,4 +286,25 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
 	}
 
 	return PredictedOrder;
+}
+
+void ASPCombatTurnManager::RequestInterruptTurn(AActor* Interrupter)
+{
+	if (IsValid(Interrupter) && Participants.Contains(Interrupter))
+	{
+		// VIP 대기열에 추가합니다.
+		InterruptQueue.AddUnique(Interrupter);
+		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 가 새치기(인터럽트) 턴을 예약했습니다!"), *Interrupter->GetName());
+	}
+}
+
+AActor* ASPCombatTurnManager::PopInterruptActor()
+{
+	if (InterruptQueue.Num() > 0)
+	{
+		AActor* VIP = InterruptQueue[0];
+		InterruptQueue.RemoveAt(0);
+		return VIP;
+	}
+	return nullptr;
 }

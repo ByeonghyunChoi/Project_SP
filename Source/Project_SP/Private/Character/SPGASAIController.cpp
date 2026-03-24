@@ -46,7 +46,6 @@ void ASPGASAIController::OnPossess(APawn* InPawn)
 
 void ASPGASAIController::OnUnPossess()
 {
-	GetWorld()->GetTimerManager().ClearTimer(TurnEndTimerHandle);
 	Super::OnUnPossess();
 }
 
@@ -82,14 +81,15 @@ void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
 	// 1. 로그 출력
 	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! (1초 뒤 종료) <<<"));
 
-	// 2. 1초 뒤에 FinishTurnDelayed 함수 실행
-	GetWorld()->GetTimerManager().SetTimer(
-		TurnEndTimerHandle,
-		this,
-		&ASPGASAIController::FinishTurnDelayed,
-		1.0f, // 1초 대기
-		false
-	);
+	if (CachedASC)
+	{
+		// 🌟 몬스터의 기본 공격 스킬 태그를 찾아서 실행하라고 지시합니다.
+		// (프로젝트 태그에 맞게 수정하세요. 예: Ability.Monster.BasicAttack)
+		FGameplayTag AttackTag = FSPGameplayTags::Get().Battle_Monster_BasicAttack;
+		FGameplayTagContainer TagContainer(AttackTag);
+
+		bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
+	}
 }
 
 // [추가] 실제로 턴을 넘기는 함수
