@@ -347,6 +347,22 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();
+
+	// 전투 기본 세팅 초기화
+	if(ASC)
+	{
+		float StartingBP = 2.0f;
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), StartingBP);
+
+		// 모든 스킬의 쿨타임을 0으로 만듭니다.
+		FGameplayTag ContainerTag = FGameplayTag::RequestGameplayTag(FName("Cooldown.Weapon"));
+		FGameplayEffectQuery Query;
+		Query.EffectTagQuery = FGameplayTagQuery::MakeQuery_MatchAnyTags(FGameplayTagContainer(ContainerTag));
+		ASC->RemoveActiveEffects(Query);
+
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 전투 시작: BP 리필 및 쿨타임 초기화 완료!"), *GetName());
+	}
+
 	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
 	{
 		PC->SetupAndShowBattleUI();

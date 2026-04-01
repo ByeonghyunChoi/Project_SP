@@ -50,6 +50,9 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
 	Event_Battle_Parried = Manager.AddNativeGameplayTag(FName("Event.Battle.Parried"), TEXT("패링 알림"));
+	Event_Jormungandr_Fire = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Fire"), TEXT("요르문간드 공격 타이밍 알림"));
+	Event_Jourmungandr_Hit = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Hit"), TEXT("요르문간드 공격 맞음 알림"));
+
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -93,5 +96,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Enemy_Rank_Boss = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Boss"), TEXT("보스 몬스터"));
 
 	Data_Damage = Manager.AddNativeGameplayTag(FName("Data.Damage"), TEXT("데미지 배율 전달용"));
+
+	GameplayCue_Hit_Fenrir = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Fenrir"), TEXT("펜리르 타격음, 이펙트"));
+	GameplayCue_Hit_Surtr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Surtr"), TEXT("수르트 타격음, 이펙트"));
+	GameplayCue_Hit_Jormungandr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Jormungandr"), TEXT("요르문간드 타격음, 이펙트"));
+	GameplayCue_Hit_Player = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Player"), TEXT("플레이어 피격음, 이펙트"));
+	GameplayCue_Parry = Manager.AddNativeGameplayTag(FName("GameplayCue.Parry"), TEXT("패링 성공음, 이펙트"));
 
 }

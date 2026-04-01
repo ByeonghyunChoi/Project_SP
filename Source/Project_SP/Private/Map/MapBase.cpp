@@ -153,7 +153,11 @@ void AMapBase::HandleStateReward()
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams); // 파라미터 전달
+		ARewardBox* SpawnedChest = GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams);
+		if (SpawnedChest)
+		{
+			SpawnedChest->SetupParticleByMapType(MapType);
+		}
 
 		UE_LOG(LogTemp, Log, TEXT("Reward Chest Spawned!"));
 	}

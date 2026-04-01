@@ -4,8 +4,10 @@
 #include "Manager/SPCombatTurnManager.h"
 #include "AbilitySystemInterface.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASPlayerController.h"
 
 // 턴 시뮬레이션 구조체
 struct FSimulatedActor
@@ -290,12 +292,46 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
 
 void ASPCombatTurnManager::RequestInterruptTurn(AActor* Interrupter)
 {
-	if (IsValid(Interrupter) && Participants.Contains(Interrupter))
+	if (!IsValid(Interrupter) || !Participants.Contains(Interrupter))
 	{
-		// VIP 대기열에 추가합니다.
-		InterruptQueue.AddUnique(Interrupter);
-		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 가 새치기(인터럽트) 턴을 예약했습니다!"), *Interrupter->GetName());
+		return; // 유효하지 않으면 즉시 종료
 	}
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(Interrupter))
+	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+		{
+			FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+			UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+			if (WeaponData && WeaponData->ParrySkillAbility)
+			{
+				if (UGameplayAbility* AbilityCDO = WeaponData->ParrySkillAbility->GetDefaultObject<UGameplayAbility>())
+				{
+					const FGameplayTagContainer* CooldownTags = AbilityCDO->GetCooldownTags();
+
+					if (CooldownTags && CooldownTags->Num() > 0)
+					{
+						if (UAbilitySystemComponent* ASC = PlayerChar->GetAbilitySystemComponent())
+						{
+							if (ASC->HasAnyMatchingGameplayTags(*CooldownTags))
+							{
+								// 🚨 쿨타임 태그가 있다! -> 대기열에 안 넣고 여기서 함수를 강제 종료시켜버립니다!
+								UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 인터럽트 컷: 패링 스킬(%s) 쿨타임 중!"),
+									*Interrupter->GetName(), *WeaponData->ParrySkillAbility->GetName());
+
+								return; // <--- 핵심: void 함수니까 그냥 return; 으로 끝!
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 🌟 위의 쿨타임 검문소에서 return 당하지 않고 무사히 내려왔다면? 대기열에 추가!
+	InterruptQueue.AddUnique(Interrupter);
+	UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 가 새치기(인터럽트) 턴을 예약했습니다!"), *Interrupter->GetName());
 }
 
 AActor* ASPCombatTurnManager::PopInterruptActor()

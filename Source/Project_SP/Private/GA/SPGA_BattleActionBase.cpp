@@ -273,13 +273,12 @@ TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
 		if (Actor == MyAvatar) continue;
 
 		// 2. 체력이 0보다 큰 '살아있는' 녀석만 타겟으로 잡음
-		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Actor))
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
+
+		// ASC가 존재하고, 체력이 0보다 큰지 확인!
+		if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
 		{
-			UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent();
-			if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
-			{
-				OutActors.Add(Actor);
-			}
+			OutActors.Add(Actor); // 통과! 데미지 명단에 추가!
 		}
 	}
 
@@ -320,6 +319,16 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 	float Ratio = (DefaultDamageMultiplier > 0.0f) ? (PrimaryMultiplier / DefaultDamageMultiplier) : 1.0f;
 	float SecondaryMultiplier = SecondaryDamageMultiplier * Ratio;
 
+	AActor* PayloadTarget = const_cast<AActor*>(Payload.Target.Get());
+
+	if (PayloadTarget)
+	{
+		ApplyDamageToTarget(PayloadTarget, PrimaryMultiplier);
+		return;
+	}
+
+	// -------------------------------------------------------------------------
+	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
 	switch (SkillTargetingType)
 	{
 	case ETargetingType::Single:
@@ -332,15 +341,16 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 	}
 	case ETargetingType::Area:
 	{
-		AActor* PrimaryTarget = GetSingleTarget();
-		if (PrimaryTarget)
-		{
-			ApplyDamageToTarget(PrimaryTarget, PrimaryMultiplier);
+		AActor* CenterTarget = PayloadTarget ? PayloadTarget : GetSingleTarget();
 
-			TArray<AActor*> SecTargets = GetSecondaryTargets(PrimaryTarget);
+		if (CenterTarget)
+		{
+			ApplyDamageToTarget(CenterTarget, PrimaryMultiplier); 
+
+			TArray<AActor*> SecTargets = GetSecondaryTargets(CenterTarget);
 			for (AActor* SecTarget : SecTargets)
 			{
-				ApplyDamageToTarget(SecTarget, SecondaryMultiplier);
+				ApplyDamageToTarget(SecTarget, SecondaryMultiplier); 
 			}
 		}
 		break;

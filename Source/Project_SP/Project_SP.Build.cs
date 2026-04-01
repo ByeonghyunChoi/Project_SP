@@ -24,8 +24,7 @@ public class Project_SP : ModuleRules
             "GameplayTasks",
             "Slate",
             "SlateCore",
-            "LevelSequence",
-            "MovieScene" });
-
+            "Niagara" 
+        });
     }
 }

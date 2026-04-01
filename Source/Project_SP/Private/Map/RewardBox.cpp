@@ -3,11 +3,20 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 #include "Blueprint/UserWidget.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 
 ARewardBox::ARewardBox()
 {
+	USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	RootComponent = SceneRoot;
+
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
-	RootComponent = MeshComp;
+	MeshComp->SetupAttachment(RootComponent);
+	MeshComp->SetHiddenInGame(true);
+
+	RewardParticle = CreateDefaultSubobject<UNiagaraComponent>(TEXT("RewardParticle"));
+	RewardParticle->SetupAttachment(RootComponent);
 }
 
 void ARewardBox::ExecuteInteraction(AActor* Interactor)
@@ -50,5 +59,37 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 
 FText ARewardBox::GetInteractText() const
 {
-	return FText::FromString(TEXT("상자 열기"));
+	return FText::FromString(TEXT("보상 열기"));
+}
+
+void ARewardBox::SetupParticleByMapType(EMapType InMapType)
+{
+	if (!RewardParticle) return; // 파티클 컴포넌트가 없으면 종료
+
+	UNiagaraSystem* SelectedParticle = nullptr;
+
+	// 1. 맵 타입에 따라 켤 파티클 결정
+	switch (InMapType)
+	{
+	case EMapType::NormalBattle: // (선생님의 Enum 이름에 맞게 수정해주세요)
+		SelectedParticle = NormalParticle;
+		break;
+	case EMapType::Jester:
+	case EMapType::StrongEnemyBattle:
+		SelectedParticle = EpicParticle;
+		break;
+	case EMapType::BossBattle:
+		SelectedParticle = BossParticle;
+		break;
+	default:
+		SelectedParticle = NormalParticle;
+		break;
+	}
+
+	// 2. 파티클 갈아끼우고 켜기!
+	if (SelectedParticle)
+	{
+		RewardParticle->SetAsset(SelectedParticle);
+		RewardParticle->Activate(true); // 재생 버튼 누르기!
+	}
 }

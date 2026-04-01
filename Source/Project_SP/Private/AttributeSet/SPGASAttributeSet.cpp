@@ -9,8 +9,8 @@
 
 USPGASAttributeSet::USPGASAttributeSet()  
 {
-	InitHealth(100.0f);
-	InitMaxHealth(100.0f);
+	InitHealth(1000.0f);
+	InitMaxHealth(1000.0f);
 	InitBattlePoint(2.0f);
 	InitMaxBattlePoint(5.0f);
 	InitTimePower(200.0f);

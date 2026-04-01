@@ -57,7 +57,8 @@ public:
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
-	
+	FGameplayTag Event_Jormungandr_Fire;
+	FGameplayTag Event_Jourmungandr_Hit;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;
@@ -109,6 +110,12 @@ public:
 	//데이터 전달(Data)
 	FGameplayTag Data_Damage;
 
+	//이펙트, 사운드
+	FGameplayTag GameplayCue_Hit_Fenrir;
+	FGameplayTag GameplayCue_Hit_Surtr;
+	FGameplayTag GameplayCue_Hit_Jormungandr;
+	FGameplayTag GameplayCue_Hit_Player;
+	FGameplayTag GameplayCue_Parry;
 protected:
 	void AddAllTags(class UGameplayTagsManager& Manager);
 
