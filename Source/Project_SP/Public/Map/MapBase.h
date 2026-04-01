@@ -1,89 +1,58 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Combat/CombatTypes.h"
+#include "Map/MapInfo.h"
 #include "MapBase.generated.h"
-
-class USceneComponent;
-class UMapNode;
-class APortalActor;
-class ARewardBox;
 
 UCLASS()
 class PROJECT_SP_API AMapBase : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
-	// Sets default values for this actor's properties
+
+public:
 	AMapBase();
 
-	//Map Structure Section
 protected:
-	//맵 종류
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Type")
-	EMapType CurrentMapType;
-	//맵 상태
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
-	EMapState CurrentMapState;
-	//플레이어 시작 위치
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Map")
-	TObjectPtr<USceneComponent> PlayerStartPoint;
+	virtual void BeginPlay() override;
 
-	//Map Transfer, Portal Section
-protected:
-	//연결된 맵
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map Logic")
-	TArray<UMapNode*> NextNodeOptions;
-	//배치된 포탈
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
-	TArray<APortalActor*> PortalActors;
-	//보상 상자
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Map Logic")
-	TObjectPtr<ARewardBox> RewardBox;
-	//보상 데이터 테이블
-	UPROPERTY(EditDefaultsOnly, Category = "Map Logic|Reward")
-	TObjectPtr<UDataTable> RewardDataTable;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	//보상 데이터 테이블에서 맵 타입에 맞는 보상 행 이름 반환 함수
-	FName GetRewardRowNameByMapType() const;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | Layout")
+	TObjectPtr<USceneComponent> SceneRoot;
 
-	//Manager Call Section
+	UPROPERTY(EditAnywhere, Category = "Map | Setup")
+	TSubclassOf<class APortalActor> PortalClass;
+
+	// 스폰할 보상 상자 클래스
+	UPROPERTY(EditAnywhere, Category = "Map | Setup")
+	TSubclassOf<class ARewardBox> RewardChestClass;
+
+	// 관리 중인 스폰된 포탈들
+	UPROPERTY()
+	TArray<class APortalActor*> SpawnedPortals;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
+	EMapState CurrentState;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
+	EMapType MapType;
+
 public:
-	//맵에 배치된 오브젝트들 활성화 함수
-	UFUNCTION(BlueprintNativeEvent, Category = "Map Logic")
-	void BeginMapLogic();
-	virtual void BeginMapLogic_Implementation();
+	TArray<FTransform> GetSpawnTransformsByTag(FName PointTag) const;
 
-	//전투에 승리하면 작동하는 함수
-	UFUNCTION(BlueprintNativeEvent, Category = "Map Logic")
-	void OnCombatFinished(bool bPlayerWon);
-	virtual void OnCombatFinished_Implementation(bool bPlayerWon);
+	UFUNCTION(BlueprintCallable)
+	void SetMapState(EMapState NewState);
+	void InitializeMap(EMapType InType, EMapState InitialState);
 
-	//다음 맵 목록을 넘겨주는 함수
-	void InitializeNextNodes(const TArray<UMapNode*>& ChildNodes);
-
-	//맵이 가지고 있는 모든 액터를 파괴하는 함수
-	void ClearMapElements();
-
-	//Common Function Section
 protected:
-	//포탈 활성화하는 함수
-	UFUNCTION(BlueprintCallable, Category = "Map Logic")
-	void ActivatePortals();
+	UFUNCTION(BlueprintImplementableEvent, Category = "Map | State")
+	void OnMapStateChanged(EMapState OldState, EMapState NewState);
 
-	//Getter, Setter Section
-public:
-	void SetMapType(const EMapType& NewMapType);
-	EMapType GetMapType() const;
+	void ClearFieldMonsters();
 
-	void SetMapState(const EMapState& NewMapState);
-	EMapState GetMapState() const;
-
-	FVector GetPlayerStartLocation() const;
-	FRotator GetPlayerStartRotation() const;
-
+private:
+	void HandleStateInProgress();
+	void HandleStateReward();
+	void HandleStateCleared(); 
 };

@@ -1,84 +1,95 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿#include "Map/RewardBox.h"
+#include "Map/MapBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
+#include "Blueprint/UserWidget.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 
-
-#include "Map/RewardBox.h"
-#include "Data/RewardData.h"
-#include "Character/PlayerCharacter.h"
-#include "Component/InventoryComponent.h"
-#include "Components/StaticMeshComponent.h"
-
-// Sets default values
 ARewardBox::ARewardBox()
 {
-    BoxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
-    SetRootComponent(BoxMesh);
+	USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	RootComponent = SceneRoot;
 
-    bHasBeenInteracted = false;
+	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+	MeshComp->SetupAttachment(RootComponent);
+	MeshComp->SetHiddenInGame(true);
+
+	RewardParticle = CreateDefaultSubobject<UNiagaraComponent>(TEXT("RewardParticle"));
+	RewardParticle->SetupAttachment(RootComponent);
 }
 
-void ARewardBox::PerformInteraction(APlayerCharacter* Interactor)
+void ARewardBox::ExecuteInteraction(AActor* Interactor)
 {
-    if (bHasBeenInteracted)
-    {
-        return;
-    }
+	if (bIsOpened) return;
 
-    bHasBeenInteracted = true;
+	// 상호작용한 Actor가 플레이어인지 확인
+	APlayerController* PC = Cast<APlayerController>(Cast<ACharacter>(Interactor)->GetController());
+	if (!PC) return;
 
-    OnRewardInteracted.Broadcast();
-    SetActorEnableCollision(false);
+	bIsOpened = true;
 
-    //보상을 주는 로직을 여기에 구현
-    RewardToPlayer(Interactor);
+	//보상 지급 코드를 여기서 구현
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// 1. 유물 보상 위젯 생성
+	UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
+	if (RewardUI)
+	{
+		// 2. 위젯에 현재 스테이지 값 전달 (WBP_RelicReward의 CurrentStage 변수 이름과 일치해야 함)
+		FProperty* StageProp = RewardUI->GetClass()->FindPropertyByName(FName("CurrentStage"));
+		if (StageProp)
+		{
+			if (FIntProperty* IntProp = CastField<FIntProperty>(StageProp))
+			{
+				IntProp->SetPropertyValue_InContainer(RewardUI, StageLevel);
+			}
+		}
 
-    this->Destroy();
+		// 3. 화면에 표시 및 입력 모드 설정
+		RewardUI->AddToViewport();
+
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
+		PC->SetInputMode(InputMode);
+		PC->bShowMouseCursor = true;
+	}
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	Destroy();
 }
 
-void ARewardBox::ExecuteInteraction(APlayerCharacter* Interactor)
+FText ARewardBox::GetInteractText() const
 {
-    PerformInteraction(Interactor);
+	return FText::FromString(TEXT("보상 열기"));
 }
 
-void ARewardBox::InitializeReward(UDataTable* InTable, FName InRowName)
+void ARewardBox::SetupParticleByMapType(EMapType InMapType)
 {
-    RewardInfo = InTable;
-	RewardRowName = InRowName;
+	if (!RewardParticle) return; // 파티클 컴포넌트가 없으면 종료
+
+	UNiagaraSystem* SelectedParticle = nullptr;
+
+	// 1. 맵 타입에 따라 켤 파티클 결정
+	switch (InMapType)
+	{
+	case EMapType::NormalBattle: // (선생님의 Enum 이름에 맞게 수정해주세요)
+		SelectedParticle = NormalParticle;
+		break;
+	case EMapType::Jester:
+	case EMapType::StrongEnemyBattle:
+		SelectedParticle = EpicParticle;
+		break;
+	case EMapType::BossBattle:
+		SelectedParticle = BossParticle;
+		break;
+	default:
+		SelectedParticle = NormalParticle;
+		break;
+	}
+
+	// 2. 파티클 갈아끼우고 켜기!
+	if (SelectedParticle)
+	{
+		RewardParticle->SetAsset(SelectedParticle);
+		RewardParticle->Activate(true); // 재생 버튼 누르기!
+	}
 }
-
-FText ARewardBox::GetInteractText()
-{
-    return FText::FromString(TEXT("보상 열기[F]"));
-}
-
-void ARewardBox::RewardToPlayer(APlayerCharacter* Interactor)
-{
-    if (!RewardInfo || RewardRowName.IsNone())
-    {
-        UE_LOG(LogTemp, Error, TEXT("보상 데이터가 설정되지 않았습니다!"));
-        return;
-    }
-    static const FString ContextString(TEXT("Reward Box Context"));
-    FRewardData* RewardRow = RewardInfo->FindRow<FRewardData>(RewardRowName, ContextString);
-
-    if (!RewardRow)
-    {
-        UE_LOG(LogTemp, Error, TEXT("RowName [%s]을 찾을 수 없습니다!"), *RewardRowName.ToString());
-        return;
-    }
-
-	UInventoryComponent* InventoryComp = Interactor->FindComponentByClass<UInventoryComponent>();
-	
-    if (InventoryComp)
-    {
-        InventoryComp->GainSand(RewardRow->SandAmount);
-        InventoryComp->GainIncompleteEnergy(RewardRow->IncompleteEnergyAmount);
-        InventoryComp->GainMoney(RewardRow->MoneyAmount);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("플레이어의 인벤토리 컴포넌트를 찾을 수 없습니다!"));
-    }
-}
-
-
-

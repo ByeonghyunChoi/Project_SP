@@ -1,129 +1,206 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Map/MapBase.h"
-#include "Components/SceneComponent.h"
-#include "Map/MapNode.h"
+﻿#include "Map/MapBase.h"
+#include "Map/MapManagerSubsystem.h"
 #include "Map/PortalActor.h"
+#include "Components/SceneComponent.h"
 #include "Map/RewardBox.h"
+#include "Kismet/GameplayStatics.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
-// Sets default values
 AMapBase::AMapBase()
 {
-	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("DefaultSceneRoot")));
-	PlayerStartPoint = CreateDefaultSubobject<USceneComponent>(TEXT("PlayerStartPoint"));
-	PlayerStartPoint->SetupAttachment(RootComponent);
+	PrimaryActorTick.bCanEverTick = false;
 
-	CurrentMapState = EMapState::InProgress;
-	CurrentMapType = EMapType::NormalBattle;
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SetRootComponent(SceneRoot);
+
+	CurrentState = EMapState::None;
 }
 
-
-FName AMapBase::GetRewardRowNameByMapType() const
+void AMapBase::BeginPlay()
 {
-	switch (CurrentMapType)
-    {
-    case EMapType::NormalBattle:
-        return FName("Normal"); // �Ϲ� ���� ����
-
-    case EMapType::StrongEnemyBattle:
-        return FName("Epic");  // ���� ���� ����
-
-    case EMapType::BossBattle:
-        return FName("Boss");   // ���� ���� ����
-
-    case EMapType::Jester:
-        return FName("Epic");   // �̺�Ʈ �� ����
-
-    default:
-        return FName("Normal");
-    }
+	Super::BeginPlay();
 }
 
-void AMapBase::BeginMapLogic_Implementation()
+void AMapBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	ActivatePortals();
-}
+	Super::EndPlay(EndPlayReason);
 
-void AMapBase::OnCombatFinished_Implementation(bool bPlayerWon)
-{
-	UE_LOG(LogTemp, Log, TEXT("AMapBase::OnCombatFinished - PlayerWon: %s"), bPlayerWon ? TEXT("True") : TEXT("False"));
-	if (bPlayerWon)
+	// 내가 관리하던 포탈들 싹 다 제거
+	for (APortalActor* Portal : SpawnedPortals)
 	{
-		// ���� ���� ����
-		if (RewardBox)
-		{
-			// ... ���� ���� ���� ...
-			FName TargetLootGroup = GetRewardRowNameByMapType();
-			RewardBox->InitializeReward(RewardDataTable, TargetLootGroup);
-		}
-	}
-}
-
-void AMapBase::InitializeNextNodes(const TArray<UMapNode*>& ChildNodes)
-{
-	NextNodeOptions = ChildNodes;
-}
-
-void AMapBase::ClearMapElements()
-{
-	for (APortalActor* Portal : PortalActors)
-	{
-		if (Portal)
+		// 포탈이 유효하다면(아직 월드에 있다면) 파괴
+		if (IsValid(Portal))
 		{
 			Portal->Destroy();
 		}
 	}
-	PortalActors.Empty();
+
+	// 배열 비우기
+	SpawnedPortals.Empty();
+
+	UE_LOG(LogTemp, Log, TEXT("MapBase Destroyed: All Portals Cleaned up."));
 }
 
-void AMapBase::ActivatePortals()
+TArray<FTransform> AMapBase::GetSpawnTransformsByTag(FName PointTag) const
 {
-	SetMapState(EMapState::Cleard);
+	TArray<FTransform> FoundTransforms;
+	TArray<USceneComponent*> Components;
+	GetComponents<USceneComponent>(Components);
 
-	int32 NumToActivate = FMath::Min(NextNodeOptions.Num(), PortalActors.Num());
-	
-	for (int32 i = 0; i < NumToActivate; ++i)
+	for (USceneComponent* Comp : Components)
 	{
-		APortalActor* Portal = PortalActors[i];
-		UMapNode* NodeData = NextNodeOptions[i];
-
-		if (Portal && NodeData)
+		if (Comp && Comp->ComponentHasTag(PointTag))
 		{
-			Portal->SetActorEnableCollision(true);
-			Portal->InitializePortalData(NodeData);
-			Portal->OnPortalStateChanged(true);
+			FoundTransforms.Add(Comp->GetComponentTransform());
+		}
+	}
+	return FoundTransforms;
+}
+
+void AMapBase::SetMapState(EMapState NewState)
+{
+	if (CurrentState == NewState) return;
+
+	EMapState OldState = CurrentState;
+	CurrentState = NewState;
+
+	switch (CurrentState)
+	{
+	case EMapState::InProgress:
+		HandleStateInProgress();
+		break;
+	case EMapState::Reward:
+		HandleStateReward();
+		break;
+	case EMapState::Cleared:
+		HandleStateCleared();
+		break;
+	}
+
+	OnMapStateChanged(OldState, NewState);
+}
+
+void AMapBase::InitializeMap(EMapType InType, EMapState InitialState)
+{
+	MapType = InType;
+	SetMapState(EMapState::InProgress);
+
+	if (InitialState == EMapState::Reward)
+	{
+		ClearFieldMonsters();
+		SetMapState(EMapState::Reward); // Reward 발동 -> 상자 스폰됨
+	}
+	else if (InitialState == EMapState::Cleared)
+	{
+		ClearFieldMonsters();
+		// Reward 단계를 건너뛰고 바로 Cleared로 직행! -> 상자 절대 안 나옴! 포탈만 활성화됨!
+		SetMapState(EMapState::Cleared);
+	}
+}
+
+void AMapBase::ClearFieldMonsters()
+{
+	TArray<AActor*> FieldMonsters;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FieldMonsters);
+
+	for (AActor* Monster : FieldMonsters)
+	{
+		if (IsValid(Monster))
+		{
+			Monster->Destroy();
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("방이 클리어되어 필드 몬스터를 모두 청소했습니다."));
+}
+
+void AMapBase::HandleStateInProgress()
+{
+	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+	if (!MapManager || !PortalClass) return;
+
+	// 다음 층 선택지 미리 계산
+	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
+	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
+
+	SpawnedPortals.Empty();
+
+	// 포탈 스폰 (비활성화)
+	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
+	{
+		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
+		if (NewPortal)
+		{
+			NewPortal->SetPortalTargetType(Options[i]);
+			NewPortal->ActivatePortal(false); //비활성화 상태로 시작
+			SpawnedPortals.Add(NewPortal);
 		}
 	}
 }
 
-void AMapBase::SetMapType(const EMapType& NewMapType)
+void AMapBase::HandleStateReward()
 {
-	CurrentMapType = NewMapType;
+	if (!RewardChestClass)
+	{
+		// 상자가 없으면 바로 클리어 처리
+		SetMapState(EMapState::Cleared);
+		return;
+	}
+
+	TArray<FTransform> RewardPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Reward"));
+	UE_LOG(LogTemp, Warning, TEXT("Reward Points Found: %d"), RewardPoints.Num());
+	if (RewardPoints.Num() > 0)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ARewardBox* SpawnedChest = GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams);
+		if (SpawnedChest)
+		{
+			SpawnedChest->SetupParticleByMapType(MapType);
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Reward Chest Spawned!"));
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] 보상 방: 전투 승리 상태 저장 완료"));
+		}
+	}
 }
 
-EMapType AMapBase::GetMapType() const
+void AMapBase::HandleStateCleared()
 {
-	return CurrentMapType;
-}
+	for (APortalActor* Portal : SpawnedPortals)
+	{
+		if (Portal)
+		{
+			Portal->ActivatePortal(true);
+		}
+	}
 
-void AMapBase::SetMapState(const EMapState& NewMapState)
-{
-	CurrentMapState = NewMapState;
-}
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->SetCurrentRoomState(EMapState::Cleared);
+	}
 
-EMapState AMapBase::GetMapState() const
-{
-	return CurrentMapState;
-}
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			SaveSys->CacheRunDataFromPlayer(Player);
+			SaveSys->SaveRunToDisk();
 
-FVector AMapBase::GetPlayerStartLocation() const
-{
-	return PlayerStartPoint ? PlayerStartPoint->GetComponentLocation() : GetActorLocation();
+			// 혹시 영구 재화를 먹었을 수도 있으니 Perm도 갱신
+			SaveSys->CachePermDataFromPlayer(Player);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Log, TEXT("[AutoSave] 클리어: 보상 획득 및 포탈 개방 상태 저장 완료"));
+		}
+	}
 }
-
-FRotator AMapBase::GetPlayerStartRotation() const
-{
-	return PlayerStartPoint ? PlayerStartPoint->GetComponentRotation() : GetActorRotation();
-}
-

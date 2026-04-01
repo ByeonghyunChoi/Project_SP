@@ -1,16 +1,15 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interface/InteractableInterface.h"
+#include "Map/MapInfo.h"
 #include "RewardBox.generated.h"
 
-class UDataTable;
-class inventoryComponent;
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRewardInteractedSignature);
+class UNiagaraSystem;
+class UNiagaraComponent;
 
 UCLASS()
 class PROJECT_SP_API ARewardBox : public AActor, public IInteractableInterface
@@ -18,47 +17,38 @@ class PROJECT_SP_API ARewardBox : public AActor, public IInteractableInterface
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	ARewardBox();
 
-	//RewardBox Structure Section
-protected:
-	//¹Ú½º ¿ÜÇü
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RewardBox")
-	TObjectPtr<UStaticMeshComponent> BoxMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RewardBox")
-	TObjectPtr<UDataTable> RewardInfo;
-
-	//Interaction Logic Section
-public:
-	//»óÈ£ÀÛ¿ë µ¨¸®°ÔÀÌÆ®
-	UPROPERTY(BlueprintAssignable, Category = "RewardBox")
-	FOnRewardInteractedSignature OnRewardInteracted;
-	//»óÈ£ÀÛ¿ë ·ÎÁ÷
-	UFUNCTION(BlueprintCallable, Category = "RewardBox")
-	void PerformInteraction(APlayerCharacter* Interactor);
+	//ìƒí˜¸ì‘ìš©ì„ ì‹¤í–‰í•  ë•Œ í˜¸ì¶œ
+	virtual void ExecuteInteraction(AActor* Interactor) override;
+	//UIì— í‘œì‹œí•  ìƒí˜¸ì‘ìš© í…ìŠ¤íŠ¸ ë°˜í™˜
+	virtual FText GetInteractText() const override;
+	// ë³´ìƒ ìƒì íŒŒí‹°í´ í‚¤ëŠ” í•¨ìˆ˜
+	void SetupParticleByMapType(EMapType InMapType);
 
 protected:
-	//»óÈ£ÀÛ¿ë ¿©ºÎ ÆÇ´Ü(Áßº¹ ¹æÁö)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RewardBox")
-	bool bHasBeenInteracted = false;
+	UPROPERTY(VisibleAnywhere)
+	UStaticMeshComponent* MeshComp;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RewardBox")
-	FName RewardRowName;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UNiagaraComponent* RewardParticle;
 
-	//Interface Logic Section
-public:
-	//ÇÃ·¹ÀÌ¾î°¡ »óÈ£ÀÛ¿ë Å°¸¦ ´­·¯¼­ È£ÃâÇÒ ÇÔ¼ö
-	virtual void ExecuteInteraction(APlayerCharacter* Interactor) override;
+	//ì—ë””í„°ì—ì„œ WBP_RelicRewardë¥¼ í• ë‹¹í•  ë³€ìˆ˜
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<UUserWidget> RelicRewardWidgetClass;
 
-	//º¸»ó µ¥ÀÌÅÍ Å×ÀÌºí°ú ·Î¿ì ÀÌ¸§À» ÃÊ±âÈ­ÇÏ´Â ÇÔ¼ö
-	void InitializeReward(UDataTable* InTable, FName InRowName);
+	// ìƒìê°€ ìœ„ì¹˜í•œ í˜„ì¬ ìŠ¤í…Œì´ì§€ (í™•ë¥  ê³„ì‚°ìš©)
+	UPROPERTY(EditAnywhere, Category = "Reward")
+	int32 StageLevel = 1;
 
-	//ÇÃ·¹ÀÌ¾î UI¿¡ Ç¥½ÃÇÒ ÅØ½ºÆ®¸¦ ¹İÈ¯
-	UFUNCTION(BlueprintCallable)
-	virtual FText GetInteractText() override;
+	bool bIsOpened = false;
 
-protected:
-	void RewardToPlayer(APlayerCharacter* Interactor);
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* NormalParticle;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* EpicParticle;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* BossParticle;
 };

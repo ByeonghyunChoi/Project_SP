@@ -1,5 +1,6 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
+#pragma once
 
 #include "Component/InventoryComponent.h"
 
@@ -12,75 +13,125 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Å×½ºÆ®¿ë ÃÊ±â°ª
-	PlayerMaterials.Sand = 0;
-	PlayerMaterials.IncompleteEnergy = 0; // Å×½ºÆ®¿ë ÃÊ±â°ª
+	// [í…ŒìŠ¤íŠ¸ìš©] ê°œë°œ í¸ì˜ë¥¼ ìœ„í•´ ì´ˆê¸° ìì› ì§€ê¸‰ (ë‚˜ì¤‘ì— ì‚­ì œ)
+	PermanentWallet.Sand = 1000;
+	PermanentWallet.IncompleteEnergy = 10;
+
+	// ì´ˆê¸° ìƒíƒœ UI ê°±ì‹ 
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
-// ÇöÀç ¸ğ·¡ °¡Á®¿À±â
-int32 UInventoryComponent::GetCurrentSand() const
+void UInventoryComponent::AddSand(int32 Amount)
 {
-	return PlayerMaterials.Sand;
+	if (Amount <= 0) return;
+	PermanentWallet.Sand += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("ëª¨ë˜ íšë“: +%d (í˜„ì¬: %d)"), Amount, PermanentWallet.Sand);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
-// ¸ğ·¡ °³¼ö ¼³Á¤
-void UInventoryComponent::SetCurrentSand(int32 NewAmount)
+bool UInventoryComponent::ConsumeSand(int32 Amount)
 {
-	// ÃÖ¼Ò°ªÀ» 0À¸·Î ¼³Á¤ÇÏ¿© À½¼ö ÀçÈ­¸¦ ¹æÁöÇÕ´Ï´Ù.
-	PlayerMaterials.Sand = FMath::Max(0, NewAmount);
+	if (Amount <= 0) return false;
+	if (PermanentWallet.Sand < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ëª¨ë˜ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, PermanentWallet.Sand);
+		return false;
+	}
 
+	PermanentWallet.Sand -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("ëª¨ë˜ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, PermanentWallet.Sand);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
 }
 
-// ÇöÀç ºÒ¿ÏÀüÇÑ ±â¿î °¡Á®¿À±â
-int32 UInventoryComponent::GetCurrentIncompleteEnergy() const
+void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 {
-	return PlayerMaterials.IncompleteEnergy;
+	if (Amount <= 0) return;
+	PermanentWallet.IncompleteEnergy += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("ê¸°ìš´ íšë“: +%d (í˜„ì¬: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
-// ºÒ¿ÏÀüÇÑ ±â¿î ¼³Á¤
-void UInventoryComponent::SetCurrentIncompleteEnergy(int32 NewAmount)
+bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
 {
-	PlayerMaterials.IncompleteEnergy = FMath::Max(0, NewAmount);
+	if (Amount <= 0) return false;
+	if (PermanentWallet.IncompleteEnergy < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ê¸°ìš´ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, PermanentWallet.IncompleteEnergy);
+		return false;
+	}
+
+	PermanentWallet.IncompleteEnergy -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("ê¸°ìš´ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
 }
 
-int32 UInventoryComponent::GetCurrentMoney() const
+void UInventoryComponent::AddMoney(int32 Amount)
 {
-	return PlayerMaterials.Money;
+	if (Amount <= 0) return;
+	RunWallet.Money += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("ê³¨ë“œ íšë“: +%d (í˜„ì¬: %d)"), Amount, RunWallet.Money);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
-void UInventoryComponent::SetCurrentMoney(int32 NewAmount)
+bool UInventoryComponent::ConsumeMoney(int32 Amount)
 {
-	PlayerMaterials.Money = FMath::Max(0, NewAmount);
+	if (Amount <= 0) return false;
+	if (RunWallet.Money < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ê³¨ë“œ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, RunWallet.Money);
+		return false;
+	}
+
+	RunWallet.Money -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("ê³¨ë“œ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, RunWallet.Money);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
 }
 
-void UInventoryComponent::GainSand(int32 Amount)
+void UInventoryComponent::AddFragment(int32 Amount)
 {
-	int32 ActrualReward = FMath::Max(0, Amount);
-	int32 NewTotalSand = GetCurrentSand() + ActrualReward;
-	SetCurrentSand(NewTotalSand);
+	if (Amount <= 0) return;
+	RunWallet.Fragment += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("ê¶ŒëŠ¥ì˜ íŒŒí¸ íšë“: +%d (í˜„ì¬: %d)"), Amount, RunWallet.Fragment);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
-void UInventoryComponent::GainIncompleteEnergy(int32 Amount)
+bool UInventoryComponent::ConsumeFragment(int32 Amount)
 {
-	int32 ActrualReward = FMath::Max(0, Amount);
-	int32 NewTotalIncompleteEnergy = GetCurrentIncompleteEnergy() + ActrualReward;
-	SetCurrentIncompleteEnergy(NewTotalIncompleteEnergy);
+	if (Amount <= 0) return false;
+	if (RunWallet.Fragment < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ê¶ŒëŠ¥ì˜ íŒŒí¸ ë¶€ì¡±! í•„ìš”: %d, ë³´ìœ : %d"), Amount, RunWallet.Fragment);
+		return false;
+	}
+
+	RunWallet.Fragment -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("ê¶ŒëŠ¥ì˜ íŒŒí¸ ì†Œëª¨: -%d (ë‚¨ì€ ì–‘: %d)"), Amount, RunWallet.Fragment);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
 }
 
-void UInventoryComponent::GainMoney(int32 Amount)
+void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet)
 {
-	int32 ActrualReward = FMath::Max(0, Amount);
-	int32 NewTotalMoney = GetCurrentMoney() + ActrualReward;
-	SetCurrentMoney(NewTotalMoney);
-}
+	// 1. ì„¸ì´ë¸Œ íŒŒì¼ì—ì„œ ê°€ì ¸ì˜¨ ë°ì´í„°ë¡œ ë‚´ ì§€ê°‘ì„ í†µì§¸ë¡œ ë®ì–´ì”ë‹ˆë‹¤.
+	RunWallet = InRunWallet;
+	PermanentWallet = InPermWallet;
 
-// À¯¹° °ü·Ã ÇÔ¼ö
-void UInventoryComponent::EquipRelic()
-{
+	// 2. ëˆì´ ë°”ë€Œì—ˆìœ¼ë‹ˆ UI(ìœ„ì ¯) ìˆ«ìë„ ë°”ë€Œì–´ì•¼ê² ì£ ? ë°©ì†¡ì„ ì¼­ë‹ˆë‹¤!
+	if (OnInventoryUpdated.IsBound())
+	{
+		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	}
 
-}
-
-void UInventoryComponent::UnequipRelic()
-{
-
+	UE_LOG(LogTemp, Log, TEXT("[Inventory] ì§€ê°‘ ë³µêµ¬ ì™„ë£Œ! ê³¨ë“œ: %d / ëª¨ë˜: %d"), RunWallet.Money, PermanentWallet.Sand);
 }

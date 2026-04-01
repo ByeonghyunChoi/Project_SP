@@ -1,0 +1,926 @@
+﻿	return FMath::FloorToInt(CurrentTimePower);
+}
+
+int32 ASPGASPlayerController::GetSkillCost(FGameplayTag ActionTag) const
+{
+	if (!CachedASC) return 0;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 1. 시간 간섭은 무기와 상관없는 공용 스킬이므로 기존처럼 '태그'로 찾습니다.
+	if (ActionTag.MatchesTag(SPTags.Battle_Action_TimeInterference))
+	{
+		for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
+		{
+			if (Spec.Ability && Spec.Ability->GetAssetTags().HasTagExact(ActionTag))
+			{
+				if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
+				{
+					for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
+					{
+						if (ModInfo.Attribute == USPGASAttributeSet::GetTimePowerAttribute())
+						{
+							float CostValue = 0.0f;
+							if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
+								return FMath::FloorToInt(FMath::Abs(CostValue));
+						}
+					}
+				}
+			}
+		}
+		return 0;
+	}
+
+	// 2. 무기 스킬인 경우 -> 태그가 아니라 "클래스"로 찾습니다!
+	if (ActionTag.MatchesTag(SPTags.Battle_Action_Skill))
+	{
+		ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+		if (!PlayerChar) return 0;
+
+		// 캐릭터 클래스에서 현재 장착 중인 무기의 DataAsset을 가져오는 함수를 호출
+		UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeaponTag);
+
+		if (WeaponData && WeaponData->WeaponSkillAbility)
+		{
+			// DataAsset에 등록된 바로 그 "클래스(TSubclassOf)"를 타겟으로 지정합니다.
+			TSubclassOf<UGameplayAbility> TargetAbilityClass = WeaponData->WeaponSkillAbility;
+
+			// ASC를 뒤져서 클래스가 일치하는 녀석을 찾습니다.
+			for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
+			{
+				// 태그 비교가 아니라 클래스 비교!
+				if (Spec.Ability && Spec.Ability->GetClass() == TargetAbilityClass)
+				{
+					if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
+					{
+						for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
+						{
+							if (ModInfo.Attribute == USPGASAttributeSet::GetBattlePointAttribute())
+							{
+								float CostValue = 0.0f;
+								if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
+									return FMath::FloorToInt(FMath::Abs(CostValue));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+float ASPGASPlayerController::GetHealthPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	if (MaxHP > 0.0f)
+	{
+		return FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
+
+float ASPGASPlayerController::GetTimePowerPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+	float MaxTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+	if (MaxTP > 0.0f)
+	{
+		return FMath::Clamp(CurrentTP / MaxTP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
+void ASPGASPlayerController::SetupAndShowBattleUI()
+{
+	// 1. ASC 및 캐릭터 안전하게 쥐기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+	if (PlayerChar)
+	{
+		CachedASC = PlayerChar->GetAbilitySystemComponent();
+
+		// 화면 UI가 켜질 때 위젯 컴포넌트도 여기서 한 번에 켭니다!
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
+	}
+
+	// 2. 위젯 생성 및 스위치!
+	if (!BattleHUDWidget && BattleHUDClass)
+	{
+		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
+}
+
+void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
+{
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
+	}
+
+	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
+	CancelTargetSelection();
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
+}
+
+void ASPGASPlayerController::RefreshBattlePointUI()
+{
+	if (!CachedASC) return;
+
+	int32 CurrentBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetBattlePointAttribute()));
+	int32 MaxBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxBattlePointAttribute()));
+	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
+}
+
+void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
+{
+	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
+}
+
+void ASPGASPlayerController::StartTargetSelection()
+{
+	// 1. 적 목록 찾기
+	AvailableTargets.Empty();
+
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		TArray<AActor*> BattleEnemies = GM->GetCurrentEnemies();
+
+		for (AActor* Actor : BattleEnemies)
+		{
+			if (IsValid(Actor))
+			{
+				AvailableTargets.Add(Actor);
+			}
+		}
+	}
+
+	if (AvailableTargets.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("공격 가능한 적이 없습니다!"));
+		CancelTargetSelection();
+		return;
+	}
+
+	// 2. 초기화
+	bIsSelectingTarget = true;
+	CurrentTargetIndex = 0; 
+
+	// 3. 하이라이트 ON
+	HighlightCurrentTarget(true);
+}
+
+void ASPGASPlayerController::ConfirmTargetAndExecute()
+{
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+	{
+		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
+
+		// 하이라이트 OFF 및 상태 리셋
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+
+		// 실행 명령
+		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
+
+		// 행동 초기화 (다음 턴을 위해)
+		CurrentSelectedAction = ESelectedActionType::None;
+	}
+	else
+	{
+		// 🌟 3. (옵션) 타겟을 확정하려 했으나 이미 파괴된 경우의 예외 처리
+		UE_LOG(LogTemp, Warning, TEXT("타겟 확정 실패: 타겟이 이미 파괴되었거나 유효하지 않습니다."));
+
+		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+		CurrentSelectedAction = ESelectedActionType::None;
+
+		StartTargetSelection();
+	}
+}
+
+void ASPGASPlayerController::CancelTargetSelection()
+{
+	HighlightCurrentTarget(false);
+	bIsSelectingTarget = false;
+	CurrentSelectedAction = ESelectedActionType::None;
+	AvailableTargets.Empty();
+	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
+}
+
+void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
+{
+	if (AvailableTargets.Num() == 0) return;
+
+	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	if (CurrentTargetingType == ETargetingType::All)
+	{
+		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
+		{
+			if (TargetPtr.IsValid())
+			{
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				{
+					Monster->SetSelectedWidget(bHighlight, true);
+				}
+			}
+		}
+	}
+	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	else if (CurrentTargetingType == ETargetingType::Area)
+	{
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid())
+			{
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
+				{
+					bool bIsPrimary = (i == CurrentTargetIndex);
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+				}
+			}
+		}
+	}
+	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
+	else
+	{
+		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+		{
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
+			{
+				Monster->SetSelectedWidget(bHighlight, true);
+			}
+		}
+	}
+}
+
+void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor)
+{
+	if (ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EXECUTE! 무기: %s, 타겟: %s"),
+			*CurrentWeaponTag.ToString(), *TargetActor->GetName());
+
+		// 캐릭터에게 실행 요청 (타겟 정보 전달)
+		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+	}
+}
+
+void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== 1. 마우스 클릭 버튼 눌림! ==="));
+	// 타겟팅 모드 검사
+	if (!bIsSelectingTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 타겟팅 모드가 아니라서 취소됨"));
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("=== 2. 타겟팅 모드 통과! ==="));
+
+	// 마우스 커서 아래에 있는 물체(액터)를 쏩니다
+	FHitResult HitResult;
+	if (GetHitResultUnderCursor(ECC_GameTraceChannel2, false, HitResult))
+	{
+		AActor* ClickedActor = HitResult.GetActor();
+		if (!IsValid(ClickedActor))
+		{
+			return;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
+
+		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+
+		// 찾았다면? (적을 클릭한 게 맞다면)
+		if (FoundIndex != INDEX_NONE)
+		{
+			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
+			if (CurrentTargetingType == ETargetingType::All)
+			{
+				ConfirmTargetAndExecute();
+				return;
+			}
+
+			// [광역(Area) / 단일 / 랜덤] 이라면
+			if (FoundIndex == CurrentTargetIndex)
+			{
+				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+					ConfirmTargetAndExecute();
+				}
+			}
+			else
+			{
+				// 다른 녀석을 클릭했다면 -> 주 타겟을 그 녀석으로 변경!
+				HighlightCurrentTarget(false);
+				CurrentTargetIndex = FoundIndex;
+				HighlightCurrentTarget(true);
+
+				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 마우스 아래에 아무것도 없음 (허공 클릭)"));
+	}
+}
+
+void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
+void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
+
+void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (CurrentWeaponTag == NewWeaponTag) return;
+	if (!CachedASC) return;
+
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
+
+	CachedASC->AddLooseGameplayTag(NewWeaponTag);
+
+	CurrentWeaponTag = NewWeaponTag;
+	CurrentSelectedAction = ESelectedActionType::None; // 무기 바뀌면 행동 리셋
+
+	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+}
+
+bool ASPGASPlayerController::IsMyTurn() const
+{
+	if (CachedASC)
+	{
+		return CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+	}
+	return false;
+}
+
+void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 1. 캐릭터 & 서브시스템 가져오기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+	auto* Subsystem = GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	
+	if (!PlayerChar || !Subsystem) return;
+
+	// 2. NewCount가 0보다 크면 전투 모드
+	if (NewCount > 0)
+	{
+		// [전투 진입]
+		Subsystem->RemoveMappingContext(FieldMappingContext);
+		Subsystem->AddMappingContext(BattleMappingContext, 0);
+		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
+		
+
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
+	}
+	else
+	{
+		// [전투 종료/필드]
+		Subsystem->RemoveMappingContext(BattleMappingContext);
+		Subsystem->AddMappingContext(FieldMappingContext, 0);
+		CancelTargetSelection();
+
+		PlayerChar->SetCameraProfile(PlayerChar->GetFieldCameraProfile());
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
+	}
+}
+// ==========================================
+// FILE: SPGASPlayerState.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Character/SPGASPlayerState.h"
+#include "AbilitySystemComponent.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+
+ASPGASPlayerState::ASPGASPlayerState()
+{
+	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("GAS"));
+	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
+}
+
+UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
+{
+	return ASC;
+}
+
+// ==========================================
+// FILE: InventoryComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "Component/InventoryComponent.h"
+
+UInventoryComponent::UInventoryComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UInventoryComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// [테스트용] 개발 편의를 위해 초기 자원 지급 (나중에 삭제)
+	PermanentWallet.Sand = 1000;
+	PermanentWallet.IncompleteEnergy = 10;
+
+	// 초기 상태 UI 갱신
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+}
+
+void UInventoryComponent::AddSand(int32 Amount)
+{
+	if (Amount <= 0) return;
+	PermanentWallet.Sand += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("모래 획득: +%d (현재: %d)"), Amount, PermanentWallet.Sand);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+}
+
+bool UInventoryComponent::ConsumeSand(int32 Amount)
+{
+	if (Amount <= 0) return false;
+	if (PermanentWallet.Sand < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("모래 부족! 필요: %d, 보유: %d"), Amount, PermanentWallet.Sand);
+		return false;
+	}
+
+	PermanentWallet.Sand -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("모래 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.Sand);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
+}
+
+void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
+{
+	if (Amount <= 0) return;
+	PermanentWallet.IncompleteEnergy += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("기운 획득: +%d (현재: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+}
+
+bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
+{
+	if (Amount <= 0) return false;
+	if (PermanentWallet.IncompleteEnergy < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("기운 부족! 필요: %d, 보유: %d"), Amount, PermanentWallet.IncompleteEnergy);
+		return false;
+	}
+
+	PermanentWallet.IncompleteEnergy -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("기운 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
+}
+
+void UInventoryComponent::AddMoney(int32 Amount)
+{
+	if (Amount <= 0) return;
+	RunWallet.Money += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("골드 획득: +%d (현재: %d)"), Amount, RunWallet.Money);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+}
+
+bool UInventoryComponent::ConsumeMoney(int32 Amount)
+{
+	if (Amount <= 0) return false;
+	if (RunWallet.Money < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("골드 부족! 필요: %d, 보유: %d"), Amount, RunWallet.Money);
+		return false;
+	}
+
+	RunWallet.Money -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("골드 소모: -%d (남은 양: %d)"), Amount, RunWallet.Money);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
+}
+
+void UInventoryComponent::AddFragment(int32 Amount)
+{
+	if (Amount <= 0) return;
+	RunWallet.Fragment += Amount;
+
+	UE_LOG(LogTemp, Log, TEXT("권능의 파편 획득: +%d (현재: %d)"), Amount, RunWallet.Fragment);
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+}
+
+bool UInventoryComponent::ConsumeFragment(int32 Amount)
+{
+	if (Amount <= 0) return false;
+	if (RunWallet.Fragment < Amount)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("권능의 파편 부족! 필요: %d, 보유: %d"), Amount, RunWallet.Fragment);
+		return false;
+	}
+
+	RunWallet.Fragment -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("권능의 파편 소모: -%d (남은 양: %d)"), Amount, RunWallet.Fragment);
+
+	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	return true;
+}
+
+void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet)
+{
+	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씁니다.
+	RunWallet = InRunWallet;
+	PermanentWallet = InPermWallet;
+
+	// 2. 돈이 바뀌었으니 UI(위젯) 숫자도 바뀌어야겠죠? 방송을 켭니다!
+	if (OnInventoryUpdated.IsBound())
+	{
+		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Inventory] 지갑 복구 완료! 골드: %d / 모래: %d"), RunWallet.Money, PermanentWallet.Sand);
+}
+// ==========================================
+// FILE: OpartsComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "Component/OpartsComponent.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
+#include "GameplayAbilitySpec.h"
+#include "Component/InventoryComponent.h" 
+
+UOpartsComponent::UOpartsComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UOpartsComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// ASC 가져오기
+	if (IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(GetOwner()))
+	{
+		ASC = Interface->GetAbilitySystemComponent();
+	}
+	else if (GetOwner())
+	{
+		ASC = GetOwner()->FindComponentByClass<UAbilitySystemComponent>();
+	}
+}
+
+void UOpartsComponent::EquipNextOparts()
+{
+	if (AllOpartsList.Num() == 0) return;
+
+	// 1. 현재 장착된 오파츠의 인덱스 찾기
+	int32 CurrentIndex = -1;
+	if (RuntimeData.Definition)
+	{
+		CurrentIndex = AllOpartsList.Find(RuntimeData.Definition);
+	}
+
+	// 2. 다음 인덱스 계산 (마지막이면 처음으로 돌아감 -> 모듈러 연산 %)
+	// ex (0 + 1) % 3 = 1
+	// ex (2 + 1) % 3 = 0
+	int32 NextIndex = (CurrentIndex + 1) % AllOpartsList.Num();
+
+	// 3. 교체 실행
+	EquipOparts(AllOpartsList[NextIndex]);
+}
+
+void UOpartsComponent::EquipPreviousOparts()
+{
+	if (AllOpartsList.Num() == 0) return;
+
+	int32 CurrentIndex = -1;
+	if (RuntimeData.Definition)
+	{
+		CurrentIndex = AllOpartsList.Find(RuntimeData.Definition);
+	}
+
+	// 2. 이전 인덱스 계산 (음수가 나오지 않게 처리)
+	// ex (0 - 1 + 3) % 3 = 2
+	int32 PrevIndex = (CurrentIndex - 1 + AllOpartsList.Num()) % AllOpartsList.Num();
+
+	// 3. 교체 실행
+	EquipOparts(AllOpartsList[PrevIndex]);
+}
+
+void UOpartsComponent::EquipOparts(const UOpartsDefinition* NewOpartsDef)
+{
+	if (!ASC || !NewOpartsDef) return;
+	if (RuntimeData.Definition == NewOpartsDef) return; // 이미 같은 거 장착 중
+
+	// 1. 기존 것 싹 비우기
+	UnequipCurrentOparts();
+
+	// 2. 새 데이터 세팅 (초기 상태: 1레벨, 아티팩트 0개)
+	// (만약 세이브 파일에서 불러오는 경우라면 여기서 Load 로직을 태워야 합니다)
+	RuntimeData.Definition = NewOpartsDef;
+	
+	if (OpartsProgressMap.Contains(NewOpartsDef))
+	{
+		RuntimeData.CurrentLevel = OpartsProgressMap[NewOpartsDef].Level;
+		RuntimeData.UnlockedArtifactCount = OpartsProgressMap[NewOpartsDef].UnlockedArtifactCount;
+	}
+	else
+	{
+		RuntimeData.CurrentLevel = 1;
+		RuntimeData.UnlockedArtifactCount = 0;
+		// 새 오파츠 장부에 등록
+		OpartsProgressMap.Add(NewOpartsDef, FOpartsProgressData());
+	}
+
+	// 3. 능력 적용
+	ApplyOpartsStatsAndAbilities();
+
+	UE_LOG(LogTemp, Log, TEXT("오파츠 장착: %s"), *NewOpartsDef->DisplayName.ToString());
+}
+
+void UOpartsComponent::UnequipCurrentOparts()
+{
+	if (!ASC) return;
+
+	// 1. 기본 패시브 제거
+	if (RuntimeData.PassiveAbilityHandle.IsValid())
+	{
+		ASC->ClearAbility(RuntimeData.PassiveAbilityHandle);
+	}
+
+	// 2. 기본 스탯 이펙트 제거
+	if (RuntimeData.StatEffectHandle.IsValid())
+	{
+		ASC->RemoveActiveGameplayEffect(RuntimeData.StatEffectHandle);
+	}
+
+	// 3. 아티팩트 능력들 제거
+	for (auto& Handle : RuntimeData.ArtifactAbilityHandles)
+	{
+		if (Handle.IsValid()) ASC->ClearAbility(Handle);
+	}
+
+	// 4. 아티팩트 스탯들 제거
+	for (auto& Handle : RuntimeData.ArtifactEffectHandles)
+	{
+		if (Handle.IsValid()) ASC->RemoveActiveGameplayEffect(Handle);
+	}
+
+	// 데이터 초기화 및 UI 알림
+	RuntimeData.Clear();
+	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
+}
+
+void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
+{
+	OpartsProgressMap = SavedData.ProgressMap;
+
+	// 저장된 오파츠가 있다면 장착! (없으면 기본값 세팅)
+	if (SavedData.EquippedOparts)
+	{
+		EquipOparts(SavedData.EquippedOparts);
+	}
+	else if (AllOpartsList.Num() > 0)
+	{
+		EquipOparts(AllOpartsList[0]);
+	}
+}
+
+void UOpartsComponent::ApplyOpartsStatsAndAbilities()
+{
+	if (!ASC || !RuntimeData.Definition) return;
+
+	const UOpartsDefinition* Def = RuntimeData.Definition;
+
+	// ====================================================
+	// 1. 기본 스탯 적용 (Infinite Duration Effect)
+	// ====================================================
+	// 기존에 적용된 스탯이 있다면 제거 후 재적용 (레벨 변경 대응)
+	if (RuntimeData.StatEffectHandle.IsValid())
+	{
+		ASC->RemoveActiveGameplayEffect(RuntimeData.StatEffectHandle);
+		RuntimeData.StatEffectHandle = FActiveGameplayEffectHandle();
+	}
+
+	if (Def->BaseStatEffectClass)
+	{
+		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+		Context.AddSourceObject(this);
+
+		// [중요] 레벨을 오파츠 레벨로 설정! (CurveTable에서 값 읽어옴)
+		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(Def->BaseStatEffectClass, (float)RuntimeData.CurrentLevel, Context);
+
+		if (SpecHandle.IsValid())
+		{
+			RuntimeData.StatEffectHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		}
+	}
+
+	// ====================================================
+	// 2. 기본 패시브 능력 적용 (최초 1회만)
+	// ====================================================
+	if (!RuntimeData.PassiveAbilityHandle.IsValid() && Def->BasePassiveAbility)
+	{
+		FGameplayAbilitySpec Spec(Def->BasePassiveAbility, 1, -1, this);
+		RuntimeData.PassiveAbilityHandle = ASC->GiveAbilityAndActivateOnce(Spec);
+	}
+
+	// ====================================================
+	// 3. 아티팩트 능력/스탯 적용 (현재 해금 수만큼 반복)
+	// ====================================================
+
+	// 기존 아티팩트 효과들 일단 다 제거 (깔끔하게 재계산)
+	// 최적화를 위해선 델타만 적용할 수도 있지만, 안전하게 전체 갱신 방식을 추천 해서 다 지우고 다시 계산하는 로직 구성
+	for (auto& Handle : RuntimeData.ArtifactAbilityHandles) ASC->ClearAbility(Handle);
+	for (auto& Handle : RuntimeData.ArtifactEffectHandles) ASC->RemoveActiveGameplayEffect(Handle);
+	RuntimeData.ArtifactAbilityHandles.Empty();
+	RuntimeData.ArtifactEffectHandles.Empty();
+
+	// 해금된 개수만큼 순회
+	int32 MaxIndex = FMath::Min(RuntimeData.UnlockedArtifactCount, Def->Artifacts.Num());
+
+	for (int32 i = 0; i < MaxIndex; i++)
+	{
+		const FOpartsArtifactData& Artifact = Def->Artifacts[i];
+
+		// 3-1. 아티팩트 스탯 (GE)
+		if (Artifact.ArtifactStatEffectClass)
+		{
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			Context.AddSourceObject(this);
+			// 아티팩트는 보통 레벨 개념이 없으므로 1.0f 고정
+			FGameplayEffectSpecHandle Spec = ASC->MakeOutgoingSpec(Artifact.ArtifactStatEffectClass, 1.0f, Context);
+			if (Spec.IsValid())
+			{
+				FActiveGameplayEffectHandle Handle = ASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+				RuntimeData.ArtifactEffectHandles.Add(Handle);
+			}
+		}
+
+		// 3-2. 아티팩트 능력 (GA)
+		if (Artifact.ArtifactAbilityClass)
+		{
+			FGameplayAbilitySpec Spec(Artifact.ArtifactAbilityClass, 1, -1, this);
+			FGameplayAbilitySpecHandle Handle = ASC->GiveAbilityAndActivateOnce(Spec);
+			RuntimeData.ArtifactAbilityHandles.Add(Handle);
+		}
+	}
+
+	// UI 갱신 알림
+	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
+}
+
+void UOpartsComponent::TryUpgradeLevel()
+{
+	if (!RuntimeData.Definition) return;
+	if (RuntimeData.CurrentLevel >= 5)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("이미 최대 레벨입니다."));
+		return;
+	}
+
+	// 2. 인벤토리 컴포넌트 찾기
+	UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("인벤토리 컴포넌트를 찾을 수 없습니다!"));
+		return;
+	}
+	int32 Cost = RuntimeData.CurrentLevel * 100;
+
+	// 4. 자원 소모 시도
+	if (Inventory->ConsumeSand(Cost))
+	{
+		// 성공 시 레벨업 진행
+		RuntimeData.CurrentLevel++;
+		OpartsProgressMap[RuntimeData.Definition].Level = RuntimeData.CurrentLevel;
+
+		// 스탯 재적용 (Curve Table 값이 바뀜)
+		ApplyOpartsStatsAndAbilities();
+
+		UE_LOG(LogTemp, Log, TEXT("오파츠 레벨업 성공! (Lv.%d -> Lv.%d)"), RuntimeData.CurrentLevel - 1, RuntimeData.CurrentLevel);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("레벨업 실패: 모래가 부족합니다."));
+	}
+}
+
+void UOpartsComponent::TryUnlockNextArtifact()
+{
+	if (!RuntimeData.Definition) return;
+
+	// 1. 최대 해금 체크 (5개)
+	if (RuntimeData.UnlockedArtifactCount >= 5)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("모든 아티팩트가 해금되었습니다."));
+		return;
+	}
+
+	// 2. 인벤토리 찾기
+	UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+	if (!Inventory) return;
+
+	// 3. 비용 계산 (기획서: 1 -> 2 -> 3 -> 3 -> 4)
+	// 배열 인덱스: 0(첫해금), 1, 2, 3, 4
+	int32 Costs[] = { 1, 2, 3, 3, 4 };
+	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount; // 현재 0개면 0번 인덱스 비용(1) 필요
+
+	// 안전장치
+	if (!Costs[CurrentIndex]) return;
+	int32 Cost = Costs[CurrentIndex];
+
+	// 4. 자원 소모 시도
+	if (Inventory->ConsumeIncompleteEnergy(Cost))
+	{
+		// 성공 시 해금
+		RuntimeData.UnlockedArtifactCount++;
+		OpartsProgressMap[RuntimeData.Definition].UnlockedArtifactCount = RuntimeData.UnlockedArtifactCount;
+
+		// 아티팩트 능력 재적용
+		ApplyOpartsStatsAndAbilities();
+
+		UE_LOG(LogTemp, Log, TEXT("아티팩트 해금 성공! (현재 개수: %d)"), RuntimeData.UnlockedArtifactCount);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("해금 실패: 불완전한 기운이 부족합니다."));
+	}
+}
+// ==========================================
+// FILE: RelicComponent.cpp
+// ==========================================
+
+
+#include "Component/RelicComponent.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "GameFramework/Character.h"
+#include "Tag/SPGameplayTags.h"
+#include "Character/SPGASPlayerCharacter.h"
+
+URelicComponent::URelicComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+
+}
+
+void URelicComponent::BeginPlay()

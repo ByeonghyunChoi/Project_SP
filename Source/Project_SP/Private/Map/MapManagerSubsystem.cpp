@@ -1,234 +1,338 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Map/MapManagerSubsystem.h"
-#include "Map/MapGraphGenerator.h"
-#include "Map/MapNode.h"
+﻿#include "Map/MapManagerSubsystem.h"
 #include "Map/MapBase.h"
 #include "Kismet/GameplayStatics.h"
-#include "Character/PlayerCharacter.h"
-#include "Engine/TargetPoint.h"
-#include "SubSystem/TimeForceSubsystem.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	//맵 생성기 인스턴스 생성
-	MapGenerator = NewObject<UMapGraphGenerator>(this);
+	// 데이터 테이블 로드
+	FString DTPath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapLevelData.DT_MapLevelData'");
+	MapDataTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DTPath));
 
-	const FString DataTabletPath = TEXT("/Script/Engine.DataTable'/Game/DataTable/DT_MapData.DT_MapData'");
-	MapTypeData = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *DataTabletPath));
-	if (MapTypeData)
+	if (!MapDataTable)
 	{
-		UE_LOG(LogTemp, Log, TEXT("맵 데이터 로딩 성공"));
+		UE_LOG(LogTemp, Error, TEXT("FATAL: MapDataTable Load Failed! Path: %s"), *DTPath);
 	}
 
-	HubSpawnPointTag = "HubStart";
-	MaxStages = 3;
-	DungeonSpawnPointTag = "LogStart";
+	// 레벨 로드 완료 델리게이트 등록
+	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UMapManagerSubsystem::OnPostLoadMapWithWorld);
+
+	// 로비 레벨 경로
+	LobbyLevelReference = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Script/Engine.World'/Game/Field/GameLevel/TestMap01_Field.TestMap01_Field'")));
+}
+
+void UMapManagerSubsystem::Deinitialize()
+{
+	FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
+	Super::Deinitialize();
 }
 
 void UMapManagerSubsystem::StartNewRun()
 {
-	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+	USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
+	APawn* LobbyPlayer = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (SaveSys)
 	{
-		TimeManager->ResetTimeForce();
-	}
-
-	CurrentStage = 1;
-	ClearedNodeIDs.Empty();
-	CurrentNode = nullptr;
-	CurrentMapActorInstance = nullptr;
-
-	GenerateNewStageGraph();
-
-	TravelToNode(GraphRoot);
-}
-
-void UMapManagerSubsystem::ReturnToHub(bool bPlayerWon)
-{
-	if (bPlayerWon)
-	{
-		if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+		SaveSys->ResetRunData();
+		//맵이 넘어가기 전, 로비 플레이어의 '오파츠 장착 및 강화 상태'를 영구 데이터에 덮어쓰기!
+		if (LobbyPlayer)
 		{
-			TimeManager->ResetTimeForce();
+			SaveSys->CachePermDataFromPlayer(LobbyPlayer);
+			SaveSys->SavePermToDisk();
+			UE_LOG(LogTemp, Warning, TEXT("필드 진입 전: 로비에서 세팅한 오파츠 데이터를 저장했습니다!"));
 		}
 	}
 
-	UWorld* World = GetWorld();
-	if (!World) return;
-
-	// 현재 맵 파괴
-	if (CurrentMapActorInstance)
-	{
-		CurrentMapActorInstance->Destroy();
-		CurrentMapActorInstance = nullptr;
-	}
-
-	// 맵 데이터 초기화
-	GraphRoot = nullptr;
-	CurrentNode = nullptr;
-	ClearedNodeIDs.Empty();
+	//맵 진행도 초기화
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
 	CurrentStage = 1;
+	CurrentFloor = 1;
+	CurrentMapType = EMapType::NormalBattle;
+	bIsInLobby = false;
 
-	// 플레이어 폰 찾기
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0);
-	APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerPawn);
+	LoadStageLevel();
+}
 
-	// 허브 스폰 지점(ATargetPoint) 찾기
-	AActor* HubSpawnPoint = nullptr;
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), HubSpawnPointTag, FoundActors);
 
-	if (FoundActors.Num() > 0)
+void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage)
+{
+	if (!PlayerPawn || !EncounterData) return;
+
+	if (EncounterData->CombatLevelName.IsNone())
 	{
-		HubSpawnPoint = FoundActors[0]; 
+		UE_LOG(LogTemp, Error, TEXT("전투 레벨 이름이 없습니다!"));
+		return;
 	}
 
-	if (Player && HubSpawnPoint)
+	// 필드에서의 현재 위치 저장
+	SavedFieldTransform = PlayerPawn->GetActorTransform();
+	bIsReturningFromBattle = false;
+	bIsBattleActive = true;
+
+	// 플레이어 정보 저장
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		// 3. 텔레포트
-		FVector Location = HubSpawnPoint->GetActorLocation();
-		FRotator Rotation = HubSpawnPoint->GetActorRotation();
-		PlayerPawn->SetActorLocationAndRotation(Location, Rotation);
+		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+		SaveSys->SaveRunToDisk();
+
+		SaveSys->CachePermDataFromPlayer(PlayerPawn);
+		SaveSys->SavePermToDisk();
+	}
+
+	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
+	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		CombatSys->SetPendingEncounter(EncounterData, Advantage);
+	}
+
+	// 3. [이동] 전투 레벨로 전환
+	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
+	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
+}
+
+void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
+{
+	bIsBattleActive = false;
+	bIsReturningFromBattle = true;
+	CurrentRoomState = bIsVictory ? EMapState::Reward : EMapState::InProgress;
+
+	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
+	LoadStageLevel();
+
+	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
+}
+
+void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
+{
+	if (!MapDataTable) return;
+
+	if (bIsBattleActive)
+	{
+		UE_LOG(LogTemp, Log, TEXT("전투 레벨 로드 완료 - 맵 스폰을 건너뜁니다."));
+		return;
+	}
+
+	if (bIsReturningFromBattle || bIsLoadingSave)
+	{
+		// 로비로 돌아온 게 아니라면 맵을 스폰합니다!
+		if (!bIsInLobby)
+		{
+			SpawnMapActor(CurrentMapType);
+			UE_LOG(LogTemp, Log, TEXT("전투/세이브 복귀 완료! (Floor %d)"), CurrentFloor);
+		}
+	}
+	// 2. 처음으로(로비에서) 새 런을 시작하거나, 다음 층으로 넘어온 경우
+	else if (!bIsInLobby && !CurrentMapActor.IsValid())
+	{
+		SpawnMapActor(CurrentMapType);
+		UE_LOG(LogTemp, Log, TEXT("새 스테이지/층 진입! (Floor %d)"), CurrentFloor);
 	}
 }
 
-void UMapManagerSubsystem::TravelToNode(UMapNode* TargetNode)
+void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 {
-	if (UTimeForceSubsystem* TimeManager = GetGameInstance()->GetSubsystem<UTimeForceSubsystem>())
+	CurrentMapType = MapType;
+
+	// 1. 기존 맵 제거
+	if (CurrentMapActor.IsValid())
 	{
-		if (!TimeManager->DecreaseTimeForce(1))
+		CurrentMapActor->Destroy();
+	}
+	CurrentMapActor = nullptr;
+
+	// 2. 맵 액터 스폰
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("SpawnMap"));
+
+	if (Data && Data->MapClasses.Contains(MapType))
+	{
+		TSubclassOf<AMapBase> MapClassToSpawn = Data->MapClasses[MapType];
+		if (MapClassToSpawn)
 		{
-			// 시간의 힘 소모 실패 (게임 오버됨)
-			// TimeForceSubsystem이 ReturnToHub를 호출했으므로, 맵 이동을 즉시 중단.
-			return;
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			CurrentMapActor = GetWorld()->SpawnActor<AMapBase>(MapClassToSpawn, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 		}
 	}
 
-	UWorld* World = GetWorld();
-	
-	if (!TargetNode)
+	// 3. 플레이어 위치 설정
+	if (CurrentMapActor.IsValid())
 	{
-		UE_LOG(LogTemp, Log, TEXT("포탈이 없습니다."));
-		return;
-	}
+		APawn* Player = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (Player)
+		{
+			if (bIsReturningFromBattle || bIsLoadingSave)
+			{
+				Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
+			}
+			else
+			{
+				// 새 진입 (포탈 타고 넘어옴)
+				TArray<FTransform> Spawns = CurrentMapActor->GetSpawnTransformsByTag(TEXT("SpawnPoint.Player"));
+				if (Spawns.Num() > 0)
+				{
+					Player->SetActorTransform(Spawns[0], false, nullptr, ETeleportType::ResetPhysics);
+				}
+			}
 
-	if (!MapTypeData)
-	{
-		UE_LOG(LogTemp, Log, TEXT("맵 타입이 없습니다."));
-		return;
-	}
+			// 물리 관성 초기화
+			if (auto* MoveComp = Player->FindComponentByClass<UCharacterMovementComponent>())
+			{
+				MoveComp->StopMovementImmediately();
+			}
 
-	if (!World)
-	{
-		UE_LOG(LogTemp, Log, TEXT("월드를 찾을 수 없습니다."));
-		return;
-	}
+			if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 1. 오파츠 및 영구 강화 스탯 적용 (새로 스폰될 때마다 필수!)
+				SaveSys->RestorePermDataToPlayer(Player);
 
-	//현재 맵 파괴
-	if (CurrentMapActorInstance)
-	{
-		CurrentMapActorInstance->ClearMapElements();
-		CurrentMapActorInstance->Destroy();
-		CurrentMapActorInstance = nullptr;
-	}
+				// 2. 현재 체력 및 런 중에 먹은 유물 적용
+				SaveSys->RestoreRunDataToPlayer(Player);
 
-	//상태 갱신
-	if (CurrentNode)
-	{
-		ClearedNodeIDs.Add(CurrentNode->NodeID); // 이전 노드를 클리어 처리
-	}
-	CurrentNode = TargetNode; // 현재 위치를 타겟 노드로 변경
+				// 3. 타이틀 화면에서 '이어하기'로 들어온 게 아니라면, 
+				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!
+				if (!bIsLoadingSave)
+				{
+					GenerateNextFloorOptions();
+					SaveSys->CacheRunDataFromPlayer(Player);
+					SaveSys->SaveRunToDisk();
+					UE_LOG(LogTemp, Warning, TEXT("[오토세이브] 맵 진입 완료 (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+				}
+			}
 
-	//맵 타입에 맞는 맵 액터 찾기
-	const FName RowName = UEnum::GetValueAsName(CurrentNode->MapType);
-	FMapDataRow* Row = MapTypeData->FindRow<FMapDataRow>(RowName, TEXT(""));
-	if (!Row || !Row->MapClass)
-	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapTypeData에 '%s' 타입이 정의되지 않았습니다!"), *RowName.ToString());
-		// 안전장치로 기본 맵 스폰
-		return;
-	}
-	TSubclassOf<AMapBase> ClassToSpawn = Row->MapClass;
+			// 플래그 초기화
+			bIsReturningFromBattle = false;
+			bIsLoadingSave = false;
+		}
 
-	//스폰 위치 설정
-	FVector SpawnLocation = FVector::ZeroVector;
-	FRotator SpawnRotation = FRotator::ZeroRotator;
-
-	AActor* DungeonSpawnPoint = nullptr;
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsOfClassWithTag(World, ATargetPoint::StaticClass(), DungeonSpawnPointTag, FoundActors);
-
-	if (FoundActors.Num() > 0)
-	{
-		DungeonSpawnPoint = FoundActors[0];
-		SpawnLocation = DungeonSpawnPoint->GetActorLocation();
-		SpawnRotation = DungeonSpawnPoint->GetActorRotation();
-	}
-
-	//새 맵 액터 스폰
-	CurrentMapActorInstance = World->SpawnActor<AMapBase>(ClassToSpawn, SpawnLocation, SpawnRotation);
-	if (!CurrentMapActorInstance)
-	{
-		UE_LOG(LogTemp, Fatal, TEXT("MapManager: 맵 스폰에 치명적인 실패가 발생했습니다!"));
-		return;
-	}
-
-	//데이터 전달
-	CurrentMapActorInstance->SetMapType(CurrentNode->MapType);
-	CurrentMapActorInstance->InitializeNextNodes(CurrentNode->ChildNodes);
-
-	//플레이어 이동
-	APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0);
-	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(Pawn);
-	if (PlayerCharacter)
-	{
-		FVector StartLocation = CurrentMapActorInstance->GetPlayerStartLocation();
-		FRotator StartRotation = CurrentMapActorInstance->GetPlayerStartRotation();
-		PlayerCharacter->SetActorLocationAndRotation(StartLocation, StartRotation);
-	}
-
-	//새 맵의 로직 시작
-	CurrentMapActorInstance->BeginMapLogic();
-}
-
-void UMapManagerSubsystem::GoToNextStage()
-{
-	CurrentStage++;
-
-	//마지막 보스를 클리어 했다면 게임 시작 맵으로 이동
-	if (CurrentStage > MaxStages)
-	{
-		ReturnToHub(true); 
-		return;
-	}
-
-	// 다음 스테이지 맵 그래프 생성
-	GenerateNewStageGraph();
-
-	//루트 맵으로 이동(2-1, 3-1)
-	TravelToNode(GraphRoot);
-}
-
-void UMapManagerSubsystem::NotifyCombatFinished(bool bPlayerWon)
-{
-	if (CurrentMapActorInstance)
-	{
-		// 현재 스폰된 맵 액터(예: BP_NormalMap)의 OnCombatFinished 이벤트를 호출
-		CurrentMapActorInstance->OnCombatFinished(bPlayerWon);
+		CurrentMapActor->InitializeMap(MapType, CurrentRoomState);
 	}
 }
 
-void UMapManagerSubsystem::GenerateNewStageGraph()
+void UMapManagerSubsystem::LoadStageLevel()
 {
-	if (!MapGenerator)
+	bIsInLobby = false;
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
+	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+}
+
+void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
+{
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+
+	if (CurrentFloor >= 11 && CurrentStage < 3)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MapManager: MapGenerator가 Null입니다!"));
-		return;
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
+}
+
+EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
+{
+	switch (Grade)
+	{
+	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
+	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
+	case EMapGrade::Prepare: return EMapType::Prepare;
+	case EMapGrade::Boss: return EMapType::BossBattle;
+	default: return EMapType::NormalBattle;
+	}
+}
+
+TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
+{
+	if (CurrentPortalOptions.Num() > 0)
+	{
+		return CurrentPortalOptions;
 	}
 
-	//현재 스테이지를 알려주고 맵 그래프 생성을 요청
-	GraphRoot = MapGenerator->GenerateStageGraph(this, CurrentStage);
+	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
+	int32 NextFloor = CurrentFloor + 1;
+	if (NextFloor > 11)
+	{
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
+	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+
+	return CurrentPortalOptions;
+}
+
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions)
+{
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	CurrentRoomState = SavedRoomState;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
+
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	bIsInLobby = bSavedInLobby;
+	CurrentPortalOptions = SavedPortalOptions;
+
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	if (bIsInLobby)
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
+	}
+	else
+	{
+		LoadStageLevel();
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
+	}
+}
+
+void UMapManagerSubsystem::GoToLobby()
+{
+	bIsInLobby = true;
+	// 로비로 돌아오면 런 데이터 초기화
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetRunData();
+	}
+	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+}
+
+void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
+{
+	// MapBase가 BeginPlay에서 호출해줌
+	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
 }
