@@ -48,6 +48,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void Die();
 
+    UFUNCTION(BlueprintPure, Category = "Combat")
+    float GetDeathMontageDuration() const;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
@@ -86,7 +89,15 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
 
+    UPROPERTY(VisibleAnywhere)
+    bool bIsDead = false;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS | Abilities")
     TArray<TSubclassOf<class UGameplayAbility>> DefaultAbilities;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat")
+    float TimeOfDeath = 0.0f;
+
+
 };

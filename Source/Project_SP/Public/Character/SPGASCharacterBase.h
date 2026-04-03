@@ -28,6 +28,14 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
 
+    // 피격 몽타주
+    UPROPERTY(EditAnywhere, Category = "Combat|Animation")
+    UAnimMontage* HitReactMontage;
+public:
+    // 사망 몽타주
+    UPROPERTY(EditAnywhere, Category = "Combat|Animation")
+    UAnimMontage* DeathMontage;
+    
 public:
     UPROPERTY(BlueprintAssignable, Category = "Combat|UI")
     FCharacterDamageDelegate OnDamageTaken;
@@ -49,6 +57,10 @@ public:
     // 전투 준비가 끝났을 때 알리는 함수
     UFUNCTION(BlueprintCallable, Category = "GAS | ReadyCheck")
     virtual void ReportReadyToGameMode();
+
+    // 데미지를 입었을 때 피격 애니메이션을 재생하는 함수
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    virtual void PlayHitReact(const FVector& ImpactPoint);
 
     // 전투가 시작할 때 사용할 함수(UI 키기 등)
     UFUNCTION(BlueprintCallable, Category = "Combat | UI")

@@ -144,6 +144,11 @@ bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
 	return false;
 }
 
+FGameplayTag USPGA_BattleActionBase::GetCooldownTag() const
+{
+	return CooldownTag;
+}
+
 void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier)
 {
 	if (!TargetActor || !DamageEffectClass)
@@ -205,6 +210,43 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
 					}
 				}
+			}
+		}
+
+		FHitResult HitResult;
+		AActor* AvatarActor = GetAvatarActorFromActorInfo();
+
+		if (AvatarActor && TargetActor)
+		{
+			FVector StartLoc = AvatarActor->GetActorLocation(); // 내 위치
+			FVector EndLoc = TargetActor->GetActorLocation();   // 적 위치
+
+			// 내 몸에서 적의 중심을 향해 레이저를 쏴서 표면에 닿는 점을 찾습니다.
+			GetWorld()->LineTraceSingleByChannel(HitResult, StartLoc, EndLoc, ECC_Visibility);
+
+			// 만약 장애물 때문에 안 맞았다면, 그냥 적의 중심 위치를 강제로 타격점으로 지정!
+			if (!HitResult.bBlockingHit || HitResult.GetActor() != TargetActor)
+			{
+				HitResult.ImpactPoint = TargetActor->GetActorLocation();
+			}
+			HitResult.HitObjectHandle = FActorInstanceHandle(TargetActor); // 맞은 놈이 얘라고 명시
+
+			// 적의 ASC에 Hit VFX(GameplayCue) 실행 명령!
+			UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			if (TargetASC && HitVFXTag.IsValid())
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.EffectContext = TargetASC->MakeEffectContext();
+				CueParams.EffectContext.AddHitResult(HitResult); // 방금 찾은 정확한 표면 좌표를 넘김!
+				//타격용 GameplayCue 태그 호출!
+				TargetASC->ExecuteGameplayCue(HitVFXTag, CueParams);
+			}
+
+			// 적에게 피격 애니메이션(Hit React) 재생 명령!
+			// (ASPGASCharacterBase에 PlayHitReact 함수가 구현되어 있다고 가정)
+			if (ASPGASCharacterBase* TargetBaseChar = Cast<ASPGASCharacterBase>(TargetActor))
+			{
+				TargetBaseChar->PlayHitReact(HitResult.ImpactPoint);
 			}
 		}
 	}

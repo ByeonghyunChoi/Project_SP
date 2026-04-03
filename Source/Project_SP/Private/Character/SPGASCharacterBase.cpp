@@ -77,6 +77,15 @@ void ASPGASCharacterBase::ReportReadyToGameMode()
 	}
 }
 
+void ASPGASCharacterBase::PlayHitReact(const FVector& ImpactPoint)
+{
+
+	if (HitReactMontage && GetMesh()->GetAnimInstance())
+	{
+		PlayAnimMontage(HitReactMontage);
+	}
+}
+
 void ASPGASCharacterBase::OnBattleStarted()
 {
 	// 추후 공통된 작업을 여기서 실행 

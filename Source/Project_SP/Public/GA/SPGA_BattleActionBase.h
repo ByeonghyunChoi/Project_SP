@@ -46,6 +46,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat | Targeting")
 	ETargetingType SkillTargetingType = ETargetingType::Single;
 
+	// 해당 스킬이 터트릴 이펙트 태그
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | VFX")
+	FGameplayTag HitVFXTag;
+
+public:
+	FGameplayTag GetCooldownTag() const;
+
 protected:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier);
