@@ -26,12 +26,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
 	void ReportCharacterReady(AActor* Character);
 
-	void OnCharacterDied(AActor* DeadActor);
-
 	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
 	void EndBattle(bool bPlayerWon);
 
 	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
+
+	//전투 승리 시 호출할 연출 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
+	void PlayVictorySequence();
 
 protected:
 	// 블루프린트에서 BP_TurnManager를 지정해야 함
@@ -65,6 +67,9 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
+
+protected:
+	void ProcessEndOfTurn();
 
 private:
 	FTransform GetSpawnTransformByIndex(int32 Index);

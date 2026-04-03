@@ -200,6 +200,9 @@ void ASPGASMonsterCharacter::BroadcastStatusUI()
 
 void ASPGASMonsterCharacter::Die()
 {
+	if (bIsDead) return;
+	bIsDead = true;
+
 	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
 
 	// 1. UI 끄기 (체력바, 타겟팅 마커 등 지우기)
@@ -209,19 +212,22 @@ void ASPGASMonsterCharacter::Die()
 	// 2. 콜리전 끄기 (죽은 시체를 다시 때리거나 길을 막지 않게)
 	SetActorEnableCollision(false);
 
-	// 3. 지휘관(GameMode)에게 전사 보고!
-	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		GM->OnCharacterDied(this);
-	}
+	TimeOfDeath = GetWorld()->GetTimeSeconds();
 
 	if (ASC)
 	{
 		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
 		ASC->CancelAllAbilities();
 	}
-	// 4. (선택) 몬스터 파괴 - 나중에 죽는 애니메이션(몽타주)이 끝나면 파괴하도록 블루프린트로 빼도 됩니다.
-	SetLifeSpan(1.5f);
+}
+
+float ASPGASMonsterCharacter::GetDeathMontageDuration() const
+{
+	if (DeathMontage)
+	{
+		return DeathMontage->GetPlayLength();
+	}
+	return 0.0f;
 }
 
 

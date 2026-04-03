@@ -219,9 +219,21 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 							{
 								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
 								{
-									ASC->TryActivateAbility(Spec.Handle);
-									UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
-									break; // 발동했으니 반복문 종료
+									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
+
+									if (bActivated)
+									{
+										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+									}
+									else
+									{
+										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
+										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
+
+										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
+										EndTurn(TurnActor);
+									}
+									break;
 								}
 							}
 						}
@@ -243,13 +255,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
 
-				CurrentTurnActor = nullptr;
-				if (TurnManager)
-				{
-					AActor* NextActor = TurnManager->CalculateNextTurn();
-					StartTurn(NextActor);
-				}
-
+				EndTurn(TurnActor);
 				return;
 			}
 
@@ -356,30 +362,7 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 		}
 	}
 
-	if (TurnManager)
-	{
-		// 🌟 1. 대기열(Queue) 검사: 턴 매니저가 직접 꺼내주도록 함수(Pop) 사용!
-		if (AActor* VIPActor = TurnManager->PopInterruptActor())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[통제 시스템] VIP 대기열 발견! %s 에게 즉시 턴을 부여합니다."), *VIPActor->GetName());
-
-			// 🌟 2. [핵심] 이 턴은 VIP 턴이므로, 나중에 끝날 때 게이지를 깎지 않도록 플래그를 켜줍니다!
-			bIsCurrentTurnInterrupt = true;
-
-			StartTurn(VIPActor); // 턴 즉시 부여!
-			return; // 일반 턴 계산으로 넘어가지 않고 여기서 종료
-		}
-
-		// 3. 대기열에 아무도 없으면 평소처럼 행동 게이지로 다음 타자 찾기
-		AActor* NextActor = TurnManager->CalculateNextTurn();
-
-		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
-		{
-			bIsCurrentTurnInterrupt = true;
-		}
-
-		StartTurn(NextActor);
-	}
+	ProcessEndOfTurn();
 }
 
 void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
@@ -395,25 +378,6 @@ void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 	CheckAndStartBattle();
 }
 
-void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
-{
-	if (TurnManager)
-	{
-		TurnManager->RemoveParticipant(DeadActor);
-	}
-
-	// 2. 월드에 남은 "Enemy"가 몇 마리인지 셉니다.
-	TArray<TObjectPtr<AActor>> AliveEnemies = GetCurrentEnemies();
-	int32 AliveEnemiesCount = AliveEnemies.Num();
-
-	UE_LOG(LogTemp, Warning, TEXT("남은 적 수: %d"), AliveEnemiesCount);
-
-	// 3. 남은 적이 0마리라면? 플레이어 승리!
-	if (AliveEnemiesCount <= 0)
-	{
-		EndBattle(true);
-	}
-}
 
 void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 {
@@ -484,6 +448,68 @@ TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
 		}
 	}
 	return AliveEnemies;
+}
+
+void AASPCombatGameMode::ProcessEndOfTurn()
+{
+	// 1. [청소 단계] 사망(State.Death) 태그를 가진 액터 수집
+	TArray<AActor*> DeadMonsters;
+	for (AActor* Participant : AllParticipants)
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
+		{
+			if (ASI->GetAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+			{
+				DeadMonsters.Add(Participant);
+			}
+		}
+	}
+
+	// 2. [폐기 단계] 명단에서 지우고 삭제 예약
+	for (AActor* Corpse : DeadMonsters)
+	{
+		AllParticipants.Remove(Corpse);
+		if (TurnManager) TurnManager->RemoveParticipant(Corpse);
+
+		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Corpse))
+		{
+			if (Monster->DeathMontage)
+			{
+				Monster->PlayAnimMontage(Monster->DeathMontage);
+			}
+
+			float DeathDuration = Monster->GetDeathMontageDuration();
+			Corpse->SetLifeSpan(DeathDuration + 0.1f);
+		}
+	}
+
+	// 3. [승리 판정 단계] 남은 적군 수 확인
+	if (GetCurrentEnemies().Num() <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 승리 시퀀스로 진입합니다."));
+
+		// 🌟 즉시 EndBattle을 부르지 않고, 블루프린트 승리 연출로 넘깁니다.
+		PlayVictorySequence();
+		return;
+	}
+
+	// 4. [다음 턴 진행] 아직 적이 남았다면 대기열에서 다음 타자 호출
+	if (TurnManager)
+	{
+		if (AActor* VIPActor = TurnManager->PopInterruptActor())
+		{
+			bIsCurrentTurnInterrupt = true;
+			StartTurn(VIPActor);
+			return;
+		}
+
+		AActor* NextActor = TurnManager->CalculateNextTurn();
+		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
+		{
+			bIsCurrentTurnInterrupt = true;
+		}
+		StartTurn(NextActor);
+	}
 }
 
 FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)

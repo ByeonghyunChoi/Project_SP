@@ -6,6 +6,8 @@
 #include "AbilitySystemInterface.h"
 #include "Character/SPGASMonsterCharacter.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASPlayerController.h"
+#include "GA/SPGA_BattleActionBase.h"
 #include "Tag/SPGameplayTags.h"
 
 
@@ -63,10 +65,33 @@ bool USPGA_Parry::CheckCounterConditions()
 		return false;
 	}
 
-	// 2. 쿨타임 검사 (CounterSkillTag를 통해 쿨타임 체크)
-	// (기본적으로 태그로 쿨다운을 검사하는 GAS 로직을 추가하시면 됩니다. 지금은 일단 true!)
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))
+	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+		{
+			FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+			UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
 
-	UE_LOG(LogTemp, Warning, TEXT("반격 조건 올 클리어! 반격 턴을 준비합니다."));
+			if (WeaponData && WeaponData->ParrySkillAbility)
+			{
+				// 🌟 기본 UGameplayAbility가 아니라, 선생님의 베이스 클래스로 캐스팅합니다!
+				if (USPGA_BattleActionBase* AbilityCDO = WeaponData->ParrySkillAbility->GetDefaultObject<USPGA_BattleActionBase>())
+				{
+					// 선생님이 직접 만드신 CooldownTag 변수를 가져옵니다.
+					FGameplayTag TargetCooldownTag = AbilityCDO->GetCooldownTag();
+
+					// 태그가 유효하고, 내 몸(ASC)에 그 태그가 붙어있다면 쿨타임 중인 것!
+					if (TargetCooldownTag.IsValid() && PlayerASC->HasMatchingGameplayTag(TargetCooldownTag))
+					{
+						UE_LOG(LogTemp, Warning, TEXT("패링 성공: 하지만 반격 스킬(%s)이 쿨타임 중이라 추가 턴을 얻지 못합니다!"), *WeaponData->ParrySkillAbility->GetName());
+						return false; // ❌ 쿨타임 컷!
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("반격 조건 올 클리어! 반격 턴을 획득합니다."));
 	return true;
 }
 
