@@ -37,11 +37,14 @@ public:
 
 	// 오파츠(Oparts)
 	FGameplayTag Oparts_CrystalSkull;
+	FGameplayTag Oparts_CrystalSkull_Artifact2;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
 
 	// 유물(Relic)
 	FGameplayTag Relic_Bonus_Attack;
+	FGameplayTag Relic_WornWhetstone; // 마모된 숫돌
+
 
 	//이벤트
 	FGameplayTag Event_Interaction;
@@ -52,6 +55,7 @@ public:
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
+	FGameplayTag Event_Combat_CriticalHit;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;

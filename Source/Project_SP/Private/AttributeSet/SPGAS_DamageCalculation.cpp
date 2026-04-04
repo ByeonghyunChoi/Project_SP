@@ -186,6 +186,17 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		{
 			CriticalCoefficient = 1.5f + CritDamageVal;
 			UE_LOG(LogTemp, Log, TEXT("치명타!"));
+
+			if (SourceASC)
+			{
+				FGameplayEventData Payload;
+				Payload.EventTag = FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit"));
+				Payload.Instigator = SourceASC->GetAvatarActor(); // 때린 사람
+				Payload.Target = TargetASC->GetAvatarActor();     // 맞은 사람
+
+				// 자기 자신(SourceASC)에게 이벤트를 발생
+				SourceASC->HandleGameplayEvent(Payload.EventTag, &Payload);
+			}
 		}
 
 		// 피해 증감 계수
