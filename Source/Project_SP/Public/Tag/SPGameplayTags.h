@@ -44,6 +44,8 @@ public:
 	// 유물(Relic)
 	FGameplayTag Relic_Bonus_Attack;
 	FGameplayTag Relic_WornWhetstone; // 마모된 숫돌
+	FGameplayTag Relic_FadingCandle; // 꺼져가는 양초
+	FGameplayTag Relic_RustedNeedle; // 녹슨 구리 침
 
 
 	//이벤트
