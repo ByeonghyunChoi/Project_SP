@@ -39,11 +39,16 @@ public:
 
 	// 오파츠(Oparts)
 	FGameplayTag Oparts_CrystalSkull;
+	FGameplayTag Oparts_CrystalSkull_Artifact2;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
 
 	// 유물(Relic)
 	FGameplayTag Relic_Bonus_Attack;
+	FGameplayTag Relic_WornWhetstone; // 마모된 숫돌
+	FGameplayTag Relic_FadingCandle; // 꺼져가는 양초
+	FGameplayTag Relic_RustedNeedle; // 녹슨 구리 침
+
 
 	//이벤트
 	FGameplayTag Event_Interaction;
@@ -59,6 +64,8 @@ public:
 	FGameplayTag Event_Hit_AoE;
 	FGameplayTag Event_Jormungandr_Fire;
 	FGameplayTag Event_Jourmungandr_Hit;
+	FGameplayTag Event_Combat_CriticalHit;
+	FGameplayTag Event_Battle_Start;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;

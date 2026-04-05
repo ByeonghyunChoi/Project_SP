@@ -19,6 +19,7 @@
 #include "Character/SPGASMonsterCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -147,6 +148,21 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 			// 플레이어면 컨트롤러 UI가 켜지고, 몬스터면 머리 위 위젯이 켜집니다.
 			Character->OnBattleStarted();
 		}
+	}
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (PlayerPawn)
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = this;    // 이벤트를 쏜 사람 (GameMode)
+		Payload.Target = PlayerPawn;  // 이벤트를 받을 사람 (Player)
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
+			PlayerPawn,
+			FSPGameplayTags::Get().Event_Battle_Start,
+			Payload
+		);
+		UE_LOG(LogTemp, Log, TEXT("Battle Start Event Sent to Player!"));
 	}
 
 	// 2. [전투 시작] 턴 매니저에게 첫 턴을 물어보고 시작!

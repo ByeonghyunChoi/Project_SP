@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,6 +7,16 @@
 #include "Data/SPDataStructs.h"
 #include "InventoryComponent.generated.h"
 
+// UIì™€ ë°ì´í„° íŒë³„ì— ì“¸ ì¬í™” íƒ€ì… (ì¶”ê°€ëœ ë¶€ë¶„!)
+UENUM(BlueprintType)
+enum class EResourceType : uint8
+{
+	Gold		UMETA(DisplayName = "ê³¨ë“œ"),
+	Sand		UMETA(DisplayName = "ëª¨ë˜"),
+	IncompleteEnergy    UMETA(DisplayName = "ë¶ˆì™„ì „í•œ ê¸°ìš´"),
+	Fragment		UMETA(DisplayName = "íŒŒí¸")
+
+};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, const FPlayerRunWallet&, CurrentWallet, const FPlayerPermanentWallet&, CurrentPermWallet);
 
@@ -28,12 +38,12 @@ protected:
 	FPlayerPermanentWallet PermanentWallet;
 
 public:
-	// UI ¾÷µ¥ÀÌÆ® ¾Ë¸²¿ë
+	// UI ì—…ë°ì´íŠ¸ ì•Œë¦¼ìš©
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryUpdated OnInventoryUpdated;
 
 	// =========================================================
-	// 1. Á¶È¸ (Getter)
+	// 1. ì¡°íšŒ (Getter)
 	// =========================================================
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetSand() const { return PermanentWallet.Sand; }
@@ -48,42 +58,42 @@ public:
 	int32 GetFragment() const { return RunWallet.Fragment; }
 
 	// =========================================================
-	// 2. Á¶ÀÛ (Gain / Consume)
+	// 2. ì¡°ì‘ (Gain / Consume)
 	// =========================================================
 
-	// ¸ğ·¡ È¹µæ
+	// ëª¨ë˜ íšë“
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddSand(int32 Amount);
 
-	// ¸ğ·¡ ¼Ò¸ğ (¼º°ø ½Ã true ¹İÈ¯)
+	// ëª¨ë˜ ì†Œëª¨ (ì„±ê³µ ì‹œ true ë°˜í™˜)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeSand(int32 Amount);
 
-	// ±â¿î È¹µæ
+	// ê¸°ìš´ íšë“
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddIncompleteEnergy(int32 Amount);
 
-	// ±â¿î ¼Ò¸ğ (¼º°ø ½Ã true ¹İÈ¯)
+	// ê¸°ìš´ ì†Œëª¨ (ì„±ê³µ ì‹œ true ë°˜í™˜)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeIncompleteEnergy(int32 Amount);
 
-	// µ· È¹µæ
+	// ëˆ íšë“
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddMoney(int32 Amount);
 
-	// µ· ¼Ò¸ğ (¼º°ø ½Ã true ¹İÈ¯)
+	// ëˆ ì†Œëª¨ (ì„±ê³µ ì‹œ true ë°˜í™˜)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeMoney(int32 Amount);
 
-	// ±Ç´ÉÀÇ ÆÄÆí È¹µæ
+	// ê¶ŒëŠ¥ì˜ íŒŒí¸ íšë“
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddFragment(int32 Amount);
 
-	// ±Ç´ÉÀÇ ÆÄÆí ¼Ò¸ğ (¼º°ø ½Ã true ¹İÈ¯)
+	// ê¶ŒëŠ¥ì˜ íŒŒí¸ ì†Œëª¨ (ì„±ê³µ ì‹œ true ë°˜í™˜)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeFragment(int32 Amount);
 
-	//·Îµå ½Ã½ºÅÛ
+	//ë¡œë“œ ì‹œìŠ¤í…œ
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet);
 };

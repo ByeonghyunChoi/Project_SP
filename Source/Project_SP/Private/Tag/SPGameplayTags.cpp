@@ -34,10 +34,14 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
 
 	Oparts_CrystalSkull = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull"), TEXT("오파츠: 수정 해골"));
+	Oparts_CrystalSkull_Artifact2 = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull.Artifact2"), TEXT("오파츠: 아티팩트2"));
 	Oparts_JadeClock = Manager.AddNativeGameplayTag(FName("Oparts.JadeClock"), TEXT("오파츠: 옥시계"));
 	Oparts_GoldBug = Manager.AddNativeGameplayTag(FName("Oparts.GoldBug"), TEXT("오파츠: 골드버그"));
 
 	Relic_Bonus_Attack = Manager.AddNativeGameplayTag(FName("Relic.Bonus.Attack"), TEXT("유물 최초 획득 시 공격력 보너스"));
+	Relic_WornWhetstone = Manager.AddNativeGameplayTag(FName("Relic.WornWhetstone"), TEXT("유물: 마모된 숫돌"));
+	Relic_FadingCandle = Manager.AddNativeGameplayTag(FName("Relic.FadingCandle"), TEXT("유물: 꺼져가는 양초"));
+	Relic_RustedNeedle = Manager.AddNativeGameplayTag(FName("Relic.RustedNeedle"), TEXT("유물: 녹슨 구리 침"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
@@ -53,6 +57,8 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Jormungandr_Fire = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Fire"), TEXT("요르문간드 공격 타이밍 알림"));
 	Event_Jourmungandr_Hit = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Hit"), TEXT("요르문간드 공격 맞음 알림"));
 
+	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
+	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
