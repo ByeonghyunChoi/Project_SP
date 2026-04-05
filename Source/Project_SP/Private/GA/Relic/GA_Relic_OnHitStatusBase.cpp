@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Component/SPStatusEffectComponent.h"
 
 UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
 {
@@ -44,32 +45,41 @@ void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* Act
 
 void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
 {
-    // 1. 일반 공격(Battle.Action.Attack)인지 확인
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인 (방금 우리가 추가한 그 증명서!)
     if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
     {
         return;
     }
 
-    // 2. 확률 주사위
+    // 2. 확률 주사위 굴리기
     float RandValue = FMath::FRandRange(0.0f, 100.0f);
     if (RandValue <= TriggerChance)
     {
-        // 3. 타겟(적)의 ASC를 가져와서 GE 적용 (const_cast 적용)
         AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+        UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 
-        if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+        if (TargetASC && TargetStatusGEClass)
         {
             FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
             EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
 
-            // 변경된 변수명 TargetStatusGEClass 사용
             FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
+
             if (SpecHandle.IsValid())
             {
+                // [1] 엔진(혈관)에 직접 GE 부여
                 TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-                // 로그도 범용적으로 변경
-                UE_LOG(LogTemp, Log, TEXT("유물 효과 발동: %s 상태이상 부여 성공!"), *TargetStatusGEClass->GetName());
+                // [2] 몬스터 몸에서 '전광판 매니저' 찾기
+                USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
+
+                // [3] 매니저가 있고, 에디터에서 태그를 제대로 세팅해 뒀다면 보고!
+                if (TargetStatusComp && TargetStatusTag.IsValid())
+                {
+                    TargetStatusComp->ProcessStatusEffect(TargetStatusTag, TargetASC, GetAvatarActorFromActorInfo());
+                }
+
+                UE_LOG(LogTemp, Log, TEXT("기초 유물 효과 발동: [%s] 부여 및 매니저 등록 완료!"), *TargetStatusTag.ToString());
             }
         }
     }

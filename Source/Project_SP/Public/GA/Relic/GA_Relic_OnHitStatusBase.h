@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "GameplayTagContainer.h"
 #include "GA_Relic_OnHitStatusBase.generated.h"
 
 /**
@@ -25,9 +26,12 @@ protected:
     UFUNCTION()
     void OnHitEventReceived(FGameplayEventData Payload);
 
-    // 에디터에서 설정할 풍화 디버프 GE
+    // 에디터에서 설정할 디버프 GE
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
     TSubclassOf<class UGameplayEffect> TargetStatusGEClass;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    FGameplayTag TargetStatusTag;
 
     // 발동 확률 (30)
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Stats")

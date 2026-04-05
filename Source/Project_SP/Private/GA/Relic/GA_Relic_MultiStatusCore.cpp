@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "GA/Relic/GA_Relic_MultiStatusCore.h"
@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Tag/SPGameplayTags.h"
+#include "Component/SPStatusEffectComponent.h"
 
 UGA_Relic_MultiStatusCore::UGA_Relic_MultiStatusCore()
 {
@@ -16,7 +17,7 @@ void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle
 {
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-    // Å¸°İ ¼ø°£À» ±â´Ù¸³´Ï´Ù.
+    // íƒ€ê²© ìˆœê°„ì„ ê¸°ë‹¤ë¦½ë‹ˆë‹¤.
     UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this,
         FSPGameplayTags::Get().Event_Montage_Hit,
@@ -33,61 +34,60 @@ void UGA_Relic_MultiStatusCore::OnAvatarSet(const FGameplayAbilityActorInfo* Act
 {
     Super::OnAvatarSet(ActorInfo, Spec);
 
-    // ºÎ¿©¹ŞÀº Áï½Ã, ÀÚ½ÅÀÇ ASC¿¡°Ô "³ª¸¦ È°¼ºÈ­ÇØÁà!" ¶ó°í ¿äÃ»ÇÕ´Ï´Ù.
+    // ë¶€ì—¬ë°›ì€ ì¦‰ì‹œ, ìì‹ ì˜ ASCì—ê²Œ "ë‚˜ë¥¼ í™œì„±í™”í•´ì¤˜!" ë¼ê³  ìš”ì²­í•©ë‹ˆë‹¤.
     if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
     {
         ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
-        UE_LOG(LogTemp, Log, TEXT("À¯¹° ÀÚµ¿ È°¼ºÈ­ ¿Ï·á: ´ë±â ¸ğµå ÁøÀÔ"));
+        UE_LOG(LogTemp, Log, TEXT("ìœ ë¬¼ ìë™ í™œì„±í™” ì™„ë£Œ: ëŒ€ê¸° ëª¨ë“œ ì§„ì…"));
     }
 }
 
 void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
 {
-    // 1. ÀÏ¹İ °ø°İ(Battle.Action.Attack)ÀÎÁö È®ÀÎ
+    // 1. ì¼ë°˜ ê³µê²©(Battle.Action.Attack)ì¸ì§€ í™•ì¸
     if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
     {
         return;
     }
 
-    // 2. Å¸°ÙÀÇ ASC °¡Á®¿À±â (const_cast Àû¿ë)
+    // 2. íƒ€ê²Ÿì˜ ASC ê°€ì ¸ì˜¤ê¸° (const_cast ì ìš©)
     AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
     UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 
-    // Å¸°ÙÀÌ ¾ø°Å³ª, ¿¡µğÅÍ¿¡¼­ MapÀ» ¾È Ã¤¿ö³ùÀ¸¸é Áß´Ü
+    // íƒ€ê²Ÿì´ ì—†ê±°ë‚˜, ì—ë””í„°ì—ì„œ Mapì„ ì•ˆ ì±„ì›Œë†¨ìœ¼ë©´ ì¤‘ë‹¨
     if (!TargetASC || StatusEffectMap.IsEmpty()) return;
 
-    // 3. Å¸°Ù¿¡°Ô "¾ø´Â" »óÅÂÀÌ»ó ºĞ·ùÇÏ±â
+    // 3. íƒ€ê²Ÿì—ê²Œ "ì—†ëŠ”" ìƒíƒœì´ìƒ ë¶„ë¥˜í•˜ê¸°
     TArray<FGameplayTag> MissingTags;
     TArray<FGameplayTag> AllTags;
 
     for (const auto& Pair : StatusEffectMap)
     {
         FGameplayTag StatusTag = Pair.Key;
-        AllTags.Add(StatusTag); // ÀüÃ¼ ¸ñ·Ï ÀúÀå
+        AllTags.Add(StatusTag); // ì „ì²´ ëª©ë¡ ì €ì¥
 
-        // Å¸°ÙÀÌ ÀÌ »óÅÂÀÌ»ó ÅÂ±×¸¦ °¡Áö°í ÀÖÁö ¾Ê´Ù¸é MissingTags¿¡ Ãß°¡
+        // íƒ€ê²Ÿì´ ì´ ìƒíƒœì´ìƒ íƒœê·¸ë¥¼ ê°€ì§€ê³  ìˆì§€ ì•Šë‹¤ë©´ MissingTagsì— ì¶”ê°€
         if (!TargetASC->HasMatchingGameplayTag(StatusTag))
         {
             MissingTags.Add(StatusTag);
         }
     }
 
-    // 4. ºÎ¿©ÇÒ »óÅÂÀÌ»ó ¹«ÀÛÀ§ ¼±Á¤
+    // 4. ë¶€ì—¬í•  ìƒíƒœì´ìƒ ë¬´ì‘ìœ„ ì„ ì •
     FGameplayTag TagToApply;
     if (MissingTags.Num() > 0)
     {
-        // ¾È °É¸° °Ô ÇÏ³ª¶óµµ ÀÖÀ¸¸é, ±× '¾ø´Â °Íµé' Áß¿¡¼­ ¹«ÀÛÀ§ ¼±Á¤
+        // ì•ˆ ê±¸ë¦° ê²Œ í•˜ë‚˜ë¼ë„ ìˆìœ¼ë©´, ê·¸ 'ì—†ëŠ” ê²ƒë“¤' ì¤‘ì—ì„œ ë¬´ì‘ìœ„ ì„ ì •
         int32 RandomIndex = FMath::RandRange(0, MissingTags.Num() - 1);
         TagToApply = MissingTags[RandomIndex];
     }
     else
     {
-        // 3°³ ´Ù °É·ÁÀÖÀ¸¸é ÀüÃ¼ Áß¿¡¼­ ¹«ÀÛÀ§ ¼±Á¤ (°»½Å¿ë)
+        // 3ê°œ ë‹¤ ê±¸ë ¤ìˆìœ¼ë©´ ì „ì²´ ì¤‘ì—ì„œ ë¬´ì‘ìœ„ ì„ ì • (ê°±ì‹ ìš©)
         int32 RandomIndex = FMath::RandRange(0, AllTags.Num() - 1);
         TagToApply = AllTags[RandomIndex];
     }
 
-    // 5. ¼±Á¤µÈ GE Àû¿ë
     TSubclassOf<UGameplayEffect> GEToApply = StatusEffectMap[TagToApply];
     if (GEToApply)
     {
@@ -97,8 +97,20 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
         FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(GEToApply, GetAbilityLevel(), EffectContext);
         if (SpecHandle.IsValid())
         {
+            // [1] ë¨¼ì € ê¸°ì¡´ì²˜ëŸ¼ ASC(í˜ˆê´€)ì— ì•½(GE)ì„ ì£¼ì‚¬í•©ë‹ˆë‹¤.
             TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-            UE_LOG(LogTemp, Log, TEXT("¿À»ö ¸¶·ÂÇÙ ¹ßµ¿! Àû¿¡°Ô [%s] ºÎ¿© ¼º°ø!"), *TagToApply.ToString());
+
+            // [2] ëª¬ìŠ¤í„° ëª¸ì—ì„œ 'ì „ê´‘íŒ ë§¤ë‹ˆì €'ë¥¼ ì°¾ìŠµë‹ˆë‹¤.
+            USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
+
+            if (TargetStatusComp)
+            {
+                // [3] ë§¤ë‹ˆì €ì—ê²Œ "ë°©ê¸ˆ ì´ íƒœê·¸(TagToApply) ê±¸ì—ˆì–´!" ë¼ê³  ë³´ê³ í•©ë‹ˆë‹¤.
+                // (ì´ í•¨ìˆ˜ê°€ í˜¸ì¶œë˜ë©´ ì„±ë¯¼ë‹˜ì´ ì§œë‘ì‹  ë¡œì§ì— ì˜í•´ UI ì•„ì´ì½˜ì´ ì˜ˆì˜ê²Œ ëœ° ê²ë‹ˆë‹¤)
+                TargetStatusComp->ProcessStatusEffect(TagToApply, TargetASC, GetAvatarActorFromActorInfo());
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("ì˜¤ìƒ‰ ë§ˆë ¥í•µ ë°œë™! ì ì—ê²Œ [%s] ë¶€ì—¬ ë° ë§¤ë‹ˆì € ë“±ë¡ ì™„ë£Œ!"), *TagToApply.ToString());
         }
     }
 }
