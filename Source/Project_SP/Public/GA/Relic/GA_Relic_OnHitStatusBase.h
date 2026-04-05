@@ -19,7 +19,7 @@ public:
 
     // 어빌리티가 시작될 때 호출 (여기서 이벤트 감시 시작)
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
 protected:
     // 타격 이벤트를 받았을 때 실행될 함수
     UFUNCTION()

@@ -16,6 +16,7 @@ void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle 
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
     // 이번에는 타격이 아니라 "전투 시작(Event.Battle.Start)" 이벤트를 기다립니다!
+  
     UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this,
         FSPGameplayTags::Get().Event_Battle_Start,
@@ -23,9 +24,21 @@ void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle 
         false,
         false
     );
-
+    UE_LOG(LogTemp, Log, TEXT("이벤트를 받음(GA_Relic_VibrationStone)"));
     WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_VibrationStone::OnBattleStartReceived);
     WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_VibrationStone::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
 }
 
 void UGA_Relic_VibrationStone::OnBattleStartReceived(FGameplayEventData Payload)

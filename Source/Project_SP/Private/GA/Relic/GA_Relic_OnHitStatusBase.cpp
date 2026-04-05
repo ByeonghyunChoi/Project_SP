@@ -20,7 +20,7 @@ void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle
     // 타격 이벤트가 발생할 때까지 무한 대기
     UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this,
-        FSPGameplayTags::Get().Event_Montage_Hit, // 우리가 등록한 타격 태그
+        FSPGameplayTags::Get().Event_Battle_ApplyDamage, // 우리가 등록한 타격 태그
         nullptr,
         false,
         false
@@ -28,6 +28,18 @@ void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle
 
     WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
     WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
 }
 
 void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)

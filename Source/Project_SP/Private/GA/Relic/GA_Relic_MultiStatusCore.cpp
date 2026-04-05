@@ -29,6 +29,18 @@ void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle
     WaitEventTask->ReadyForActivation();
 }
 
+void UGA_Relic_MultiStatusCore::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
 void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
 {
     // 1. 일반 공격(Battle.Action.Attack)인지 확인
