@@ -510,6 +510,17 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		{
 			CriticalCoefficient = 1.5f + CritDamageVal;
 			UE_LOG(LogTemp, Log, TEXT("치명타!"));
+
+			if (SourceASC)
+			{
+				FGameplayEventData Payload;
+				Payload.EventTag = FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit"));
+				Payload.Instigator = SourceASC->GetAvatarActor(); // 때린 사람
+				Payload.Target = TargetASC->GetAvatarActor();     // 맞은 사람
+
+				// 자기 자신(SourceASC)에게 이벤트를 발생
+				SourceASC->HandleGameplayEvent(Payload.EventTag, &Payload);
+			}
 		}
 
 		// 피해 증감 계수
@@ -4119,8 +4130,14 @@ void UGA_Oparts_CrystalSkull::ActivateAbility(const FGameplayAbilitySpecHandle H
 void UGA_Oparts_CrystalSkull::OnCriticalHitReceived(FGameplayEventData Payload)
 {
 	// 치명타 이벤트가 발생하면 게이지 20 증가
-	// (추후 아티팩트 2단계 해금 여부를 여기서 검사해서 25로 올릴 수도 있습니다)
-	CurrentGauge += 20.0f;
+	float GaugeToAdd = 20.0f;
+
+	if (GetAbilitySystemComponentFromActorInfo()->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag(FName("Oparts.CrystalSkull.Artifact2"))))
+	{
+		GaugeToAdd = 25.0f;
+	}
+
+	CurrentGauge += GaugeToAdd;
 
 	// 게이지가 100에 도달했는지 체크
 	if (CurrentGauge >= 100.0f)
@@ -4138,6 +4155,225 @@ void UGA_Oparts_CrystalSkull::OnCriticalHitReceived(FGameplayEventData Payload)
 			}
 		}
 	}
+}
+
+// ==========================================
+// FILE: GA_Relic_MultiStatusCore.cpp
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_MultiStatusCore.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_MultiStatusCore::UGA_Relic_MultiStatusCore()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격 순간을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Montage_Hit,
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_MultiStatusCore::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. 타겟의 ASC 가져오기 (const_cast 적용)
+    AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+    UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+
+    // 타겟이 없거나, 에디터에서 Map을 안 채워놨으면 중단
+    if (!TargetASC || StatusEffectMap.IsEmpty()) return;
+
+    // 3. 타겟에게 "없는" 상태이상 분류하기
+    TArray<FGameplayTag> MissingTags;
+    TArray<FGameplayTag> AllTags;
+
+    for (const auto& Pair : StatusEffectMap)
+    {
+        FGameplayTag StatusTag = Pair.Key;
+        AllTags.Add(StatusTag); // 전체 목록 저장
+
+        // 타겟이 이 상태이상 태그를 가지고 있지 않다면 MissingTags에 추가
+        if (!TargetASC->HasMatchingGameplayTag(StatusTag))
+        {
+            MissingTags.Add(StatusTag);
+        }
+    }
+
+    // 4. 부여할 상태이상 무작위 선정
+    FGameplayTag TagToApply;
+    if (MissingTags.Num() > 0)
+    {
+        // 안 걸린 게 하나라도 있으면, 그 '없는 것들' 중에서 무작위 선정
+        int32 RandomIndex = FMath::RandRange(0, MissingTags.Num() - 1);
+        TagToApply = MissingTags[RandomIndex];
+    }
+    else
+    {
+        // 3개 다 걸려있으면 전체 중에서 무작위 선정 (갱신용)
+        int32 RandomIndex = FMath::RandRange(0, AllTags.Num() - 1);
+        TagToApply = AllTags[RandomIndex];
+    }
+
+    // 5. 선정된 GE 적용
+    TSubclassOf<UGameplayEffect> GEToApply = StatusEffectMap[TagToApply];
+    if (GEToApply)
+    {
+        FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+        EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+        FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(GEToApply, GetAbilityLevel(), EffectContext);
+        if (SpecHandle.IsValid())
+        {
+            TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("오색 마력핵 발동! 적에게 [%s] 부여 성공!"), *TagToApply.ToString());
+        }
+    }
+}
+
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.cpp
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_OnHitStatusBase.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+
+UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
+{
+    // 패시브니까 인스턴싱 정책을 '기능별 하나'로 설정
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격 이벤트가 발생할 때까지 무한 대기
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Montage_Hit, // 우리가 등록한 타격 태그
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. 확률 주사위
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue <= TriggerChance)
+    {
+        // 3. 타겟(적)의 ASC를 가져와서 GE 적용 (const_cast 적용)
+        AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+
+        if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+        {
+            FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+            EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+            // 변경된 변수명 TargetStatusGEClass 사용
+            FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
+            if (SpecHandle.IsValid())
+            {
+                TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+                // 로그도 범용적으로 변경
+                UE_LOG(LogTemp, Log, TEXT("유물 효과 발동: %s 상태이상 부여 성공!"), *TargetStatusGEClass->GetName());
+            }
+        }
+    }
+}
+
+// ==========================================
+// FILE: GA_Relic_VibrationStone.cpp
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_VibrationStone.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_VibrationStone::UGA_Relic_VibrationStone()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 이번에는 타격이 아니라 "전투 시작(Event.Battle.Start)" 이벤트를 기다립니다!
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Battle_Start,
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_VibrationStone::OnBattleStartReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_VibrationStone::OnBattleStartReceived(FGameplayEventData Payload)
+{
+    // 나 자신의 ASC(능력 시스템 컴포넌트)를 가져옵니다.
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && AddBPGEClass)
+    {
+        // 나에게 BP 회복 GE를 적용합니다.
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, GetAbilityLevel(), Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("불안정한 진동석 발동! BP 1 획득"));
+        }
+    }
 }
 
 // ==========================================
@@ -4602,6 +4838,7 @@ void USPGA_Interact::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
 #include "Character/SPGASPlayerCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -4730,6 +4967,21 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 			// 플레이어면 컨트롤러 UI가 켜지고, 몬스터면 머리 위 위젯이 켜집니다.
 			Character->OnBattleStarted();
 		}
+	}
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (PlayerPawn)
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = this;    // 이벤트를 쏜 사람 (GameMode)
+		Payload.Target = PlayerPawn;  // 이벤트를 받을 사람 (Player)
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
+			PlayerPawn,
+			FSPGameplayTags::Get().Event_Battle_Start,
+			Payload
+		);
+		UE_LOG(LogTemp, Log, TEXT("Battle Start Event Sent to Player!"));
 	}
 
 	// 2. [전투 시작] 턴 매니저에게 첫 턴을 물어보고 시작!
@@ -6395,10 +6647,14 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
 
 	Oparts_CrystalSkull = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull"), TEXT("오파츠: 수정 해골"));
+	Oparts_CrystalSkull_Artifact2 = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull.Artifact2"), TEXT("오파츠: 아티팩트2"));
 	Oparts_JadeClock = Manager.AddNativeGameplayTag(FName("Oparts.JadeClock"), TEXT("오파츠: 옥시계"));
 	Oparts_GoldBug = Manager.AddNativeGameplayTag(FName("Oparts.GoldBug"), TEXT("오파츠: 골드버그"));
 
 	Relic_Bonus_Attack = Manager.AddNativeGameplayTag(FName("Relic.Bonus.Attack"), TEXT("유물 최초 획득 시 공격력 보너스"));
+	Relic_WornWhetstone = Manager.AddNativeGameplayTag(FName("Relic.WornWhetstone"), TEXT("유물: 마모된 숫돌"));
+	Relic_FadingCandle = Manager.AddNativeGameplayTag(FName("Relic.FadingCandle"), TEXT("유물: 꺼져가는 양초"));
+	Relic_RustedNeedle = Manager.AddNativeGameplayTag(FName("Relic.RustedNeedle"), TEXT("유물: 녹슨 구리 침"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
@@ -6408,6 +6664,8 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
+	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
+	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -8975,6 +9233,116 @@ protected:
 };
 
 // ==========================================
+// FILE: GA_Relic_MultiStatusCore.h
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_MultiStatusCore.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_MultiStatusCore : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+    UGA_Relic_MultiStatusCore();
+
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnHitEventReceived(FGameplayEventData Payload);
+
+    // 상태이상 태그와 그에 맞는 GE를 연결할 사전(Map)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TMap<FGameplayTag, TSubclassOf<class UGameplayEffect>> StatusEffectMap;
+	
+};
+
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.h
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_OnHitStatusBase.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_OnHitStatusBase : public UGameplayAbility
+{
+    GENERATED_BODY()
+
+public:
+    UGA_Relic_OnHitStatusBase();
+
+    // 어빌리티가 시작될 때 호출 (여기서 이벤트 감시 시작)
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    // 타격 이벤트를 받았을 때 실행될 함수
+    UFUNCTION()
+    void OnHitEventReceived(FGameplayEventData Payload);
+
+    // 에디터에서 설정할 풍화 디버프 GE
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> TargetStatusGEClass;
+
+    // 발동 확률 (30)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Stats")
+    float TriggerChance = 30.0f;
+	
+};
+
+// ==========================================
+// FILE: GA_Relic_VibrationStone.h
+// ==========================================
+
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_VibrationStone.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_VibrationStone : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+    UGA_Relic_VibrationStone();
+
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnBattleStartReceived(FGameplayEventData Payload);
+
+    // 에디터에서 넣어줄 'BP +1 회복' GE
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> AddBPGEClass;
+};
+
+// ==========================================
 // FILE: SPGA_BattleActionBase.h
 // ==========================================
 
@@ -10077,11 +10445,16 @@ public:
 
 	// ?ㅽ뙆痢?Oparts)
 	FGameplayTag Oparts_CrystalSkull;
+	FGameplayTag Oparts_CrystalSkull_Artifact2;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
 
 	// ?좊Ъ(Relic)
 	FGameplayTag Relic_Bonus_Attack;
+	FGameplayTag Relic_WornWhetstone; // 留덈え???ル룎
+	FGameplayTag Relic_FadingCandle; // 爰쇱졇媛???묒큹
+	FGameplayTag Relic_RustedNeedle; // ?뱀뒯 援щ━ 移?
+
 
 	//?대깽??
 	FGameplayTag Event_Interaction;
@@ -10092,6 +10465,8 @@ public:
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
+	FGameplayTag Event_Combat_CriticalHit;
+	FGameplayTag Event_Battle_Start;
 
 	// 臾닿린(Weapon)
 	FGameplayTag Weapon_Fenrir;

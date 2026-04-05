@@ -65,6 +65,12 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	bIsReturningFromBattle = true;
 	bIsBattleActive = true;
 
+	// 🌟 [추가된 핵심 코드] 전투 맵 넘어가기 직전에 현재 내 상태와 유물을 서브시스템에 안전하게 저장!
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+	}
+
 	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
 	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
