@@ -1,4 +1,124 @@
-﻿			int32 CurrentStacks = ASC->GetCurrentStackCount(Handle);
+﻿// ==========================================
+#include "GA/SPGA_BattleActionBase.h"
+#include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASCharacterBase.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Game/ASPCombatGameMode.h"
+#include "Kismet/GameplayStatics.h"
+#include "Component/SPStatusEffectComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+
+USPGA_BattleActionBase::USPGA_BattleActionBase()
+{
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+	CooldownGameplayEffectClass = nullptr;
+	CostGameplayEffectClass = nullptr;
+}
+
+bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		{
+			return true; 
+		}
+	}
+	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+
+	if (!bCanAfford)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
+	}
+
+	return bCanAfford;
+}
+
+bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+
+	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
+		return true;
+	}
+
+	// 🌟 2. 수동 쿨타임 검사 (기존에 블루프린트 Blocked Tag로 막던 것을 여기서 처리)
+	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
+	{
+		// 쿨타임 태그가 내 몸에 있다면? 스킬 발동 차단!
+		if (OptionalRelevantTags)
+		{
+			OptionalRelevantTags->AddTag(CooldownTag);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GAS 시스템: 쿨타임 중이라 발동 불가 (%s)"), *CooldownTag.ToString());
+		return false;
+	}
+
+	// 3. 기본 쿨타임 체크
+	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
+}
+
+void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
+			return; 
+		}
+	}
+	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+}
+
+void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	if (TriggerEventData) CachedEventData = *TriggerEventData;
+
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		FSPGameplayTags::Get().Event_Battle_ApplyDamage
+	);
+
+	if (WaitDamageEventTask)
+	{
+		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
+		WaitDamageEventTask->ReadyForActivation();
+	}
+
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+}
+
+bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return false;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 우리가 에디터에서 만든 시간 간섭 태그
+	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
+
+	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
+	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
+	{
+		// 2. 이 태그를 부여하고 있는 바구니(Active Effect)를 찾습니다.
+		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
+		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+		{
+			// 현재 몇 스택이 남았는지 확인
+			int32 CurrentStacks = ASC->GetCurrentStackCount(Handle);
 			if (CurrentStacks > 0)
 			{
 				// 3. 스택을 1개만 깎습니다! (GAS 내장 함수)
@@ -653,6 +773,7 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 #include "Character/SPGASMonsterCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -781,6 +902,21 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 			// 플레이어면 컨트롤러 UI가 켜지고, 몬스터면 머리 위 위젯이 켜집니다.
 			Character->OnBattleStarted();
 		}
+	}
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (PlayerPawn)
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = this;    // 이벤트를 쏜 사람 (GameMode)
+		Payload.Target = PlayerPawn;  // 이벤트를 받을 사람 (Player)
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
+			PlayerPawn,
+			FSPGameplayTags::Get().Event_Battle_Start,
+			Payload
+		);
+		UE_LOG(LogTemp, Log, TEXT("Battle Start Event Sent to Player!"));
 	}
 
 	// 2. [전투 시작] 턴 매니저에게 첫 턴을 물어보고 시작!
@@ -983,89 +1119,3 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 				else
 				{
 					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.
-					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
-					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
-					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
-				}
-			}
-
-			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
-			FGameplayEventData Payload;
-			Payload.Instigator = TurnActor;
-			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnEnd, &Payload);
-		}
-	}
-
-	ProcessEndOfTurn();
-}
-
-void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
-{
-	if (ReadyParticipants.Contains(Character)) return;
-	ReadyParticipants.Add(Character);
-
-	if (Character == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
-	{
-		ApplyPlayerSavedData();
-	}
-
-	CheckAndStartBattle();
-}
-
-
-void AASPCombatGameMode::EndBattle(bool bPlayerWon)
-{
-	UGameInstance* GI = GetGameInstance();
-	if (!GI) return;
-
-	if (bPlayerWon)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
-
-		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
-		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
-		{
-			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
-			{
-				// 🌟 [수정됨] Restore(불러오기) ❌ -> Cache(메모리 덮어쓰기) ⭕
-				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
-
-				// 안전하게 하드디스크에 한 번 구워줍니다.
-				SaveSys->SaveRunToDisk();
-			}
-		}
-
-		// 2. 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
-		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-		{
-			MapManager->ReturnToField(true);
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
-
-		// 1. [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
-		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
-		{
-			SaveSys->ResetRunData();
-		}
-
-		// 2. 맵 매니저를 통해 로비 맵으로 강제 이동
-		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-		{
-			MapManager->GoToLobby();
-		}
-	}
-}
-
-TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
-{
-	TArray<TObjectPtr<AActor>> AliveEnemies;
-
-	// GameMode가 이미 들고 있는 참가자 명단을 순회합니다.
-	for (AActor* Participant : AllParticipants)
-	{
-		// 1. 유효성 및 'Enemy' 태그 검사
-		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))

@@ -1,11 +1,4 @@
-﻿{
-	GENERATED_BODY()
-public:
-	USPGAS_DamageCalculation();
-	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
-	
-};
-// ==========================================
+﻿// ==========================================
 // FILE: MerchantNPC.h
 // ==========================================
 #pragma once
@@ -31,11 +24,11 @@ public:
 	virtual FText GetInteractText() const override;
 
 protected:
-	// 1. ���� ����� ����� ������Ʈ
+	// ���� ����� ����� ������Ʈ
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UShopComponent> ShopComp;
 
-	// 2. ���� �̸� (��: "���� ����", "��ȭ ����") - ���߿� UI �������� ���ϴ�.
+	// ���� �̸� (��: "���� ����", "��ȭ ����") - ���߿� UI �������� ���
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant Info")
 	FText MerchantName;
 
@@ -43,8 +36,7 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	// 3. �ܺ�(�÷��̾� ��Ʈ�ѷ�)���� ȣ���� �Լ�
-	// "���� ������!"��� ����ϸ� �� �Լ��� ����˴ϴ�.
+	// �÷��̾� ��Ʈ�ѷ����� ȣ���� �Լ�
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void OpenShop(APlayerController* PlayerController);
 };
@@ -689,6 +681,16 @@ public:
 #include "Data/SPDataStructs.h"
 #include "InventoryComponent.generated.h"
 
+// UI와 데이터 판별에 쓸 재화 타입 (추가된 부분!)
+UENUM(BlueprintType)
+enum class EResourceType : uint8
+{
+	Gold		UMETA(DisplayName = "골드"),
+	Sand		UMETA(DisplayName = "모래"),
+	IncompleteEnergy    UMETA(DisplayName = "불완전한 기운"),
+	Fragment		UMETA(DisplayName = "파편")
+
+};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, const FPlayerRunWallet&, CurrentWallet, const FPlayerPermanentWallet&, CurrentPermWallet);
 
@@ -710,12 +712,12 @@ protected:
 	FPlayerPermanentWallet PermanentWallet;
 
 public:
-	// UI ������Ʈ �˸���
+	// UI 업데이트 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryUpdated OnInventoryUpdated;
 
 	// =========================================================
-	// 1. ��ȸ (Getter)
+	// 1. 조회 (Getter)
 	// =========================================================
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetSand() const { return PermanentWallet.Sand; }
@@ -730,42 +732,42 @@ public:
 	int32 GetFragment() const { return RunWallet.Fragment; }
 
 	// =========================================================
-	// 2. ���� (Gain / Consume)
+	// 2. 조작 (Gain / Consume)
 	// =========================================================
 
-	// �� ȹ��
+	// 모래 획득
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddSand(int32 Amount);
 
-	// �� �Ҹ� (���� �� true ��ȯ)
+	// 모래 소모 (성공 시 true 반환)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeSand(int32 Amount);
 
-	// ��� ȹ��
+	// 기운 획득
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddIncompleteEnergy(int32 Amount);
 
-	// ��� �Ҹ� (���� �� true ��ȯ)
+	// 기운 소모 (성공 시 true 반환)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeIncompleteEnergy(int32 Amount);
 
-	// �� ȹ��
+	// 돈 획득
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddMoney(int32 Amount);
 
-	// �� �Ҹ� (���� �� true ��ȯ)
+	// 돈 소모 (성공 시 true 반환)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeMoney(int32 Amount);
 
-	// �Ǵ��� ���� ȹ��
+	// 권능의 파편 획득
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddFragment(int32 Amount);
 
-	// �Ǵ��� ���� �Ҹ� (���� �� true ��ȯ)
+	// 권능의 파편 소모 (성공 시 true 반환)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool ConsumeFragment(int32 Amount);
 
-	//�ε� �ý���
+	//로드 시스템
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet);
 };
@@ -1069,3 +1071,51 @@ public:
 
 protected:
 	// �����̻� ������ ���� (������ ĳ���Ϳ� �ִ� ��)
+	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
+	TObjectPtr<class UStatusEffectData> StatusEffectDataAsset;
+
+	// ���� �̻� ���ظ� ���� �� ����� GE (�±�: Damage.Type.Status)
+	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
+	TSubclassOf<class UGameplayEffect> StatusDamageEffectClass;
+
+	// ���� ���ظ� ���� �� ����� GE (�±�: Damage.Type.Fixed)
+	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
+	TSubclassOf<class UGameplayEffect> FixedDamageEffectClass;
+
+public:
+	// ���� ���� �� ȣ���� �Լ� (�����ڰ� Ÿ�ٿ��� �ο�)
+	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+	void ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor);
+
+	// ���� �����̻� ���� �� ���� ����
+	void ProcessStatusEffect(FGameplayTag IncomingStatusTag, class UAbilitySystemComponent* TargetASC, AActor* InstigatorActor);
+
+	// �� ���� �� DoT ���ظ� ����ϰ� �����ϴ� �Լ�
+	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+	void ProcessTurnStartDoT();
+
+	//�����̻� �� ���� �Լ�
+	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+	void ReduceStatusEffectTurns();
+private:
+	// ���� �����̻� ���� ����
+	void RemoveStatusEffectByTag(class UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove);
+};
+// ==========================================
+// FILE: OpartsDefinition.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayTagContainer.h"
+#include "Abilities/GameplayAbility.h"
+#include "GameplayEffect.h"
+#include "OpartsDefinition.generated.h"
+
+/**
+ * [��Ƽ��Ʈ ������ ����ü]
+ * �������� ���ӵ� 5���� ��Ƽ��Ʈ ���� ������ ���� ����
+ * �ر� �� �ɷ�(GA)�� �ְų�, ����(GE)�� �÷��� �� ����

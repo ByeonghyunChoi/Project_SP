@@ -1,4 +1,90 @@
-﻿		{
+﻿					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
+					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
+					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				}
+			}
+
+			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
+			FGameplayEventData Payload;
+			Payload.Instigator = TurnActor;
+			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnEnd, &Payload);
+		}
+	}
+
+	ProcessEndOfTurn();
+}
+
+void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
+{
+	if (ReadyParticipants.Contains(Character)) return;
+	ReadyParticipants.Add(Character);
+
+	if (Character == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+	{
+		ApplyPlayerSavedData();
+	}
+
+	CheckAndStartBattle();
+}
+
+
+void AASPCombatGameMode::EndBattle(bool bPlayerWon)
+{
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
+	if (bPlayerWon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
+
+		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
+		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
+		{
+			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 🌟 [수정됨] Restore(불러오기) ❌ -> Cache(메모리 덮어쓰기) ⭕
+				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+
+				// 안전하게 하드디스크에 한 번 구워줍니다.
+				SaveSys->SaveRunToDisk();
+			}
+		}
+
+		// 2. 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->ReturnToField(true);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
+
+		// 1. [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
+		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			SaveSys->ResetRunData();
+		}
+
+		// 2. 맵 매니저를 통해 로비 맵으로 강제 이동
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->GoToLobby();
+		}
+	}
+}
+
+TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
+{
+	TArray<TObjectPtr<AActor>> AliveEnemies;
+
+	// GameMode가 이미 들고 있는 참가자 명단을 순회합니다.
+	for (AActor* Participant : AllParticipants)
+	{
+		// 1. 유효성 및 'Enemy' 태그 검사
+		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))
+		{
 			// 2. 살아있는지 체력 검사
 			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
 			{
@@ -1033,39 +1119,3 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
 	if (bIsInLobby)
 	{
-		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
-		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
-	}
-	else
-	{
-		LoadStageLevel();
-		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
-	}
-}
-
-void UMapManagerSubsystem::GoToLobby()
-{
-	bIsInLobby = true;
-	// 로비로 돌아오면 런 데이터 초기화
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveSys->ResetRunData();
-	}
-	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
-}
-
-void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
-{
-	// MapBase가 BeginPlay에서 호출해줌
-	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
-}
-// ==========================================
-// FILE: PortalActor.cpp
-// ==========================================
-#include "Map/PortalActor.h"
-#include "Map/MapManagerSubsystem.h"
-#include "Kismet/GameplayStatics.h"
-
-APortalActor::APortalActor()
-{
-	PrimaryActorTick.bCanEverTick = false;

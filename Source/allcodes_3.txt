@@ -1,100 +1,4 @@
-﻿	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
-}
-
-void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
-{
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
-	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-	{
-		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
-		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
-		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
-	}
-
-	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
-	CancelTargetSelection();
-
-	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
-}
-
-void ASPGASPlayerController::RefreshBattlePointUI()
-{
-	if (!CachedASC) return;
-
-	int32 CurrentBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetBattlePointAttribute()));
-	int32 MaxBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxBattlePointAttribute()));
-	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
-}
-
-void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
-{
-	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
-}
-
-void ASPGASPlayerController::StartTargetSelection()
-{
-	// 1. 적 목록 찾기
-	AvailableTargets.Empty();
-
-	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		TArray<AActor*> BattleEnemies = GM->GetCurrentEnemies();
-
-		for (AActor* Actor : BattleEnemies)
-		{
-			if (IsValid(Actor))
-			{
-				AvailableTargets.Add(Actor);
-			}
-		}
-	}
-
-	if (AvailableTargets.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("공격 가능한 적이 없습니다!"));
-		CancelTargetSelection();
-		return;
-	}
-
-	// 2. 초기화
-	bIsSelectingTarget = true;
-	CurrentTargetIndex = 0; 
-
-	// 3. 하이라이트 ON
-	HighlightCurrentTarget(true);
-}
-
-void ASPGASPlayerController::ConfirmTargetAndExecute()
-{
-	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-	{
-		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
-
-		// 하이라이트 OFF 및 상태 리셋
-		HighlightCurrentTarget(false);
-		bIsSelectingTarget = false;
-
-		// 실행 명령
-		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
-
-		// 행동 초기화 (다음 턴을 위해)
-		CurrentSelectedAction = ESelectedActionType::None;
-	}
-	else
-	{
-		// 🌟 3. (옵션) 타겟을 확정하려 했으나 이미 파괴된 경우의 예외 처리
-		UE_LOG(LogTemp, Warning, TEXT("타겟 확정 실패: 타겟이 이미 파괴되었거나 유효하지 않습니다."));
-
-		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
-		HighlightCurrentTarget(false);
-		bIsSelectingTarget = false;
-		CurrentSelectedAction = ESelectedActionType::None;
+﻿		CurrentSelectedAction = ESelectedActionType::None;
 
 		StartTargetSelection();
 	}
@@ -1069,3 +973,149 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 	if (!ASC) return;
 
 	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)
+	{
+		if (HistroyRelic)
+		{
+			AcquiredHistory.Add(HistroyRelic);
+
+			// (AddRelic�� �ִ� ��޺� ���ʽ� �ο� ���� �����)
+			if (RarityAttackBonusEffectClass)
+			{
+				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
+				FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
+
+				if (BonusSpec.IsValid())
+				{
+					float BonusValue = 0.0f;
+					switch (HistroyRelic->Rarity)
+					{
+					case ERelicRarity::Normal:  BonusValue = 1.007f; break;
+					case ERelicRarity::Rare:    BonusValue = 1.01f;  break;
+					case ERelicRarity::Unique:  BonusValue = 1.02f;  break;
+					}
+					BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
+					ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
+				}
+			}
+		}
+	}
+
+	for (const URelicDefinition* EquippedRelic : SavedRelicData.EquippedRelics)
+	{
+		if (EquippedRelic)
+		{
+			EquippedRelics.Add(EquippedRelic);
+
+			// ���� ȿ��(GE) �ٽ� �߶��ֱ�
+			if (EquippedRelic->RelicEffectClass)
+			{
+				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+				Context.AddSourceObject(this);
+
+				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EquippedRelic->RelicEffectClass, 1.0f, Context);
+				if (SpecHandle.IsValid())
+				{
+					FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+					RelicEffectHandles.Add(ActiveHandle);
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Relic] ���̺� �ε� �Ϸ�! (����: %d��, �̷�: %d��)"), EquippedRelics.Num(), AcquiredHistory.Num());
+}
+// ==========================================
+// FILE: ShopComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Component/ShopComponent.h"
+
+UShopComponent::UShopComponent()
+{
+	
+}
+
+TArray<FShopItemRow> UShopComponent::GetShopItems() const
+{
+	TArray<FShopItemRow> Items;
+
+	// 데이터 테이블이 설정되어 있는지 확인
+	if (ShopItemTable)
+	{
+		// 테이블의 모든 행(Row)을 가져옴.
+		FString ContextString;
+		TArray<FShopItemRow*> Rows;
+		ShopItemTable->GetAllRows<FShopItemRow>(ContextString, Rows);
+
+		// 가져온 행들을 리스트에 담음.
+		for (FShopItemRow* Row : Rows)
+		{
+			if (Row)
+			{
+				Items.Add(*Row);
+			}
+		}
+	}
+	else
+	{
+		// 테이블이 없을 경우 경고 로그
+		UE_LOG(LogTemp, Warning, TEXT("ShopComponent: 데이터 테이블이 설정되지 않았습니다!"));
+	}
+
+	return Items;
+}
+
+
+// ==========================================
+// FILE: SPInteractionComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Component/SPInteractionComponent.h"
+#include "Interface/InteractableInterface.h"
+#include "UI/SPInteractionWidget.h"
+#include "AbilitySystemBlueprintLibrary.h" 
+#include "AbilitySystemComponent.h"
+#include "GameFramework/Character.h" 
+#include "DrawDebugHelpers.h"
+#include "Project_SP/Project_SP.h"
+
+USPInteractionComponent::USPInteractionComponent()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+}
+
+// Called every frame
+void USPInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!InteractionWidgetInstance && InteractionWidgetClass)
+	{
+		APawn* OwnerPawn = Cast<APawn>(GetOwner());
+		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+		{
+			APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
+			if (PC)
+			{
+				InteractionWidgetInstance = CreateWidget<USPInteractionWidget>(PC, InteractionWidgetClass);
+				if (InteractionWidgetInstance)
+				{
+					InteractionWidgetInstance->AddToViewport(); 
+					InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+				}
+			}
+		}
+	}
+
+	if (!InteractionWidgetInstance) return;
+
+	//�÷��̾��� ��쿡�� ���� ����
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+	{
+		PerformTrace();
+	}

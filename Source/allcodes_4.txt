@@ -1,150 +1,4 @@
-﻿	{
-		if (HistroyRelic)
-		{
-			AcquiredHistory.Add(HistroyRelic);
-
-			// (AddRelic�� �ִ� ��޺� ���ʽ� �ο� ���� �����)
-			if (RarityAttackBonusEffectClass)
-			{
-				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
-				FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
-
-				if (BonusSpec.IsValid())
-				{
-					float BonusValue = 0.0f;
-					switch (HistroyRelic->Rarity)
-					{
-					case ERelicRarity::Normal:  BonusValue = 1.007f; break;
-					case ERelicRarity::Rare:    BonusValue = 1.01f;  break;
-					case ERelicRarity::Unique:  BonusValue = 1.02f;  break;
-					}
-					BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
-					ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
-				}
-			}
-		}
-	}
-
-	for (const URelicDefinition* EquippedRelic : SavedRelicData.EquippedRelics)
-	{
-		if (EquippedRelic)
-		{
-			EquippedRelics.Add(EquippedRelic);
-
-			// ���� ȿ��(GE) �ٽ� �߶��ֱ�
-			if (EquippedRelic->RelicEffectClass)
-			{
-				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-				Context.AddSourceObject(this);
-
-				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EquippedRelic->RelicEffectClass, 1.0f, Context);
-				if (SpecHandle.IsValid())
-				{
-					FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-					RelicEffectHandles.Add(ActiveHandle);
-				}
-			}
-		}
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[Relic] ���̺� �ε� �Ϸ�! (����: %d��, �̷�: %d��)"), EquippedRelics.Num(), AcquiredHistory.Num());
-}
-// ==========================================
-// FILE: ShopComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/ShopComponent.h"
-
-UShopComponent::UShopComponent()
-{
-	
-}
-
-TArray<FShopItemRow> UShopComponent::GetShopItems() const
-{
-	TArray<FShopItemRow> Items;
-
-	// 데이터 테이블이 설정되어 있는지 확인
-	if (ShopItemTable)
-	{
-		// 테이블의 모든 행(Row)을 가져옴.
-		FString ContextString;
-		TArray<FShopItemRow*> Rows;
-		ShopItemTable->GetAllRows<FShopItemRow>(ContextString, Rows);
-
-		// 가져온 행들을 리스트에 담음.
-		for (FShopItemRow* Row : Rows)
-		{
-			if (Row)
-			{
-				Items.Add(*Row);
-			}
-		}
-	}
-	else
-	{
-		// 테이블이 없을 경우 경고 로그
-		UE_LOG(LogTemp, Warning, TEXT("ShopComponent: 데이터 테이블이 설정되지 않았습니다!"));
-	}
-
-	return Items;
-}
-
-
-// ==========================================
-// FILE: SPInteractionComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPInteractionComponent.h"
-#include "Interface/InteractableInterface.h"
-#include "UI/SPInteractionWidget.h"
-#include "AbilitySystemBlueprintLibrary.h" 
-#include "AbilitySystemComponent.h"
-#include "GameFramework/Character.h" 
-#include "DrawDebugHelpers.h"
-#include "Project_SP/Project_SP.h"
-
-USPInteractionComponent::USPInteractionComponent()
-{
-	PrimaryComponentTick.bCanEverTick = true;
-}
-
-// Called every frame
-void USPInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (!InteractionWidgetInstance && InteractionWidgetClass)
-	{
-		APawn* OwnerPawn = Cast<APawn>(GetOwner());
-		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
-		{
-			APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
-			if (PC)
-			{
-				InteractionWidgetInstance = CreateWidget<USPInteractionWidget>(PC, InteractionWidgetClass);
-				if (InteractionWidgetInstance)
-				{
-					InteractionWidgetInstance->AddToViewport(); 
-					InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-				}
-			}
-		}
-	}
-
-	if (!InteractionWidgetInstance) return;
-
-	//�÷��̾��� ��쿡�� ���� ����
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
-	{
-		PerformTrace();
-	}
-}
+﻿}
 
 void USPInteractionComponent::PerformTrace()
 {
@@ -948,124 +802,320 @@ void USPAT_MoveToTarget::CalculateDestination()
 	}
 }
 // ==========================================
-// FILE: SPGA_BattleActionBase.cpp
+// FILE: GA_Oparts_CrystalSkull.cpp
 // ==========================================
-#include "GA/SPGA_BattleActionBase.h"
-#include "Character/SPGASPlayerCharacter.h"
-#include "Character/SPGASCharacterBase.h"
-#include "AttributeSet/SPGASAttributeSet.h"
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/OpartsAbility/GA_Oparts_CrystalSkull.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "AbilitySystemComponent.h"
+
+UGA_Oparts_CrystalSkull::UGA_Oparts_CrystalSkull()
+{
+	// �нú� ��ų�̹Ƿ� �ν��Ͻ� ��å ���� (���� ���� CurrentGauge�� �����ϱ� ���� �ʿ�)
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+	// Ȱ��ȭ �ñ⸦ �ο� ���(Passive)�� ���� (���Ͻô� �±׷� ���߽ø� �˴ϴ�)
+	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+}
+
+void UGA_Oparts_CrystalSkull::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+	CurrentGauge = 0.0f; // ������ �� ������ 0���� �ʱ�ȭ
+
+	// Event.Combat.CriticalHit �� �޸� �̺�Ʈ�� �߻��� ������ ����ϴ� �½�ũ ����
+	UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit")));
+
+	if (WaitEventTask)
+	{
+		// �̺�Ʈ�� �߻��ϸ� OnCriticalHitReceived �Լ��� �����ϵ��� ����
+		WaitEventTask->EventReceived.AddDynamic(this, &UGA_Oparts_CrystalSkull::OnCriticalHitReceived);
+		// �½�ũ ����! ���� ��׶��忡�� ��� �̺�Ʈ�� ��ٸ��ϴ�.
+		WaitEventTask->ReadyForActivation();
+	}
+}
+
+void UGA_Oparts_CrystalSkull::OnCriticalHitReceived(FGameplayEventData Payload)
+{
+	// ġ��Ÿ �̺�Ʈ�� �߻��ϸ� ������ 20 ����
+	float GaugeToAdd = 20.0f;
+
+	if (GetAbilitySystemComponentFromActorInfo()->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag(FName("Oparts.CrystalSkull.Artifact2"))))
+	{
+		GaugeToAdd = 25.0f;
+	}
+
+	CurrentGauge += GaugeToAdd;
+
+	// �������� 100�� �����ߴ��� üũ
+	if (CurrentGauge >= 100.0f)
+	{
+		CurrentGauge = 0.0f; // 100 ���� �� ������ �ʱ�ȭ
+
+		// ���� ��ų ������ 100% ���� ���� ����
+		if (SkillDamageBuffClass)
+		{
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+			if (ASC)
+			{
+				FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
+				ASC->ApplyGameplayEffectToSelf(SkillDamageBuffClass->GetDefaultObject<UGameplayEffect>(), 1.0f, EffectContext);
+			}
+		}
+	}
+}
+// ==========================================
+// FILE: GA_Relic_MultiStatusCore.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_MultiStatusCore.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_MultiStatusCore::UGA_Relic_MultiStatusCore()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // Ÿ�� ������ ��ٸ��ϴ�.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Montage_Hit,
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_MultiStatusCore::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_MultiStatusCore::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // �ο����� ���, �ڽ��� ASC���� "���� Ȱ��ȭ����!" ��� ��û�մϴ�.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("���� �ڵ� Ȱ��ȭ �Ϸ�: ��� ��� ����"));
+    }
+}
+
+void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. �Ϲ� ����(Battle.Action.Attack)���� Ȯ��
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. Ÿ���� ASC �������� (const_cast ����)
+    AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+    UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+
+    // Ÿ���� ���ų�, �����Ϳ��� Map�� �� ä�������� �ߴ�
+    if (!TargetASC || StatusEffectMap.IsEmpty()) return;
+
+    // 3. Ÿ�ٿ��� "����" �����̻� �з��ϱ�
+    TArray<FGameplayTag> MissingTags;
+    TArray<FGameplayTag> AllTags;
+
+    for (const auto& Pair : StatusEffectMap)
+    {
+        FGameplayTag StatusTag = Pair.Key;
+        AllTags.Add(StatusTag); // ��ü ��� ����
+
+        // Ÿ���� �� �����̻� �±׸� ������ ���� �ʴٸ� MissingTags�� �߰�
+        if (!TargetASC->HasMatchingGameplayTag(StatusTag))
+        {
+            MissingTags.Add(StatusTag);
+        }
+    }
+
+    // 4. �ο��� �����̻� ������ ����
+    FGameplayTag TagToApply;
+    if (MissingTags.Num() > 0)
+    {
+        // �� �ɸ� �� �ϳ��� ������, �� '���� �͵�' �߿��� ������ ����
+        int32 RandomIndex = FMath::RandRange(0, MissingTags.Num() - 1);
+        TagToApply = MissingTags[RandomIndex];
+    }
+    else
+    {
+        // 3�� �� �ɷ������� ��ü �߿��� ������ ���� (���ſ�)
+        int32 RandomIndex = FMath::RandRange(0, AllTags.Num() - 1);
+        TagToApply = AllTags[RandomIndex];
+    }
+
+    // 5. ������ GE ����
+    TSubclassOf<UGameplayEffect> GEToApply = StatusEffectMap[TagToApply];
+    if (GEToApply)
+    {
+        FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+        EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+        FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(GEToApply, GetAbilityLevel(), EffectContext);
+        if (SpecHandle.IsValid())
+        {
+            TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("���� ������ �ߵ�! ������ [%s] �ο� ����!"), *TagToApply.ToString());
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_OnHitStatusBase.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
-#include "Game/ASPCombatGameMode.h"
-#include "Kismet/GameplayStatics.h"
-#include "Component/SPStatusEffectComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 
-USPGA_BattleActionBase::USPGA_BattleActionBase()
+UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	CooldownGameplayEffectClass = nullptr;
-	CostGameplayEffectClass = nullptr;
+    // �нú�ϱ� �ν��Ͻ� ��å�� '��ɺ� �ϳ�'�� ����
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
-bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			return true; 
-		}
-	}
-	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	if (!bCanAfford)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
-	}
+    // Ÿ�� �̺�Ʈ�� �߻��� ������ ���� ���
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_AttackHit, // �츮�� ����� Ÿ�� �±�
+        nullptr,
+        false,
+        false
+    );
 
-	return bCanAfford;
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
 }
 
-bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
 {
-	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+    Super::OnAvatarSet(ActorInfo, Spec);
 
-	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
-	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
-		return true;
-	}
-
-	// 🌟 2. 수동 쿨타임 검사 (기존에 블루프린트 Blocked Tag로 막던 것을 여기서 처리)
-	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
-	{
-		// 쿨타임 태그가 내 몸에 있다면? 스킬 발동 차단!
-		if (OptionalRelevantTags)
-		{
-			OptionalRelevantTags->AddTag(CooldownTag);
-		}
-		UE_LOG(LogTemp, Warning, TEXT("GAS 시스템: 쿨타임 중이라 발동 불가 (%s)"), *CooldownTag.ToString());
-		return false;
-	}
-
-	// 3. 기본 쿨타임 체크
-	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
+    // �ο����� ���, �ڽ��� ASC���� "���� Ȱ��ȭ����!" ��� ��û�մϴ�.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("���� �ڵ� Ȱ��ȭ �Ϸ�: ��� ��� ����"));
+    }
 }
 
-void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
+void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
 {
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
-			return; 
-		}
-	}
-	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+    // 1. �Ϲ� ����(Battle.Action.Attack)���� Ȯ��
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. Ȯ�� �ֻ���
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue <= TriggerChance)
+    {
+        // 3. Ÿ��(��)�� ASC�� �����ͼ� GE ���� (const_cast ����)
+        AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+
+        if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+        {
+            FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+            EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+            // ����� ������ TargetStatusGEClass ���
+            FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
+            if (SpecHandle.IsValid())
+            {
+                TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+                // �α׵� ���������� ����
+                UE_LOG(LogTemp, Log, TEXT("���� ȿ�� �ߵ�: %s �����̻� �ο� ����!"), *TargetStatusGEClass->GetName());
+            }
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_VibrationStone.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_VibrationStone.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_VibrationStone::UGA_Relic_VibrationStone()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
-void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	if (TriggerEventData) CachedEventData = *TriggerEventData;
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
-		this,
-		FSPGameplayTags::Get().Event_Battle_ApplyDamage
-	);
-
-	if (WaitDamageEventTask)
-	{
-		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
-		WaitDamageEventTask->ReadyForActivation();
-	}
-
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+    // 이번에는 타격이 아니라 "전투 시작(Event.Battle.Start)" 이벤트를 기다립니다!
+  
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Battle_Start,
+        nullptr,
+        false,
+        false
+    );
+    UE_LOG(LogTemp, Log, TEXT("이벤트를 받음(GA_Relic_VibrationStone)"));
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_VibrationStone::OnBattleStartReceived);
+    WaitEventTask->ReadyForActivation();
 }
 
-bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
+void UGA_Relic_VibrationStone::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
 {
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!ASC) return false;
+    Super::OnAvatarSet(ActorInfo, Spec);
 
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
 
-	// 우리가 에디터에서 만든 시간 간섭 태그
-	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
+void UGA_Relic_VibrationStone::OnBattleStartReceived(FGameplayEventData Payload)
+{
+    // 나 자신의 ASC(능력 시스템 컴포넌트)를 가져옵니다.
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 
-	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
-	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
-	{
-		// 2. 이 태그를 부여하고 있는 바구니(Active Effect)를 찾습니다.
-		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
-		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+    if (ASC && AddBPGEClass)
+    {
+        // 나에게 BP 회복 GE를 적용합니다.
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, GetAbilityLevel(), Context);
 
-		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-		{
-			// 현재 몇 스택이 남았는지 확인
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("불안정한 진동석 발동! BP 1 획득"));
+        }
+    }
+}
+// ==========================================
+// FILE: SPGA_BattleActionBase.cpp

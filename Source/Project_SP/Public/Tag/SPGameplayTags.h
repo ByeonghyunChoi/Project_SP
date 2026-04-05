@@ -66,6 +66,7 @@ public:
 	FGameplayTag Event_Jourmungandr_Hit;
 	FGameplayTag Event_Combat_CriticalHit;
 	FGameplayTag Event_Battle_Start;
+	FGameplayTag Event_Combat_AttackHit;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;

@@ -211,6 +211,16 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 					}
 				}
 			}
+			if (ASC) // 타격 이벤트 발사 (유물 어빌리티들이 이걸 듣고 반응할 수 있게)
+			{
+				FGameplayEventData RelicPayload;
+				RelicPayload.Instigator = GetAvatarActorFromActorInfo(); // 때린 사람
+				RelicPayload.Target = TargetActor;                       // 맞은 사람
+				RelicPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack); // 증명서(태그) 부착!
+
+				// 내 몸에 장착된 유물 어빌리티들이 들을 수 있게 전용 이벤트를 발사합니다.
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackHit, &RelicPayload);
+			}
 		}
 
 		FHitResult HitResult;

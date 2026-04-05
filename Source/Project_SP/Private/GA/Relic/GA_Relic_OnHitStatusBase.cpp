@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "GA/Relic/GA_Relic_OnHitStatusBase.h"
@@ -9,7 +9,7 @@
 
 UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
 {
-    // ÆĞ½Ãºê´Ï±î ÀÎ½ºÅÏ½Ì Á¤Ã¥À» '±â´Éº° ÇÏ³ª'·Î ¼³Á¤
+    // íŒ¨ì‹œë¸Œë‹ˆê¹Œ ì¸ìŠ¤í„´ì‹± ì •ì±…ì„ 'ê¸°ëŠ¥ë³„ í•˜ë‚˜'ë¡œ ì„¤ì •
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
@@ -17,10 +17,10 @@ void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle
 {
     Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-    // Å¸°İ ÀÌº¥Æ®°¡ ¹ß»ıÇÒ ¶§±îÁö ¹«ÇÑ ´ë±â
+    // íƒ€ê²© ì´ë²¤íŠ¸ê°€ ë°œìƒí•  ë•Œê¹Œì§€ ë¬´í•œ ëŒ€ê¸°
     UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this,
-        FSPGameplayTags::Get().Event_Battle_ApplyDamage, // ¿ì¸®°¡ µî·ÏÇÑ Å¸°İ ÅÂ±×
+        FSPGameplayTags::Get().Event_Combat_AttackHit, // ìš°ë¦¬ê°€ ë“±ë¡í•œ íƒ€ê²© íƒœê·¸
         nullptr,
         false,
         false
@@ -34,27 +34,27 @@ void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* Act
 {
     Super::OnAvatarSet(ActorInfo, Spec);
 
-    // ºÎ¿©¹ŞÀº Áï½Ã, ÀÚ½ÅÀÇ ASC¿¡°Ô "³ª¸¦ È°¼ºÈ­ÇØÁà!" ¶ó°í ¿äÃ»ÇÕ´Ï´Ù.
+    // ë¶€ì—¬ë°›ì€ ì¦‰ì‹œ, ìì‹ ì˜ ASCì—ê²Œ "ë‚˜ë¥¼ í™œì„±í™”í•´ì¤˜!" ë¼ê³  ìš”ì²­í•©ë‹ˆë‹¤.
     if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
     {
         ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
-        UE_LOG(LogTemp, Log, TEXT("À¯¹° ÀÚµ¿ È°¼ºÈ­ ¿Ï·á: ´ë±â ¸ğµå ÁøÀÔ"));
+        UE_LOG(LogTemp, Log, TEXT("ìœ ë¬¼ ìë™ í™œì„±í™” ì™„ë£Œ: ëŒ€ê¸° ëª¨ë“œ ì§„ì…"));
     }
 }
 
 void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
 {
-    // 1. ÀÏ¹İ °ø°İ(Battle.Action.Attack)ÀÎÁö È®ÀÎ
+    // 1. ì¼ë°˜ ê³µê²©(Battle.Action.Attack)ì¸ì§€ í™•ì¸
     if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
     {
         return;
     }
 
-    // 2. È®·ü ÁÖ»çÀ§
+    // 2. í™•ë¥  ì£¼ì‚¬ìœ„
     float RandValue = FMath::FRandRange(0.0f, 100.0f);
     if (RandValue <= TriggerChance)
     {
-        // 3. Å¸°Ù(Àû)ÀÇ ASC¸¦ °¡Á®¿Í¼­ GE Àû¿ë (const_cast Àû¿ë)
+        // 3. íƒ€ê²Ÿ(ì )ì˜ ASCë¥¼ ê°€ì ¸ì™€ì„œ GE ì ìš© (const_cast ì ìš©)
         AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
 
         if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
@@ -62,14 +62,14 @@ void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
             FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
             EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
 
-            // º¯°æµÈ º¯¼ö¸í TargetStatusGEClass »ç¿ë
+            // ë³€ê²½ëœ ë³€ìˆ˜ëª… TargetStatusGEClass ì‚¬ìš©
             FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
             if (SpecHandle.IsValid())
             {
                 TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-                // ·Î±×µµ ¹ü¿ëÀûÀ¸·Î º¯°æ
-                UE_LOG(LogTemp, Log, TEXT("À¯¹° È¿°ú ¹ßµ¿: %s »óÅÂÀÌ»ó ºÎ¿© ¼º°ø!"), *TargetStatusGEClass->GetName());
+                // ë¡œê·¸ë„ ë²”ìš©ì ìœ¼ë¡œ ë³€ê²½
+                UE_LOG(LogTemp, Log, TEXT("ìœ ë¬¼ íš¨ê³¼ ë°œë™: %s ìƒíƒœì´ìƒ ë¶€ì—¬ ì„±ê³µ!"), *TargetStatusGEClass->GetName());
             }
         }
     }

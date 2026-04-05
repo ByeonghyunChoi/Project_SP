@@ -59,6 +59,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
+	Event_Combat_AttackHit = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackHit"), TEXT("일반 공격 적중 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));

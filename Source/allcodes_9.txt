@@ -1,52 +1,4 @@
-﻿	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
-	TObjectPtr<class UStatusEffectData> StatusEffectDataAsset;
-
-	// ���� �̻� ���ظ� ���� �� ����� GE (�±�: Damage.Type.Status)
-	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
-	TSubclassOf<class UGameplayEffect> StatusDamageEffectClass;
-
-	// ���� ���ظ� ���� �� ����� GE (�±�: Damage.Type.Fixed)
-	UPROPERTY(EditDefaultsOnly, Category = "Status Data")
-	TSubclassOf<class UGameplayEffect> FixedDamageEffectClass;
-
-public:
-	// ���� ���� �� ȣ���� �Լ� (�����ڰ� Ÿ�ٿ��� �ο�)
-	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
-	void ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor);
-
-	// ���� �����̻� ���� �� ���� ����
-	void ProcessStatusEffect(FGameplayTag IncomingStatusTag, class UAbilitySystemComponent* TargetASC, AActor* InstigatorActor);
-
-	// �� ���� �� DoT ���ظ� ����ϰ� �����ϴ� �Լ�
-	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
-	void ProcessTurnStartDoT();
-
-	//�����̻� �� ���� �Լ�
-	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
-	void ReduceStatusEffectTurns();
-private:
-	// ���� �����̻� ���� ����
-	void RemoveStatusEffectByTag(class UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove);
-};
-// ==========================================
-// FILE: OpartsDefinition.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "GameplayTagContainer.h"
-#include "Abilities/GameplayAbility.h"
-#include "GameplayEffect.h"
-#include "OpartsDefinition.generated.h"
-
-/**
- * [��Ƽ��Ʈ ������ ����ü]
- * �������� ���ӵ� 5���� ��Ƽ��Ʈ ���� ������ ���� ����
- * �ر� �� �ɷ�(GA)�� �ְų�, ����(GE)�� �÷��� �� ����
- */
+﻿ */
 USTRUCT(BlueprintType)
 struct FOpartsArtifactData
 {
@@ -190,27 +142,27 @@ struct FStatusEffectConfig
 {
 	GENERATED_BODY()
 
-	// 1. �����̻� �̸� (������)
+	// �����̻� �̸� 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FName EffectName;
 
-	// 2. ������ GE Ŭ���� (���� ���ҿ�: ����, �ӵ� ��)
+	// ������ GE Ŭ���� 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSubclassOf<UGameplayEffect> EffectClass;
 
-	// 3. ���� �� �� (��� �ߵ����� 0)
+	// ���� �� �� (��� �ߵ����� 0)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	int32 DurationTurns = 2;
 
-	// 4. ���� ������ ��� (���ݷ��� N%) - ��: 0.2, 0.45
+	// ���� ������ ��� (���ݷ��� N%)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float DotDamageCoefficient = 0.0f;
 
-	// 5. ��� �ߵ� ������ ��� (ȥ��, ġ��� ��) - ��: 1.2, 1.5
+	// ��� �ߵ� ������ ��� (ȥ��, ġ���)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	float InstantDamageCoefficient = 0.0f;
 
-	// 6. �� �����̻��� '��� �ߵ���(Instant)'���� ���� (True�� GE ���ӽð� ����)
+	// �� �����̻��� ��� �ߵ����� ����
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsInstantEffect = false;
 };
@@ -221,11 +173,11 @@ class PROJECT_SP_API UStatusEffectData : public UDataAsset
 	GENERATED_BODY()
 	
 public:
-	// �±׸� Ű(Key)�� ����Ͽ� ������ ã���ϴ�.
+	// �±׸� Ű�� ����Ͽ� ���� ã��
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status Config")
 	TMap<FGameplayTag, FStatusEffectConfig> StatusConfigs;
 
-	// ���� �Լ�: �±׷� ���� ��������
+	// �±׷� ���� ��������
 	const FStatusEffectConfig* GetConfig(FGameplayTag Tag) const
 	{
 		return StatusConfigs.Find(Tag);
@@ -301,7 +253,7 @@ struct FEnemySpawnInfo
 	GENERATED_BODY()
 
 public:
-	// ������ �� Ŭ���� (��: BP_Goblin)
+	// ������ �� Ŭ����
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	TSubclassOf<class AActor> EnemyClass = nullptr;
 
@@ -396,14 +348,14 @@ public:
     UPROPERTY() float MaxBattlePoint = 5.0f;
     UPROPERTY() float MaxTimePower = 200.0f;       
 
-    UPROPERTY() float Attack = 20.0f;
+    UPROPERTY() float Attack = 10.0f;
     UPROPERTY() float Defense = 10.0f;
     UPROPERTY() float Speed = 100.0f;               
 
     // 3. 전투 보조 스탯
     UPROPERTY() float DefenseIgnore = 0.0f;
-    UPROPERTY() float CriticalRate = 0.05f;
-    UPROPERTY() float CriticalDamage = 1.5f;
+    UPROPERTY() float CriticalRate = 0.5f;
+    UPROPERTY() float CriticalDamage = 0.0f;
     UPROPERTY() float EffectHitRate = 0.0f;
     UPROPERTY() float EffectAmplify = 0.0f;
 
@@ -414,7 +366,7 @@ public:
     // 5. 성장
     UPROPERTY() float Level = 1.0f;
     UPROPERTY() float Experience = 0.0f;
-    UPROPERTY() float MaxExperience = 100.0f;
+    UPROPERTY() float MaxExperience = 0.0f;
 
 };
 
@@ -748,6 +700,147 @@ private:
 	
 };
 // ==========================================
+// FILE: GA_Oparts_CrystalSkull.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Oparts_CrystalSkull.generated.h"
+
+
+UCLASS()
+class PROJECT_SP_API UGA_Oparts_CrystalSkull : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+
+	UGA_Oparts_CrystalSkull();
+
+	// ��ų�� �ο��ǰ� ����� �� ȣ��Ǵ� �Լ�
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+	// ġ��Ÿ �̺�Ʈ(GameplayEvent)�� �������� �� ����� �ݹ� �Լ�
+	UFUNCTION()
+	void OnCriticalHitReceived(FGameplayEventData Payload);
+
+	// �������� 100 á�� �� �÷��̾�� �ο��� '���� ��ų ������ 100% ����' ���� (�������Ʈ���� �Ҵ�)
+	UPROPERTY(EditDefaultsOnly, Category = "CrystalSkull")
+	TSubclassOf<class UGameplayEffect> SkillDamageBuffClass;
+
+	// ���� �����ذ� ������
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "CrystalSkull")
+	float CurrentGauge;
+};
+// ==========================================
+// FILE: GA_Relic_MultiStatusCore.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_MultiStatusCore.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_MultiStatusCore : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+    UGA_Relic_MultiStatusCore();
+
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+protected:
+    UFUNCTION()
+    void OnHitEventReceived(FGameplayEventData Payload);
+
+    // �����̻� �±׿� �׿� �´� GE�� ������ ����(Map)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TMap<FGameplayTag, TSubclassOf<class UGameplayEffect>> StatusEffectMap;
+	
+};
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_OnHitStatusBase.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_OnHitStatusBase : public UGameplayAbility
+{
+    GENERATED_BODY()
+
+public:
+    UGA_Relic_OnHitStatusBase();
+
+    // ����Ƽ�� ���۵� �� ȣ�� (���⼭ �̺�Ʈ ���� ����)
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+protected:
+    // Ÿ�� �̺�Ʈ�� �޾��� �� ����� �Լ�
+    UFUNCTION()
+    void OnHitEventReceived(FGameplayEventData Payload);
+
+    // �����Ϳ��� ������ ǳȭ ����� GE
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> TargetStatusGEClass;
+
+    // �ߵ� Ȯ�� (30)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Stats")
+    float TriggerChance = 30.0f;
+	
+};
+// ==========================================
+// FILE: GA_Relic_VibrationStone.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_VibrationStone.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_VibrationStone : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+    UGA_Relic_VibrationStone();
+
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+protected:
+    UFUNCTION()
+    void OnBattleStartReceived(FGameplayEventData Payload);
+
+    // �����Ϳ��� �־��� 'BP +1 ȸ��' GE
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> AddBPGEClass;
+};
+// ==========================================
 // FILE: SPGA_BattleActionBase.h
 // ==========================================
 #pragma once
@@ -1026,46 +1119,3 @@ protected:
 	// ���� ������ ���
 	UPROPERTY()
 	TArray<AActor*> AllParticipants;
-
-	//���� �غ� �Ϸ�� ������ ��� 
-	UPROPERTY()
-	TSet<AActor*> ReadyParticipants;
-
-	bool bIsBattleInitialized = false;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
-	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
-
-	//���� ��ü ���� ��
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
-	int32 TotalExpectedParticipants = 0;
-
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
-	bool bIsCurrentTurnInterrupt = false;
-
-protected:
-	void ProcessEndOfTurn();
-
-private:
-	FTransform GetSpawnTransformByIndex(int32 Index);
-
-	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
-
-	void FinalizeBattleSetup();
-
-	void CheckAndStartBattle();
-
-	//������ ���� �Լ�
-	void ApplyPlayerSavedData();
-
-};
-// ==========================================
-// FILE: SPGASGameInstance.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/GameInstance.h"
-#include "SPGASGameInstance.generated.h"
