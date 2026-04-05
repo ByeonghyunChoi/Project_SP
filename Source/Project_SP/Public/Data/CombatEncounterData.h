@@ -16,7 +16,7 @@ struct FEnemySpawnInfo
 	GENERATED_BODY()
 
 public:
-	// 스폰할 적 클래스 (예: BP_Goblin)
+	// 스폰할 적 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	TSubclassOf<class AActor> EnemyClass = nullptr;
 

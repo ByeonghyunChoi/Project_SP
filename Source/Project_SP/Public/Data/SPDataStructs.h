@@ -26,14 +26,14 @@ public:
     UPROPERTY() float MaxBattlePoint = 5.0f;
     UPROPERTY() float MaxTimePower = 200.0f;       
 
-    UPROPERTY() float Attack = 20.0f;
+    UPROPERTY() float Attack = 10.0f;
     UPROPERTY() float Defense = 10.0f;
     UPROPERTY() float Speed = 100.0f;               
 
     // 3. 전투 보조 스탯
     UPROPERTY() float DefenseIgnore = 0.0f;
-    UPROPERTY() float CriticalRate = 0.05f;
-    UPROPERTY() float CriticalDamage = 1.5f;
+    UPROPERTY() float CriticalRate = 0.5f;
+    UPROPERTY() float CriticalDamage = 0.0f;
     UPROPERTY() float EffectHitRate = 0.0f;
     UPROPERTY() float EffectAmplify = 0.0f;
 
@@ -44,7 +44,7 @@ public:
     // 5. 성장
     UPROPERTY() float Level = 1.0f;
     UPROPERTY() float Experience = 0.0f;
-    UPROPERTY() float MaxExperience = 100.0f;
+    UPROPERTY() float MaxExperience = 0.0f;
 
 };
 

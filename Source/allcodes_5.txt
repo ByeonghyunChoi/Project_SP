@@ -1,76 +1,4 @@
-﻿			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			return true; 
-		}
-	}
-	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
-
-	if (!bCanAfford)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
-	}
-
-	return bCanAfford;
-}
-
-bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
-{
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			return true; // 쿨타임 2턴이 남아있어도 프리패스!
-		}
-	}
-	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
-}
-
-void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
-{
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
-			return; 
-		}
-	}
-	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
-}
-
-void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
-{
-	if(TriggerEventData)
-	{
-		CachedEventData = *TriggerEventData;
-	}
-
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-}
-
-bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
-{
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!ASC) return false;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 우리가 에디터에서 만든 시간 간섭 태그
-	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
-
-	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
-	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
-	{
-		// 2. 이 태그를 부여하고 있는 바구니(Active Effect)를 찾습니다.
-		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
-		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
-
-		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-		{
-			// 현재 몇 스택이 남았는지 확인
-			int32 CurrentStacks = ASC->GetCurrentStackCount(Handle);
+﻿			int32 CurrentStacks = ASC->GetCurrentStackCount(Handle);
 			if (CurrentStacks > 0)
 			{
 				// 3. 스택을 1개만 깎습니다! (GAS 내장 함수)
@@ -95,6 +23,11 @@ bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
 
 	// 시간 간섭 태그가 아예 없다면 평범하게 턴 종료 (false)
 	return false;
+}
+
+FGameplayTag USPGA_BattleActionBase::GetCooldownTag() const
+{
+	return CooldownTag;
 }
 
 void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier)
@@ -129,28 +62,72 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetActor)
 		);
 
+		if (HitCameraShakeClass && GetWorld())
+		{
+			UGameplayStatics::PlayWorldCameraShake(GetWorld(), HitCameraShakeClass, TargetActor->GetActorLocation(), 0.0f, 1000.0f, 1.0f);
+		}
+
 		if (AbilityTags.HasTag(SPTags.Battle_Action_Attack))
 		{
 			ASPGASCharacterBase* AvatarChar = Cast<ASPGASCharacterBase>(GetAvatarActorFromActorInfo());
 			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 
-			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent())
+			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent() && IsValid(TargetActor))
 			{
-				FGameplayTag EquippedWeaponTag;
-
-				// 2. 현재 내 몸(ASC)에 어떤 무기 태그가 붙어있는지 확인
-				if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir))
-					EquippedWeaponTag = SPTags.Weapon_Fenrir;
-				else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr))
-					EquippedWeaponTag = SPTags.Weapon_Surtr;
-				else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr))
-					EquippedWeaponTag = SPTags.Weapon_Jormungandr;
-
-				// 3. 컴포넌트에게 "지금 때렸으니까 상태이상 굴려봐!" 라고 명령
-				if (EquippedWeaponTag.IsValid())
+				// 타겟의 체력이 0이하라면 상태이상을 적용하지 않음
+				UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+				if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
 				{
-					AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+					FGameplayTag EquippedWeaponTag;
+					if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir))
+						EquippedWeaponTag = SPTags.Weapon_Fenrir;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr))
+						EquippedWeaponTag = SPTags.Weapon_Surtr;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr))
+						EquippedWeaponTag = SPTags.Weapon_Jormungandr;
+
+					if (EquippedWeaponTag.IsValid())
+					{
+						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+					}
 				}
+			}
+		}
+
+		FHitResult HitResult;
+		AActor* AvatarActor = GetAvatarActorFromActorInfo();
+
+		if (AvatarActor && TargetActor)
+		{
+			FVector StartLoc = AvatarActor->GetActorLocation(); // 내 위치
+			FVector EndLoc = TargetActor->GetActorLocation();   // 적 위치
+
+			// 내 몸에서 적의 중심을 향해 레이저를 쏴서 표면에 닿는 점을 찾습니다.
+			GetWorld()->LineTraceSingleByChannel(HitResult, StartLoc, EndLoc, ECC_Visibility);
+
+			// 만약 장애물 때문에 안 맞았다면, 그냥 적의 중심 위치를 강제로 타격점으로 지정!
+			if (!HitResult.bBlockingHit || HitResult.GetActor() != TargetActor)
+			{
+				HitResult.ImpactPoint = TargetActor->GetActorLocation();
+			}
+			HitResult.HitObjectHandle = FActorInstanceHandle(TargetActor); // 맞은 놈이 얘라고 명시
+
+			// 적의 ASC에 Hit VFX(GameplayCue) 실행 명령!
+			UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			if (TargetASC && HitVFXTag.IsValid())
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.EffectContext = TargetASC->MakeEffectContext();
+				CueParams.EffectContext.AddHitResult(HitResult); // 방금 찾은 정확한 표면 좌표를 넘김!
+				//타격용 GameplayCue 태그 호출!
+				TargetASC->ExecuteGameplayCue(HitVFXTag, CueParams);
+			}
+
+			// 적에게 피격 애니메이션(Hit React) 재생 명령!
+			// (ASPGASCharacterBase에 PlayHitReact 함수가 구현되어 있다고 가정)
+			if (ASPGASCharacterBase* TargetBaseChar = Cast<ASPGASCharacterBase>(TargetActor))
+			{
+				TargetBaseChar->PlayHitReact(HitResult.ImpactPoint);
 			}
 		}
 	}
@@ -219,13 +196,12 @@ TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
 		if (Actor == MyAvatar) continue;
 
 		// 2. 체력이 0보다 큰 '살아있는' 녀석만 타겟으로 잡음
-		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Actor))
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
+
+		// ASC가 존재하고, 체력이 0보다 큰지 확인!
+		if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
 		{
-			UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent();
-			if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
-			{
-				OutActors.Add(Actor);
-			}
+			OutActors.Add(Actor); // 통과! 데미지 명단에 추가!
 		}
 	}
 
@@ -258,6 +234,70 @@ AActor* USPGA_BattleActionBase::GetRandomEnemy() const
 	int32 RandIndex = FMath::RandRange(0, Enemies.Num() - 1);
 	return Enemies[RandIndex];
 }
+
+
+void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
+{
+	float PrimaryMultiplier = (Payload.EventMagnitude > 0.0f) ? Payload.EventMagnitude : DefaultDamageMultiplier;
+	float Ratio = (DefaultDamageMultiplier > 0.0f) ? (PrimaryMultiplier / DefaultDamageMultiplier) : 1.0f;
+	float SecondaryMultiplier = SecondaryDamageMultiplier * Ratio;
+
+	AActor* PayloadTarget = const_cast<AActor*>(Payload.Target.Get());
+
+	if (PayloadTarget)
+	{
+		ApplyDamageToTarget(PayloadTarget, PrimaryMultiplier);
+		return;
+	}
+
+	// -------------------------------------------------------------------------
+	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
+	switch (SkillTargetingType)
+	{
+	case ETargetingType::Single:
+	{
+		if (AActor* Target = GetSingleTarget())
+		{
+			ApplyDamageToTarget(Target, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Area:
+	{
+		AActor* CenterTarget = PayloadTarget ? PayloadTarget : GetSingleTarget();
+
+		if (CenterTarget)
+		{
+			ApplyDamageToTarget(CenterTarget, PrimaryMultiplier); 
+
+			TArray<AActor*> SecTargets = GetSecondaryTargets(CenterTarget);
+			for (AActor* SecTarget : SecTargets)
+			{
+				ApplyDamageToTarget(SecTarget, SecondaryMultiplier); 
+			}
+		}
+		break;
+	}
+	case ETargetingType::All:
+	{
+		TArray<AActor*> AllEnemies = GetAllEnemies();
+		for (AActor* Enemy : AllEnemies)
+		{
+			ApplyDamageToTarget(Enemy, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Random:
+	{
+		if (AActor* RandomTarget = GetRandomEnemy())
+		{
+			ApplyDamageToTarget(RandomTarget, PrimaryMultiplier);
+		}
+		break;
+	}
+	}
+}
+
 // ==========================================
 // FILE: SPGA_FieldAttack.cpp
 // ==========================================
@@ -436,6 +476,160 @@ void USPGA_Interact::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
 // ==========================================
+// FILE: SPGA_MonsterAttackBase.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/SPGA_MonsterAttackBase.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+USPGA_MonsterAttackBase::USPGA_MonsterAttackBase()
+{
+	// 이벤트 리스너(Task)를 쓰려면 무조건 InstancedPerActor 여야 합니다!
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void USPGA_MonsterAttackBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+	// 🌟 어빌리티가 시작되자마자 '패링 무전'을 기다리는 잠복 근무(Task)를 시작합니다!
+	UAbilityTask_WaitGameplayEvent* WaitParriedTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		FSPGameplayTags::Get().Event_Battle_Parried
+	);
+
+	if (WaitParriedTask)
+	{
+		// 무전이 들어오면 OnParriedEventCallback 함수를 실행하라고 바인딩합니다.
+		WaitParriedTask->EventReceived.AddDynamic(this, &USPGA_MonsterAttackBase::OnParriedEventCallback);
+
+		// 잠복 근무 시작!
+		WaitParriedTask->ReadyForActivation();
+	}
+}
+
+void USPGA_MonsterAttackBase::OnParriedEventCallback(FGameplayEventData Payload)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Monster GA] 패링 무전 수신! 하던 공격을 멈추고 복귀합니다."));
+
+	// 블루프린트에서 구현한 연출(튕겨 나가기, 제자리 복귀 등)을 실행하도록 이벤트 호출!
+	OnParried();
+}
+// ==========================================
+// FILE: SPGA_Parry.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/SPGA_Parry.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
+#include "Character/SPGASMonsterCharacter.h"
+#include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASPlayerController.h"
+#include "GA/SPGA_BattleActionBase.h"
+#include "Tag/SPGameplayTags.h"
+
+
+bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
+{
+	if (!TargetMonster) return false;
+
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
+	if (!PlayerASC) return false;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 1. 패링 창문이 열려있는지 검사 (태그 확인)
+	if (!TargetMonster->GetAbilitySystemComponent()->HasMatchingGameplayTag(SPTags.State_ParryWindow))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태(창문)가 아닙니다."));
+		return false;
+	}
+
+	// 2. 무기와 약점 상성 확인 (선생님의 태그 이름에 맞춰 수정하세요!)
+	// [펜리르]
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) &&
+		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Fenrir))
+	{
+		return true;
+	}
+
+	// [수르트]
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) &&
+		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Surtr))
+	{
+		return true;
+	}
+
+	// [요르문간드]
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) &&
+		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Jormungandr))
+	{
+		return true;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("패링 실패: 무기와 몬스터의 약점이 일치하지 않습니다."));
+	return false;
+}
+
+bool USPGA_Parry::CheckCounterConditions()
+{
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
+	if (!PlayerASC) return false;
+
+	// 1. 반격 모드인지 확인
+	if (!PlayerASC->HasMatchingGameplayTag(CounterModeTag))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("패링 성공: 하지만 반격 모드가 아니므로 턴만 종료합니다."));
+		return false;
+	}
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))
+	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+		{
+			FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+			UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+			if (WeaponData && WeaponData->ParrySkillAbility)
+			{
+				// 🌟 기본 UGameplayAbility가 아니라, 선생님의 베이스 클래스로 캐스팅합니다!
+				if (USPGA_BattleActionBase* AbilityCDO = WeaponData->ParrySkillAbility->GetDefaultObject<USPGA_BattleActionBase>())
+				{
+					// 선생님이 직접 만드신 CooldownTag 변수를 가져옵니다.
+					FGameplayTag TargetCooldownTag = AbilityCDO->GetCooldownTag();
+
+					// 태그가 유효하고, 내 몸(ASC)에 그 태그가 붙어있다면 쿨타임 중인 것!
+					if (TargetCooldownTag.IsValid() && PlayerASC->HasMatchingGameplayTag(TargetCooldownTag))
+					{
+						UE_LOG(LogTemp, Warning, TEXT("패링 성공: 하지만 반격 스킬(%s)이 쿨타임 중이라 추가 턴을 얻지 못합니다!"), *WeaponData->ParrySkillAbility->GetName());
+						return false; // ❌ 쿨타임 컷!
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("반격 조건 올 클리어! 반격 턴을 획득합니다."));
+	return true;
+}
+
+void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
+{
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TargetMonster))
+	{
+		// 몬스터에게 "너 패링당했어!" (Event.Combat.Parried) 무전을 날립니다.
+		FGameplayEventData Payload;
+		Payload.Instigator = GetAvatarActorFromActorInfo(); // 내가 때렸다
+		ASI->GetAbilitySystemComponent()->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_Parried, &Payload);
+		UE_LOG(LogTemp, Warning, TEXT("몬스터에게 패링 이벤트를 성공적으로 전송했습니다."));
+	}
+}
+// ==========================================
 // FILE: ASPCombatGameMode.cpp
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -453,8 +647,10 @@ void USPGA_Interact::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
 #include "AbilitySystemComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Tag/SPGameplayTags.h"
+#include "Data/Asset/WeaponAbilityData.h"
 #include "Character/SPGASCharacterBase.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASMonsterCharacter.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
 
@@ -632,7 +828,56 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
+
+				// 딱지는 1회용이므로 떼어줍니다.
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+
+				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
+				{
+					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+					{
+						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+
+						// 선생님이 만드신 'GetWeaponData' 함수 활용!
+						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
+						if (WeaponData && WeaponData->ParrySkillAbility)
+						{
+							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
+							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+							{
+								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
+								{
+									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
+
+									if (bActivated)
+									{
+										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+									}
+									else
+									{
+										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
+										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
+
+										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
+										EndTurn(TurnActor);
+									}
+									break;
+								}
+							}
+						}
+						else
+						{
+							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
+						}
+					}
+				}
+			}
 
 			if (StatusComp)
 			{
@@ -644,7 +889,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
 
-				CurrentTurnActor = nullptr;
+				EndTurn(TurnActor);
 				return;
 			}
 
@@ -729,9 +974,19 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
-				float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
-				float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
-				TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				if (bIsCurrentTurnInterrupt)
+				{
+					// VIP 턴이었다면 게이지를 깎지 않고, 다음을 위해 상태만 해제합니다.
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링/추가 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
+					bIsCurrentTurnInterrupt = false; // 리셋
+				}
+				else
+				{
+					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.
+					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
+					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
+					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				}
 			}
 
 			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
@@ -741,12 +996,7 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 		}
 	}
 
-	// 다음 턴 계산 요청
-	if (TurnManager)
-	{
-		AActor* NextActor = TurnManager->CalculateNextTurn();
-		StartTurn(NextActor);
-	}
+	ProcessEndOfTurn();
 }
 
 void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
@@ -762,25 +1012,6 @@ void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 	CheckAndStartBattle();
 }
 
-void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
-{
-	if (TurnManager)
-	{
-		TurnManager->RemoveParticipant(DeadActor);
-	}
-
-	// 2. 월드에 남은 "Enemy"가 몇 마리인지 셉니다.
-	TArray<TObjectPtr<AActor>> AliveEnemies = GetCurrentEnemies();
-	int32 AliveEnemiesCount = AliveEnemies.Num();
-
-	UE_LOG(LogTemp, Warning, TEXT("남은 적 수: %d"), AliveEnemiesCount);
-
-	// 3. 남은 적이 0마리라면? 플레이어 승리!
-	if (AliveEnemiesCount <= 0)
-	{
-		EndBattle(true);
-	}
-}
 
 void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 {
@@ -838,89 +1069,3 @@ TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
 	{
 		// 1. 유효성 및 'Enemy' 태그 검사
 		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))
-		{
-			// 2. 살아있는지 체력 검사
-			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
-			{
-				UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
-				if (ASC && ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
-				{
-					AliveEnemies.Add(Participant);
-				}
-			}
-		}
-	}
-	return AliveEnemies;
-}
-
-FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)
-{
-	// 맵에 배치된 모든 스폰 포인트 검색
-	TArray<AActor*> SpawnPoints;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASPGASSpawnPoint::StaticClass(), SpawnPoints);
-
-	for (AActor* Actor : SpawnPoints)
-	{
-		if (ASPGASSpawnPoint* SP = Cast<ASPGASSpawnPoint>(Actor))
-		{
-			if (SP->SpawnIndex == Index)
-			{
-				return SP->GetActorTransform();
-			}
-		}
-	}
-
-	// 못 찾았을 경우 기본값
-	UE_LOG(LogTemp, Warning, TEXT("스폰 포인트 [%d]를 찾지 못했습니다."), Index);
-	return FTransform(FRotator::ZeroRotator, FVector(Index * 200.0f, 0.0f, 100.0f));
-}
-// ==========================================
-// FILE: InteractionActorBase.cpp
-// ==========================================
-
-
-#include "InteractionActor/InteractionActorBase.h"
-
-AInteractionActorBase::AInteractionActorBase()
-{
-
-}
-
-void AInteractionActorBase::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
-
-void AInteractionActorBase::ExecuteInteraction(AActor* Interactor)
-{
-
-}
-
-FText AInteractionActorBase::GetInteractText()const
-{
-	return FText();
-}
-
-// ==========================================
-// FILE: InteractableInterface.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Interface/InteractableInterface.h"
-
-// Add default functionality here for any IInteractableInterface functions that are not pure virtual.
-// ==========================================
-// FILE: SPCombatTurnManager.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Manager/SPCombatTurnManager.h"
-#include "AbilitySystemInterface.h"
-#include "AbilitySystemComponent.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-#include "Character/SPGASPlayerCharacter.h"
-
-// 턴 시뮬레이션 구조체

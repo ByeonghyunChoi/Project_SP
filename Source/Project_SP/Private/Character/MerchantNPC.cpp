@@ -8,18 +8,16 @@
 // Sets default values
 AMerchantNPC::AMerchantNPC()
 {
-	// 1. 상점 컴포넌트 생성 및 부착
+	// 상점 컴포넌트 생성 및 부착
 	ShopComp = CreateDefaultSubobject<UShopComponent>(TEXT("ShopComponent"));
 
-	// 2. 비주얼 설정 (일반적인 캐릭터 메시 방향 맞추기)
+	// 비주얼 설정
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
 	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 }
 
 void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 {
-	// Interactor는 플레이어 캐릭터입니다.
-	// 여기서 PlayerPawn->GetController()를 가져오는데, 이게 NULL일 수도 있습니다.
 	if (APawn* PlayerPawn = Cast<APawn>(Interactor))
 	{
 		if (APlayerController* PC = Cast<APlayerController>(PlayerPawn->GetController()))
@@ -49,10 +47,10 @@ void AMerchantNPC::OpenShop(APlayerController* PlayerController)
 {
 	if (!PlayerController) return;
 
-	// 1. 상점 오픈 로그
+	// 상점 오픈 로그
 	UE_LOG(LogTemp, Warning, TEXT("=== 상인 '%s'가 상점을 엽니다! ==="), *MerchantName.ToString());
 
-	// 2. [검증] ShopComponent가 물건을 잘 가져오는지 테스트
+	// [검증] ShopComponent가 물건을 잘 가져오는지 테스트
 	if (ShopComp)
 	{
 		TArray<FShopItemRow> Items = ShopComp->GetShopItems();

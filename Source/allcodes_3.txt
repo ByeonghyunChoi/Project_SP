@@ -1,126 +1,4 @@
-﻿	return FMath::FloorToInt(CurrentTimePower);
-}
-
-int32 ASPGASPlayerController::GetSkillCost(FGameplayTag ActionTag) const
-{
-	if (!CachedASC) return 0;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 1. 시간 간섭은 무기와 상관없는 공용 스킬이므로 기존처럼 '태그'로 찾습니다.
-	if (ActionTag.MatchesTag(SPTags.Battle_Action_TimeInterference))
-	{
-		for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
-		{
-			if (Spec.Ability && Spec.Ability->GetAssetTags().HasTagExact(ActionTag))
-			{
-				if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
-				{
-					for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
-					{
-						if (ModInfo.Attribute == USPGASAttributeSet::GetTimePowerAttribute())
-						{
-							float CostValue = 0.0f;
-							if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
-								return FMath::FloorToInt(FMath::Abs(CostValue));
-						}
-					}
-				}
-			}
-		}
-		return 0;
-	}
-
-	// 2. 무기 스킬인 경우 -> 태그가 아니라 "클래스"로 찾습니다!
-	if (ActionTag.MatchesTag(SPTags.Battle_Action_Skill))
-	{
-		ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
-		if (!PlayerChar) return 0;
-
-		// 캐릭터 클래스에서 현재 장착 중인 무기의 DataAsset을 가져오는 함수를 호출
-		UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeaponTag);
-
-		if (WeaponData && WeaponData->WeaponSkillAbility)
-		{
-			// DataAsset에 등록된 바로 그 "클래스(TSubclassOf)"를 타겟으로 지정합니다.
-			TSubclassOf<UGameplayAbility> TargetAbilityClass = WeaponData->WeaponSkillAbility;
-
-			// ASC를 뒤져서 클래스가 일치하는 녀석을 찾습니다.
-			for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
-			{
-				// 태그 비교가 아니라 클래스 비교!
-				if (Spec.Ability && Spec.Ability->GetClass() == TargetAbilityClass)
-				{
-					if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
-					{
-						for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
-						{
-							if (ModInfo.Attribute == USPGASAttributeSet::GetBattlePointAttribute())
-							{
-								float CostValue = 0.0f;
-								if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
-									return FMath::FloorToInt(FMath::Abs(CostValue));
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return 0;
-}
-
-float ASPGASPlayerController::GetHealthPercent() const
-{
-	if (!CachedASC) return 0.0f;
-
-	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
-	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
-	if (MaxHP > 0.0f)
-	{
-		return FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f);
-	}
-	return 0.0f;
-}
-
-
-float ASPGASPlayerController::GetTimePowerPercent() const
-{
-	if (!CachedASC) return 0.0f;
-
-	float CurrentTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
-	float MaxTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxTimePowerAttribute());
-
-	if (MaxTP > 0.0f)
-	{
-		return FMath::Clamp(CurrentTP / MaxTP, 0.0f, 1.0f);
-	}
-	return 0.0f;
-}
-
-void ASPGASPlayerController::SetupAndShowBattleUI()
-{
-	// 1. ASC 및 캐릭터 안전하게 쥐기
-	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
-	if (PlayerChar)
-	{
-		CachedASC = PlayerChar->GetAbilitySystemComponent();
-
-		// 화면 UI가 켜질 때 위젯 컴포넌트도 여기서 한 번에 켭니다!
-		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
-		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
-		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
-	}
-
-	// 2. 위젯 생성 및 스위치!
-	if (!BattleHUDWidget && BattleHUDClass)
-	{
-		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
-	}
-
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+﻿	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
 	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 
 	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
@@ -359,6 +237,41 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 	}
 }
 
+void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
+{
+	if (!CachedASC) return;
+
+	if (IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("지금은 내 턴입니다. 패링을 사용할 수 없습니다."));
+		return;
+	}
+
+	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
+
+	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+}
+
+void ASPGASPlayerController::OnToggleCounterModePressed(const FInputActionValue& Value)
+{
+	if (!CachedASC) return;
+
+	// 아까 추가하신 태그 사전을 통해 반격 모드 태그를 가져옵니다.
+	FGameplayTag CounterModeTag = FSPGameplayTags::Get().State_CounterMode;
+
+	// 토글 로직: 태그가 있으면 빼고, 없으면 넣습니다!
+	if (CachedASC->HasMatchingGameplayTag(CounterModeTag))
+	{
+		CachedASC->RemoveLooseGameplayTag(CounterModeTag);
+		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [OFF]"));
+	}
+	else
+	{
+		CachedASC->AddLooseGameplayTag(CounterModeTag);
+		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [ON]"));
+	}
+}
+
 void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
 {
 	RefreshBattlePointUI();
@@ -376,6 +289,11 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	if (CurrentWeaponTag == NewWeaponTag) return;
 	if (!CachedASC) return;
+
+	if (bIsSelectingTarget)
+	{
+		CancelTargetSelection();
+	}
 
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
@@ -417,7 +335,7 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(BattleMappingContext, 0);
 		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
 		
-
+		PlayerChar->SwitchCameraMode(true);
 
 		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
 	}
@@ -428,7 +346,7 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 		Subsystem->AddMappingContext(FieldMappingContext, 0);
 		CancelTargetSelection();
 
-		PlayerChar->SetCameraProfile(PlayerChar->GetFieldCameraProfile());
+		PlayerChar->SwitchCameraMode(false);
 
 		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
 	}
@@ -731,9 +649,22 @@ void UOpartsComponent::UnequipCurrentOparts()
 
 void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
 {
+	if (!ASC && GetOwner())
+	{
+		if (IAbilitySystemInterface* Interface = Cast<IAbilitySystemInterface>(GetOwner()))
+		{
+			ASC = Interface->GetAbilitySystemComponent();
+		}
+		else
+		{
+			ASC = GetOwner()->FindComponentByClass<UAbilitySystemComponent>();
+		}
+	}
+
+	// 1. 강화 진행도 덮어쓰기
 	OpartsProgressMap = SavedData.ProgressMap;
 
-	// 저장된 오파츠가 있다면 장착! (없으면 기본값 세팅)
+	// 2. 저장된 오파츠가 있다면 장착! (이제 ASC가 있으므로 튕기지 않고 정상 장착됩니다)
 	if (SavedData.EquippedOparts)
 	{
 		EquipOparts(SavedData.EquippedOparts);
@@ -924,3 +855,217 @@ URelicComponent::URelicComponent()
 }
 
 void URelicComponent::BeginPlay()
+{
+	Super::BeginPlay();
+}
+
+bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
+{
+	// �� ���� ������ �ʵ��� �˻�
+	if (!NewRelic) return false;
+
+	// 1. �ִ� ���� ���� �ʰ� �˻�
+	if (EquippedRelics.Num() >= MaxRelicCount)
+	{
+		// ���߿� UI���� "��ü�� ������ �����ϼ���" â�� ���� ���� false ��ȯ
+		return false;
+	}
+	// 2. �ߺ� ���� �˻�
+	if (EquippedRelics.Contains(NewRelic))
+	{
+		return false;
+	}
+
+	// �÷��̾��� AbilitySystemComponent(ASC) ��������
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter) return false;
+
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+	if (!ASC) return false;
+
+	// 3. ���� ���� ȿ��(GE) ����
+	if (NewRelic->RelicEffectClass)
+	{
+		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+		Context.AddSourceObject(this);
+
+		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(NewRelic->RelicEffectClass, 1.0f, Context);
+		if (SpecHandle.IsValid())
+		{
+			FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+			RelicEffectHandles.Add(ActiveHandle); // ���߿� ����� ���� �ڵ� ����
+		}
+	}
+
+	// 4. ���� ȹ�� �˻� �� ��޺� ���ݷ� ���ʽ� �ο�
+	if (!AcquiredHistory.Contains(NewRelic))
+	{
+		AcquiredHistory.Add(NewRelic); // ȹ�� ��Ͽ� �߰�
+
+		if (RarityAttackBonusEffectClass)
+		{
+			FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
+			FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
+
+			if (BonusSpec.IsValid())
+			{
+				// ��ȹ�� ���� ��޺� ���ݷ� ���ʽ� ��ġ ����
+				float BonusValue = 0.0f;
+				switch (NewRelic->Rarity)
+				{
+				case ERelicRarity::Normal:  BonusValue = 1.007f; break; // 0.7%
+				case ERelicRarity::Rare:    BonusValue = 1.01f;  break; // 1.0%
+				case ERelicRarity::Unique:  BonusValue = 1.02f;  break; // 2.0%
+				}
+
+				// GAS�� SetByCaller�� Ȱ���� C++���� ������ ��ġ�� �������Ʈ GE�� ����
+				BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
+
+				ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
+			}
+		}
+	}
+	// 5. ���� ��Ͽ� ���� �߰�
+	EquippedRelics.Add(NewRelic);
+	return true;
+}
+
+bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
+{
+	// 1. ��� �ڵ�: ��û�� �ε����� �������� ����(0 ~ 5)����, �׸��� ������� ������ Ȯ��
+	if (!EquippedRelics.IsValidIndex(SlotIndex))
+	{
+		return false;
+	}
+
+	const URelicDefinition* RelicToRemove = EquippedRelics[SlotIndex];
+	if (!RelicToRemove) return false;
+
+	// 2. �÷��̾��� ASC ��������
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (OwnerCharacter)
+	{
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+
+		// 3. ������ ������ ��� '���� ȿ��(GE)'�� ����
+		if (ASC && RelicToRemove->RelicEffectClass)
+		{
+			ASC->RemoveActiveGameplayEffectBySourceEffect(RelicToRemove->RelicEffectClass, ASC);
+		}
+	}
+
+	// 4. ���� ���(�迭)���� �ش� ���� ����
+	EquippedRelics.RemoveAt(SlotIndex);
+
+	/*
+	* �� �׵� ��� ������ ������ ���� ���� �׵�� ��� ���ݷ� ���ʽ��� ���� �Ǿ�� �ϱ� ����
+	*/
+
+	return true;
+}
+
+void URelicComponent::ResetAllRelics()
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (OwnerCharacter)
+	{
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+		if (ASC)
+		{
+			// �����ߴ� ������ ���� ȿ���� ��� ����
+			for (FActiveGameplayEffectHandle Handle : RelicEffectHandles)
+			{
+				ASC->RemoveActiveGameplayEffect(Handle);
+			}
+
+			// ��޺� ���ݷ� ���ʽ� ����Ʈ�� ���� (Ŭ���� ������� ��� ����)
+			if (RarityAttackBonusEffectClass)
+			{
+				ASC->RemoveActiveGameplayEffectBySourceEffect(RarityAttackBonusEffectClass, ASC);
+			}
+		}
+	}
+
+	// �迭 �ʱ�ȭ
+	RelicEffectHandles.Empty();
+	EquippedRelics.Empty();
+	AcquiredHistory.Empty();
+}
+
+TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
+{
+	TArray<URelicDefinition*> FinalRewards;
+
+	// 1. ���������� ��� ���� Ȯ�� ��� (1 ~ 100 ���� ����)
+	float RandomValue = FMath::RandRange(0.0f, 100.0f);
+	ERelicRarity SelectedRarity = ERelicRarity::Normal; // �⺻��
+
+	if (CurrentStage <= 1) // �������� 1
+	{
+		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
+		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
+		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
+	}
+	else if (CurrentStage == 2) // �������� 2
+	{
+		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
+		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
+		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
+	}
+	else if (CurrentStage == 3) // �������� 3 �̻�
+	{
+		if (RandomValue <= 20.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 20 (20%)
+		else if (RandomValue <= 70.0f) SelectedRarity = ERelicRarity::Rare; // 21~ 70 (50%)
+		else SelectedRarity = ERelicRarity::Unique; // 71~100 (30%)
+	}
+
+	// 2. ��ü Ǯ���� ���ǿ� �´� ������ 1�� ���͸� (���õ� ��� ��ġ & ���� ������ ���� ��)
+	TArray<URelicDefinition*> FilteredRelics;
+	for (URelicDefinition* Relic : AllRelicPool)
+	{
+		if (Relic && Relic->Rarity == SelectedRarity)
+		{
+			// ���� ���� ���� ��Ͽ� ����� �� (�ߺ� ����)
+			if (!EquippedRelics.Contains(Relic))
+			{
+				FilteredRelics.Add(Relic);
+			}
+		}
+	}
+
+	// 3. ���͸��� �迭 ���� (����)
+	const int32 NumFiltered = FilteredRelics.Num();
+	if (NumFiltered > 0)
+	{
+		int32 LastIndex = NumFiltered - 1;
+		for (int32 i = 0; i <= LastIndex; ++i)
+		{
+			int32 SwapIndex = FMath::RandRange(i, LastIndex);
+			if (i != SwapIndex)
+			{
+				FilteredRelics.Swap(i, SwapIndex);
+			}
+		}
+	}
+
+	// 4. �տ������� �ִ� 3�������� �̾Ƽ� ���� �迭�� ���
+	int32 RewardsCount = FMath::Min(3, FilteredRelics.Num());
+	for (int32 i = 0; i < RewardsCount; ++i)
+	{
+		FinalRewards.Add(FilteredRelics[i]);
+	}
+
+	return FinalRewards;
+}
+
+void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
+{
+	ResetAllRelics();
+
+	ASPGASPlayerCharacter* OwnerCharacter = Cast<ASPGASPlayerCharacter>(GetOwner());
+	if (!OwnerCharacter) return;
+
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
+	if (!ASC) return;
+
+	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)

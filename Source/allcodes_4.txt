@@ -1,218 +1,4 @@
-﻿{
-	Super::BeginPlay();
-}
-
-bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
-{
-	// �� ���� ������ �ʵ��� �˻�
-	if (!NewRelic) return false;
-
-	// 1. �ִ� ���� ���� �ʰ� �˻�
-	if (EquippedRelics.Num() >= MaxRelicCount)
-	{
-		// ���߿� UI���� "��ü�� ������ �����ϼ���" â�� ���� ���� false ��ȯ
-		return false;
-	}
-	// 2. �ߺ� ���� �˻�
-	if (EquippedRelics.Contains(NewRelic))
-	{
-		return false;
-	}
-
-	// �÷��̾��� AbilitySystemComponent(ASC) ��������
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (!OwnerCharacter) return false;
-
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-	if (!ASC) return false;
-
-	// 3. ���� ���� ȿ��(GE) ����
-	if (NewRelic->RelicEffectClass)
-	{
-		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-		Context.AddSourceObject(this);
-
-		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(NewRelic->RelicEffectClass, 1.0f, Context);
-		if (SpecHandle.IsValid())
-		{
-			FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-			RelicEffectHandles.Add(ActiveHandle); // ���߿� ����� ���� �ڵ� ����
-		}
-	}
-
-	// 4. ���� ȹ�� �˻� �� ��޺� ���ݷ� ���ʽ� �ο�
-	if (!AcquiredHistory.Contains(NewRelic))
-	{
-		AcquiredHistory.Add(NewRelic); // ȹ�� ��Ͽ� �߰�
-
-		if (RarityAttackBonusEffectClass)
-		{
-			FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
-			FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
-
-			if (BonusSpec.IsValid())
-			{
-				// ��ȹ�� ���� ��޺� ���ݷ� ���ʽ� ��ġ ����
-				float BonusValue = 0.0f;
-				switch (NewRelic->Rarity)
-				{
-				case ERelicRarity::Normal:  BonusValue = 1.007f; break; // 0.7%
-				case ERelicRarity::Rare:    BonusValue = 1.01f;  break; // 1.0%
-				case ERelicRarity::Unique:  BonusValue = 1.02f;  break; // 2.0%
-				}
-
-				// GAS�� SetByCaller�� Ȱ���� C++���� ������ ��ġ�� �������Ʈ GE�� ����
-				BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
-
-				ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
-			}
-		}
-	}
-	// 5. ���� ��Ͽ� ���� �߰�
-	EquippedRelics.Add(NewRelic);
-	return true;
-}
-
-bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
-{
-	// 1. ��� �ڵ�: ��û�� �ε����� �������� ����(0 ~ 5)����, �׸��� ������� ������ Ȯ��
-	if (!EquippedRelics.IsValidIndex(SlotIndex))
-	{
-		return false;
-	}
-
-	const URelicDefinition* RelicToRemove = EquippedRelics[SlotIndex];
-	if (!RelicToRemove) return false;
-
-	// 2. �÷��̾��� ASC ��������
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
-	{
-		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-
-		// 3. ������ ������ ��� '���� ȿ��(GE)'�� ����
-		if (ASC && RelicToRemove->RelicEffectClass)
-		{
-			ASC->RemoveActiveGameplayEffectBySourceEffect(RelicToRemove->RelicEffectClass, ASC);
-		}
-	}
-
-	// 4. ���� ���(�迭)���� �ش� ���� ����
-	EquippedRelics.RemoveAt(SlotIndex);
-
-	/*
-	* �� �׵� ��� ������ ������ ���� ���� �׵�� ��� ���ݷ� ���ʽ��� ���� �Ǿ�� �ϱ� ����
-	*/
-
-	return true;
-}
-
-void URelicComponent::ResetAllRelics()
-{
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
-	{
-		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-		if (ASC)
-		{
-			// �����ߴ� ������ ���� ȿ���� ��� ����
-			for (FActiveGameplayEffectHandle Handle : RelicEffectHandles)
-			{
-				ASC->RemoveActiveGameplayEffect(Handle);
-			}
-
-			// ��޺� ���ݷ� ���ʽ� ����Ʈ�� ���� (Ŭ���� ������� ��� ����)
-			if (RarityAttackBonusEffectClass)
-			{
-				ASC->RemoveActiveGameplayEffectBySourceEffect(RarityAttackBonusEffectClass, ASC);
-			}
-		}
-	}
-
-	// �迭 �ʱ�ȭ
-	RelicEffectHandles.Empty();
-	EquippedRelics.Empty();
-	AcquiredHistory.Empty();
-}
-
-TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
-{
-	TArray<URelicDefinition*> FinalRewards;
-
-	// 1. ���������� ��� ���� Ȯ�� ��� (1 ~ 100 ���� ����)
-	float RandomValue = FMath::RandRange(0.0f, 100.0f);
-	ERelicRarity SelectedRarity = ERelicRarity::Normal; // �⺻��
-
-	if (CurrentStage <= 1) // �������� 1
-	{
-		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
-		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
-		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
-	}
-	else if (CurrentStage == 2) // �������� 2
-	{
-		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
-		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
-		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
-	}
-	else if (CurrentStage == 3) // �������� 3 �̻�
-	{
-		if (RandomValue <= 20.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 20 (20%)
-		else if (RandomValue <= 70.0f) SelectedRarity = ERelicRarity::Rare; // 21~ 70 (50%)
-		else SelectedRarity = ERelicRarity::Unique; // 71~100 (30%)
-	}
-
-	// 2. ��ü Ǯ���� ���ǿ� �´� ������ 1�� ���͸� (���õ� ��� ��ġ & ���� ������ ���� ��)
-	TArray<URelicDefinition*> FilteredRelics;
-	for (URelicDefinition* Relic : AllRelicPool)
-	{
-		if (Relic && Relic->Rarity == SelectedRarity)
-		{
-			// ���� ���� ���� ��Ͽ� ����� �� (�ߺ� ����)
-			if (!EquippedRelics.Contains(Relic))
-			{
-				FilteredRelics.Add(Relic);
-			}
-		}
-	}
-
-	// 3. ���͸��� �迭 ���� (����)
-	const int32 NumFiltered = FilteredRelics.Num();
-	if (NumFiltered > 0)
-	{
-		int32 LastIndex = NumFiltered - 1;
-		for (int32 i = 0; i <= LastIndex; ++i)
-		{
-			int32 SwapIndex = FMath::RandRange(i, LastIndex);
-			if (i != SwapIndex)
-			{
-				FilteredRelics.Swap(i, SwapIndex);
-			}
-		}
-	}
-
-	// 4. �տ������� �ִ� 3�������� �̾Ƽ� ���� �迭�� ���
-	int32 RewardsCount = FMath::Min(3, FilteredRelics.Num());
-	for (int32 i = 0; i < RewardsCount; ++i)
-	{
-		FinalRewards.Add(FilteredRelics[i]);
-	}
-
-	return FinalRewards;
-}
-
-void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
-{
-	ResetAllRelics();
-
-	ASPGASPlayerCharacter* OwnerCharacter = Cast<ASPGASPlayerCharacter>(GetOwner());
-	if (!OwnerCharacter) return;
-
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-	if (!ASC) return;
-
-	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)
-	{
+﻿	{
 		if (HistroyRelic)
 		{
 			AcquiredHistory.Add(HistroyRelic);
@@ -583,7 +369,11 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		{
 			// 기존 상태이상을 싹 지워버립니다! (턴 수 누적 방지)
 			RemoveStatusEffectByTag(TargetASC, IncomingStatusTag);
-			UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *TargetASC->GetAvatarActor()->GetName(), *IncomingStatusTag.ToString());
+			AActor* AvatarActor = TargetASC->GetAvatarActor();
+			if (AvatarActor)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *AvatarActor->GetName(), *IncomingStatusTag.ToString());
+			}
 		}
 
 		FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
@@ -895,11 +685,271 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 
 
 // ==========================================
-// FILE: SPGA_BattleActionBase.cpp
+// FILE: SPAT_LerpCamera.cpp
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
+#include "GA/AT/SPAT_LerpCamera.h"
+
+USPAT_LerpCamera::USPAT_LerpCamera(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	bTickingTask = true;
+	bIsLerping = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_LerpCamera* USPAT_LerpCamera::LerpFloatOverTime(UGameplayAbility* OwningAbility, FName TaskInstanceName, float StartValue, float EndValue, float Duration)
+{
+	USPAT_LerpCamera* MyObj = NewAbilityTask<USPAT_LerpCamera>(OwningAbility, TaskInstanceName);
+	MyObj->StartValue = StartValue;
+	MyObj->EndValue = EndValue;
+	MyObj->Duration = FMath::Max(0.01f, Duration); 
+	return MyObj;
+}
+
+void USPAT_LerpCamera::Activate()
+{
+	Super::Activate();
+	bIsLerping = true;
+}
+
+void USPAT_LerpCamera::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsLerping)
+	{
+		ElapsedTime += DeltaTime;
+
+		float Alpha = FMath::Clamp(ElapsedTime / Duration, 0.0f, 1.0f);
+
+		// �������ϰ� ���ڰ� ���ϵ��� EaseInOut ����!
+		float SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+		float CurrentLerpValue = FMath::Lerp(StartValue, EndValue, SmoothAlpha);
+
+		// �������Ʈ�� ���� ��(CurrentValue) ���ֱ�!
+		if (ShouldBroadcastAbilityTaskDelegates())
+		{
+			OnUpdate.Broadcast(CurrentLerpValue);
+		}
+
+		// �� �������� Completed ���ְ� �Ҹ�!
+		if (Alpha >= 1.0f)
+		{
+			bIsLerping = false;
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast(EndValue);
+			}
+			EndTask();
+		}
+	}
+}
+// ==========================================
+// FILE: SPAT_MoveCameraRelative.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/AT/SPAT_MoveCameraRelative.h"
+
+USPAT_MoveCameraRelative::USPAT_MoveCameraRelative(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	bTickingTask = true;
+	bIsMoving = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_MoveCameraRelative* USPAT_MoveCameraRelative::MoveCameraRelative(UGameplayAbility* OwningAbility, FName TaskInstanceName, USceneComponent* TargetComponent, FVector TargetRelativeLocation, FRotator TargetRelativeRotation, float Duration, ECameraEasingType EasingType)
+{
+	USPAT_MoveCameraRelative* MyObj = NewAbilityTask<USPAT_MoveCameraRelative>(OwningAbility, TaskInstanceName);
+	MyObj->TargetComponent = TargetComponent;
+	MyObj->TargetLocation = TargetRelativeLocation;
+	MyObj->TargetRotation = TargetRelativeRotation;
+	MyObj->Duration = FMath::Max(0.01f, Duration);
+	MyObj->EasingType = EasingType; // 🌟 핀에서 받은 연출 방식 저장
+	return MyObj;
+}
+
+void USPAT_MoveCameraRelative::Activate()
+{
+	Super::Activate();
+	if (!TargetComponent)
+	{
+		EndTask();
+		return;
+	}
+	StartLocation = TargetComponent->GetRelativeLocation();
+	StartRotation = TargetComponent->GetRelativeRotation();
+	bIsMoving = true;
+}
+
+void USPAT_MoveCameraRelative::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsMoving && TargetComponent)
+	{
+		ElapsedTime += DeltaTime;
+		float Alpha = FMath::Clamp(ElapsedTime / Duration, 0.0f, 1.0f);
+
+		// 🌟 선택한 연출 방식에 따라 수학 공식을 다르게 적용합니다!
+		float SmoothAlpha = Alpha;
+		switch (EasingType)
+		{
+		case ECameraEasingType::EaseIn:
+			SmoothAlpha = FMath::InterpEaseIn(0.0f, 1.0f, Alpha, 2.0f); // 수치 2.0f는 강도입니다.
+			break;
+		case ECameraEasingType::EaseOut:
+			SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+			break;
+		case ECameraEasingType::EaseInOut:
+			SmoothAlpha = FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f);
+			break;
+		case ECameraEasingType::Linear:
+		default:
+			SmoothAlpha = Alpha; // 일정한 속도
+			break;
+		}
+
+		FVector NewLoc = FMath::Lerp(StartLocation, TargetLocation, SmoothAlpha);
+		FRotator NewRot = FMath::Lerp(StartRotation, TargetRotation, SmoothAlpha);
+
+		TargetComponent->SetRelativeLocationAndRotation(NewLoc, NewRot);
+
+		if (Alpha >= 1.0f)
+		{
+			bIsMoving = false;
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast();
+			}
+			EndTask();
+		}
+	}
+}
+// ==========================================
+// FILE: SPAT_MoveToTarget.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/AT/SPAT_MoveToTarget.h"
+#include "GameFramework/Character.h"
+#include "AbilitySystemComponent.h"
+
+USPAT_MoveToTarget::USPAT_MoveToTarget(const FObjectInitializer& ObjectInitializer):
+	Super(ObjectInitializer)
+{
+	bTickingTask = true; 
+	bIsMoving = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_MoveToTarget* USPAT_MoveToTarget::MoveAndMontage(UGameplayAbility* OwningAbility, FName TaskInstanceName, AActor* TargetActor, FTransform TargetTransform, float DistanceOffset, float MoveDuration, UAnimMontage* MontageToPlay)
+{
+	USPAT_MoveToTarget* MyObj = NewAbilityTask<USPAT_MoveToTarget>(OwningAbility, TaskInstanceName);
+	MyObj->TargetActor = TargetActor;
+	MyObj->TargetTransform = TargetTransform;
+	MyObj->DistanceOffset = DistanceOffset;
+	MyObj->MoveDuration = FMath::Max(0.01f, MoveDuration); // 0���� ������ ����
+	MyObj->MontageToPlay = MontageToPlay;
+	return MyObj;
+}
+
+void USPAT_MoveToTarget::Activate()
+{
+	Super::Activate();
+
+	ACharacter* Character = Cast<ACharacter>(GetAvatarActor());
+	if (!Character)
+	{
+		EndTask();
+		return;
+	}
+
+	// 1. ���� �� ��ġ ���
+	StartLocation = Character->GetActorLocation();
+	StartRotation = Character->GetActorRotation();
+
+	// 2. ���� ��� (���� ����)
+	CalculateDestination();
+
+	// 3. ��Ÿ�� ��� (GAS �ý��� Ȱ��)
+	if (MontageToPlay && AbilitySystemComponent.IsValid())
+	{
+		AbilitySystemComponent->PlayMontage(Ability, Ability->GetCurrentActivationInfo(), MontageToPlay, 1.0f);
+	}
+
+	// 4. �̵� ����!
+	bIsMoving = true;
+}
+
+void USPAT_MoveToTarget::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsMoving)
+	{
+		ElapsedTime += DeltaTime;
+
+		// 0.0 ���� 1.0 ������ ���൵ (��: 0.1�� �������� 0.5)
+		float Alpha = FMath::Clamp(ElapsedTime / MoveDuration, 0.0f, 1.0f);
+
+		// �ε巯�� ���� �̵� (�������� �ٴٸ����� ������ ����)
+		float SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+
+		FVector NewLoc = FMath::Lerp(StartLocation, DestLocation, SmoothAlpha);
+		FRotator NewRot = FMath::Lerp(StartRotation, DestRotation, SmoothAlpha);
+
+		// ĳ���� ���� ���� �̵�!
+		if (ACharacter* Character = Cast<ACharacter>(GetAvatarActor()))
+		{
+			Character->SetActorLocationAndRotation(NewLoc, NewRot, true);
+		}
+
+		// ������ ����!
+		if (Alpha >= 1.0f)
+		{
+			bIsMoving = false;
+
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast(); // �������Ʈ�� Completed ������ ��ȣ ���!
+			}
+			EndTask(); // �½�ũ ������ �Ҹ�
+		}
+	}
+}
+
+void USPAT_MoveToTarget::CalculateDestination()
+{
+	// Ÿ�� ���Ͱ� �ԷµǾ��ٸ�? -> "�� �ھ� ��� ����" �ߵ�!
+	if (TargetActor)
+	{
+		FVector A = TargetActor->GetActorLocation();
+		FVector B = StartLocation;
+
+		FVector Direction = (B - A).GetSafeNormal();
+		DestLocation = A + (Direction * DistanceOffset); // �� ��ġ���� �� ������ 150��ŭ �� ��ġ!
+
+		DestRotation = (A - DestLocation).Rotation();
+		DestRotation.Pitch = 0.0f; // ���� �ȹٷ� �� �ֵ��� ����
+		DestRotation.Roll = 0.0f;
+	}
+	// Ÿ�� ���Ͱ� ���ٸ�? -> "�Է¹��� ��ǥ�� �׳� ���� (���ڸ� ���Ϳ�)" �ߵ�!
+	else
+	{
+		DestLocation = TargetTransform.GetLocation();
+		DestRotation = TargetTransform.Rotator();
+	}
+}
+// ==========================================
+// FILE: SPGA_BattleActionBase.cpp
+// ==========================================
 #include "GA/SPGA_BattleActionBase.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Character/SPGASCharacterBase.h"
@@ -910,7 +960,7 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 #include "Game/ASPCombatGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
-
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 
 USPGA_BattleActionBase::USPGA_BattleActionBase()
 {
@@ -924,3 +974,98 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		{
+			return true; 
+		}
+	}
+	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+
+	if (!bCanAfford)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
+	}
+
+	return bCanAfford;
+}
+
+bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+
+	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
+		return true;
+	}
+
+	// 🌟 2. 수동 쿨타임 검사 (기존에 블루프린트 Blocked Tag로 막던 것을 여기서 처리)
+	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
+	{
+		// 쿨타임 태그가 내 몸에 있다면? 스킬 발동 차단!
+		if (OptionalRelevantTags)
+		{
+			OptionalRelevantTags->AddTag(CooldownTag);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GAS 시스템: 쿨타임 중이라 발동 불가 (%s)"), *CooldownTag.ToString());
+		return false;
+	}
+
+	// 3. 기본 쿨타임 체크
+	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
+}
+
+void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
+			return; 
+		}
+	}
+	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+}
+
+void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	if (TriggerEventData) CachedEventData = *TriggerEventData;
+
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		FSPGameplayTags::Get().Event_Battle_ApplyDamage
+	);
+
+	if (WaitDamageEventTask)
+	{
+		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
+		WaitDamageEventTask->ReadyForActivation();
+	}
+
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+}
+
+bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return false;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 우리가 에디터에서 만든 시간 간섭 태그
+	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
+
+	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
+	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
+	{
+		// 2. 이 태그를 부여하고 있는 바구니(Active Effect)를 찾습니다.
+		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
+		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+		{
+			// 현재 몇 스택이 남았는지 확인

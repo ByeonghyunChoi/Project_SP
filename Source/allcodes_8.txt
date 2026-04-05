@@ -1,4 +1,19 @@
-﻿#include "MerchantNPC.generated.h"
+﻿{
+	GENERATED_BODY()
+public:
+	USPGAS_DamageCalculation();
+	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
+	
+};
+// ==========================================
+// FILE: MerchantNPC.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Interface/InteractableInterface.h"
+#include "MerchantNPC.generated.h"
 
 class UShopComponent;
 
@@ -90,9 +105,6 @@ protected:
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-
-	//�ӽ� �� ����� Ÿ�̸�(���߿� ���� �� ����� �� �������� ������ ����)
-	FTimerHandle TurnEndTimerHandle;
 };
 // ==========================================
 // FILE: SPGASCharacterBase.h
@@ -102,9 +114,10 @@ private:
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "AttributeSet/SPGASAttributeSet.h"
 #include "SPGASCharacterBase.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, DamageAmount, bool, bIsCritical);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCharacterDamageDelegate, float, DamageAmount, bool, bIsCritical);
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySystemInterface
@@ -125,10 +138,18 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
+
+    // 피격 몽타주
+    UPROPERTY(EditAnywhere, Category = "Combat|Animation")
+    UAnimMontage* HitReactMontage;
+public:
+    // 사망 몽타주
+    UPROPERTY(EditAnywhere, Category = "Combat|Animation")
+    UAnimMontage* DeathMontage;
     
 public:
-    UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
-    FOnDamageTakenDelegate OnDamageTaken;
+    UPROPERTY(BlueprintAssignable, Category = "Combat|UI")
+    FCharacterDamageDelegate OnDamageTaken;
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
@@ -148,9 +169,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "GAS | ReadyCheck")
     virtual void ReportReadyToGameMode();
 
+    // 데미지를 입었을 때 피격 애니메이션을 재생하는 함수
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    virtual void PlayHitReact(const FVector& ImpactPoint);
+
     // 전투가 시작할 때 사용할 함수(UI 키기 등)
     UFUNCTION(BlueprintCallable, Category = "Combat | UI")
     virtual void OnBattleStarted();
+
+    UFUNCTION(BlueprintCallable, Category = "GAS | Tags")
+    void AddLooseTagToASC(FGameplayTag TagToAdd);
+
+    UFUNCTION(BlueprintCallable, Category = "GAS | Tags")
+    void RemoveLooseTagFromASC(FGameplayTag TagToRemove);
+
+    UFUNCTION(BlueprintCallable, Category = "GAS | Abilities")
+    void CancelAbilitiesWithTag(FGameplayTagContainer WithTags);
 
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 };
@@ -207,6 +241,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void Die();
 
+    UFUNCTION(BlueprintPure, Category = "Combat")
+    float GetDeathMontageDuration() const;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
     FGameplayTagContainer WeaknessTags;
@@ -228,6 +265,8 @@ protected:
     // UI 갱신 방송 함수(HP)
     void BroadcastHPUI();
 
+    void GiveDefaultAbilities();
+
 protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Stats")
     EEnemyRank EnemyRank = EEnemyRank::Normal;
@@ -242,6 +281,18 @@ protected:
     //몬스터 정보 위젯
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
+
+    UPROPERTY(VisibleAnywhere)
+    bool bIsDead = false;
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS | Abilities")
+    TArray<TSubclassOf<class UGameplayAbility>> DefaultAbilities;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat")
+    float TimeOfDeath = 0.0f;
+
+
 };
 // ==========================================
 // FILE: SPGASPlayerCharacter.h
@@ -316,6 +367,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<class UCameraComponent> FollowCamera;
 
+	//전투용 카메라
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<class UCineCameraComponent> CombatCineCamera;
+
 	void GiveAbilities();
 
 	void GiveWeaponAbilities();
@@ -343,6 +398,13 @@ protected:
 	TObjectPtr<class UWidgetComponent> BattlePointWidgetComponent;
 
 public:
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Weapon")
+	class USkeletalMeshComponent* WeaponMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Target")
+	TObjectPtr<AActor> LastParriedTarget;
+
+public:
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
@@ -354,6 +416,7 @@ public:
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
 	virtual void OnBattleStarted() override;
+	void SwitchCameraMode(bool bIsBattle);
 };
 // ==========================================
 // FILE: SPGASPlayerController.h
@@ -451,6 +514,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<class UInputAction> BattleClickAction;
 
+	// 패링 액션
+	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
+	TObjectPtr<class UInputAction> ParryAction;
+
+	// 반격 모드 토글 액션
+	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
+	TObjectPtr<class UInputAction> ToggleCounterModeAction;
+
 	//필드 용 UI
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> FieldHUDClass;
@@ -499,11 +570,18 @@ protected:
 	//마우스 클릭 시 실행될 함수
 	void OnBattleClick(const FInputActionValue& Value);
 
+	// 패링 키 클릭 시 실행 함수
+	void OnParryPressed(const FInputActionValue& Value);
+
+	// 반격 모드 토글 키 클릭 시 실행 함수
+	void OnToggleCounterModePressed(const FInputActionValue& Value);
+
 	//배틀 포인트 변경시 실행될 함수
 	void OnBattlePointChanged(const FOnAttributeChangeData& Data);
 
 	//배틀 포인트 최대값 변경시 실행될 함수
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
+
 
 public:
 	// 무기 교체 처리
@@ -563,6 +641,7 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+
 };
 // ==========================================
 // FILE: SPGASPlayerState.h
@@ -924,3 +1003,69 @@ public:
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "SPInteractionComponent.generated.h"
+
+
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class PROJECT_SP_API USPInteractionComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:	
+	// Sets default values for this component's properties
+	USPInteractionComponent();
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	AActor* GetCurrentInteractable() const { return CurrentInteractable.Get(); }
+
+protected:
+	void PerformTrace();
+
+protected:
+	// ���� ����
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float TraceDistance = 100.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	float InteractionRadius = 80.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	bool bShowDebug = false;
+
+	// UI ���� Ŭ����
+	UPROPERTY(EditAnywhere, Category = "Interaction")
+	TSubclassOf<class UUserWidget> InteractionWidgetClass;
+	
+private:
+	// ���� ���� �ִ� ���
+	UPROPERTY()
+	TWeakObjectPtr<AActor> CurrentInteractable;
+
+	// ������ UI �ν��Ͻ�
+	UPROPERTY()
+	TObjectPtr<class USPInteractionWidget> InteractionWidgetInstance;
+};
+// ==========================================
+// FILE: SPStatusEffectComponent.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "SPStatusEffectComponent.generated.h"
+
+
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class PROJECT_SP_API USPStatusEffectComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:	
+	USPStatusEffectComponent();
+
+protected:
+	// �����̻� ������ ���� (������ ĳ���Ϳ� �ִ� ��)

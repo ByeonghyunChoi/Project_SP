@@ -1,5 +1,5 @@
 #include "Animation/ANS_FieldAttackHitCheck.h"
-#include "AbilitySystemBlueprintLibrary.h" // 모듈 추가 필요할 수 있음 (아래 설명 참고)
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Engine/OverlapResult.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
@@ -26,7 +26,7 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 
 	for (UMeshComponent* Comp : AllMeshComponents)
 	{
-		// 내 본체 메쉬(MeshComp)는 무시하고, 지정한 무기 소켓(WeaponSocketName)을 가진 메쉬를 찾습니다!
+		// 내 본체 메쉬는 무시하고, 지정한 무기 소켓을 가진 메쉬를 찾음.
 		if (Comp != MeshComp && Comp->DoesSocketExist(WeaponSocketName))
 		{
 			TargetWeaponMesh = Comp;
@@ -34,30 +34,30 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 		}
 	}
 
-	// 판정 범위 설정 (캐릭터 정면)
+	// 판정 범위 설정
 	FVector TraceLocation;
 	if (TargetWeaponMesh)
 	{
-		// 무기 메쉬를 찾았다면 그 무기의 소켓 위치를 가져옴 (가장 정확!)
+		// 무기 메쉬를 찾았다면 그 무기의 소켓 위치를 가져옴
 		TraceLocation = TargetWeaponMesh->GetSocketLocation(WeaponSocketName);
 	}
 	else
 	{
-		// 무기나 소켓을 못 찾았을 때의 안전장치 (기존처럼 캐릭터 정면 사용)
+		// 무기나 소켓을 못 찾았을 때는 캐릭터의 중앙
 		FVector Forward = Owner->GetActorForwardVector();
 		TraceLocation = Owner->GetActorLocation() + (Forward * 100.0f);
 	}
 
-	// 충돌 검사 (Sphere Trace)
+	// 충돌 검사
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(Owner); // 나는 때리지 않음
+	Params.AddIgnoredActor(Owner); // 나는 무시
 
 	bool bHit = World->OverlapMultiByChannel(
 		OverlapResults,
-		TraceLocation, // 소켓 위치
+		TraceLocation,
 		FQuat::Identity,
-		ECC_GameTraceChannel2, // 몬스터 채널 감지
+		ECC_GameTraceChannel2, // 몬스터 채널
 		FCollisionShape::MakeSphere(AttackRadius),
 		Params
 	);
@@ -67,7 +67,7 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 		DrawDebugSphere(World, TraceLocation, AttackRadius, 12, FColor::Red, false, FrameDeltaTime);
 	}
 
-	// 3. 맞은 대상에게 이벤트 전송
+	// 타격 신호 보냄
 	if (bHit)
 	{
 		for (const FOverlapResult& Result : OverlapResults)
@@ -75,7 +75,6 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 			AActor* HitActor = Result.GetActor();
 			if (HitActor && HitActor != Owner)
 			{
-				// ★ 핵심: GA_FieldAttack에게 "맞췄어!"라고 신호 보냄
 				FGameplayEventData Payload;
 				Payload.Instigator = Owner;
 				Payload.Target = HitActor;
