@@ -1,19 +1,4 @@
-﻿ */
-USTRUCT(BlueprintType)
-struct FOpartsArtifactData
-{
-	GENERATED_BODY()
-
-public:
-	// UI ǥ�ÿ�: ��Ƽ��Ʈ �̸� (��: "�⹦�� ���� ����")
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
-	FText ArtifactName;
-
-	// UI ǥ�ÿ�: ȿ�� ���� (��: "ġ��Ÿ Ȯ�� +20%")
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display", meta = (MultiLine = true))
-	FText Description;
-
-	// UI ǥ�ÿ�: ������
+﻿	// UI ǥ�ÿ�: ������
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
 	TObjectPtr<UTexture2D> Icon;
 
@@ -737,6 +722,68 @@ protected:
 	float CurrentGauge;
 };
 // ==========================================
+// FILE: GA_Relic_AddGold.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_AddGold.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_AddGold : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+    UGA_Relic_AddGold();
+
+    // ������ �÷��̾��� �ָӴ�(ASC)�� ������ ���� ��� ȣ��Ǵ� �Լ�!
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+
+protected:
+    // ������ ��差 (�������Ʈ ����Ʈ���� ���� ����)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    int32 GoldAmountToAdd = 100;
+
+};
+// ==========================================
+// FILE: GA_Relic_ChaosPrism.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GameplayTagContainer.h"
+#include "GA_Relic_ChaosPrism.generated.h"
+
+UCLASS()
+class PROJECT_SP_API UGA_Relic_ChaosPrism : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+    UGA_Relic_ChaosPrism();
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+
+protected:
+    UFUNCTION()
+    void OnKillEventReceived(FGameplayEventData Payload);
+
+    // � �����̻��� ������ �� �ִ��� ����صδ� ���� (�����Ϳ��� ����)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TMap<FGameplayTag, TSubclassOf<class UGameplayEffect>> StatusEffectMap;
+
+};
+// ==========================================
 // FILE: GA_Relic_MultiStatusCore.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -778,6 +825,7 @@ protected:
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "GameplayTagContainer.h"
 #include "GA_Relic_OnHitStatusBase.generated.h"
 
 /**
@@ -799,9 +847,12 @@ protected:
     UFUNCTION()
     void OnHitEventReceived(FGameplayEventData Payload);
 
-    // �����Ϳ��� ������ ǳȭ ����� GE
+    // �����Ϳ��� ������ ����� GE
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
     TSubclassOf<class UGameplayEffect> TargetStatusGEClass;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    FGameplayTag TargetStatusTag;
 
     // �ߵ� Ȯ�� (30)
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Stats")
@@ -1096,26 +1147,3 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
 	void EndBattle(bool bPlayerWon);
-
-	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
-
-	//���� �¸� �� ȣ���� ���� �Լ�
-	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
-	void PlayVictorySequence();
-
-protected:
-	// �������Ʈ���� BP_TurnManager�� �����ؾ� ��
-	UPROPERTY(EditDefaultsOnly, Category = "Battle")
-	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
-
-	// ���� ������ �Ŵ���
-	UPROPERTY(BlueprintReadOnly, Category = "Battle")
-	TObjectPtr <class ASPCombatTurnManager> TurnManager;
-
-	// ���� �� ����
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
-	TObjectPtr<AActor> CurrentTurnActor;
-
-	// ���� ������ ���
-	UPROPERTY()
-	TArray<AActor*> AllParticipants;

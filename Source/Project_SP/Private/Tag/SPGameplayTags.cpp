@@ -42,6 +42,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Relic_WornWhetstone = Manager.AddNativeGameplayTag(FName("Relic.WornWhetstone"), TEXT("유물: 마모된 숫돌"));
 	Relic_FadingCandle = Manager.AddNativeGameplayTag(FName("Relic.FadingCandle"), TEXT("유물: 꺼져가는 양초"));
 	Relic_RustedNeedle = Manager.AddNativeGameplayTag(FName("Relic.RustedNeedle"), TEXT("유물: 녹슨 구리 침"));
+	Relic_Passive_ResonatingRune = Manager.AddNativeGameplayTag(FName("Relic.Passive.ResonatingRune"), TEXT("공명하는 룬: 무기 스킬 쿨타임 무시"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
@@ -59,7 +60,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
+	Event_Battle_End = Manager.AddNativeGameplayTag(FName("Event.Battle.End"), TEXT("전투 종료 시 이벤트"));
 	Event_Combat_AttackHit = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackHit"), TEXT("일반 공격 적중 이벤트"));
+	Event_Combat_AttackKill = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackKill"), TEXT("일반 공격으로 적 처치 시 이벤트"));
+	Event_Combat_SkillKill = Manager.AddNativeGameplayTag(FName("Event.Combat.SkillKill"), TEXT("무기 스킬로 적 처치 시 이벤트"));
+	Event_Combat_ParrySuccess = Manager.AddNativeGameplayTag(FName("Event.Combat.ParrySuccess"), TEXT("패링 성공 시 발생하는 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));

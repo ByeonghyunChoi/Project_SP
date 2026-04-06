@@ -1,4 +1,68 @@
 ﻿// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_VibrationStone.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_VibrationStone::UGA_Relic_VibrationStone()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 이번에는 타격이 아니라 "전투 시작(Event.Battle.Start)" 이벤트를 기다립니다!
+  
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Battle_Start,
+        nullptr,
+        false,
+        false
+    );
+    UE_LOG(LogTemp, Log, TEXT("이벤트를 받음(GA_Relic_VibrationStone)"));
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_VibrationStone::OnBattleStartReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_VibrationStone::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
+void UGA_Relic_VibrationStone::OnBattleStartReceived(FGameplayEventData Payload)
+{
+    // 나 자신의 ASC(능력 시스템 컴포넌트)를 가져옵니다.
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && AddBPGEClass)
+    {
+        // 나에게 BP 회복 GE를 적용합니다.
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, GetAbilityLevel(), Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("불안정한 진동석 발동! BP 1 획득"));
+        }
+    }
+}
+// ==========================================
+// FILE: SPGA_BattleActionBase.cpp
+// ==========================================
 #include "GA/SPGA_BattleActionBase.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Character/SPGASCharacterBase.h"
@@ -210,6 +274,38 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 					{
 						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
 					}
+				}
+			}
+			if (ASC) // 1. 타격 이벤트 발사
+			{
+				FGameplayEventData RelicPayload;
+				RelicPayload.Instigator = GetAvatarActorFromActorInfo();
+				RelicPayload.Target = TargetActor;
+				RelicPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+				// 내 몸에 장착된 유물 어빌리티들이 들을 수 있게 전용 이벤트를 발사합니다.
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackHit, &RelicPayload);
+			}
+			UAbilitySystemComponent* EventTargetASC = nullptr;
+			if (IsValid(TargetActor))
+			{
+				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			}
+
+			if (ASC && EventTargetASC) // 2. 처치 이벤트 발사
+			{
+				// 타겟에게 사망 태그가 생겼다면? (방금 내 공격으로 죽었다는 뜻!)
+				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+					RelicKillPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+					// 프리즘이 들을 수 있게 "일반 공격 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("일반 공격 처치 발생! 유물들에게 Kill 신호를 보냅니다."));
 				}
 			}
 		}
@@ -1051,71 +1147,3 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		}
 	}
 
-	if (TurnManager)
-	{
-		TArray<AActor*> PredictedOrder = TurnManager->PredictTurnOrder(6);
-
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-		if (PlayerPawn)
-		{
-			if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
-			{
-				PC->UpdateTurnTimelineUI(PredictedOrder);
-			}
-		}
-	}
-
-	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
-	{
-		Character->ReduceCooldowns();
-	}
-}
-
-void AASPCombatGameMode::EndTurn(AActor* TurnActor)
-{
-	if (!TurnActor) return;
-
-	// 안전장치: 현재 턴 주인이 아닌데 종료를 요청하면 무시
-	if (CurrentTurnActor != TurnActor) return;
-
-	UE_LOG(LogTemp, Log, TEXT("턴 종료: %s"), *TurnActor->GetName());
-
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
-	{
-		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-		{
-			// [중요] 턴 활성화 태그 제거 (입력 차단)
-			ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
-
-			if (Cast<ASPGASPlayerCharacter>(TurnActor))
-			{
-				if (TurnEndTimeCostGE)
-				{
-					FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-					Context.AddSourceObject(this);
-
-					FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(TurnEndTimeCostGE, 1.0f, Context);
-					if (SpecHandle.IsValid())
-					{
-						ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-						UE_LOG(LogTemp, Warning, TEXT("[턴 종료] 플레이어의 시간의 힘이 1 감소했습니다."));
-					}
-				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("TurnEndTimeCostGE가 게임모드 블루프린트에 설정되지 않았습니다!"));
-				}
-			}
-
-			// 행동 게이지 0으로 초기화
-			if (TurnManager)
-			{
-				if (bIsCurrentTurnInterrupt)
-				{
-					// VIP 턴이었다면 게이지를 깎지 않고, 다음을 위해 상태만 해제합니다.
-					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링/추가 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
-					bIsCurrentTurnInterrupt = false; // 리셋
-				}
-				else
-				{
-					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.

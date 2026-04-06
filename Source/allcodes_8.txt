@@ -1,4 +1,17 @@
-﻿// ==========================================
+﻿
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
+{
+	GENERATED_BODY()
+public:
+	USPGAS_DamageCalculation();
+	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
+	
+};
+// ==========================================
 // FILE: MerchantNPC.h
 // ==========================================
 #pragma once
@@ -1119,3 +1132,18 @@ private:
  * [��Ƽ��Ʈ ������ ����ü]
  * �������� ���ӵ� 5���� ��Ƽ��Ʈ ���� ������ ���� ����
  * �ر� �� �ɷ�(GA)�� �ְų�, ����(GE)�� �÷��� �� ����
+ */
+USTRUCT(BlueprintType)
+struct FOpartsArtifactData
+{
+	GENERATED_BODY()
+
+public:
+	// UI ǥ�ÿ�: ��Ƽ��Ʈ �̸� (��: "�⹦�� ���� ����")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
+	FText ArtifactName;
+
+	// UI ǥ�ÿ�: ȿ�� ���� (��: "ġ��Ÿ Ȯ�� +20%")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display", meta = (MultiLine = true))
+	FText Description;
+

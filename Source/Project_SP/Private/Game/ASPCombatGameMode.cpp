@@ -400,13 +400,29 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	UGameInstance* GI = GetGameInstance();
 	if (!GI) return;
 
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr;
+
+	// 🌟 1. [가장 먼저 실행] 세이브하기 전에 유물들에게 "전투 끝났으니 버프 다 빼라!" 라고 방송합니다.
+	if (PlayerPawn)
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				FGameplayEventData EndPayload;
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_End, &EndPayload);
+				UE_LOG(LogTemp, Warning, TEXT("📢 전투 종료 방송 송출! 유물들이 버프를 초기화합니다."));
+			}
+		}
+	}
+
 	if (bPlayerWon)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
 
 		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
-		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
+		if (PlayerPawn)
 		{
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{

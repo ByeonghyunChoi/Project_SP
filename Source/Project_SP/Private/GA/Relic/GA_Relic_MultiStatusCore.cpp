@@ -20,7 +20,7 @@ void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle
     // 타격 순간을 기다립니다.
     UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this,
-        FSPGameplayTags::Get().Event_Montage_Hit,
+        FSPGameplayTags::Get().Event_Combat_AttackHit,
         nullptr,
         false,
         false

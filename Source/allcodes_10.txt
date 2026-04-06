@@ -1,4 +1,27 @@
 ﻿
+	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
+
+	//���� �¸� �� ȣ���� ���� �Լ�
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
+	void PlayVictorySequence();
+
+protected:
+	// �������Ʈ���� BP_TurnManager�� �����ؾ� ��
+	UPROPERTY(EditDefaultsOnly, Category = "Battle")
+	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
+
+	// ���� ������ �Ŵ���
+	UPROPERTY(BlueprintReadOnly, Category = "Battle")
+	TObjectPtr <class ASPCombatTurnManager> TurnManager;
+
+	// ���� �� ����
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
+	TObjectPtr<AActor> CurrentTurnActor;
+
+	// ���� ������ ���
+	UPROPERTY()
+	TArray<AActor*> AllParticipants;
+
 	//���� �غ� �Ϸ�� ������ ��� 
 	UPROPERTY()
 	TSet<AActor*> ReadyParticipants;
@@ -950,9 +973,11 @@ public:
 	FGameplayTag Event_Hit_AoE;
 	FGameplayTag Event_Jormungandr_Fire;
 	FGameplayTag Event_Jourmungandr_Hit;
+
 	FGameplayTag Event_Combat_CriticalHit;
 	FGameplayTag Event_Battle_Start;
 	FGameplayTag Event_Combat_AttackHit;
+	FGameplayTag Event_Combat_AttackKill;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;

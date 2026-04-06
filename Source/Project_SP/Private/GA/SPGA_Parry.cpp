@@ -105,4 +105,15 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		ASI->GetAbilitySystemComponent()->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_Parried, &Payload);
 		UE_LOG(LogTemp, Warning, TEXT("몬스터에게 패링 이벤트를 성공적으로 전송했습니다."));
 	}
+
+	//  [추가할 코드] 내 몸의 유물들에게 패링 성공했다고 알림
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC)
+	{
+		FGameplayEventData ParryPayload;
+		ParryPayload.Instigator = GetAvatarActorFromActorInfo();
+		ParryPayload.Target = TargetMonster;
+
+		ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_ParrySuccess, &ParryPayload);
+	}
 }

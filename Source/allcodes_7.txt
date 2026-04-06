@@ -1,4 +1,44 @@
-﻿		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+﻿{
+	if (CurrentPortalOptions.Num() > 0)
+	{
+		return CurrentPortalOptions;
+	}
+
+	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
+	int32 NextFloor = CurrentFloor + 1;
+	if (NextFloor > 11)
+	{
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
+	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+
+	return CurrentPortalOptions;
+}
+
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions)
+{
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	CurrentRoomState = SavedRoomState;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
+
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	bIsInLobby = bSavedInLobby;
+	CurrentPortalOptions = SavedPortalOptions;
+
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	if (bIsInLobby)
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
 		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
 	}
 	else
@@ -668,6 +708,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
 	Event_Combat_AttackHit = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackHit"), TEXT("일반 공격 적중 이벤트"));
+	Event_Combat_AttackKill = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackKill"), TEXT("일반 공격으로 적 처치 시 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -1106,16 +1147,3 @@ public:
 #include "CoreMinimal.h"
 #include "GameplayEffectExecutionCalculation.h"
 #include "SPGAS_DamageCalculation.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
-{
-	GENERATED_BODY()
-public:
-	USPGAS_DamageCalculation();
-	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
-	
-};

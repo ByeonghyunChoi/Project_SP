@@ -1,60 +1,4 @@
-﻿		CurrentSelectedAction = ESelectedActionType::None;
-
-		StartTargetSelection();
-	}
-}
-
-void ASPGASPlayerController::CancelTargetSelection()
-{
-	HighlightCurrentTarget(false);
-	bIsSelectingTarget = false;
-	CurrentSelectedAction = ESelectedActionType::None;
-	AvailableTargets.Empty();
-	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
-}
-
-void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
-{
-	if (AvailableTargets.Num() == 0) return;
-
-	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
-	if (CurrentTargetingType == ETargetingType::All)
-	{
-		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
-		{
-			if (TargetPtr.IsValid())
-			{
-				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
-				{
-					Monster->SetSelectedWidget(bHighlight, true);
-				}
-			}
-		}
-	}
-	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
-	else if (CurrentTargetingType == ETargetingType::Area)
-	{
-		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
-		{
-			if (AvailableTargets[i].IsValid())
-			{
-				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
-				{
-					bool bIsPrimary = (i == CurrentTargetIndex);
-					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
-				}
-			}
-		}
-	}
-	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
-	else
-	{
-		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-		{
-			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
-			{
-				Monster->SetSelectedWidget(bHighlight, true);
-			}
+﻿			}
 		}
 	}
 }
@@ -765,29 +709,29 @@ void URelicComponent::BeginPlay()
 
 bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 {
-	// �� ���� ������ �ʵ��� �˻�
+	// 빈 값이 들어오지 않도록 검사
 	if (!NewRelic) return false;
 
-	// 1. �ִ� ���� ���� �ʰ� �˻�
+	// 1. 최대 장착 개수 초과 검사
 	if (EquippedRelics.Num() >= MaxRelicCount)
 	{
-		// ���߿� UI���� "��ü�� ������ �����ϼ���" â�� ���� ���� false ��ȯ
+		// 나중에 UI에서 "교체할 유물을 선택하세요" 창을 띄우기 위한 false 반환
 		return false;
 	}
-	// 2. �ߺ� ���� �˻�
+	// 2. 중복 착용 검사
 	if (EquippedRelics.Contains(NewRelic))
 	{
 		return false;
 	}
 
-	// �÷��̾��� AbilitySystemComponent(ASC) ��������
+	// 플레이어의 AbilitySystemComponent(ASC) 가져오기
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter) return false;
 
 	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 	if (!ASC) return false;
 
-	// 3. ���� ���� ȿ��(GE) ����
+	// 3. 유물 고유 효과(GE) 적용
 	if (NewRelic->RelicEffectClass)
 	{
 		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
@@ -797,14 +741,14 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 		if (SpecHandle.IsValid())
 		{
 			FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-			RelicEffectHandles.Add(ActiveHandle); // ���߿� ����� ���� �ڵ� ����
+			RelicEffectHandles.Add(ActiveHandle); // 나중에 지우기 위해 핸들 저장
 		}
 	}
 
-	// 4. ���� ȹ�� �˻� �� ��޺� ���ݷ� ���ʽ� �ο�
+	// 4. 최초 획득 검사 및 등급별 공격력 보너스 부여
 	if (!AcquiredHistory.Contains(NewRelic))
 	{
-		AcquiredHistory.Add(NewRelic); // ȹ�� ��Ͽ� �߰�
+		AcquiredHistory.Add(NewRelic); // 획득 기록에 추가
 
 		if (RarityAttackBonusEffectClass)
 		{
@@ -813,7 +757,7 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 
 			if (BonusSpec.IsValid())
 			{
-				// ��ȹ�� ���� ��޺� ���ݷ� ���ʽ� ��ġ ����
+				// 기획서 기준 등급별 공격력 보너스 수치 결정
 				float BonusValue = 0.0f;
 				switch (NewRelic->Rarity)
 				{
@@ -822,21 +766,21 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 				case ERelicRarity::Unique:  BonusValue = 1.02f;  break; // 2.0%
 				}
 
-				// GAS�� SetByCaller�� Ȱ���� C++���� ������ ��ġ�� �������Ʈ GE�� ����
+				// GAS의 SetByCaller를 활용해 C++에서 결정한 수치를 블루프린트 GE로 전달
 				BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
 
 				ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
 			}
 		}
 	}
-	// 5. ���� ��Ͽ� ���� �߰�
+	// 5. 장착 목록에 최종 추가
 	EquippedRelics.Add(NewRelic);
 	return true;
 }
 
 bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 {
-	// 1. ��� �ڵ�: ��û�� �ε����� �������� ����(0 ~ 5)����, �׸��� ������� ������ Ȯ��
+	// 1. 방어 코드: 요청한 인덱스가 정상적인 범위(0 ~ 5)인지, 그리고 비어있지 않은지 확인
 	if (!EquippedRelics.IsValidIndex(SlotIndex))
 	{
 		return false;
@@ -845,24 +789,24 @@ bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 	const URelicDefinition* RelicToRemove = EquippedRelics[SlotIndex];
 	if (!RelicToRemove) return false;
 
-	// 2. �÷��̾��� ASC ��������
+	// 2. 플레이어의 ASC 가져오기
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (OwnerCharacter)
 	{
 		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 
-		// 3. ������ ������ ��� '���� ȿ��(GE)'�� ����
+		// 3. 버리는 유물이 줬던 '고유 효과(GE)'만 제거
 		if (ASC && RelicToRemove->RelicEffectClass)
 		{
 			ASC->RemoveActiveGameplayEffectBySourceEffect(RelicToRemove->RelicEffectClass, ASC);
 		}
 	}
 
-	// 4. ���� ���(�迭)���� �ش� ���� ����
+	// 4. 장착 목록(배열)에서 해당 유물 삭제
 	EquippedRelics.RemoveAt(SlotIndex);
 
 	/*
-	* �� �׵� ��� ������ ������ ���� ���� �׵�� ��� ���ݷ� ���ʽ��� ���� �Ǿ�� �ϱ� ����
+	* 단 휙득 기록 에서는 지우지 않음 최초 휙득시 얻는 공격력 보너스는 유지 되어야 하기 때문
 	*/
 
 	return true;
@@ -876,13 +820,13 @@ void URelicComponent::ResetAllRelics()
 		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 		if (ASC)
 		{
-			// �����ߴ� ������ ���� ȿ���� ��� ����
+			// 장착했던 유물의 고유 효과들 모두 제거
 			for (FActiveGameplayEffectHandle Handle : RelicEffectHandles)
 			{
 				ASC->RemoveActiveGameplayEffect(Handle);
 			}
 
-			// ��޺� ���ݷ� ���ʽ� ����Ʈ�� ���� (Ŭ���� ������� ��� ����)
+			// 등급별 공격력 보너스 이펙트도 제거 (클래스 기반으로 모두 삭제)
 			if (RarityAttackBonusEffectClass)
 			{
 				ASC->RemoveActiveGameplayEffectBySourceEffect(RarityAttackBonusEffectClass, ASC);
@@ -890,7 +834,7 @@ void URelicComponent::ResetAllRelics()
 		}
 	}
 
-	// �迭 �ʱ�ȭ
+	// 배열 초기화
 	RelicEffectHandles.Empty();
 	EquippedRelics.Empty();
 	AcquiredHistory.Empty();
@@ -900,36 +844,36 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 {
 	TArray<URelicDefinition*> FinalRewards;
 
-	// 1. ���������� ��� ���� Ȯ�� ��� (1 ~ 100 ���� ����)
+	// 1. 스테이지별 등급 등장 확률 계산 (1 ~ 100 사이 난수)
 	float RandomValue = FMath::RandRange(0.0f, 100.0f);
-	ERelicRarity SelectedRarity = ERelicRarity::Normal; // �⺻��
+	ERelicRarity SelectedRarity = ERelicRarity::Normal; // 기본값
 
-	if (CurrentStage <= 1) // �������� 1
+	if (CurrentStage <= 1) // 스테이지 1
 	{
-		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
+		if (RandomValue <= 0.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
 		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
 		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
 	}
-	else if (CurrentStage == 2) // �������� 2
+	else if (CurrentStage == 2) // 스테이지 2
 	{
 		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
 		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
 		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
 	}
-	else if (CurrentStage == 3) // �������� 3 �̻�
+	else if (CurrentStage == 3) // 스테이지 3 이상
 	{
 		if (RandomValue <= 20.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 20 (20%)
 		else if (RandomValue <= 70.0f) SelectedRarity = ERelicRarity::Rare; // 21~ 70 (50%)
 		else SelectedRarity = ERelicRarity::Unique; // 71~100 (30%)
 	}
 
-	// 2. ��ü Ǯ���� ���ǿ� �´� ������ 1�� ���͸� (���õ� ��� ��ġ & ���� ������ ���� ��)
+	// 2. 전체 풀에서 조건에 맞는 유물만 1차 필터링 (선택된 등급 일치 & 장착 중이지 않은 것)
 	TArray<URelicDefinition*> FilteredRelics;
 	for (URelicDefinition* Relic : AllRelicPool)
 	{
 		if (Relic && Relic->Rarity == SelectedRarity)
 		{
-			// ���� ���� ���� ��Ͽ� ����� �� (�ߺ� ����)
+			// 장착 중인 유물 목록에 없어야 함 (중복 방지)
 			if (!EquippedRelics.Contains(Relic))
 			{
 				FilteredRelics.Add(Relic);
@@ -937,7 +881,7 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 		}
 	}
 
-	// 3. ���͸��� �迭 ���� (����)
+	// 3. 필터링된 배열 섞기 (셔플)
 	const int32 NumFiltered = FilteredRelics.Num();
 	if (NumFiltered > 0)
 	{
@@ -952,7 +896,7 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 		}
 	}
 
-	// 4. �տ������� �ִ� 3�������� �̾Ƽ� ���� �迭�� ���
+	// 4. 앞에서부터 최대 3개까지만 뽑아서 최종 배열에 담기
 	int32 RewardsCount = FMath::Min(3, FilteredRelics.Num());
 	for (int32 i = 0; i < RewardsCount; ++i)
 	{
@@ -978,7 +922,7 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		{
 			AcquiredHistory.Add(HistroyRelic);
 
-			// (AddRelic�� �ִ� ��޺� ���ʽ� �ο� ���� �����)
+			// (AddRelic에 있던 등급별 보너스 부여 로직 재실행)
 			if (RarityAttackBonusEffectClass)
 			{
 				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
@@ -1006,7 +950,7 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		{
 			EquippedRelics.Add(EquippedRelic);
 
-			// ���� ȿ��(GE) �ٽ� �߶��ֱ�
+			// 고유 효과(GE) 다시 발라주기
 			if (EquippedRelic->RelicEffectClass)
 			{
 				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
@@ -1022,7 +966,7 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Relic] ���̺� �ε� �Ϸ�! (����: %d��, �̷�: %d��)"), EquippedRelics.Num(), AcquiredHistory.Num());
+	UE_LOG(LogTemp, Log, TEXT("[Relic] 세이브 로드 완료! (장착: %d개, 이력: %d개)"), EquippedRelics.Num(), AcquiredHistory.Num());
 }
 // ==========================================
 // FILE: ShopComponent.cpp
@@ -1119,3 +1063,87 @@ void USPInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	{
 		PerformTrace();
 	}
+}
+
+void USPInteractionComponent::PerformTrace()
+{
+	if (!CurrentInteractable.IsExplicitlyNull() && !CurrentInteractable.IsValid())
+	{
+		CurrentInteractable = nullptr; 
+		if (InteractionWidgetInstance)
+		{
+			InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed); // UI ��� ���
+		}
+	}
+
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+
+	FVector Start = Owner->GetActorLocation();
+	FVector Forward = Owner->GetActorForwardVector(); 
+	FVector End = Start + (Forward * TraceDistance);
+
+	FHitResult HitResult;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(Owner); 
+
+	FCollisionShape SphereShape = FCollisionShape::MakeSphere(InteractionRadius);
+
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult, Start, End, FQuat::Identity,
+		ECC_Interaction, SphereShape, Params
+	);
+
+#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
+	if (bShowDebug)
+	{
+		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
+		FVector Center = (Start + End) * 0.5f;
+		float HalfHeight = (TraceDistance * 0.5f) + InteractionRadius;
+		DrawDebugCapsule(GetWorld(), Center, HalfHeight, InteractionRadius,
+			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
+	}
+#endif
+
+	AActor* NewTarget = nullptr;
+	if (bHit)
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor && HitActor->Implements<UInteractableInterface>())
+		{
+			IInteractableInterface* Interface = Cast<IInteractableInterface>(HitActor);
+			if (Interface)
+			{
+				if (Interface->CanInteract(Cast<APawn>(GetOwner())))
+				{
+					NewTarget = HitActor;
+				}
+				
+			}
+		}
+	}
+
+	// ���� ���� �� ó��
+	if (CurrentInteractable.Get() != NewTarget)
+	{
+		CurrentInteractable = NewTarget;
+
+		if (InteractionWidgetInstance)
+		{
+			if (NewTarget && NewTarget->Implements<UInteractableInterface>())
+			{
+				IInteractableInterface* Interface = Cast<IInteractableInterface>(NewTarget);
+				if (Interface)
+				{
+					FText ActionText = Interface->GetInteractText();
+					InteractionWidgetInstance->UpdateInteractionText(ActionText);
+				}
+
+				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+			}
+			else
+			{
+				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
