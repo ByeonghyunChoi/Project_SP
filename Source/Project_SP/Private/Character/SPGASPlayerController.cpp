@@ -382,7 +382,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
 			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
 
-			CurrentSelectedAction = InputType;
+			SetCurrentSelectedAction(InputType);
 			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
 
 			StartTargetSelection();
@@ -726,7 +726,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
 
 		// 행동 초기화 (다음 턴을 위해)
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 	}
 	else
 	{
@@ -736,7 +736,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
 		HighlightCurrentTarget(false);
 		bIsSelectingTarget = false;
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 
 		StartTargetSelection();
 	}
@@ -746,7 +746,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 {
 	HighlightCurrentTarget(false);
 	bIsSelectingTarget = false;
-	CurrentSelectedAction = ESelectedActionType::None;
+	SetCurrentSelectedAction(ESelectedActionType::None);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
 }
@@ -755,21 +755,22 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 {
 	if (AvailableTargets.Num() == 0) return;
 
-	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	// 1. [전체 공격(All)]
 	if (CurrentTargetingType == ETargetingType::All)
 	{
-		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
 		{
-			if (TargetPtr.IsValid())
+			if (AvailableTargets[i].IsValid())
 			{
-				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
-					Monster->SetSelectedWidget(bHighlight, true);
+					// 마커는 전부 크게(true)! 하지만 메인 전광판은 0번만(i==0)!
+					Monster->SetSelectedWidget(bHighlight, true, (i == 0));
 				}
 			}
 		}
 	}
-	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	// 2. [광역 공격(Area)]
 	else if (CurrentTargetingType == ETargetingType::Area)
 	{
 		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
@@ -779,19 +780,21 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
 					bool bIsPrimary = (i == CurrentTargetIndex);
-					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+					// 내가 선택한 놈만 마커도 크게, 전광판도 띄움!
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary, bIsPrimary);
 				}
 			}
 		}
 	}
-	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
+	// 3. [단일 공격(Single)]
 	else
 	{
 		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 		{
 			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
 			{
-				Monster->SetSelectedWidget(bHighlight, true);
+				// 한 놈이니까 무조건 둘 다 true!
+				Monster->SetSelectedWidget(bHighlight, true, true);
 			}
 		}
 	}
@@ -924,6 +927,16 @@ void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeDat
 	RefreshBattlePointUI();
 }
 
+void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction)
+{
+	if(CurrentSelectedAction != NewAction)
+	{
+		CurrentSelectedAction = NewAction;
+		OnActionStateChanged.Broadcast(CurrentSelectedAction);
+		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+	}
+}
+
 
 void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 {
@@ -944,7 +957,7 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 
 	CurrentWeaponTag = NewWeaponTag;
-	CurrentSelectedAction = ESelectedActionType::None; // 무기 바뀌면 행동 리셋
+	SetCurrentSelectedAction(ESelectedActionType::None); // 무기 바뀌면 행동 리셋
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
 

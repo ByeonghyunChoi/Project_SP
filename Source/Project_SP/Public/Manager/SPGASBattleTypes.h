@@ -9,8 +9,8 @@ enum class EBattleState : uint8
 {
 	Ready,              // 전투 진입 및 초기화
 	DetermineNextTurn,  // 다음 턴 주인공 결정
-	ActiveTurn,         // 현재 유닛 행동 중 (입력 대기 포함)
-	ActionExecuting,    // 행동 실행 중 (몽타주 재생 등)
+	ActiveTurn,         // 현재 유닛 행동 중
+	ActionExecuting,    // 행동 실행 중
 	Victory,            // 플레이어 승리
 	Defeat              // 플레이어 패배
 };

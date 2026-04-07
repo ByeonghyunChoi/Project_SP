@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Data/Asset/SPMonsterData.h"
 #include "CombatEncounterData.generated.h"
 
 /**
@@ -16,14 +17,24 @@ struct FEnemySpawnInfo
 	GENERATED_BODY()
 
 public:
-	// 스폰할 적 클래스
+	// 스폰할 적 데이터
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
-	TSubclassOf<class AActor> EnemyClass = nullptr;
+	class USPMonsterData* MonsterData = nullptr;
 
-	// 스폰 위치 인덱스 (전투 맵에 미리 배치된 SpawnPoint의 번호)
-	// 0=중앙, 1=좌측, 2=우측
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
+	float SpawnLevel = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override")
+	bool bOverrideWeakness = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override", meta = (EditCondition = "bOverrideWeakness"))
+	FGameplayTagContainer OverriddenWeaknessTags;
+
+	// 스폰 위치 인덱스 0=중앙, 1=좌측, 2=우측
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnPositionIndex = 0;
+
+	
 
 };
 

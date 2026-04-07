@@ -22,7 +22,7 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			return true; 
 		}
@@ -43,7 +43,7 @@ bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Hand
 
 	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
 	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
 		return true;
@@ -70,7 +70,7 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
 			return; 
@@ -186,7 +186,7 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			UGameplayStatics::PlayWorldCameraShake(GetWorld(), HitCameraShakeClass, TargetActor->GetActorLocation(), 0.0f, 1000.0f, 1.0f);
 		}
 
-		if (AbilityTags.HasTag(SPTags.Battle_Action_Attack))
+		if (GetAssetTags().HasTag(SPTags.Battle_Action_Attack))
 		{
 			ASPGASCharacterBase* AvatarChar = Cast<ASPGASCharacterBase>(GetAvatarActorFromActorInfo());
 			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
@@ -318,7 +318,7 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference) &&
-		!AbilityTags.HasTag(SPTags.Battle_Action_TimeInterference))
+		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
 		return;

@@ -88,7 +88,7 @@ void ASPGASCharacterBase::PlayHitReact(const FVector& ImpactPoint)
 
 void ASPGASCharacterBase::OnBattleStarted()
 {
-	// 추후 공통된 작업을 여기서 실행 
+	// 공통된 작업을 여기서 실행 
 }
 
 void ASPGASCharacterBase::AddLooseTagToASC(FGameplayTag TagToAdd)

@@ -42,25 +42,44 @@ void AASPCombatGameMode::BeginPlay()
 	{
 		UE_LOG(LogTemp, Log, TEXT("전투 모드 시작! (Level: %s)"), *EncounterData->CombatLevelName.ToString());
 
-		// 2. 적 스폰
+		// 적 스폰 
 		for (const FEnemySpawnInfo& Info : EncounterData->EnemyGroup)
 		{
-			if (!Info.EnemyClass) continue;
+			if (!Info.MonsterData || !Info.MonsterData->MonsterClass) continue;
 
 			// 스폰 포인트 위치 찾기
 			FTransform SpawnTransform = GetSpawnTransformByIndex(Info.SpawnPositionIndex);
 
-			FActorSpawnParameters SpawnParams;
-			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			// 지연 스폰 (Deferred Spawn) 시작! 형체만 먼저 만듭니다.
+			ASPGASMonsterCharacter* SpawnedMonster = GetWorld()->SpawnActorDeferred<ASPGASMonsterCharacter>(
+				Info.MonsterData->MonsterClass,
+				SpawnTransform,
+				nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
+			);
 
-			AActor* NewEnemy = GetWorld()->SpawnActor<AActor>(Info.EnemyClass, SpawnTransform, SpawnParams);
-			if (NewEnemy)
+			if (SpawnedMonster)
 			{
-				SpawnedEnemies.Add(NewEnemy);
+				// 데이터 주사기 주입 (BeginPlay 전에 세팅 완료!)
+				SpawnedMonster->MonsterDataAsset = Info.MonsterData;
+				SpawnedMonster->CurrentLevel = Info.SpawnLevel;
+				SpawnedMonster->EncounterData = const_cast<UCombatEncounterData*>(EncounterData);
+
+				// 약점 오버라이드가 켜져 있다면 주입!
+				if (Info.bOverrideWeakness)
+				{
+					SpawnedMonster->SetWeaknessOverride(Info.OverriddenWeaknessTags);
+				}
+
+				// 스폰 완료! (이 순간 몬스터의 BeginPlay -> ApplyMonsterData가 실행됩니다)
+				UGameplayStatics::FinishSpawningActor(SpawnedMonster, SpawnTransform);
+
+				SpawnedEnemies.Add(SpawnedMonster);
+
+				UE_LOG(LogTemp, Log, TEXT("[%s] 레벨 %.0f 스폰 및 데이터 주입 완료!"), *Info.MonsterData->MonsterName.ToString(), Info.SpawnLevel);
 			}
 		}
 
-		// 3. 플레이어 이동 (SpawnPoint 중 'PlayerStart' 태그가 있는 곳, 혹은 별도 로직)
+		// 플레이어 이동 (SpawnPoint 중 'PlayerStart' 태그가 있는 곳, 혹은 별도 로직)
 		// 여기서는 편의상 SpawnPoint_Player 태그를 가진 액터를 찾습니다.
 		if (PlayerPawn)
 		{
@@ -78,7 +97,7 @@ void AASPCombatGameMode::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("전투 데이터 없음"));
 	}
 
-	// 4. 전투 시스템 초기화
+	// 전투 시스템 초기화
 	if (PlayerPawn)
 	{
 		InitializeBattle(SpawnedEnemies, PlayerPawn);
@@ -87,7 +106,7 @@ void AASPCombatGameMode::BeginPlay()
 
 void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player)
 {
-	// 1. 턴 매니저 생성
+	// 턴 매니저 생성
 	if (TurnManagerClass && !TurnManager)
 	{
 		TurnManager = GetWorld()->SpawnActor<ASPCombatTurnManager>(TurnManagerClass);
@@ -99,14 +118,14 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 		return;
 	}
 
-	// 2. 참가자 등록
+	// 참가자 등록
 	AllParticipants.Empty();
 	AllParticipants.Add(Player);
 	AllParticipants.Append(Enemies);
 
 	TurnManager->InitializeParticipants(AllParticipants);
 
-	// 3. 선제공격(Advantage) 처리
+	// 선제공격 처리
 	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
 		ECombatAdvantage Advantage = CombatSys->GetAdvantageState();
@@ -139,7 +158,7 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 {
 	UE_LOG(LogTemp, Warning, TEXT("[GameMode] 전원 세팅 완료! 전투 UI를 띄우고 즉시 전투를 시작합니다."));
 
-	// 1. [UI 출력] 플레이어 컨트롤러에게 명령!
+	// 플레이어 컨트롤러에게 명령!
 	for (AActor* Participant : AllParticipants)
 	{
 		if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(Participant))
@@ -165,7 +184,7 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 		UE_LOG(LogTemp, Log, TEXT("Battle Start Event Sent to Player!"));
 	}
 
-	// 2. [전투 시작] 턴 매니저에게 첫 턴을 물어보고 시작!
+	// 턴 매니저에게 첫 턴을 물어보고 시작!
 	if (TurnManager)
 	{
 		AActor* FirstActor = TurnManager->CalculateNextTurn();
@@ -227,7 +246,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 						// 선생님이 만드신 'GetWeaponData' 함수 활용!
 						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
 
-						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
+						// 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
 						if (WeaponData && WeaponData->ParrySkillAbility)
 						{
 							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
@@ -243,7 +262,6 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 									}
 									else
 									{
-										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
 										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
 
 										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
@@ -330,7 +348,7 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			// [중요] 턴 활성화 태그 제거 (입력 차단)
+			// 턴 활성화 태그 제거 (입력 차단)
 			ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
 			if (Cast<ASPGASPlayerCharacter>(TurnActor))
@@ -426,7 +444,7 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 		{
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
-				// 🌟 [수정됨] Restore(불러오기) ❌ -> Cache(메모리 덮어쓰기) ⭕
+				// Cache(메모리 덮어쓰기)
 				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 
 				// 안전하게 하드디스크에 한 번 구워줍니다.
@@ -434,7 +452,7 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 			}
 		}
 
-		// 2. 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
+		// 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->ReturnToField(true);
@@ -444,13 +462,13 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	{
 		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
 
-		// 1. [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
+		// [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
 		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 		{
 			SaveSys->ResetRunData();
 		}
 
-		// 2. 맵 매니저를 통해 로비 맵으로 강제 이동
+		// 맵 매니저를 통해 로비 맵으로 강제 이동
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->GoToLobby();
@@ -465,10 +483,10 @@ TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
 	// GameMode가 이미 들고 있는 참가자 명단을 순회합니다.
 	for (AActor* Participant : AllParticipants)
 	{
-		// 1. 유효성 및 'Enemy' 태그 검사
+		// 유효성 및 'Enemy' 태그 검사
 		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))
 		{
-			// 2. 살아있는지 체력 검사
+			// 살아있는지 체력 검사
 			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
 			{
 				UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
@@ -484,7 +502,7 @@ TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
 
 void AASPCombatGameMode::ProcessEndOfTurn()
 {
-	// 1. [청소 단계] 사망(State.Death) 태그를 가진 액터 수집
+	// 사망(State.Death) 태그를 가진 액터 수집
 	TArray<AActor*> DeadMonsters;
 	for (AActor* Participant : AllParticipants)
 	{
@@ -497,7 +515,7 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 		}
 	}
 
-	// 2. [폐기 단계] 명단에서 지우고 삭제 예약
+	// 명단에서 지우고 삭제 예약
 	for (AActor* Corpse : DeadMonsters)
 	{
 		AllParticipants.Remove(Corpse);
@@ -515,17 +533,17 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 		}
 	}
 
-	// 3. [승리 판정 단계] 남은 적군 수 확인
+	// 남은 적군 수 확인
 	if (GetCurrentEnemies().Num() <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 승리 시퀀스로 진입합니다."));
 
-		// 🌟 즉시 EndBattle을 부르지 않고, 블루프린트 승리 연출로 넘깁니다.
+		// 즉시 EndBattle을 부르지 않고, 블루프린트 승리 연출로 넘깁니다.
 		PlayVictorySequence();
 		return;
 	}
 
-	// 4. [다음 턴 진행] 아직 적이 남았다면 대기열에서 다음 타자 호출
+	// 아직 적이 남았다면 대기열에서 다음 타자 호출
 	if (TurnManager)
 	{
 		if (AActor* VIPActor = TurnManager->PopInterruptActor())
