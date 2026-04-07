@@ -1,4 +1,440 @@
-﻿struct FSimulatedActor
+﻿
+	USPStatusEffectComponent* StatusComp = TurnActor->FindComponentByClass<USPStatusEffectComponent>();
+
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
+
+				// 딱지는 1회용이므로 떼어줍니다.
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+
+				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
+				{
+					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+					{
+						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+
+						// 선생님이 만드신 'GetWeaponData' 함수 활용!
+						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
+						if (WeaponData && WeaponData->ParrySkillAbility)
+						{
+							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
+							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+							{
+								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
+								{
+									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
+
+									if (bActivated)
+									{
+										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+									}
+									else
+									{
+										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
+										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
+
+										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
+										EndTurn(TurnActor);
+									}
+									break;
+								}
+							}
+						}
+						else
+						{
+							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
+						}
+					}
+				}
+			}
+
+			if (StatusComp)
+			{
+				StatusComp->ProcessTurnStartDoT();
+				StatusComp->ReduceStatusEffectTurns();
+			}
+
+			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
+
+				EndTurn(TurnActor);
+				return;
+			}
+
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
+
+				// 태그 지워주기 (1회용이므로)
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
+
+				// 바로 턴 종료시켜버리기
+				EndTurn(TurnActor);
+				return;
+			}
+
+			// 턴 활성화 태그 부여 (PlayerController가 입력을 받기 시작함)
+			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+
+			// 턴 시작 이벤트 전송
+			FGameplayEventData Payload;
+			Payload.Instigator = TurnActor;
+			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
+		}
+	}
+
+	if (TurnManager)
+	{
+		TArray<AActor*> PredictedOrder = TurnManager->PredictTurnOrder(6);
+
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		if (PlayerPawn)
+		{
+			if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+			{
+				PC->UpdateTurnTimelineUI(PredictedOrder);
+			}
+		}
+	}
+
+	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
+	{
+		Character->ReduceCooldowns();
+	}
+}
+
+void AASPCombatGameMode::EndTurn(AActor* TurnActor)
+{
+	if (!TurnActor) return;
+
+	// 안전장치: 현재 턴 주인이 아닌데 종료를 요청하면 무시
+	if (CurrentTurnActor != TurnActor) return;
+
+	UE_LOG(LogTemp, Log, TEXT("턴 종료: %s"), *TurnActor->GetName());
+
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			// [중요] 턴 활성화 태그 제거 (입력 차단)
+			ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+
+			if (Cast<ASPGASPlayerCharacter>(TurnActor))
+			{
+				if (TurnEndTimeCostGE)
+				{
+					FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+					Context.AddSourceObject(this);
+
+					FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(TurnEndTimeCostGE, 1.0f, Context);
+					if (SpecHandle.IsValid())
+					{
+						ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+						UE_LOG(LogTemp, Warning, TEXT("[턴 종료] 플레이어의 시간의 힘이 1 감소했습니다."));
+					}
+				}
+				else
+				{
+					UE_LOG(LogTemp, Error, TEXT("TurnEndTimeCostGE가 게임모드 블루프린트에 설정되지 않았습니다!"));
+				}
+			}
+
+			// 행동 게이지 0으로 초기화
+			if (TurnManager)
+			{
+				if (bIsCurrentTurnInterrupt)
+				{
+					// VIP 턴이었다면 게이지를 깎지 않고, 다음을 위해 상태만 해제합니다.
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링/추가 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
+					bIsCurrentTurnInterrupt = false; // 리셋
+				}
+				else
+				{
+					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.
+					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
+					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
+					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+				}
+			}
+
+			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
+			FGameplayEventData Payload;
+			Payload.Instigator = TurnActor;
+			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnEnd, &Payload);
+		}
+	}
+
+	ProcessEndOfTurn();
+}
+
+void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
+{
+	if (ReadyParticipants.Contains(Character)) return;
+	ReadyParticipants.Add(Character);
+
+	if (Character == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
+	{
+		ApplyPlayerSavedData();
+	}
+
+	CheckAndStartBattle();
+}
+
+
+void AASPCombatGameMode::EndBattle(bool bPlayerWon)
+{
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr;
+
+	// 🌟 1. [가장 먼저 실행] 세이브하기 전에 유물들에게 "전투 끝났으니 버프 다 빼라!" 라고 방송합니다.
+	if (PlayerPawn)
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				FGameplayEventData EndPayload;
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_End, &EndPayload);
+				UE_LOG(LogTemp, Warning, TEXT("📢 전투 종료 방송 송출! 유물들이 버프를 초기화합니다."));
+			}
+		}
+	}
+
+	if (bPlayerWon)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
+
+		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
+		if (PlayerPawn)
+		{
+			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 🌟 [수정됨] Restore(불러오기) ❌ -> Cache(메모리 덮어쓰기) ⭕
+				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+
+				// 안전하게 하드디스크에 한 번 구워줍니다.
+				SaveSys->SaveRunToDisk();
+			}
+		}
+
+		// 2. 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->ReturnToField(true);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
+
+		// 1. [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
+		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			SaveSys->ResetRunData();
+		}
+
+		// 2. 맵 매니저를 통해 로비 맵으로 강제 이동
+		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+		{
+			MapManager->GoToLobby();
+		}
+	}
+}
+
+TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
+{
+	TArray<TObjectPtr<AActor>> AliveEnemies;
+
+	// GameMode가 이미 들고 있는 참가자 명단을 순회합니다.
+	for (AActor* Participant : AllParticipants)
+	{
+		// 1. 유효성 및 'Enemy' 태그 검사
+		if (IsValid(Participant) && Participant->ActorHasTag(FName("Enemy")))
+		{
+			// 2. 살아있는지 체력 검사
+			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
+			{
+				UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
+				if (ASC && ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
+				{
+					AliveEnemies.Add(Participant);
+				}
+			}
+		}
+	}
+	return AliveEnemies;
+}
+
+void AASPCombatGameMode::ProcessEndOfTurn()
+{
+	// 1. [청소 단계] 사망(State.Death) 태그를 가진 액터 수집
+	TArray<AActor*> DeadMonsters;
+	for (AActor* Participant : AllParticipants)
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Participant))
+		{
+			if (ASI->GetAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+			{
+				DeadMonsters.Add(Participant);
+			}
+		}
+	}
+
+	// 2. [폐기 단계] 명단에서 지우고 삭제 예약
+	for (AActor* Corpse : DeadMonsters)
+	{
+		AllParticipants.Remove(Corpse);
+		if (TurnManager) TurnManager->RemoveParticipant(Corpse);
+
+		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Corpse))
+		{
+			if (Monster->DeathMontage)
+			{
+				Monster->PlayAnimMontage(Monster->DeathMontage);
+			}
+
+			float DeathDuration = Monster->GetDeathMontageDuration();
+			Corpse->SetLifeSpan(DeathDuration + 0.1f);
+		}
+	}
+
+	// 3. [승리 판정 단계] 남은 적군 수 확인
+	if (GetCurrentEnemies().Num() <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 승리 시퀀스로 진입합니다."));
+
+		// 🌟 즉시 EndBattle을 부르지 않고, 블루프린트 승리 연출로 넘깁니다.
+		PlayVictorySequence();
+		return;
+	}
+
+	// 4. [다음 턴 진행] 아직 적이 남았다면 대기열에서 다음 타자 호출
+	if (TurnManager)
+	{
+		if (AActor* VIPActor = TurnManager->PopInterruptActor())
+		{
+			bIsCurrentTurnInterrupt = true;
+			StartTurn(VIPActor);
+			return;
+		}
+
+		AActor* NextActor = TurnManager->CalculateNextTurn();
+		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
+		{
+			bIsCurrentTurnInterrupt = true;
+		}
+		StartTurn(NextActor);
+	}
+}
+
+FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)
+{
+	// 맵에 배치된 모든 스폰 포인트 검색
+	TArray<AActor*> SpawnPoints;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASPGASSpawnPoint::StaticClass(), SpawnPoints);
+
+	for (AActor* Actor : SpawnPoints)
+	{
+		if (ASPGASSpawnPoint* SP = Cast<ASPGASSpawnPoint>(Actor))
+		{
+			if (SP->SpawnIndex == Index)
+			{
+				return SP->GetActorTransform();
+			}
+		}
+	}
+
+	// 못 찾았을 경우 기본값
+	UE_LOG(LogTemp, Warning, TEXT("스폰 포인트 [%d]를 찾지 못했습니다."), Index);
+	return FTransform(FRotator::ZeroRotator, FVector(Index * 200.0f, 0.0f, 100.0f));
+}
+// ==========================================
+// FILE: SPGASGameInstance.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Game/SPGASGameInstance.h"
+
+USPGASGameInstance::USPGASGameInstance()
+{
+	bIsReturnFromGame = false;
+}
+
+void USPGASGameInstance::SetbIsReturnFromGame(bool IsReturn)
+{
+	bIsReturnFromGame = IsReturn;
+}
+
+bool USPGASGameInstance::GetbIsReturnFromGame() const
+{
+	return bIsReturnFromGame;
+}
+// ==========================================
+// FILE: InteractionActorBase.cpp
+// ==========================================
+
+
+#include "InteractionActor/InteractionActorBase.h"
+
+AInteractionActorBase::AInteractionActorBase()
+{
+
+}
+
+void AInteractionActorBase::BeginPlay()
+{
+	Super::BeginPlay();
+	
+}
+
+void AInteractionActorBase::ExecuteInteraction(AActor* Interactor)
+{
+
+}
+
+FText AInteractionActorBase::GetInteractText()const
+{
+	return FText();
+}
+
+// ==========================================
+// FILE: InteractableInterface.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Interface/InteractableInterface.h"
+
+// Add default functionality here for any IInteractableInterface functions that are not pure virtual.
+// ==========================================
+// FILE: SPCombatTurnManager.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Manager/SPCombatTurnManager.h"
+#include "AbilitySystemInterface.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASPlayerController.h"
+
+// 턴 시뮬레이션 구조체
+struct FSimulatedActor
 {
 	AActor* Actor;
 	float Speed;
@@ -21,7 +457,20 @@ void ASPCombatTurnManager::InitializeParticipants(const TArray<AActor*>& InParti
 
 AActor* ASPCombatTurnManager::CalculateNextTurn()
 {
-	// 1. 대기열 확인: 이미 게이지가 꽉 찬 유닛이 있다면 바로 반환
+	// 대기열 확인
+	if (InterruptQueue.Num() > 0)
+	{
+		AActor* VIPActor = InterruptQueue[0];
+		InterruptQueue.RemoveAt(0);
+
+		if (IsValid(VIPActor) && Participants.Contains(VIPActor))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[TurnManager] VIP 턴 발동! %s 가 게이지를 무시하고 턴을 잡습니다!"), *VIPActor->GetName());
+			return VIPActor;
+		}
+		return CalculateNextTurn(); // 죽었거나 유효하지 않으면 다음 타자 검색
+	}
+
 	if (TurnQueue.Num() > 0)
 	{
 		AActor* NextActor = TurnQueue[0];
@@ -35,7 +484,7 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		return CalculateNextTurn();
 	}
 
-	// 2. 시뮬레이션: 가장 빨리 행동할 수 있는 시간(MinTimeToAct) 계산
+	// 시뮬레이션: 가장 빨리 행동할 수 있는 시간(MinTimeToAct) 계산
 	float MinTimeToAct = 99999.0f;
 	bool bFoundValidActor = false;
 
@@ -157,6 +606,7 @@ float ASPCombatTurnManager::GetActionGauge(const AActor* Target) const
 	return 0.0f;
 }
 
+
 void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
 {
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
@@ -262,6 +712,28 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount)
 	}
 
 	return PredictedOrder;
+}
+
+void ASPCombatTurnManager::RequestInterruptTurn(AActor* Interrupter)
+{
+	if (!IsValid(Interrupter) || !Participants.Contains(Interrupter))
+	{
+		return; // 유효하지 않으면 즉시 종료
+	}
+
+	InterruptQueue.AddUnique(Interrupter);
+	UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 가 새치기(인터럽트) 턴을 예약했습니다!"), *Interrupter->GetName());
+}
+
+AActor* ASPCombatTurnManager::PopInterruptActor()
+{
+	if (InterruptQueue.Num() > 0)
+	{
+		AActor* VIP = InterruptQueue[0];
+		InterruptQueue.RemoveAt(0);
+		return VIP;
+	}
+	return nullptr;
 }
 // ==========================================
 // FILE: EnterancePortal.cpp
@@ -459,7 +931,11 @@ void AMapBase::HandleStateReward()
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams); // 파라미터 전달
+		ARewardBox* SpawnedChest = GetWorld()->SpawnActor<ARewardBox>(RewardChestClass, RewardPoints[0], SpawnParams);
+		if (SpawnedChest)
+		{
+			SpawnedChest->SetupParticleByMapType(MapType);
+		}
 
 		UE_LOG(LogTemp, Log, TEXT("Reward Chest Spawned!"));
 	}
@@ -562,6 +1038,7 @@ void UMapManagerSubsystem::StartNewRun()
 	bIsReturningFromBattle = false;
 	bIsBattleActive = false;
 	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
 	CurrentStage = 1;
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
@@ -590,7 +1067,10 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
-		SaveSys->SaveRunToDisk(); 
+		SaveSys->SaveRunToDisk();
+
+		SaveSys->CachePermDataFromPlayer(PlayerPawn);
+		SaveSys->SavePermToDisk();
 	}
 
 	// 2. [전투 정보] CombatSubsystem 설정 (데이터 전달)
@@ -707,6 +1187,7 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!
 				if (!bIsLoadingSave)
 				{
+					GenerateNextFloorOptions();
 					SaveSys->CacheRunDataFromPlayer(Player);
 					SaveSys->SaveRunToDisk();
 					UE_LOG(LogTemp, Warning, TEXT("[오토세이브] 맵 진입 완료 (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
@@ -722,205 +1203,3 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 	}
 }
 
-void UMapManagerSubsystem::LoadStageLevel()
-{
-	bIsInLobby = false;
-	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
-	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
-	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
-}
-
-void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
-{
-	CurrentRoomState = EMapState::InProgress;
-
-	if (CurrentFloor >= 11 && CurrentStage < 3)
-	{
-		// 다음 스테이지로
-		CurrentStage++;
-		CurrentFloor = 1;
-		bIsReturningFromBattle = false;
-		LoadStageLevel();
-	}
-	else if (CurrentFloor < 11)
-	{
-		// 같은 스테이지 다음 층
-		CurrentFloor++;
-		SpawnMapActor(SelectedType);
-	}
-}
-
-EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
-{
-	switch (Floor)
-	{
-	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
-	case 3: case 6: case 9: return EMapGrade::Epic;
-	case 10: return EMapGrade::Prepare;
-	case 11: return EMapGrade::Boss;
-	default: return EMapGrade::Normal;
-	}
-}
-
-EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
-{
-	switch (Grade)
-	{
-	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
-	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
-	case EMapGrade::Prepare: return EMapType::Prepare;
-	case EMapGrade::Boss: return EMapType::BossBattle;
-	default: return EMapType::NormalBattle;
-	}
-}
-
-TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
-{
-	TArray<EMapType> Options;
-	int32 NextFloor = CurrentFloor + 1;
-	if (NextFloor > 11) { Options.Add(EMapType::NormalBattle); return Options; }
-	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
-	Options.Add(GetRandomTypeFromGrade(NextGrade));
-	Options.Add(GetRandomTypeFromGrade(NextGrade));
-	return Options;
-}
-
-void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby)
-{
-	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
-	CurrentStage = SavedStage;
-	CurrentFloor = SavedFloor;
-	CurrentMapType = SavedMapType;
-	CurrentRoomState = SavedRoomState;
-	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
-
-	// 플래그 세팅
-	bIsLoadingSave = true;
-	bIsReturningFromBattle = false;
-	bIsBattleActive = false;
-	bIsInLobby = bSavedInLobby;
-
-	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
-	if (bIsInLobby)
-	{
-		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
-		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
-	}
-	else
-	{
-		LoadStageLevel();
-		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
-	}
-}
-
-void UMapManagerSubsystem::GoToLobby()
-{
-	bIsInLobby = true;
-	// 로비로 돌아오면 런 데이터 초기화
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveSys->ResetRunData();
-	}
-	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
-}
-
-void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
-{
-	// MapBase가 BeginPlay에서 호출해줌
-	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
-}
-// ==========================================
-// FILE: PortalActor.cpp
-// ==========================================
-#include "Map/PortalActor.h"
-#include "Map/MapManagerSubsystem.h"
-#include "Kismet/GameplayStatics.h"
-
-APortalActor::APortalActor()
-{
-	PrimaryActorTick.bCanEverTick = false;
-	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortalMesh"));
-	SetRootComponent(MeshComponent);
-}
-
-void APortalActor::ExecuteInteraction(AActor* Interactor)
-{
-	UGameInstance* GI = GetGameInstance();
-	if (!GI) return;
-
-	if (!bIsActive)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Portal is not active yet!"));
-		return;
-	}
-
-	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
-	if (MapManager)
-	{
-		bIsActive = false;
-		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
-		MapManager->MoveToNextFloor(TargetMapType);
-	}
-}
-
-FText APortalActor::GetInteractText() const
-{
-	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
-	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
-
-	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
-	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
-}
-
-bool APortalActor::CanInteract(AActor* Interactor) const
-{
-	return bIsActive;
-}
-
-void APortalActor::SetPortalTargetType(EMapType InType)
-{
-	TargetMapType = InType;
-
-	// 타겟 타입이 정해지는 즉시 블루프린트에 알림
-	OnUpdatePortalColor(TargetMapType);
-}
-
-void APortalActor::ActivatePortal(bool bActive)
-{
-	bIsActive = bActive;
-
-	// 시각적 효과 (블루프린트에서 파티클 켜기/끄기 구현)
-	OnPortalStateChanged(bActive);
-}
-// ==========================================
-// FILE: RewardBox.cpp
-// ==========================================
-#include "Map/RewardBox.h"
-#include "Map/MapBase.h"
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
-#include "Blueprint/UserWidget.h"
-
-ARewardBox::ARewardBox()
-{
-	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
-	RootComponent = MeshComp;
-}
-
-void ARewardBox::ExecuteInteraction(AActor* Interactor)
-{
-	if (bIsOpened) return;
-
-	// 상호작용한 Actor가 플레이어인지 확인
-	APlayerController* PC = Cast<APlayerController>(Cast<ACharacter>(Interactor)->GetController());
-	if (!PC) return;
-
-	bIsOpened = true;
-
-	//보상 지급 코드를 여기서 구현
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// 1. 유물 보상 위젯 생성
-	UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
-	if (RewardUI)
-	{
-		// 2. 위젯에 현재 스테이지 값 전달 (WBP_RelicReward의 CurrentStage 변수 이름과 일치해야 함)

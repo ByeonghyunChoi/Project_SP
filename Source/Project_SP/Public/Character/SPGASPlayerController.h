@@ -12,6 +12,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -159,6 +160,9 @@ protected:
 	//배틀 포인트 최대값 변경시 실행될 함수
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
 
+	// 플레이어의 행동 상태 변경을 관리할 함수
+	void SetCurrentSelectedAction(ESelectedActionType NewAction);
+
 
 public:
 	// 무기 교체 처리
@@ -208,6 +212,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
 
+	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	bool BuyShopItem(const FShopItemRow& ItemData);
+
+	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	class AMerchantNPC* CurrentMerchant;
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
@@ -218,5 +230,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnActionStateChangedDelegate OnActionStateChanged;
 
 };

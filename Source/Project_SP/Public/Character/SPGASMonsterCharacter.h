@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Character/SPGASCharacterBase.h"
 #include "Data/CombatEncounterData.h"
-#include "Character/MonsterInfo.h"
+#include "Data/Asset/SPMonsterData.h"
 #include "Components/WidgetComponent.h"
 #include "Tag/SPGameplayTags.h"
 #include "SPGASMonsterCharacter.generated.h"
@@ -26,21 +26,30 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
     TObjectPtr<UCombatEncounterData> EncounterData;
 
+    //몬스터 데이터
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+    class USPMonsterData* MonsterDataAsset;
+
+    //해당 몬스터의 현재 레벨
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
+    float CurrentLevel = 1.0f;
+
+public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
-    EEnemyRank GetEnemyRank() const { return EnemyRank; }
+    EMonsterRank GetEnemyRank() const { return MonsterDataAsset ? MonsterDataAsset->MonsterRank : EMonsterRank::Normal; }
 
     UFUNCTION(BlueprintCallable, Category = "GAS")
-    void InitializeEnemyStats(int32 NewLevel, float StatMultiplier);
+    void ApplyMonsterData();
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
-    void SetSelectedWidget(bool bSelected, bool bIsPrimary);
+    void SetSelectedWidget(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     //상태이상 태그과 남은 턴 수를 가져올 함수
     UFUNCTION(BlueprintPure, Category = "Combat | UI")
     TMap<FGameplayTag, int32> GetActiveDebuffs() const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
-    void OnTargetStateChanged(bool bSelected, bool bIsPrimary);
+    void OnTargetStateChanged(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     // UI 갱신 방송 함수(상태이상)
     void BroadcastStatusUI();
@@ -51,10 +60,16 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat")
     float GetDeathMontageDuration() const;
 
-public:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
-    FGameplayTagContainer WeaknessTags;
+    UFUNCTION(BlueprintPure, Category = "Combat | Data")
+    FGameplayTagContainer GetCurrentWeaknessTags() const;
 
+    void SetWeaknessOverride(const FGameplayTagContainer& NewWeaknesses)
+    {
+        bHasWeaknessOverride = true;
+        OverriddenWeaknessTags = NewWeaknesses;
+    }
+
+public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
     FOnMonsterHPChangedDelegate OnMonsterHPChanged;
 
@@ -75,19 +90,15 @@ protected:
     void GiveDefaultAbilities();
 
 protected:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Stats")
-    EEnemyRank EnemyRank = EEnemyRank::Normal;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UWidgetComponent> TargetIndicatorWidget;
-
-    //몬스터 등급 태그
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster | Tags")
-    FGameplayTag MonsterRankTag;
 
     //몬스터 정보 위젯
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
+
+    bool bHasWeaknessOverride = false;
+    FGameplayTagContainer OverriddenWeaknessTags;
 
     UPROPERTY(VisibleAnywhere)
     bool bIsDead = false;

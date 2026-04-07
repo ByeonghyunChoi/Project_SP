@@ -7,6 +7,8 @@
 #include "AbilitySystemInterface.h"
 #include "GameplayAbilitySpec.h"
 #include "Component/InventoryComponent.h" 
+#include "Map/MapManagerSubSystem.h"
+#include "AttributeSet/SPGASAttributeSet.h"
 
 UOpartsComponent::UOpartsComponent()
 {
@@ -235,6 +237,16 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 			FGameplayAbilitySpec Spec(Artifact.ArtifactAbilityClass, 1, -1, this);
 			FGameplayAbilitySpecHandle Handle = ASC->GiveAbilityAndActivateOnce(Spec);
 			RuntimeData.ArtifactAbilityHandles.Add(Handle);
+		}
+	}
+
+	if (GetOwner() && GetOwner()->GetWorld())
+	{
+		UMapManagerSubsystem* MapManager = GetOwner()->GetWorld()->GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+		if (MapManager && MapManager->GetIsInLobby())
+		{
+			float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), MaxHP);
 		}
 	}
 

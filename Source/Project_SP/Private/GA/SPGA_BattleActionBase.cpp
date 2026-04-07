@@ -22,7 +22,7 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			return true; 
 		}
@@ -43,7 +43,7 @@ bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Hand
 
 	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
 	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-		!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
 		return true;
@@ -70,7 +70,7 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
 		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
-			!AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
 			return; 
@@ -186,7 +186,7 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			UGameplayStatics::PlayWorldCameraShake(GetWorld(), HitCameraShakeClass, TargetActor->GetActorLocation(), 0.0f, 1000.0f, 1.0f);
 		}
 
-		if (AbilityTags.HasTag(SPTags.Battle_Action_Attack))
+		if (GetAssetTags().HasTag(SPTags.Battle_Action_Attack))
 		{
 			ASPGASCharacterBase* AvatarChar = Cast<ASPGASCharacterBase>(GetAvatarActorFromActorInfo());
 			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
@@ -209,6 +209,64 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 					{
 						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
 					}
+				}
+			}
+			if (ASC) // 1. 타격 이벤트 발사
+			{
+				FGameplayEventData RelicPayload;
+				RelicPayload.Instigator = GetAvatarActorFromActorInfo();
+				RelicPayload.Target = TargetActor;
+				RelicPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+				// 내 몸에 장착된 유물 어빌리티들이 들을 수 있게 전용 이벤트를 발사합니다.
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackHit, &RelicPayload);
+			}
+			UAbilitySystemComponent* EventTargetASC = nullptr;
+			if (IsValid(TargetActor))
+			{
+				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			}
+
+			if (ASC && EventTargetASC) // 2. 처치 이벤트 발사
+			{
+				// 타겟에게 사망 태그가 생겼다면? (방금 내 공격으로 죽었다는 뜻!)
+				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+					RelicKillPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+					// 프리즘이 들을 수 있게 "일반 공격 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("일반 공격 처치 발생! 유물들에게 Kill 신호를 보냅니다."));
+				}
+			}
+		}
+		// [추가한 부분] 만약 공격 방식이 '무기 스킬(Skill)' 이라면?
+		else if (AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_Skill))
+		{
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+			UAbilitySystemComponent* EventTargetASC = nullptr;
+			if (IsValid(TargetActor))
+			{
+				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			}
+
+			if (ASC && EventTargetASC)
+			{
+				// 타겟에게 사망 태그가 생겼다면? (방금 내 스킬로 죽었다는 뜻!)
+				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+
+					// 피 묻은 동전이 들을 수 있게 "스킬 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_SkillKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("무기 스킬 처치 발생! 유물들에게 SkillKill 신호를 보냅니다."));
 				}
 			}
 		}
@@ -260,10 +318,24 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference) &&
-		!AbilityTags.HasTag(SPTags.Battle_Action_TimeInterference))
+		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
 		return;
+	}
+	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
+	if (AbilityTags.HasTag(SPTags.Battle_Action_Skill)) // 일반 공격이 아니라 '스킬'일 때만!
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🔍 [테스트] 이 어빌리티는 '스킬(Battle.Action.Skill)' 태그를 가지고 있습니다!")); // 2번 체크용
+		if (ASC->HasMatchingGameplayTag(SPTags.Relic_Passive_ResonatingRune))
+		{
+			// 1~100 사이의 난수를 뽑아서 25 이하인지 확인 (25% 확률)
+			if (FMath::RandRange(1, 25) <= 100)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("✨ [유물 발동] 공명하는 룬! 이번 스킬은 쿨타임이 돌지 않습니다!"));
+				return; // 여기서 함수를 끝내버려서 아래의 쿨타임 GE가 아예 안 들어가게 만듭니다!
+			}
+		}
 	}
 
 	// 쿨타임이 없거나 클래스가 없으면 패스

@@ -6,45 +6,51 @@
 #include "Data/Asset/RelicDefinition.h"
 #include "Data/Asset/OpartsDefinition.h"
 #include "Map/MapInfo.h"
+#include "Engine/DataTable.h"
 #include "SPDataStructs.generated.h"
 
 /**
  * 
  */
 USTRUCT(BlueprintType)
+struct FPlayerLevelRewardRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+   // 보상 테이블 혹시 모르니 코드 상에는 남겨 둠
+};
+
+USTRUCT(BlueprintType)
 struct FPlayerStatsData
 {
 	GENERATED_BODY()
 
 public:
-    UPROPERTY() float CurrentHealth = 100.0f;
+    UPROPERTY() float CurrentHealth = 163.0f;
     UPROPERTY() float CurrentBattlePoint = 2.0f;
     UPROPERTY() float CurrentTimePower = 200.0f;    
     UPROPERTY() float CurrentActionGauge = 0.0f;
 
-    UPROPERTY() float MaxHealth = 100.0f;
+    UPROPERTY() float MaxHealth = 163.0f;
     UPROPERTY() float MaxBattlePoint = 5.0f;
     UPROPERTY() float MaxTimePower = 200.0f;       
 
-    UPROPERTY() float Attack = 20.0f;
-    UPROPERTY() float Defense = 10.0f;
+    UPROPERTY() float Attack = 84.0f;
+    UPROPERTY() float Defense = 52.0f;
     UPROPERTY() float Speed = 100.0f;               
 
-    // 3. 전투 보조 스탯
     UPROPERTY() float DefenseIgnore = 0.0f;
-    UPROPERTY() float CriticalRate = 0.05f;
-    UPROPERTY() float CriticalDamage = 1.5f;
+    UPROPERTY() float CriticalRate = 0.0f;
+    UPROPERTY() float CriticalDamage = 0.0f;
     UPROPERTY() float EffectHitRate = 0.0f;
     UPROPERTY() float EffectAmplify = 0.0f;
 
-    // 4. 배율
     UPROPERTY() float OutgoingDamageMultiplier = 0.0f;
     UPROPERTY() float IncomingDamageMultiplier = 0.0f;
 
-    // 5. 성장
-    UPROPERTY() float Level = 1.0f;
+    UPROPERTY() float Level = 7.0f;
     UPROPERTY() float Experience = 0.0f;
-    UPROPERTY() float MaxExperience = 100.0f;
+    UPROPERTY() float MaxExperience = 0.0f;
 
 };
 

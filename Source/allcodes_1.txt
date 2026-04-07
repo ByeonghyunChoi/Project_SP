@@ -2,7 +2,7 @@
 // FILE: ANS_FieldAttackHitCheck.cpp
 // ==========================================
 #include "Animation/ANS_FieldAttackHitCheck.h"
-#include "AbilitySystemBlueprintLibrary.h" // ��� �߰� �ʿ��� �� ���� (�Ʒ� ���� ����)
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Engine/OverlapResult.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
@@ -29,7 +29,7 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 
 	for (UMeshComponent* Comp : AllMeshComponents)
 	{
-		// �� ��ü �޽�(MeshComp)�� �����ϰ�, ������ ���� ����(WeaponSocketName)�� ���� �޽��� ã���ϴ�!
+		// �� ��ü �޽��� �����ϰ�, ������ ���� ������ ���� �޽��� ã��.
 		if (Comp != MeshComp && Comp->DoesSocketExist(WeaponSocketName))
 		{
 			TargetWeaponMesh = Comp;
@@ -37,30 +37,30 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 		}
 	}
 
-	// ���� ���� ���� (ĳ���� ����)
+	// ���� ���� ����
 	FVector TraceLocation;
 	if (TargetWeaponMesh)
 	{
-		// ���� �޽��� ã�Ҵٸ� �� ������ ���� ��ġ�� ������ (���� ��Ȯ!)
+		// ���� �޽��� ã�Ҵٸ� �� ������ ���� ��ġ�� ������
 		TraceLocation = TargetWeaponMesh->GetSocketLocation(WeaponSocketName);
 	}
 	else
 	{
-		// ���⳪ ������ �� ã���� ���� ������ġ (����ó�� ĳ���� ���� ���)
+		// ���⳪ ������ �� ã���� ���� ĳ������ �߾�
 		FVector Forward = Owner->GetActorForwardVector();
 		TraceLocation = Owner->GetActorLocation() + (Forward * 100.0f);
 	}
 
-	// �浹 �˻� (Sphere Trace)
+	// �浹 �˻�
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(Owner); // ���� ������ ����
+	Params.AddIgnoredActor(Owner); // ���� ����
 
 	bool bHit = World->OverlapMultiByChannel(
 		OverlapResults,
-		TraceLocation, // ���� ��ġ
+		TraceLocation,
 		FQuat::Identity,
-		ECC_GameTraceChannel2, // ���� ä�� ����
+		ECC_GameTraceChannel2, // ���� ä��
 		FCollisionShape::MakeSphere(AttackRadius),
 		Params
 	);
@@ -70,7 +70,7 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 		DrawDebugSphere(World, TraceLocation, AttackRadius, 12, FColor::Red, false, FrameDeltaTime);
 	}
 
-	// 3. ���� ��󿡰� �̺�Ʈ ����
+	// Ÿ�� ��ȣ ����
 	if (bHit)
 	{
 		for (const FOverlapResult& Result : OverlapResults)
@@ -78,7 +78,6 @@ void UANS_FieldAttackHitCheck::NotifyTick(USkeletalMeshComponent* MeshComp, UAni
 			AActor* HitActor = Result.GetActor();
 			if (HitActor && HitActor != Owner)
 			{
-				// �� �ٽ�: GA_FieldAttack���� "�����!"��� ��ȣ ����
 				FGameplayEventData Payload;
 				Payload.Instigator = Owner;
 				Payload.Target = HitActor;
@@ -190,8 +189,8 @@ void USPGASAssetManager::StartInitialLoading()
 
 USPGASAttributeSet::USPGASAttributeSet()  
 {
-	InitHealth(100.0f);
-	InitMaxHealth(100.0f);
+	InitHealth(500.0f);
+	InitMaxHealth(500.0f);
 	InitBattlePoint(2.0f);
 	InitMaxBattlePoint(5.0f);
 	InitTimePower(200.0f);
@@ -213,6 +212,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitMaxExperience(100.0f);
 	InitIncomingDamage(0.0f);
 	InitIncomingHeal(0.0f);
+	InitIncomingIsCritical(0.0f);
 }
 
 void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -221,7 +221,6 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 
 	if (Attribute == GetHealthAttribute())
 	{
-		// 체력은 0 ~ MaxHealth 사이여야 함
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxHealth());
 	}
 	else if (Attribute == GetBattlePointAttribute())
@@ -234,32 +233,26 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetActionGaugeAttribute())
 	{
-		// 행동 게이지는 턴 매니저 규칙에 따라 0 ~ Max
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxActionGauge());
 	}
 	else if (Attribute == GetAttackAttribute())
 	{
-		// 공격력은 최소 0.0f
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetDefenseAttribute())
 	{
-		// 방어력도 최소 0.0f
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetSpeedAttribute())
 	{
-		// 속도가 음수면 턴 계산이 고장나므로 최소 0.0f (혹은 최소 1.0f)
-		NewValue = FMath::Max(NewValue, 0.0f);
+		NewValue = FMath::Max(NewValue, 0.1f);
 	}
 	else if (Attribute == GetCriticalRateAttribute())
 	{
-		// 치명타 확률은 0% 이상이어야 함
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{
-		// 치명타 피해는 기본 1.5
 		NewValue = FMath::Max(NewValue, 1.0f);
 	}
 	else if (Attribute == GetOutgoingDamageMultiplierAttribute() ||
@@ -276,12 +269,16 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
 		float Damage = GetIncomingDamage();
+		bool bIsCritical = GetIncomingIsCritical() > 0.0f;
 		SetIncomingDamage(0.0f); 
+		SetIncomingIsCritical(0.0f);
 
 		if (Damage > 0.0f)
 		{
 			float CurrentHealth = GetHealth();
 			SetHealth(FMath::Clamp(CurrentHealth - Damage, 0.0f, GetMaxHealth()));
+
+			OnDamageTakenEvent.Broadcast(Damage, bIsCritical);
 		}
 	}
 
@@ -315,10 +312,10 @@ void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallb
 #include "Tag/SPGameplayTags.h"
 
 
-//속성 캡처
+// 속성 캡처
 struct FDamageStatics
 {
-	// 공격자(Source) 스탯
+	// 공격자 스탯
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Attack);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(DefenseIgnore);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalRate);
@@ -327,12 +324,13 @@ struct FDamageStatics
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Level);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(EffectAmplify);
 
-	// 방어자(Target) 스탯
+	// 방어자 스탯
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Defense);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(IncomingDamageMultiplier);
 
 	FDamageStatics()
 	{
+		// 공격자
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Attack, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, DefenseIgnore, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, CriticalRate, Source, false);
@@ -341,6 +339,7 @@ struct FDamageStatics
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Level, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, EffectAmplify, Source, false);
 
+		// 방어자
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Defense, Target, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, IncomingDamageMultiplier, Target, false);
 	}
@@ -354,6 +353,7 @@ static const FDamageStatics& DamageStatics()
 
 USPGAS_DamageCalculation::USPGAS_DamageCalculation()
 {
+	// 공격자
 	RelevantAttributesToCapture.Add(DamageStatics().AttackDef);
 	RelevantAttributesToCapture.Add(DamageStatics().DefenseIgnoreDef);
 	RelevantAttributesToCapture.Add(DamageStatics().CriticalRateDef);
@@ -362,19 +362,20 @@ USPGAS_DamageCalculation::USPGAS_DamageCalculation()
 	RelevantAttributesToCapture.Add(DamageStatics().LevelDef);
 	RelevantAttributesToCapture.Add(DamageStatics().EffectAmplifyDef);
 
+	// 방어자
 	RelevantAttributesToCapture.Add(DamageStatics().DefenseDef);
 	RelevantAttributesToCapture.Add(DamageStatics().IncomingDamageMultiplierDef);
 }
 
 void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
 {
-	//ASC 가져옴
+	// ASC 가져옴
 	UAbilitySystemComponent* TargetASC = ExecutionParams.GetTargetAbilitySystemComponent();
 	UAbilitySystemComponent* SourceASC = ExecutionParams.GetSourceAbilitySystemComponent();
 
 	if (!SourceASC || !TargetASC) return;
 
-	//태그 정보 가져옴
+	// 태그 정보 가져옴
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	const FGameplayEffectSpec& Spec = ExecutionParams.GetOwningSpec();
 	const FGameplayTagContainer* SourceTags = Spec.CapturedSourceTags.GetAggregatedTags();
@@ -383,12 +384,12 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	EvalParams.SourceTags = SourceTags;
 	EvalParams.TargetTags = TargetTags;
 
-	//공격 유형을 판별할 태그
+	// 공격 유형을 판별할 태그
 	FGameplayTagContainer EffectTags;
 	Spec.GetAllAssetTags(EffectTags);
 
-	//스탯 정보 가져옴
-	// [공격자 스탯]
+	// 스탯 정보 가져옴
+	// 공격자
 	float Attack = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().AttackDef, EvalParams, Attack);
 	Attack = FMath::Max<float>(Attack, 0.0f);
@@ -411,7 +412,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	float SourceLevel = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().LevelDef, EvalParams, SourceLevel);
 
-	// [방어자 스탯]
+	// 방어자 
 	float Defense = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().DefenseDef, EvalParams, Defense);
 	Defense = FMath::Max<float>(Defense, 0.0f);
@@ -419,13 +420,13 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	float IncomingMulti = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageMultiplierDef, EvalParams, IncomingMulti);
 
-	// Target Level은 캡처 매크로 충돌 방지를 위해 직접 가져옴
 	float TargetLevel = TargetASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
 
-	// [스킬 계수] (SetByCaller: Data.Damage)
+	// 스킬 계수(Data.Damage)
 	float Coefficient = Spec.GetSetByCallerMagnitude(SPTags.Data_Damage, false, 1.0f);
 
 	float FinalDamage = 0.0f;
+	bool bIsActualCritical = false;
 
 	if (EffectTags.HasTag(SPTags.Damage_Type_Execute))
 	{
@@ -494,7 +495,19 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 		if (bIsCritical)
 		{
 			CriticalCoefficient = 1.5f + CritDamageVal;
+			bIsActualCritical = true;
 			UE_LOG(LogTemp, Log, TEXT("치명타!"));
+
+			if (SourceASC)
+			{
+				FGameplayEventData Payload;
+				Payload.EventTag = FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit"));
+				Payload.Instigator = SourceASC->GetAvatarActor(); // 때린 사람
+				Payload.Target = TargetASC->GetAvatarActor();     // 맞은 사람
+
+				// 자기 자신(SourceASC)에게 이벤트를 발생
+				SourceASC->HandleGameplayEvent(Payload.EventTag, &Payload);
+			}
 		}
 
 		// 피해 증감 계수
@@ -549,12 +562,20 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 			FinalDamage, BaseDamage, CriticalCoefficient, DamageMultiCoefficient, DefenseCoefficient, WeaknessCoefficient, LevelCoefficient);
 	}
 
-	// 최소 데미지 1 보장
+	// 최소 데미지 보장
 	FinalDamage = FMath::Max<float>(FinalDamage, 1.0f);
 	// 메타 속성(IncomingDamage)에 값 누적
 	OutExecutionOutput.AddOutputModifier(
 		FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingDamageAttribute(), EGameplayModOp::Additive, FinalDamage)
 	);
+
+	//치명타 여부 추가
+	if (bIsActualCritical)
+	{
+		OutExecutionOutput.AddOutputModifier(
+			FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingIsCriticalAttribute(), EGameplayModOp::Additive, 1.0f)
+		);
+	}
 }
 
 // ==========================================
@@ -566,31 +587,30 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 #include "Character/MerchantNPC.h"
 #include "Component/ShopComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Blueprint/UserWidget.h" 
+#include <Character/SPGASPlayerController.h>
 
 // Sets default values
 AMerchantNPC::AMerchantNPC()
 {
-	// 1. 상점 컴포넌트 생성 및 부착
+	// 상점 컴포넌트 생성 및 부착
 	ShopComp = CreateDefaultSubobject<UShopComponent>(TEXT("ShopComponent"));
 
-	// 2. 비주얼 설정 (일반적인 캐릭터 메시 방향 맞추기)
+	// 비주얼 설정
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
 	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 }
 
 void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 {
-	// Interactor는 플레이어 캐릭터입니다.
-	// 여기서 PlayerPawn->GetController()를 가져오는데, 이게 NULL일 수도 있습니다.
 	if (APawn* PlayerPawn = Cast<APawn>(Interactor))
 	{
-		if (APlayerController* PC = Cast<APlayerController>(PlayerPawn->GetController()))
+		
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
+			// "컨트롤러야, 너 지금 나(상인)랑 거래하는 거야" 라고 쥐여줍니다.
+			PC->CurrentMerchant = this;
 			OpenShop(PC);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("상호작용 실패: 플레이어 컨트롤러를 찾을 수 없음!")); // [이게 뜨는지 확인]
 		}
 	}
 }
@@ -611,32 +631,49 @@ void AMerchantNPC::OpenShop(APlayerController* PlayerController)
 {
 	if (!PlayerController) return;
 
-	// 1. 상점 오픈 로그
+	// 1. 기존의 상점 품목 로그 출력 (데이터 검증용으로 유지)
 	UE_LOG(LogTemp, Warning, TEXT("=== 상인 '%s'가 상점을 엽니다! ==="), *MerchantName.ToString());
 
-	// 2. [검증] ShopComponent가 물건을 잘 가져오는지 테스트
 	if (ShopComp)
 	{
-		TArray<FShopItemRow> Items = ShopComp->GetShopItems();
-
-		if (Items.Num() == 0)
+		TArray<FShopItemRow> Items = ShopComp->RuntimeShopItems;
+		for (const FShopItemRow& Item : Items)
 		{
-			UE_LOG(LogTemp, Error, TEXT(">> 판매할 아이템이 없습니다! (데이터 테이블 연결 확인 필요)"));
+			UE_LOG(LogTemp, Log, TEXT(">> [판매 품목] ID: %s | 가격: %d"), *Item.ItemID.ToString(), Item.Price);
 		}
-		else
+	}
+
+	// 2. UI 띄우기 로직
+	if (ShopWidgetClass)
+	{
+		// 위젯이 아직 없다면 생성
+		if (!ShopWidgetInstance)
 		{
-			for (const FShopItemRow& Item : Items)
+			ShopWidgetInstance = CreateWidget<UUserWidget>(PlayerController, ShopWidgetClass);
+		}
+
+		if (ShopWidgetInstance)
+		{
+			// 화면에 위젯 추가
+			if (!ShopWidgetInstance->IsInViewport())
 			{
-				UE_LOG(LogTemp, Log, TEXT(">> [판매 품목] ID: %s | 가격: %d | 재고: %d"), *Item.ItemID.ToString(), Item.Price, Item.Stock);
+				ShopWidgetInstance->AddToViewport();
 			}
+
+			// 입력 모드를 UI 전용으로 변경하고 마우스 커서를 보여줌
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(ShopWidgetInstance->TakeWidget());
+
+			PlayerController->SetInputMode(InputMode);
+			PlayerController->SetShowMouseCursor(true);
+
+			UE_LOG(LogTemp, Warning, TEXT(">> 상점 UI가 성공적으로 열렸습니다."));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT(">> ShopComponent가 없습니다!"));
+		UE_LOG(LogTemp, Error, TEXT(">> ShopWidgetClass가 설정되지 않았습니다!"));
 	}
-
-	// TODO: 나중에 여기에 UI 생성 코드(CreateWidget) 추가 예정
 }
 // ==========================================
 // FILE: SPGASAIController.cpp
@@ -689,7 +726,6 @@ void ASPGASAIController::OnPossess(APawn* InPawn)
 
 void ASPGASAIController::OnUnPossess()
 {
-	GetWorld()->GetTimerManager().ClearTimer(TurnEndTimerHandle);
 	Super::OnUnPossess();
 }
 
@@ -725,14 +761,15 @@ void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
 	// 1. 로그 출력
 	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! (1초 뒤 종료) <<<"));
 
-	// 2. 1초 뒤에 FinishTurnDelayed 함수 실행
-	GetWorld()->GetTimerManager().SetTimer(
-		TurnEndTimerHandle,
-		this,
-		&ASPGASAIController::FinishTurnDelayed,
-		1.0f, // 1초 대기
-		false
-	);
+	if (CachedASC)
+	{
+		// 🌟 몬스터의 기본 공격 스킬 태그를 찾아서 실행하라고 지시합니다.
+		// (프로젝트 태그에 맞게 수정하세요. 예: Ability.Monster.BasicAttack)
+		FGameplayTag AttackTag = FSPGameplayTags::Get().Battle_Monster_BasicAttack;
+		FGameplayTagContainer TagContainer(AttackTag);
+
+		bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
+	}
 }
 
 // [추가] 실제로 턴을 넘기는 함수
@@ -755,6 +792,7 @@ void ASPGASAIController::FinishTurnDelayed()
 #include "Tag/SPGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
+
 
 
 ASPGASCharacterBase::ASPGASCharacterBase()
@@ -825,9 +863,42 @@ void ASPGASCharacterBase::ReportReadyToGameMode()
 	}
 }
 
+void ASPGASCharacterBase::PlayHitReact(const FVector& ImpactPoint)
+{
+
+	if (HitReactMontage && GetMesh()->GetAnimInstance())
+	{
+		PlayAnimMontage(HitReactMontage);
+	}
+}
+
 void ASPGASCharacterBase::OnBattleStarted()
 {
 	// 추후 공통된 작업을 여기서 실행 
+}
+
+void ASPGASCharacterBase::AddLooseTagToASC(FGameplayTag TagToAdd)
+{
+	if (ASC && TagToAdd.IsValid())
+	{
+		ASC->AddLooseGameplayTag(TagToAdd);
+	}
+}
+
+void ASPGASCharacterBase::RemoveLooseTagFromASC(FGameplayTag TagToRemove)
+{
+	if (ASC && TagToRemove.IsValid())
+	{
+		ASC->RemoveLooseGameplayTag(TagToRemove);
+	}
+}
+
+void ASPGASCharacterBase::CancelAbilitiesWithTag(FGameplayTagContainer WithTags)
+{
+	if (ASC)
+	{
+		ASC->CancelAbilities(&WithTags, nullptr, nullptr);
+	}
 }
 // ==========================================
 // FILE: SPGASMonsterCharacter.cpp
@@ -868,10 +939,17 @@ void ASPGASMonsterCharacter::BeginPlay()
 	{
 		ASC->InitAbilityActorInfo(this, this);
 
+		GiveDefaultAbilities();
+
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
 			.AddUObject(this, &ASPGASMonsterCharacter::OnHealthChanged);
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxHealthAttribute())
 			.AddUObject(this, &ASPGASMonsterCharacter::OnMaxHealthChanged);
+
+		if (USPGASAttributeSet* SPAS = Cast<USPGASAttributeSet>(AttributeSet))
+		{
+			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
+		}
 
 		if (WeaknessTags.IsValid())
 		{
@@ -924,3 +1002,204 @@ void ASPGASMonsterCharacter::InitializeEnemyStats(int32 NewLevel, float StatMult
 	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), NewMaxHP);
 	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), NewMaxHP);
 
+	// 공격력
+	float NewAttack = AS->GetAttack() * StatMultiplier;
+	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), NewAttack);
+
+	// 방어력
+	float NewDefense = AS->GetDefense() * StatMultiplier;
+	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), NewDefense);
+}
+
+void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
+{
+	if (TargetIndicatorWidget)
+	{
+		TargetIndicatorWidget->SetVisibility(bSelected);
+	}
+
+	// 외곽선 (포스트 프로세스)
+	if (GetMesh())
+	{
+		GetMesh()->SetRenderCustomDepth(bSelected);
+	}
+
+	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
+	OnTargetStateChanged(bSelected, bIsPrimary);
+}
+
+TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const
+{
+	TMap<FGameplayTag, int32> ActiveDebuffs;
+	if (!ASC) return ActiveDebuffs;
+
+	// 내 몸에 붙은 모든 버프/디버프 바구니(Active Effect)를 뒤져봅니다.
+	FGameplayEffectQuery Query;
+	TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+	{
+		const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(Handle);
+		if (!ActiveGE) continue;
+
+		FGameplayTagContainer GrantedTags;
+		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+
+		// 태그 중에 "Debuff"로 시작하는 놈이 있다면?
+		for (const FGameplayTag& Tag : GrantedTags)
+		{
+			if (Tag.MatchesTag(FGameplayTag::RequestGameplayTag("Debuff")))
+			{
+				// 남은 스택(턴 수)을 가져와서 Map에 [태그 : 남은 턴] 형태로 저장!
+				int32 TurnsLeft = ASC->GetCurrentStackCount(Handle);
+				ActiveDebuffs.Add(Tag, TurnsLeft);
+			}
+		}
+	}
+	return ActiveDebuffs;
+}
+
+void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
+{
+	BroadcastHPUI();
+	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
+		Die(); // 몬스터 사망 함수 호출
+	}
+}
+
+void ASPGASMonsterCharacter::OnMaxHealthChanged(const FOnAttributeChangeData& Data)
+{
+	BroadcastHPUI();
+}
+
+void ASPGASMonsterCharacter::BroadcastHPUI()
+{
+	if (!ASC) return;
+	float CurrentHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	OnMonsterHPChanged.Broadcast(CurrentHP, MaxHP);
+}
+
+void ASPGASMonsterCharacter::GiveDefaultAbilities()
+{
+	// ASC가 없거나, 서버 권한이 없으면(싱글이면 항상 통과) 무시
+	if (!ASC || !HasAuthority()) return;
+
+	// 배열에 등록된 모든 GA를 ASC에 꽂아줍니다!
+	for (TSubclassOf<UGameplayAbility> Ability : DefaultAbilities)
+	{
+		if (Ability)
+		{
+			// 레벨 1, 입력 키 없음(INDEX_NONE), 주체는 나 자신(this)으로 스킬을 부여합니다.
+			ASC->GiveAbility(FGameplayAbilitySpec(Ability, 1, INDEX_NONE, this));
+		}
+	}
+}
+
+void ASPGASMonsterCharacter::BroadcastStatusUI()
+{
+	OnMonsterStatusChanged.Broadcast();
+}
+
+void ASPGASMonsterCharacter::Die()
+{
+	if (bIsDead) return;
+	bIsDead = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
+
+	// 1. UI 끄기 (체력바, 타겟팅 마커 등 지우기)
+	if (StatusWidgetComponent) StatusWidgetComponent->SetVisibility(false);
+	if (TargetIndicatorWidget) TargetIndicatorWidget->SetVisibility(false);
+
+	// 2. 콜리전 끄기 (죽은 시체를 다시 때리거나 길을 막지 않게)
+	SetActorEnableCollision(false);
+
+	TimeOfDeath = GetWorld()->GetTimeSeconds();
+
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
+		ASC->CancelAllAbilities();
+	}
+}
+
+float ASPGASMonsterCharacter::GetDeathMontageDuration() const
+{
+	if (DeathMontage)
+	{
+		return DeathMontage->GetPlayLength();
+	}
+	return 0.0f;
+}
+
+
+// ==========================================
+// FILE: SPGASPlayerCharacter.cpp
+// ==========================================
+// Character/PlayerCharacter.cpp
+
+#include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASPlayerState.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "Tag/SPGameplayTags.h"
+#include "Component/SPInteractionComponent.h"
+#include "Character/SPGASPlayerController.h"
+#include "Character/SPGASMonsterCharacter.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+#include "CineCameraComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+#include "Map/MapManagerSubSystem.h"
+#include "Components/WidgetComponent.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+
+
+
+ASPGASPlayerCharacter::ASPGASPlayerCharacter()
+{
+	InteractionComponent = CreateDefaultSubobject<USPInteractionComponent>(TEXT("InteractComponent"));
+
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(GetCapsuleComponent());
+	CameraBoom->TargetArmLength = 800.0f;
+	CameraBoom->SetRelativeRotation(FRotator(-45.f, 0.f, 0.f));
+	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = false;
+	CameraBoom->bInheritRoll = false;
+
+	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	WeaponMesh->SetupAttachment(GetMesh(), FName("RightHandSocket"));
+
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	FollowCamera->bUsePawnControlRotation = false;
+
+	CombatCineCamera = CreateDefaultSubobject<UCineCameraComponent>(TEXT("CombatCineCamera"));
+	CombatCineCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	CombatCineCamera->bUsePawnControlRotation = false;
+	CombatCineCamera->bAutoActivate = false;
+
+	WeaponWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WeaponWidgetComponent"));
+	WeaponWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	WeaponWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+
+	ActionWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("ActionWidgetComponent"));
+	ActionWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	ActionWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
+
+	BattlePointWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("BattlePointWidgetComponent"));
+	BattlePointWidgetComponent->SetupAttachment(GetCapsuleComponent());
+	BattlePointWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);

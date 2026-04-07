@@ -1,173 +1,4 @@
-﻿	// 공격력
-	float NewAttack = AS->GetAttack() * StatMultiplier;
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), NewAttack);
-
-	// 방어력
-	float NewDefense = AS->GetDefense() * StatMultiplier;
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), NewDefense);
-}
-
-void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
-{
-	if (TargetIndicatorWidget)
-	{
-		TargetIndicatorWidget->SetVisibility(bSelected);
-	}
-
-	// 외곽선 (포스트 프로세스)
-	if (GetMesh())
-	{
-		GetMesh()->SetRenderCustomDepth(bSelected);
-	}
-
-	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
-	OnTargetStateChanged(bSelected, bIsPrimary);
-}
-
-TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const
-{
-	TMap<FGameplayTag, int32> ActiveDebuffs;
-	if (!ASC) return ActiveDebuffs;
-
-	// 내 몸에 붙은 모든 버프/디버프 바구니(Active Effect)를 뒤져봅니다.
-	FGameplayEffectQuery Query;
-	TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
-
-	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-	{
-		const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(Handle);
-		if (!ActiveGE) continue;
-
-		FGameplayTagContainer GrantedTags;
-		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
-
-		// 태그 중에 "Debuff"로 시작하는 놈이 있다면?
-		for (const FGameplayTag& Tag : GrantedTags)
-		{
-			if (Tag.MatchesTag(FGameplayTag::RequestGameplayTag("Debuff")))
-			{
-				// 남은 스택(턴 수)을 가져와서 Map에 [태그 : 남은 턴] 형태로 저장!
-				int32 TurnsLeft = ASC->GetCurrentStackCount(Handle);
-				ActiveDebuffs.Add(Tag, TurnsLeft);
-			}
-		}
-	}
-	return ActiveDebuffs;
-}
-
-void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
-{
-	BroadcastHPUI();
-	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
-		Die(); // 몬스터 사망 함수 호출
-	}
-}
-
-void ASPGASMonsterCharacter::OnMaxHealthChanged(const FOnAttributeChangeData& Data)
-{
-	BroadcastHPUI();
-}
-
-void ASPGASMonsterCharacter::BroadcastHPUI()
-{
-	if (!ASC) return;
-	float CurrentHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
-	float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
-	OnMonsterHPChanged.Broadcast(CurrentHP, MaxHP);
-}
-
-void ASPGASMonsterCharacter::BroadcastStatusUI()
-{
-	OnMonsterStatusChanged.Broadcast();
-}
-
-void ASPGASMonsterCharacter::Die()
-{
-	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
-
-	// 1. UI 끄기 (체력바, 타겟팅 마커 등 지우기)
-	if (StatusWidgetComponent) StatusWidgetComponent->SetVisibility(false);
-	if (TargetIndicatorWidget) TargetIndicatorWidget->SetVisibility(false);
-
-	// 2. 콜리전 끄기 (죽은 시체를 다시 때리거나 길을 막지 않게)
-	SetActorEnableCollision(false);
-
-	// 3. 지휘관(GameMode)에게 전사 보고!
-	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		GM->OnCharacterDied(this);
-	}
-
-	if (ASC)
-	{
-		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
-		ASC->CancelAllAbilities();
-	}
-	// 4. (선택) 몬스터 파괴 - 나중에 죽는 애니메이션(몽타주)이 끝나면 파괴하도록 블루프린트로 빼도 됩니다.
-	Destroy();
-}
-
-
-// ==========================================
-// FILE: SPGASPlayerCharacter.cpp
-// ==========================================
-// Character/PlayerCharacter.cpp
-
-#include "Character/SPGASPlayerCharacter.h"
-#include "Character/SPGASPlayerState.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "Tag/SPGameplayTags.h"
-#include "Component/SPInteractionComponent.h"
-#include "Character/SPGASPlayerController.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "Camera/CameraComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "SubSystem/SPSaveGameSubsystem.h"
-#include "Map/MapManagerSubSystem.h"
-#include "Components/WidgetComponent.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-
-
-
-ASPGASPlayerCharacter::ASPGASPlayerCharacter()
-{
-	InteractionComponent = CreateDefaultSubobject<USPInteractionComponent>(TEXT("InteractComponent"));
-
-	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
-	bUseControllerRotationRoll = false;
-
-	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
-
-	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
-	CameraBoom->SetupAttachment(GetCapsuleComponent());
-	CameraBoom->TargetArmLength = 800.0f;
-	CameraBoom->SetRelativeRotation(FRotator(-45.f, 0.f, 0.f));
-	CameraBoom->bInheritPitch = false;
-	CameraBoom->bInheritYaw = false;
-	CameraBoom->bInheritRoll = false;
-
-	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
-	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
-	FollowCamera->bUsePawnControlRotation = false;
-
-	WeaponWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("WeaponWidgetComponent"));
-	WeaponWidgetComponent->SetupAttachment(GetCapsuleComponent());
-	WeaponWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
-
-	ActionWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("ActionWidgetComponent"));
-	ActionWidgetComponent->SetupAttachment(GetCapsuleComponent());
-	ActionWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
-
-	BattlePointWidgetComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("BattlePointWidgetComponent"));
-	BattlePointWidgetComponent->SetupAttachment(GetCapsuleComponent());
-	BattlePointWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
-}
+﻿}
 
 void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 {
@@ -184,6 +15,12 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetTimePowerAttribute())
 			.AddUObject(this, &ASPGASPlayerCharacter::OnTimePowerChanged);
+
+		if (USPGASAttributeSet* SPAS = Cast<USPGASAttributeSet>(AttributeSet))
+		{
+			SPAS->OnDamageTakenEvent.RemoveAll(this);
+			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
+		}
 		
 		GiveAbilities();
 
@@ -218,6 +55,7 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			if (SaveSystem)
 			{
 				SaveSystem->RestoreRunDataToPlayer(this);
+				SaveSys->RestorePermDataToPlayer(this);
 			}
 		}
 	}
@@ -264,7 +102,22 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 		Payload.Target = TargetActor;    // 타겟
 
 		FGameplayTag TriggerTag = FSPGameplayTags::Get().Event_Battle_ExecuteAction;
-		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(this, TriggerTag, Payload);
+		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+		{
+			// 클래스가 일치하는 바로 그 어빌리티를 찾았다면
+			if (Spec.Ability && Spec.Ability->GetClass() == AbilityClassToActivate)
+			{
+				// 이 특정 스펙(Spec)에만 이벤트(Payload)를 전달하여 단독 실행시킵니다.
+				ASC->TriggerAbilityFromGameplayEvent(
+					Spec.Handle,
+					ASC->AbilityActorInfo.Get(),
+					TriggerTag,
+					&Payload,
+					*ASC
+				);
+				break; // 목표를 찾아 실행했으니 반복문 종료
+			}
+		}
 	}
 }
 
@@ -396,6 +249,8 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 
+	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
+	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
 }
 
@@ -428,11 +283,54 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();
+
+	// 전투 기본 세팅 초기화
+	if(ASC)
+	{
+		float StartingBP = 2.0f;
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), StartingBP);
+
+		// 모든 스킬의 쿨타임을 0으로 만듭니다.
+		FGameplayTag ContainerTag = FGameplayTag::RequestGameplayTag(FName("Cooldown.Weapon"));
+		FGameplayEffectQuery Query;
+		Query.EffectTagQuery = FGameplayTagQuery::MakeQuery_MatchAnyTags(FGameplayTagContainer(ContainerTag));
+		ASC->RemoveActiveEffects(Query);
+
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 전투 시작: BP 리필 및 쿨타임 초기화 완료!"), *GetName());
+	}
+
 	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
 	{
 		PC->SetupAndShowBattleUI();
 	}
 }
+
+void ASPGASPlayerCharacter::SwitchCameraMode(bool bIsBattle)
+{
+	if (bIsBattle)
+	{
+		// 1. 일반 카메라 끄고, 시네 카메라 켜기
+		FollowCamera->Deactivate();
+		CombatCineCamera->Activate();
+
+		// 2. 선생님이 짜두신 전투용 거리/각도(Profile) 적용
+		SetCameraProfile(CombatCameraSetting);
+
+		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 전투용 CineCamera 활성화"));
+	}
+	else
+	{
+		// 1. 시네 카메라 끄고, 일반 카메라 켜기
+		CombatCineCamera->Deactivate();
+		FollowCamera->Activate();
+
+		// 2. 필드용 거리/각도(Profile) 적용
+		SetCameraProfile(FieldCameraSetting);
+
+		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 필드용 FollowCamera 활성화"));
+	}
+}
+
 
 void ASPGASPlayerCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
@@ -502,6 +400,9 @@ void ASPGASPlayerCharacter::OnTimePowerChanged(const FOnAttributeChangeData& Dat
 #include "Map/MapManagerSubSystem.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ASPCombatGameMode.h"
+#include "Component/InventoryComponent.h" // 인벤토리 컴포넌트 추가
+#include <AbilitySystemBlueprintLibrary.h>
+#include "Data/ShopDataStructs.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -595,6 +496,18 @@ void ASPGASPlayerController::SetupInputComponent()
 		{
 			EIC->BindAction(BattleClickAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnBattleClick);
 		}
+
+		// 패링 액션 바인딩
+		if (ParryAction)
+		{
+			EIC->BindAction(ParryAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnParryPressed);
+		}
+
+		// 반격 모드 토글 바인딩
+		if (ToggleCounterModeAction)
+		{
+			EIC->BindAction(ToggleCounterModeAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnToggleCounterModePressed);
+		}
 	}
 }
 
@@ -630,7 +543,7 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnBattlePointChanged);
 		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxBattlePointAttribute())
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
-
+		
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
@@ -715,13 +628,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
 	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
 
-	// 1. 턴 체크
-	if (!IsMyTurn())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
-		return;
-	}
-	// 2. 무기 교체 입력 (Weapon.*)
+	// 무기 교체 입력 
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
 	{
 		if (CurrentWeaponTag == InputTag)
@@ -736,6 +643,13 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		return;
 	}
 
+	// 턴 체크
+	if (!IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
+		return;
+	}
+	
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_TimeInterference))
 	{
 		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
@@ -783,7 +697,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_Attack)) InputType = ESelectedActionType::NormalAttack;
 	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Skill)) InputType = ESelectedActionType::WeaponSkill;
-	else if (InputTag.MatchesTag(GameplayTags.Battle_Action_Parry)) InputType = ESelectedActionType::ParrySkill;
 
 	if (InputType != ESelectedActionType::None)
 	{
@@ -796,8 +709,10 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			// 1. 쿨타임 검사
-			if (GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
+
+			// 1. 쿨타임 검사 (수정됨: 시간 간섭 상태가 '아닐 때만' 쿨타임을 막습니다!)
+			if (!bIsTimeInterference && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
 				return; // 타겟팅 진입 차단!
@@ -805,7 +720,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 			// 2. BP 및 프리패스(시간 간섭) 검사
 			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
-			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
 
 			// 시간 간섭 버프가 없는데, BP마저 부족하다면?
 			if (!bIsTimeInterference && GetCurrentBP() < Cost)
@@ -924,3 +838,368 @@ int32 ASPGASPlayerController::GetCurrentTimePower() const
 	if (!CachedASC) return 0;
 
 	float CurrentTimePower = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+	return FMath::FloorToInt(CurrentTimePower);
+}
+
+int32 ASPGASPlayerController::GetSkillCost(FGameplayTag ActionTag) const
+{
+	if (!CachedASC) return 0;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 1. 시간 간섭은 무기와 상관없는 공용 스킬이므로 기존처럼 '태그'로 찾습니다.
+	if (ActionTag.MatchesTag(SPTags.Battle_Action_TimeInterference))
+	{
+		for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
+		{
+			if (Spec.Ability && Spec.Ability->GetAssetTags().HasTagExact(ActionTag))
+			{
+				if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
+				{
+					for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
+					{
+						if (ModInfo.Attribute == USPGASAttributeSet::GetTimePowerAttribute())
+						{
+							float CostValue = 0.0f;
+							if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
+								return FMath::FloorToInt(FMath::Abs(CostValue));
+						}
+					}
+				}
+			}
+		}
+		return 0;
+	}
+
+	// 2. 무기 스킬인 경우 -> 태그가 아니라 "클래스"로 찾습니다!
+	if (ActionTag.MatchesTag(SPTags.Battle_Action_Skill))
+	{
+		ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+		if (!PlayerChar) return 0;
+
+		// 캐릭터 클래스에서 현재 장착 중인 무기의 DataAsset을 가져오는 함수를 호출
+		UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeaponTag);
+
+		if (WeaponData && WeaponData->WeaponSkillAbility)
+		{
+			// DataAsset에 등록된 바로 그 "클래스(TSubclassOf)"를 타겟으로 지정합니다.
+			TSubclassOf<UGameplayAbility> TargetAbilityClass = WeaponData->WeaponSkillAbility;
+
+			// ASC를 뒤져서 클래스가 일치하는 녀석을 찾습니다.
+			for (const FGameplayAbilitySpec& Spec : CachedASC->GetActivatableAbilities())
+			{
+				// 태그 비교가 아니라 클래스 비교!
+				if (Spec.Ability && Spec.Ability->GetClass() == TargetAbilityClass)
+				{
+					if (const UGameplayEffect* CostGE = Spec.Ability->GetCostGameplayEffect())
+					{
+						for (const FGameplayModifierInfo& ModInfo : CostGE->Modifiers)
+						{
+							if (ModInfo.Attribute == USPGASAttributeSet::GetBattlePointAttribute())
+							{
+								float CostValue = 0.0f;
+								if (ModInfo.ModifierMagnitude.GetStaticMagnitudeIfPossible(1.0f, CostValue))
+									return FMath::FloorToInt(FMath::Abs(CostValue));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+float ASPGASPlayerController::GetHealthPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	if (MaxHP > 0.0f)
+	{
+		return FMath::Clamp(CurrentHP / MaxHP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
+
+float ASPGASPlayerController::GetTimePowerPercent() const
+{
+	if (!CachedASC) return 0.0f;
+
+	float CurrentTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+	float MaxTP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+	if (MaxTP > 0.0f)
+	{
+		return FMath::Clamp(CurrentTP / MaxTP, 0.0f, 1.0f);
+	}
+	return 0.0f;
+}
+
+void ASPGASPlayerController::SetupAndShowBattleUI()
+{
+	// 1. ASC 및 캐릭터 안전하게 쥐기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+	if (PlayerChar)
+	{
+		CachedASC = PlayerChar->GetAbilitySystemComponent();
+
+		// 화면 UI가 켜질 때 위젯 컴포넌트도 여기서 한 번에 켭니다!
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(true);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
+	}
+
+	// 2. 위젯 생성 및 스위치!
+	if (!BattleHUDWidget && BattleHUDClass)
+	{
+		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
+}
+
+void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
+{
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
+		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
+	}
+
+	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
+	CancelTargetSelection();
+
+	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
+}
+
+void ASPGASPlayerController::RefreshBattlePointUI()
+{
+	if (!CachedASC) return;
+
+	int32 CurrentBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetBattlePointAttribute()));
+	int32 MaxBP = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxBattlePointAttribute()));
+	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
+}
+
+void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
+{
+	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
+}
+
+bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
+{
+	APawn* PlayerPawn = GetPawn();
+	if (!PlayerPawn) return false;
+	
+	UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+
+	if (InventoryComp)
+	{
+		// (1) 재고 검사: 0개면 구매 불가! (-1은 무한이므로 통과)
+		if (ItemData.Stock == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("재고가 부족하여 %s을(를) 구매할 수 없습니다."), *ItemData.DisplayName.ToString());
+			return false;
+		}
+
+		// (2) 골드 검사: 돈 없으면 구매 불가!
+		if (InventoryComp->GetMoney() < ItemData.Price)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("골드가 부족하여 %s을(를) 구매할 수 없습니다. (필요: %d)"), *ItemData.DisplayName.ToString(), ItemData.Price);
+			return false;
+		}
+
+		// (3) 골드 차감! (재고 차감은 여기서 하지 않습니다. UI에서 처리)
+		InventoryComp->ConsumeMoney(ItemData.Price);
+		UE_LOG(LogTemp, Warning, TEXT("%d 골드를 지불했습니다. 상점 아이템 구매 성공!"), ItemData.Price);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ 플레이어에게서 인벤토리 컴포넌트를 찾을 수 없습니다!"));
+		return false;
+	}
+	
+
+	// 2. 이 아이템에 이펙트(EffectClass)가 설정되어 있다면? (ex) 회복약 처리)
+	if (ItemData.EffectClass)
+	{
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerPawn);
+		if (ASC)
+		{
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(ItemData.EffectClass, 1.0f, Context);
+
+			if (SpecHandle.IsValid())
+			{
+				// 🌟 [핵심] 데이터 테이블에 적혀있는 ValueAmount을 GE에 주입합니다!
+				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), ItemData.ValueAmount);
+
+				// 내 몸에 약 주사!
+				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (수치: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
+
+void ASPGASPlayerController::StartTargetSelection()
+{
+	// 1. 적 목록 찾기
+	AvailableTargets.Empty();
+
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		TArray<AActor*> BattleEnemies = GM->GetCurrentEnemies();
+
+		for (AActor* Actor : BattleEnemies)
+		{
+			if (IsValid(Actor))
+			{
+				AvailableTargets.Add(Actor);
+			}
+		}
+	}
+
+	if (AvailableTargets.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("공격 가능한 적이 없습니다!"));
+		CancelTargetSelection();
+		return;
+	}
+
+	// 2. 초기화
+	bIsSelectingTarget = true;
+	CurrentTargetIndex = 0; 
+
+	// 3. 하이라이트 ON
+	HighlightCurrentTarget(true);
+}
+
+void ASPGASPlayerController::ConfirmTargetAndExecute()
+{
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+	{
+		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
+
+		// 하이라이트 OFF 및 상태 리셋
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+
+		// 실행 명령
+		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
+
+		// 행동 초기화 (다음 턴을 위해)
+		CurrentSelectedAction = ESelectedActionType::None;
+	}
+	else
+	{
+		// 🌟 3. (옵션) 타겟을 확정하려 했으나 이미 파괴된 경우의 예외 처리
+		UE_LOG(LogTemp, Warning, TEXT("타겟 확정 실패: 타겟이 이미 파괴되었거나 유효하지 않습니다."));
+
+		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
+		HighlightCurrentTarget(false);
+		bIsSelectingTarget = false;
+		CurrentSelectedAction = ESelectedActionType::None;
+
+		StartTargetSelection();
+	}
+}
+
+void ASPGASPlayerController::CancelTargetSelection()
+{
+	HighlightCurrentTarget(false);
+	bIsSelectingTarget = false;
+	CurrentSelectedAction = ESelectedActionType::None;
+	AvailableTargets.Empty();
+	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
+}
+
+void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
+{
+	if (AvailableTargets.Num() == 0) return;
+
+	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	if (CurrentTargetingType == ETargetingType::All)
+	{
+		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
+		{
+			if (TargetPtr.IsValid())
+			{
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				{
+					Monster->SetSelectedWidget(bHighlight, true);
+				}
+			}
+		}
+	}
+	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	else if (CurrentTargetingType == ETargetingType::Area)
+	{
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid())
+			{
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
+				{
+					bool bIsPrimary = (i == CurrentTargetIndex);
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+				}
+			}
+		}
+	}
+	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
+	else
+	{
+		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+		{
+			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
+			{
+				Monster->SetSelectedWidget(bHighlight, true);
+			}
+		}
+	}
+}
+
+void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor)
+{
+	if (ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EXECUTE! 무기: %s, 타겟: %s"),
+			*CurrentWeaponTag.ToString(), *TargetActor->GetName());
+
+		// 캐릭터에게 실행 요청 (타겟 정보 전달)
+		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+	}
+}
+
+void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== 1. 마우스 클릭 버튼 눌림! ==="));
+	// 타겟팅 모드 검사
+	if (!bIsSelectingTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 타겟팅 모드가 아니라서 취소됨"));
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("=== 2. 타겟팅 모드 통과! ==="));
+
+	// 마우스 커서 아래에 있는 물체(액터)를 쏩니다

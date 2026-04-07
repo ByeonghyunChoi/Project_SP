@@ -1,4 +1,228 @@
-﻿		FProperty* StageProp = RewardUI->GetClass()->FindPropertyByName(FName("CurrentStage"));
+﻿void UMapManagerSubsystem::LoadStageLevel()
+{
+	bIsInLobby = false;
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
+	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+}
+
+void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
+{
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+
+	if (CurrentFloor >= 11 && CurrentStage < 3)
+	{
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
+}
+
+EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
+{
+	switch (Grade)
+	{
+	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
+	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
+	case EMapGrade::Prepare: return EMapType::Prepare;
+	case EMapGrade::Boss: return EMapType::BossBattle;
+	default: return EMapType::NormalBattle;
+	}
+}
+
+TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
+{
+	if (CurrentPortalOptions.Num() > 0)
+	{
+		return CurrentPortalOptions;
+	}
+
+	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
+	int32 NextFloor = CurrentFloor + 1;
+	if (NextFloor > 11)
+	{
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
+	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+
+	return CurrentPortalOptions;
+}
+
+void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions)
+{
+	// 세이브 데이터로 맵 매니저 상태 덮어쓰기
+	CurrentStage = SavedStage;
+	CurrentFloor = SavedFloor;
+	CurrentMapType = SavedMapType;
+	CurrentRoomState = SavedRoomState;
+	SavedFieldTransform = SavedTransform; // 저장되었던 플레이어 위치!
+
+	// 플래그 세팅
+	bIsLoadingSave = true;
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	bIsInLobby = bSavedInLobby;
+	CurrentPortalOptions = SavedPortalOptions;
+
+	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
+	if (bIsInLobby)
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 로비(Lobby) 맵으로 복귀합니다."));
+	}
+	else
+	{
+		LoadStageLevel();
+		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
+	}
+}
+
+void UMapManagerSubsystem::GoToLobby()
+{
+	bIsInLobby = true;
+	// 로비로 돌아오면 런 데이터 초기화
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetRunData();
+	}
+	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+}
+
+void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
+{
+	// MapBase가 BeginPlay에서 호출해줌
+	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
+}
+// ==========================================
+// FILE: PortalActor.cpp
+// ==========================================
+#include "Map/PortalActor.h"
+#include "Map/MapManagerSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+
+APortalActor::APortalActor()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PortalMesh"));
+	SetRootComponent(MeshComponent);
+}
+
+void APortalActor::ExecuteInteraction(AActor* Interactor)
+{
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
+	if (!bIsActive)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Portal is not active yet!"));
+		return;
+	}
+
+	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+	if (MapManager)
+	{
+		bIsActive = false;
+		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
+		MapManager->MoveToNextFloor(TargetMapType);
+	}
+}
+
+FText APortalActor::GetInteractText() const
+{
+	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
+	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
+
+	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
+	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
+}
+
+bool APortalActor::CanInteract(AActor* Interactor) const
+{
+	return bIsActive;
+}
+
+void APortalActor::SetPortalTargetType(EMapType InType)
+{
+	TargetMapType = InType;
+
+	// 타겟 타입이 정해지는 즉시 블루프린트에 알림
+	OnUpdatePortalColor(TargetMapType);
+}
+
+void APortalActor::ActivatePortal(bool bActive)
+{
+	bIsActive = bActive;
+
+	// 시각적 효과 (블루프린트에서 파티클 켜기/끄기 구현)
+	OnPortalStateChanged(bActive);
+}
+// ==========================================
+// FILE: RewardBox.cpp
+// ==========================================
+#include "Map/RewardBox.h"
+#include "Map/MapBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
+#include "Blueprint/UserWidget.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+
+ARewardBox::ARewardBox()
+{
+	USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	RootComponent = SceneRoot;
+
+	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
+	MeshComp->SetupAttachment(RootComponent);
+	MeshComp->SetHiddenInGame(true);
+
+	RewardParticle = CreateDefaultSubobject<UNiagaraComponent>(TEXT("RewardParticle"));
+	RewardParticle->SetupAttachment(RootComponent);
+}
+
+void ARewardBox::ExecuteInteraction(AActor* Interactor)
+{
+	if (bIsOpened) return;
+
+	// 상호작용한 Actor가 플레이어인지 확인
+	APlayerController* PC = Cast<APlayerController>(Cast<ACharacter>(Interactor)->GetController());
+	if (!PC) return;
+
+	bIsOpened = true;
+
+	//보상 지급 코드를 여기서 구현
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// 1. 유물 보상 위젯 생성
+	UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
+	if (RewardUI)
+	{
+		// 2. 위젯에 현재 스테이지 값 전달 (WBP_RelicReward의 CurrentStage 변수 이름과 일치해야 함)
+		FProperty* StageProp = RewardUI->GetClass()->FindPropertyByName(FName("CurrentStage"));
 		if (StageProp)
 		{
 			if (FIntProperty* IntProp = CastField<FIntProperty>(StageProp))
@@ -21,7 +245,39 @@
 
 FText ARewardBox::GetInteractText() const
 {
-	return FText::FromString(TEXT("상자 열기"));
+	return FText::FromString(TEXT("보상 열기"));
+}
+
+void ARewardBox::SetupParticleByMapType(EMapType InMapType)
+{
+	if (!RewardParticle) return; // 파티클 컴포넌트가 없으면 종료
+
+	UNiagaraSystem* SelectedParticle = nullptr;
+
+	// 1. 맵 타입에 따라 켤 파티클 결정
+	switch (InMapType)
+	{
+	case EMapType::NormalBattle: // (선생님의 Enum 이름에 맞게 수정해주세요)
+		SelectedParticle = NormalParticle;
+		break;
+	case EMapType::Jester:
+	case EMapType::StrongEnemyBattle:
+		SelectedParticle = EpicParticle;
+		break;
+	case EMapType::BossBattle:
+		SelectedParticle = BossParticle;
+		break;
+	default:
+		SelectedParticle = NormalParticle;
+		break;
+	}
+
+	// 2. 파티클 갈아끼우고 켜기!
+	if (SelectedParticle)
+	{
+		RewardParticle->SetAsset(SelectedParticle);
+		RewardParticle->Activate(true); // 재생 버튼 누르기!
+	}
 }
 // ==========================================
 // FILE: SPGASSpawnPoint.cpp
@@ -259,6 +515,7 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
 		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
 		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
+		RunData.MapProgress.SavedPortalOptions = MapManager->GetCurrentPortalOptions();
 
 		// 로비 맵인지 확인 정보 캐싱
 		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
@@ -405,6 +662,11 @@ bool USPSaveGameSubsystem::LoadRunFromDisk()
 	return false;
 }
 
+bool USPSaveGameSubsystem::HasValidPermSave() const
+{
+	return UGameplayStatics::DoesSaveGameExist(PermSlotName, 0);
+}
+
 bool USPSaveGameSubsystem::HasValidRunSave() const
 {
 	return UGameplayStatics::DoesSaveGameExist(RunSlotName, 0);
@@ -462,7 +724,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_Status_SkipTurn = Manager.AddNativeGameplayTag(FName("State.Status.SkipTurn"),TEXT("턴 스킵(행동 불가)"));
 	State_TimeInterference = Manager.AddNativeGameplayTag(FName("State.TimeInterference"), TEXT("시간 간섭"));
 	State_Death = Manager.AddNativeGameplayTag(FName("State.Death"), TEXT("전투 중 사망 상태"));
-
+	State_ParryWindow = Manager.AddNativeGameplayTag(FName("State.ParryWindow"), TEXT("패링 타이밍 상태"));
+	State_CounterMode = Manager.AddNativeGameplayTag(FName("State.CounterMode"), TEXT("반격 모드 상태"));
+	State_AutoCounterReady = Manager.AddNativeGameplayTag(FName("State.AutoCounterReady"), TEXT("반격 예약"));
+	
+	
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
 
@@ -470,20 +736,37 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Ability_Type_Battle = Manager.AddNativeGameplayTag(FName("Ability.Type.Battle"), TEXT("전투 타입 어빌리티"));
 
 	Oparts_CrystalSkull = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull"), TEXT("오파츠: 수정 해골"));
+	Oparts_CrystalSkull_Artifact2 = Manager.AddNativeGameplayTag(FName("Oparts.CrystalSkull.Artifact2"), TEXT("오파츠: 아티팩트2"));
 	Oparts_JadeClock = Manager.AddNativeGameplayTag(FName("Oparts.JadeClock"), TEXT("오파츠: 옥시계"));
 	Oparts_GoldBug = Manager.AddNativeGameplayTag(FName("Oparts.GoldBug"), TEXT("오파츠: 골드버그"));
 
 	Relic_Bonus_Attack = Manager.AddNativeGameplayTag(FName("Relic.Bonus.Attack"), TEXT("유물 최초 획득 시 공격력 보너스"));
+	Relic_WornWhetstone = Manager.AddNativeGameplayTag(FName("Relic.WornWhetstone"), TEXT("유물: 마모된 숫돌"));
+	Relic_FadingCandle = Manager.AddNativeGameplayTag(FName("Relic.FadingCandle"), TEXT("유물: 꺼져가는 양초"));
+	Relic_RustedNeedle = Manager.AddNativeGameplayTag(FName("Relic.RustedNeedle"), TEXT("유물: 녹슨 구리 침"));
+	Relic_Passive_ResonatingRune = Manager.AddNativeGameplayTag(FName("Relic.Passive.ResonatingRune"), TEXT("공명하는 룬: 무기 스킬 쿨타임 무시"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
 	Event_Battle_TurnStart = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnStart"), TEXT("턴 시작 시 이벤트 활성화"));
 	Event_Battle_TurnEnd = Manager.AddNativeGameplayTag(FName("Event.Battle.TurnEnd"), TEXT("턴 종료 시 이벤트 활성화"));
 	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
+	Event_Battle_ApplyDamage = Manager.AddNativeGameplayTag(FName("Event.Battle.ApplyDamage"), TEXT("데미지 받을 때 이벤트"));
 	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
+	Event_Battle_Parried = Manager.AddNativeGameplayTag(FName("Event.Battle.Parried"), TEXT("패링 알림"));
+	Event_Jormungandr_Fire = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Fire"), TEXT("요르문간드 공격 타이밍 알림"));
+	Event_Jourmungandr_Hit = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Hit"), TEXT("요르문간드 공격 맞음 알림"));
+
+	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
+	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
+	Event_Battle_End = Manager.AddNativeGameplayTag(FName("Event.Battle.End"), TEXT("전투 종료 시 이벤트"));
+	Event_Combat_AttackHit = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackHit"), TEXT("일반 공격 적중 이벤트"));
+	Event_Combat_AttackKill = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackKill"), TEXT("일반 공격으로 적 처치 시 이벤트"));
+	Event_Combat_SkillKill = Manager.AddNativeGameplayTag(FName("Event.Combat.SkillKill"), TEXT("무기 스킬로 적 처치 시 이벤트"));
+	Event_Combat_ParrySuccess = Manager.AddNativeGameplayTag(FName("Event.Combat.ParrySuccess"), TEXT("패링 성공 시 발생하는 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -512,7 +795,10 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Battle_Action_Attack = Manager.AddNativeGameplayTag(FName("Battle.Action.Attack"), TEXT("일반 공격"));
 	Battle_Action_Skill = Manager.AddNativeGameplayTag(FName("Battle.Action.Skill"), TEXT("무기 스킬"));
 	Battle_Action_Parry = Manager.AddNativeGameplayTag(FName("Battle.Action.Parry"), TEXT("패링 스킬"));
+	Battle_Action_CounterAttack = Manager.AddNativeGameplayTag(FName("Battle.Action.CounterAttack"), TEXT("자동 반격 스킬"));
 	Battle_Action_TimeInterference = Manager.AddNativeGameplayTag(FName("Battle.Action.TimeInterference"), TEXT("시간 간섭"));
+	Battle_Monster_BasicAttack = Manager.AddNativeGameplayTag(FName("Battle.Monster.BasicAttack"), TEXT("임시 몬스터 기본 공격"));
+
 
 	Damage_Type_Normal = Manager.AddNativeGameplayTag(FName("Damage.Type.Normal"), TEXT("일반 데미지"));
 	Damage_Type_Status = Manager.AddNativeGameplayTag(FName("Damage.Type.Status"), TEXT("상태이상 데미지"));
@@ -524,6 +810,13 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Enemy_Rank_Boss = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Boss"), TEXT("보스 몬스터"));
 
 	Data_Damage = Manager.AddNativeGameplayTag(FName("Data.Damage"), TEXT("데미지 배율 전달용"));
+	Data_HealAmount = Manager.AddNativeGameplayTag(FName("Data.HealAmount"), TEXT("데미지 배율 전달용"));
+
+	GameplayCue_Hit_Fenrir = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Fenrir"), TEXT("펜리르 타격음, 이펙트"));
+	GameplayCue_Hit_Surtr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Surtr"), TEXT("수르트 타격음, 이펙트"));
+	GameplayCue_Hit_Jormungandr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Jormungandr"), TEXT("요르문간드 타격음, 이펙트"));
+	GameplayCue_Hit_Player = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Player"), TEXT("플레이어 피격음, 이펙트"));
+	GameplayCue_Parry = Manager.AddNativeGameplayTag(FName("GameplayCue.Parry"), TEXT("패링 성공음, 이펙트"));
 
 }
 // ==========================================
@@ -658,7 +951,7 @@ public:
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 
 private:
-	// ���� ���� (������)
+	// ���� ����
 	UPROPERTY(EditAnywhere, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	float AttackRadius = 40.0f;
 
@@ -775,6 +1068,8 @@ protected:
 	GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 	GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
 
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDamageTakenDelegate, float, bool);
+
 UCLASS()
 class PROJECT_SP_API USPGASAttributeSet : public UAttributeSet
 {
@@ -782,6 +1077,9 @@ class PROJECT_SP_API USPGASAttributeSet : public UAttributeSet
 	
 public:
 	USPGASAttributeSet();
+
+	//�������� ������ ���(��������Ʈ)
+	FOnDamageTakenDelegate OnDamageTakenEvent;
 
 	// ��ġ�� ����� �� ����(Clamping)�� �Ŵ� �Լ�
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
@@ -892,6 +1190,11 @@ public:
 	FGameplayAttributeData IncomingHeal;
 	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
 
+	// ġ��Ÿ ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingIsCritical;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingIsCritical)
+
 };
 // ==========================================
 // FILE: SPGAS_DamageCalculation.h
@@ -900,27 +1203,3 @@ public:
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "GameplayEffectExecutionCalculation.h"
-#include "SPGAS_DamageCalculation.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
-{
-	GENERATED_BODY()
-public:
-	USPGAS_DamageCalculation();
-	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
-	
-};
-// ==========================================
-// FILE: MerchantNPC.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Character.h"
-#include "Interface/InteractableInterface.h"

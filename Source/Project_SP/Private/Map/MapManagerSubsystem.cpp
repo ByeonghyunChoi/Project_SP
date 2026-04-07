@@ -43,6 +43,9 @@ void UMapManagerSubsystem::StartNewRun()
 		{
 			SaveSys->CachePermDataFromPlayer(LobbyPlayer);
 			SaveSys->SavePermToDisk();
+			SaveSys->CacheRunDataFromPlayer(LobbyPlayer);
+			SaveSys->SaveRunToDisk();
+
 			UE_LOG(LogTemp, Warning, TEXT("필드 진입 전: 로비에서 세팅한 오파츠 데이터를 저장했습니다!"));
 		}
 	}

@@ -18,6 +18,9 @@
 #include "Map/MapManagerSubSystem.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Game/ASPCombatGameMode.h"
+#include "Component/InventoryComponent.h" // 인벤토리 컴포넌트 추가
+#include <AbilitySystemBlueprintLibrary.h>
+#include "Data/ShopDataStructs.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -379,7 +382,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
 			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
 
-			CurrentSelectedAction = InputType;
+			SetCurrentSelectedAction(InputType);
 			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
 
 			StartTargetSelection();
@@ -614,6 +617,68 @@ void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& Predict
 	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
 }
 
+bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
+{
+	APawn* PlayerPawn = GetPawn();
+	if (!PlayerPawn) return false;
+	
+	UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+
+	if (InventoryComp)
+	{
+		// (1) 재고 검사: 0개면 구매 불가! (-1은 무한이므로 통과)
+		if (ItemData.Stock == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("재고가 부족하여 %s을(를) 구매할 수 없습니다."), *ItemData.DisplayName.ToString());
+			return false;
+		}
+
+		// (2) 골드 검사: 돈 없으면 구매 불가!
+		if (InventoryComp->GetMoney() < ItemData.Price)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("골드가 부족하여 %s을(를) 구매할 수 없습니다. (필요: %d)"), *ItemData.DisplayName.ToString(), ItemData.Price);
+			return false;
+		}
+
+		// (3) 골드 차감! (재고 차감은 여기서 하지 않습니다. UI에서 처리)
+		InventoryComp->ConsumeMoney(ItemData.Price);
+		UE_LOG(LogTemp, Warning, TEXT("%d 골드를 지불했습니다. 상점 아이템 구매 성공!"), ItemData.Price);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ 플레이어에게서 인벤토리 컴포넌트를 찾을 수 없습니다!"));
+		return false;
+	}
+	
+
+	// 2. 이 아이템에 이펙트(EffectClass)가 설정되어 있다면? (ex) 회복약 처리)
+	if (ItemData.EffectClass)
+	{
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerPawn);
+		if (ASC)
+		{
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(ItemData.EffectClass, 1.0f, Context);
+
+			if (SpecHandle.IsValid())
+			{
+				// 🌟 [핵심] 데이터 테이블에 적혀있는 ValueAmount을 GE에 주입합니다!
+				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), ItemData.ValueAmount);
+
+				// 내 몸에 약 주사!
+				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (수치: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount);
+				return true;
+			}
+		}
+	}
+
+	return true;
+}
+
+
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
@@ -661,7 +726,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
 
 		// 행동 초기화 (다음 턴을 위해)
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 	}
 	else
 	{
@@ -671,7 +736,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
 		HighlightCurrentTarget(false);
 		bIsSelectingTarget = false;
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 
 		StartTargetSelection();
 	}
@@ -681,7 +746,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 {
 	HighlightCurrentTarget(false);
 	bIsSelectingTarget = false;
-	CurrentSelectedAction = ESelectedActionType::None;
+	SetCurrentSelectedAction(ESelectedActionType::None);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
 }
@@ -690,21 +755,22 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 {
 	if (AvailableTargets.Num() == 0) return;
 
-	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	// 1. [전체 공격(All)]
 	if (CurrentTargetingType == ETargetingType::All)
 	{
-		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
 		{
-			if (TargetPtr.IsValid())
+			if (AvailableTargets[i].IsValid())
 			{
-				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
-					Monster->SetSelectedWidget(bHighlight, true);
+					// 마커는 전부 크게(true)! 하지만 메인 전광판은 0번만(i==0)!
+					Monster->SetSelectedWidget(bHighlight, true, (i == 0));
 				}
 			}
 		}
 	}
-	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	// 2. [광역 공격(Area)]
 	else if (CurrentTargetingType == ETargetingType::Area)
 	{
 		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
@@ -714,19 +780,21 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
 					bool bIsPrimary = (i == CurrentTargetIndex);
-					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+					// 내가 선택한 놈만 마커도 크게, 전광판도 띄움!
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary, bIsPrimary);
 				}
 			}
 		}
 	}
-	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
+	// 3. [단일 공격(Single)]
 	else
 	{
 		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 		{
 			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
 			{
-				Monster->SetSelectedWidget(bHighlight, true);
+				// 한 놈이니까 무조건 둘 다 true!
+				Monster->SetSelectedWidget(bHighlight, true, true);
 			}
 		}
 	}
@@ -859,6 +927,16 @@ void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeDat
 	RefreshBattlePointUI();
 }
 
+void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction)
+{
+	if(CurrentSelectedAction != NewAction)
+	{
+		CurrentSelectedAction = NewAction;
+		OnActionStateChanged.Broadcast(CurrentSelectedAction);
+		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+	}
+}
+
 
 void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 {
@@ -879,7 +957,7 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 
 	CurrentWeaponTag = NewWeaponTag;
-	CurrentSelectedAction = ESelectedActionType::None; // 무기 바뀌면 행동 리셋
+	SetCurrentSelectedAction(ESelectedActionType::None); // 무기 바뀌면 행동 리셋
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
 

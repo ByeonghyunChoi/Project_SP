@@ -1,4 +1,4 @@
-
+ï»¿
 
 #include "Component/RelicComponent.h"
 #include "AbilitySystemComponent.h"
@@ -20,29 +20,29 @@ void URelicComponent::BeginPlay()
 
 bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 {
-	// ºó °ªÀÌ µé¾î¿ÀÁö ¾Êµµ·Ï °Ë»ç
+	// ë¹ˆ ê°’ì´ ë“¤ì–´ì˜¤ì§€ ì•Šë„ë¡ ê²€ì‚¬
 	if (!NewRelic) return false;
 
-	// 1. ÃÖ´ë ÀåÂø °³¼ö ÃÊ°ú °Ë»ç
+	// 1. ìµœëŒ€ ì¥ì°© ê°œìˆ˜ ì´ˆê³¼ ê²€ì‚¬
 	if (EquippedRelics.Num() >= MaxRelicCount)
 	{
-		// ³ªÁß¿¡ UI¿¡¼­ "±³Ã¼ÇÒ À¯¹°À» ¼±ÅÃÇÏ¼¼¿ä" Ã¢À» ¶ç¿ì±â À§ÇÑ false ¹İÈ¯
+		// ë‚˜ì¤‘ì— UIì—ì„œ "êµì²´í•  ìœ ë¬¼ì„ ì„ íƒí•˜ì„¸ìš”" ì°½ì„ ë„ìš°ê¸° ìœ„í•œ false ë°˜í™˜
 		return false;
 	}
-	// 2. Áßº¹ Âø¿ë °Ë»ç
+	// 2. ì¤‘ë³µ ì°©ìš© ê²€ì‚¬
 	if (EquippedRelics.Contains(NewRelic))
 	{
 		return false;
 	}
 
-	// ÇÃ·¹ÀÌ¾îÀÇ AbilitySystemComponent(ASC) °¡Á®¿À±â
+	// í”Œë ˆì´ì–´ì˜ AbilitySystemComponent(ASC) ê°€ì ¸ì˜¤ê¸°
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter) return false;
 
 	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 	if (!ASC) return false;
 
-	// 3. À¯¹° °íÀ¯ È¿°ú(GE) Àû¿ë
+	// 3. ìœ ë¬¼ ê³ ìœ  íš¨ê³¼(GE) ì ìš©
 	if (NewRelic->RelicEffectClass)
 	{
 		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
@@ -52,14 +52,14 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 		if (SpecHandle.IsValid())
 		{
 			FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-			RelicEffectHandles.Add(ActiveHandle); // ³ªÁß¿¡ Áö¿ì±â À§ÇØ ÇÚµé ÀúÀå
+			RelicEffectHandles.Add(ActiveHandle); // ë‚˜ì¤‘ì— ì§€ìš°ê¸° ìœ„í•´ í•¸ë“¤ ì €ì¥
 		}
 	}
 
-	// 4. ÃÖÃÊ È¹µæ °Ë»ç ¹× µî±Şº° °ø°İ·Â º¸³Ê½º ºÎ¿©
+	// 4. ìµœì´ˆ íšë“ ê²€ì‚¬ ë° ë“±ê¸‰ë³„ ê³µê²©ë ¥ ë³´ë„ˆìŠ¤ ë¶€ì—¬
 	if (!AcquiredHistory.Contains(NewRelic))
 	{
-		AcquiredHistory.Add(NewRelic); // È¹µæ ±â·Ï¿¡ Ãß°¡
+		AcquiredHistory.Add(NewRelic); // íšë“ ê¸°ë¡ì— ì¶”ê°€
 
 		if (RarityAttackBonusEffectClass)
 		{
@@ -68,7 +68,7 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 
 			if (BonusSpec.IsValid())
 			{
-				// ±âÈ¹¼­ ±âÁØ µî±Şº° °ø°İ·Â º¸³Ê½º ¼öÄ¡ °áÁ¤
+				// ê¸°íšì„œ ê¸°ì¤€ ë“±ê¸‰ë³„ ê³µê²©ë ¥ ë³´ë„ˆìŠ¤ ìˆ˜ì¹˜ ê²°ì •
 				float BonusValue = 0.0f;
 				switch (NewRelic->Rarity)
 				{
@@ -77,21 +77,21 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 				case ERelicRarity::Unique:  BonusValue = 1.02f;  break; // 2.0%
 				}
 
-				// GASÀÇ SetByCaller¸¦ È°¿ëÇØ C++¿¡¼­ °áÁ¤ÇÑ ¼öÄ¡¸¦ ºí·çÇÁ¸°Æ® GE·Î Àü´Ş
+				// GASì˜ SetByCallerë¥¼ í™œìš©í•´ C++ì—ì„œ ê²°ì •í•œ ìˆ˜ì¹˜ë¥¼ ë¸”ë£¨í”„ë¦°íŠ¸ GEë¡œ ì „ë‹¬
 				BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
 
 				ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
 			}
 		}
 	}
-	// 5. ÀåÂø ¸ñ·Ï¿¡ ÃÖÁ¾ Ãß°¡
+	// 5. ì¥ì°© ëª©ë¡ì— ìµœì¢… ì¶”ê°€
 	EquippedRelics.Add(NewRelic);
 	return true;
 }
 
 bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 {
-	// 1. ¹æ¾î ÄÚµå: ¿äÃ»ÇÑ ÀÎµ¦½º°¡ Á¤»óÀûÀÎ ¹üÀ§(0 ~ 5)ÀÎÁö, ±×¸®°í ºñ¾îÀÖÁö ¾ÊÀºÁö È®ÀÎ
+	// 1. ë°©ì–´ ì½”ë“œ: ìš”ì²­í•œ ì¸ë±ìŠ¤ê°€ ì •ìƒì ì¸ ë²”ìœ„(0 ~ 5)ì¸ì§€, ê·¸ë¦¬ê³  ë¹„ì–´ìˆì§€ ì•Šì€ì§€ í™•ì¸
 	if (!EquippedRelics.IsValidIndex(SlotIndex))
 	{
 		return false;
@@ -100,24 +100,24 @@ bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 	const URelicDefinition* RelicToRemove = EquippedRelics[SlotIndex];
 	if (!RelicToRemove) return false;
 
-	// 2. ÇÃ·¹ÀÌ¾îÀÇ ASC °¡Á®¿À±â
+	// 2. í”Œë ˆì´ì–´ì˜ ASC ê°€ì ¸ì˜¤ê¸°
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (OwnerCharacter)
 	{
 		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 
-		// 3. ¹ö¸®´Â À¯¹°ÀÌ Áá´ø '°íÀ¯ È¿°ú(GE)'¸¸ Á¦°Å
+		// 3. ë²„ë¦¬ëŠ” ìœ ë¬¼ì´ ì¤¬ë˜ 'ê³ ìœ  íš¨ê³¼(GE)'ë§Œ ì œê±°
 		if (ASC && RelicToRemove->RelicEffectClass)
 		{
 			ASC->RemoveActiveGameplayEffectBySourceEffect(RelicToRemove->RelicEffectClass, ASC);
 		}
 	}
 
-	// 4. ÀåÂø ¸ñ·Ï(¹è¿­)¿¡¼­ ÇØ´ç À¯¹° »èÁ¦
+	// 4. ì¥ì°© ëª©ë¡(ë°°ì—´)ì—ì„œ í•´ë‹¹ ìœ ë¬¼ ì‚­ì œ
 	EquippedRelics.RemoveAt(SlotIndex);
 
 	/*
-	* ´Ü È×µæ ±â·Ï ¿¡¼­´Â Áö¿ìÁö ¾ÊÀ½ ÃÖÃÊ È×µæ½Ã ¾ò´Â °ø°İ·Â º¸³Ê½º´Â À¯Áö µÇ¾î¾ß ÇÏ±â ¶§¹®
+	* ë‹¨ íœ™ë“ ê¸°ë¡ ì—ì„œëŠ” ì§€ìš°ì§€ ì•ŠìŒ ìµœì´ˆ íœ™ë“ì‹œ ì–»ëŠ” ê³µê²©ë ¥ ë³´ë„ˆìŠ¤ëŠ” ìœ ì§€ ë˜ì–´ì•¼ í•˜ê¸° ë•Œë¬¸
 	*/
 
 	return true;
@@ -131,13 +131,13 @@ void URelicComponent::ResetAllRelics()
 		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
 		if (ASC)
 		{
-			// ÀåÂøÇß´ø À¯¹°ÀÇ °íÀ¯ È¿°úµé ¸ğµÎ Á¦°Å
+			// ì¥ì°©í–ˆë˜ ìœ ë¬¼ì˜ ê³ ìœ  íš¨ê³¼ë“¤ ëª¨ë‘ ì œê±°
 			for (FActiveGameplayEffectHandle Handle : RelicEffectHandles)
 			{
 				ASC->RemoveActiveGameplayEffect(Handle);
 			}
 
-			// µî±Şº° °ø°İ·Â º¸³Ê½º ÀÌÆåÆ®µµ Á¦°Å (Å¬·¡½º ±â¹İÀ¸·Î ¸ğµÎ »èÁ¦)
+			// ë“±ê¸‰ë³„ ê³µê²©ë ¥ ë³´ë„ˆìŠ¤ ì´í™íŠ¸ë„ ì œê±° (í´ë˜ìŠ¤ ê¸°ë°˜ìœ¼ë¡œ ëª¨ë‘ ì‚­ì œ)
 			if (RarityAttackBonusEffectClass)
 			{
 				ASC->RemoveActiveGameplayEffectBySourceEffect(RarityAttackBonusEffectClass, ASC);
@@ -145,7 +145,7 @@ void URelicComponent::ResetAllRelics()
 		}
 	}
 
-	// ¹è¿­ ÃÊ±âÈ­
+	// ë°°ì—´ ì´ˆê¸°í™”
 	RelicEffectHandles.Empty();
 	EquippedRelics.Empty();
 	AcquiredHistory.Empty();
@@ -155,36 +155,36 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 {
 	TArray<URelicDefinition*> FinalRewards;
 
-	// 1. ½ºÅ×ÀÌÁöº° µî±Ş µîÀå È®·ü °è»ê (1 ~ 100 »çÀÌ ³­¼ö)
+	// 1. ìŠ¤í…Œì´ì§€ë³„ ë“±ê¸‰ ë“±ì¥ í™•ë¥  ê³„ì‚° (1 ~ 100 ì‚¬ì´ ë‚œìˆ˜)
 	float RandomValue = FMath::RandRange(0.0f, 100.0f);
-	ERelicRarity SelectedRarity = ERelicRarity::Normal; // ±âº»°ª
+	ERelicRarity SelectedRarity = ERelicRarity::Normal; // ê¸°ë³¸ê°’
 
-	if (CurrentStage <= 1) // ½ºÅ×ÀÌÁö 1
+	if (CurrentStage <= 1) // ìŠ¤í…Œì´ì§€ 1
 	{
 		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
 		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
 		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
 	}
-	else if (CurrentStage == 2) // ½ºÅ×ÀÌÁö 2
+	else if (CurrentStage == 2) // ìŠ¤í…Œì´ì§€ 2
 	{
 		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
 		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
 		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
 	}
-	else if (CurrentStage == 3) // ½ºÅ×ÀÌÁö 3 ÀÌ»ó
+	else if (CurrentStage == 3) // ìŠ¤í…Œì´ì§€ 3 ì´ìƒ
 	{
 		if (RandomValue <= 20.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 20 (20%)
 		else if (RandomValue <= 70.0f) SelectedRarity = ERelicRarity::Rare; // 21~ 70 (50%)
 		else SelectedRarity = ERelicRarity::Unique; // 71~100 (30%)
 	}
 
-	// 2. ÀüÃ¼ Ç®¿¡¼­ Á¶°Ç¿¡ ¸Â´Â À¯¹°¸¸ 1Â÷ ÇÊÅÍ¸µ (¼±ÅÃµÈ µî±Ş ÀÏÄ¡ & ÀåÂø ÁßÀÌÁö ¾ÊÀº °Í)
+	// 2. ì „ì²´ í’€ì—ì„œ ì¡°ê±´ì— ë§ëŠ” ìœ ë¬¼ë§Œ 1ì°¨ í•„í„°ë§ (ì„ íƒëœ ë“±ê¸‰ ì¼ì¹˜ & ì¥ì°© ì¤‘ì´ì§€ ì•Šì€ ê²ƒ)
 	TArray<URelicDefinition*> FilteredRelics;
 	for (URelicDefinition* Relic : AllRelicPool)
 	{
 		if (Relic && Relic->Rarity == SelectedRarity)
 		{
-			// ÀåÂø ÁßÀÎ À¯¹° ¸ñ·Ï¿¡ ¾ø¾î¾ß ÇÔ (Áßº¹ ¹æÁö)
+			// ì¥ì°© ì¤‘ì¸ ìœ ë¬¼ ëª©ë¡ì— ì—†ì–´ì•¼ í•¨ (ì¤‘ë³µ ë°©ì§€)
 			if (!EquippedRelics.Contains(Relic))
 			{
 				FilteredRelics.Add(Relic);
@@ -192,7 +192,7 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 		}
 	}
 
-	// 3. ÇÊÅÍ¸µµÈ ¹è¿­ ¼¯±â (¼ÅÇÃ)
+	// 3. í•„í„°ë§ëœ ë°°ì—´ ì„ê¸° (ì…”í”Œ)
 	const int32 NumFiltered = FilteredRelics.Num();
 	if (NumFiltered > 0)
 	{
@@ -207,7 +207,7 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 		}
 	}
 
-	// 4. ¾Õ¿¡¼­ºÎÅÍ ÃÖ´ë 3°³±îÁö¸¸ »Ì¾Æ¼­ ÃÖÁ¾ ¹è¿­¿¡ ´ã±â
+	// 4. ì•ì—ì„œë¶€í„° ìµœëŒ€ 3ê°œê¹Œì§€ë§Œ ë½‘ì•„ì„œ ìµœì¢… ë°°ì—´ì— ë‹´ê¸°
 	int32 RewardsCount = FMath::Min(3, FilteredRelics.Num());
 	for (int32 i = 0; i < RewardsCount; ++i)
 	{
@@ -233,7 +233,7 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		{
 			AcquiredHistory.Add(HistroyRelic);
 
-			// (AddRelic¿¡ ÀÖ´ø µî±Şº° º¸³Ê½º ºÎ¿© ·ÎÁ÷ Àç½ÇÇà)
+			// (AddRelicì— ìˆë˜ ë“±ê¸‰ë³„ ë³´ë„ˆìŠ¤ ë¶€ì—¬ ë¡œì§ ì¬ì‹¤í–‰)
 			if (RarityAttackBonusEffectClass)
 			{
 				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
@@ -261,7 +261,7 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		{
 			EquippedRelics.Add(EquippedRelic);
 
-			// °íÀ¯ È¿°ú(GE) ´Ù½Ã ¹ß¶óÁÖ±â
+			// ê³ ìœ  íš¨ê³¼(GE) ë‹¤ì‹œ ë°œë¼ì£¼ê¸°
 			if (EquippedRelic->RelicEffectClass)
 			{
 				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
@@ -277,5 +277,5 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Relic] ¼¼ÀÌºê ·Îµå ¿Ï·á! (ÀåÂø: %d°³, ÀÌ·Â: %d°³)"), EquippedRelics.Num(), AcquiredHistory.Num());
+	UE_LOG(LogTemp, Log, TEXT("[Relic] ì„¸ì´ë¸Œ ë¡œë“œ ì™„ë£Œ! (ì¥ì°©: %dê°œ, ì´ë ¥: %dê°œ)"), EquippedRelics.Num(), AcquiredHistory.Num());
 }

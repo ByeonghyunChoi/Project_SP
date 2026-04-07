@@ -2,6 +2,7 @@
 #include "AbilitySystemComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Components/WidgetComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Game/ASPCombatGameMode.h"
 
 
@@ -46,18 +47,7 @@ void ASPGASMonsterCharacter::BeginPlay()
 			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
 		}
 
-		if (WeaknessTags.IsValid())
-		{
-			ASC->AddLooseGameplayTags(WeaknessTags);
-			UE_LOG(LogTemp, Log, TEXT("몬스터 태그 적용됨: %s"), *WeaknessTags.ToString());
-			
-			if (MonsterRankTag.IsValid())
-			{
-				ASC->AddLooseGameplayTag(MonsterRankTag);
-
-				UE_LOG(LogTemp, Log, TEXT("[%s] 몬스터 등급 태그 부여됨: %s"), *GetName(), *MonsterRankTag.ToString());
-			}
-		}
+		ApplyMonsterData();
 	}
 
 	if (GetMesh())
@@ -79,48 +69,49 @@ void ASPGASMonsterCharacter::OnBattleStarted()
 
 	// 전투 시작 시 현재 체력과 약점 정보를 방송해줍니다!
 	BroadcastHPUI();
-	OnMonsterWeaknessInitialized.Broadcast(WeaknessTags);
+	OnMonsterWeaknessInitialized.Broadcast(GetCurrentWeaknessTags());
 }
 
-void ASPGASMonsterCharacter::InitializeEnemyStats(int32 NewLevel, float StatMultiplier)
+void ASPGASMonsterCharacter::ApplyMonsterData()
 {
-	USPGASAttributeSet* AS = GetAttributeSet();
-	if (!AS) return;
-
-	if (GetAbilitySystemComponent())
+	if (!MonsterDataAsset || !ASC)
 	{
-		GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), (float)NewLevel);
+		UE_LOG(LogTemp, Error, TEXT("[%s] MonsterDataAsset이 비어있습니다! 블루프린트에 데이터를 꽂아주세요!"), *GetName());
+		return;
 	}
 
-	// 체력
-	float NewMaxHP = AS->GetMaxHealth() * StatMultiplier;
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), NewMaxHP);
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), NewMaxHP);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), CurrentLevel);
 
-	// 공격력
-	float NewAttack = AS->GetAttack() * StatMultiplier;
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), NewAttack);
+	float ScaledMaxHealth = MonsterDataAsset->BaseStats.MaxHealth.GetValueAtLevel(CurrentLevel);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), ScaledMaxHealth);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), ScaledMaxHealth);
 
-	// 방어력
-	float NewDefense = AS->GetDefense() * StatMultiplier;
-	GetAbilitySystemComponent()->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), NewDefense);
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), MonsterDataAsset->BaseStats.Attack.GetValueAtLevel(CurrentLevel));
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), MonsterDataAsset->BaseStats.Defense.GetValueAtLevel(CurrentLevel));
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), MonsterDataAsset->BaseStats.Speed.GetValueAtLevel(CurrentLevel));
+
+	FGameplayTagContainer FinalWeaknessTags = GetCurrentWeaknessTags();
+
+	if (FinalWeaknessTags.Num() > 0)
+	{
+		ASC->AddLooseGameplayTags(FinalWeaknessTags);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[%s] 데이터베이스 스탯 & 약점 적용 완료!"), *MonsterDataAsset->MonsterName.ToString());
 }
 
-void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
+void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI)
 {
 	if (TargetIndicatorWidget)
 	{
 		TargetIndicatorWidget->SetVisibility(bSelected);
 	}
-
-	// 외곽선 (포스트 프로세스)
 	if (GetMesh())
 	{
 		GetMesh()->SetRenderCustomDepth(bSelected);
 	}
-
-	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
-	OnTargetStateChanged(bSelected, bIsPrimary);
+	// 블루프린트로 3개의 값을 전달!
+	OnTargetStateChanged(bSelected, bIsPrimaryMarker, bShowOnHubUI);
 }
 
 TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const
@@ -159,7 +150,6 @@ void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 	BroadcastHPUI();
 	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
 		Die(); // 몬스터 사망 함수 호출
 	}
 }
@@ -205,12 +195,13 @@ void ASPGASMonsterCharacter::Die()
 
 	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
 
-	// 1. UI 끄기 (체력바, 타겟팅 마커 등 지우기)
+	// UI 끄기
 	if (StatusWidgetComponent) StatusWidgetComponent->SetVisibility(false);
 	if (TargetIndicatorWidget) TargetIndicatorWidget->SetVisibility(false);
 
-	// 2. 콜리전 끄기 (죽은 시체를 다시 때리거나 길을 막지 않게)
-	SetActorEnableCollision(false);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore); // 길막 방지
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore); // 카메라 가림 방지
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore); // 마우스 클릭 타겟팅 무시
 
 	TimeOfDeath = GetWorld()->GetTimeSeconds();
 
@@ -228,6 +219,20 @@ float ASPGASMonsterCharacter::GetDeathMontageDuration() const
 		return DeathMontage->GetPlayLength();
 	}
 	return 0.0f;
+}
+
+FGameplayTagContainer ASPGASMonsterCharacter::GetCurrentWeaknessTags() const
+{
+	if (bHasWeaknessOverride)
+	{
+		return OverriddenWeaknessTags;
+	}
+	else if (MonsterDataAsset)
+	{
+		return MonsterDataAsset->WeaknessTags;
+	}
+
+	return FGameplayTagContainer();
 }
 
 

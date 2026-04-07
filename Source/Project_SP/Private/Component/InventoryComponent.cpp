@@ -16,6 +16,7 @@ void UInventoryComponent::BeginPlay()
 	// [테스트용] 개발 편의를 위해 초기 자원 지급 (나중에 삭제)
 	PermanentWallet.Sand = 1000;
 	PermanentWallet.IncompleteEnergy = 10;
+	RunWallet.Money = 500;
 
 	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);

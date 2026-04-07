@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Blueprint/UserWidget.h"
 #include "Interface/InteractableInterface.h"
 #include "MerchantNPC.generated.h"
 
@@ -15,26 +16,32 @@ class PROJECT_SP_API AMerchantNPC : public ACharacter, public IInteractableInter
 public:
 	AMerchantNPC();
 
-	//»óÈ£ÀÛ¿ëÀ» ½ÇÇàÇÒ ¶§ È£Ãâ
+	//ìƒí˜¸ì‘ìš©ì„ ì‹¤í–‰í•  ë•Œ í˜¸ì¶œ
 	virtual void ExecuteInteraction(AActor* Interactor) override;
-	//UI¿¡ Ç¥½ÃÇÒ »óÈ£ÀÛ¿ë ÅØ½ºÆ® ¹İÈ¯
+	//UIì— í‘œì‹œí•  ìƒí˜¸ì‘ìš© í…ìŠ¤íŠ¸ ë°˜í™˜
 	virtual FText GetInteractText() const override;
 
 protected:
-	// 1. »óÁ¡ ±â´ÉÀ» ´ã´çÇÒ ÄÄÆ÷³ÍÆ®
+	// ìƒì  ê¸°ëŠ¥ì„ ë‹´ë‹¹í•  ì»´í¬ë„ŒíŠ¸
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UShopComponent> ShopComp;
 
-	// 2. »óÀÎ ÀÌ¸§ (¿¹: "¹«±â »óÀÎ", "ÀâÈ­ »óÀÎ") - ³ªÁß¿¡ UI Á¦¸ñÀ¸·Î ¾¹´Ï´Ù.
+	// ìƒì¸ ì´ë¦„ (ì˜ˆ: "ë¬´ê¸° ìƒì¸", "ì¡í™” ìƒì¸") - ë‚˜ì¤‘ì— UI ì œëª©ìœ¼ë¡œ ì‚¬ìš©
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant Info")
 	FText MerchantName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant | UI")
+	TSubclassOf<class UUserWidget> ShopWidgetClass;
+
+	// [ì¶”ê°€] ìƒì„±ëœ ìœ„ì ¯ ì¸ìŠ¤í„´ìŠ¤ë¥¼ ì €ì¥ (ì¤‘ë³µ ìƒì„± ë°©ì§€)
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> ShopWidgetInstance;
 
 protected:
 	virtual void BeginPlay() override;
 
 public:
-	// 3. ¿ÜºÎ(ÇÃ·¹ÀÌ¾î ÄÁÆ®·Ñ·¯)¿¡¼­ È£ÃâÇÒ ÇÔ¼ö
-	// "»óÁ¡ ¿­¾îÁà!"¶ó°í ¸í·ÉÇÏ¸é ÀÌ ÇÔ¼ö°¡ ½ÇÇàµË´Ï´Ù.
+	// í”Œë ˆì´ì–´ ì»¨íŠ¸ë¡¤ëŸ¬ì—ì„œ í˜¸ì¶œí•  í•¨ìˆ˜
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void OpenShop(APlayerController* PlayerController);
 };

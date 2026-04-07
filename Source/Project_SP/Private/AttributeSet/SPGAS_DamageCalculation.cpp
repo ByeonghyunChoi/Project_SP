@@ -7,10 +7,10 @@
 #include "Tag/SPGameplayTags.h"
 
 
-//속성 캡처
+// 속성 캡처
 struct FDamageStatics
 {
-	// 공격자(Source) 스탯
+	// 공격자 스탯
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Attack);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(DefenseIgnore);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalRate);
@@ -19,12 +19,13 @@ struct FDamageStatics
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Level);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(EffectAmplify);
 
-	// 방어자(Target) 스탯
+	// 방어자 스탯
 	DECLARE_ATTRIBUTE_CAPTUREDEF(Defense);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(IncomingDamageMultiplier);
 
 	FDamageStatics()
 	{
+		// 공격자
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Attack, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, DefenseIgnore, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, CriticalRate, Source, false);
@@ -33,6 +34,7 @@ struct FDamageStatics
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Level, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, EffectAmplify, Source, false);
 
+		// 방어자
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, Defense, Target, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(USPGASAttributeSet, IncomingDamageMultiplier, Target, false);
 	}
@@ -46,6 +48,7 @@ static const FDamageStatics& DamageStatics()
 
 USPGAS_DamageCalculation::USPGAS_DamageCalculation()
 {
+	// 공격자
 	RelevantAttributesToCapture.Add(DamageStatics().AttackDef);
 	RelevantAttributesToCapture.Add(DamageStatics().DefenseIgnoreDef);
 	RelevantAttributesToCapture.Add(DamageStatics().CriticalRateDef);
@@ -54,19 +57,20 @@ USPGAS_DamageCalculation::USPGAS_DamageCalculation()
 	RelevantAttributesToCapture.Add(DamageStatics().LevelDef);
 	RelevantAttributesToCapture.Add(DamageStatics().EffectAmplifyDef);
 
+	// 방어자
 	RelevantAttributesToCapture.Add(DamageStatics().DefenseDef);
 	RelevantAttributesToCapture.Add(DamageStatics().IncomingDamageMultiplierDef);
 }
 
 void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
 {
-	//ASC 가져옴
+	// ASC 가져옴
 	UAbilitySystemComponent* TargetASC = ExecutionParams.GetTargetAbilitySystemComponent();
 	UAbilitySystemComponent* SourceASC = ExecutionParams.GetSourceAbilitySystemComponent();
 
 	if (!SourceASC || !TargetASC) return;
 
-	//태그 정보 가져옴
+	// 태그 정보 가져옴
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	const FGameplayEffectSpec& Spec = ExecutionParams.GetOwningSpec();
 	const FGameplayTagContainer* SourceTags = Spec.CapturedSourceTags.GetAggregatedTags();
@@ -75,12 +79,12 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	EvalParams.SourceTags = SourceTags;
 	EvalParams.TargetTags = TargetTags;
 
-	//공격 유형을 판별할 태그
+	// 공격 유형을 판별할 태그
 	FGameplayTagContainer EffectTags;
 	Spec.GetAllAssetTags(EffectTags);
 
-	//스탯 정보 가져옴
-	// [공격자 스탯]
+	// 스탯 정보 가져옴
+	// 공격자
 	float Attack = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().AttackDef, EvalParams, Attack);
 	Attack = FMath::Max<float>(Attack, 0.0f);
@@ -103,7 +107,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	float SourceLevel = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().LevelDef, EvalParams, SourceLevel);
 
-	// [방어자 스탯]
+	// 방어자 
 	float Defense = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().DefenseDef, EvalParams, Defense);
 	Defense = FMath::Max<float>(Defense, 0.0f);
@@ -111,10 +115,9 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 	float IncomingMulti = 0.f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageMultiplierDef, EvalParams, IncomingMulti);
 
-	// Target Level은 캡처 매크로 충돌 방지를 위해 직접 가져옴
 	float TargetLevel = TargetASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
 
-	// [스킬 계수] (SetByCaller: Data.Damage)
+	// 스킬 계수(Data.Damage)
 	float Coefficient = Spec.GetSetByCallerMagnitude(SPTags.Data_Damage, false, 1.0f);
 
 	float FinalDamage = 0.0f;
@@ -189,6 +192,17 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 			CriticalCoefficient = 1.5f + CritDamageVal;
 			bIsActualCritical = true;
 			UE_LOG(LogTemp, Log, TEXT("치명타!"));
+
+			if (SourceASC)
+			{
+				FGameplayEventData Payload;
+				Payload.EventTag = FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit"));
+				Payload.Instigator = SourceASC->GetAvatarActor(); // 때린 사람
+				Payload.Target = TargetASC->GetAvatarActor();     // 맞은 사람
+
+				// 자기 자신(SourceASC)에게 이벤트를 발생
+				SourceASC->HandleGameplayEvent(Payload.EventTag, &Payload);
+			}
 		}
 
 		// 피해 증감 계수
@@ -243,7 +257,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 			FinalDamage, BaseDamage, CriticalCoefficient, DamageMultiCoefficient, DefenseCoefficient, WeaknessCoefficient, LevelCoefficient);
 	}
 
-	// 최소 데미지 1 보장
+	// 최소 데미지 보장
 	FinalDamage = FMath::Max<float>(FinalDamage, 1.0f);
 	// 메타 속성(IncomingDamage)에 값 누적
 	OutExecutionOutput.AddOutputModifier(

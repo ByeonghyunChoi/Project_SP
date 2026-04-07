@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h" //
+#include "GameplayEffect.h"
 #include "ShopDataStructs.generated.h" //
 
 /**
@@ -32,4 +33,12 @@ public:
 	// 재고 (-1이면 무한)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Stock = -1;
+
+	// 적용할 수치 (회복약이면 회복량, 예를 들어 400.0f)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	float ValueAmount = 0.0f;
+
+	// 적용할 이펙트 클래스 (회복약일 경우 회복 GE 할당)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	TSubclassOf<class UGameplayEffect> EffectClass;
 };

@@ -1,527 +1,4 @@
-﻿{
-	Super::BeginPlay();
-}
-
-bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
-{
-	// �� ���� ������ �ʵ��� �˻�
-	if (!NewRelic) return false;
-
-	// 1. �ִ� ���� ���� �ʰ� �˻�
-	if (EquippedRelics.Num() >= MaxRelicCount)
-	{
-		// ���߿� UI���� "��ü�� ������ �����ϼ���" â�� ���� ���� false ��ȯ
-		return false;
-	}
-	// 2. �ߺ� ���� �˻�
-	if (EquippedRelics.Contains(NewRelic))
-	{
-		return false;
-	}
-
-	// �÷��̾��� AbilitySystemComponent(ASC) ��������
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (!OwnerCharacter) return false;
-
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-	if (!ASC) return false;
-
-	// 3. ���� ���� ȿ��(GE) ����
-	if (NewRelic->RelicEffectClass)
-	{
-		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-		Context.AddSourceObject(this);
-
-		FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(NewRelic->RelicEffectClass, 1.0f, Context);
-		if (SpecHandle.IsValid())
-		{
-			FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-			RelicEffectHandles.Add(ActiveHandle); // ���߿� ����� ���� �ڵ� ����
-		}
-	}
-
-	// 4. ���� ȹ�� �˻� �� ��޺� ���ݷ� ���ʽ� �ο�
-	if (!AcquiredHistory.Contains(NewRelic))
-	{
-		AcquiredHistory.Add(NewRelic); // ȹ�� ��Ͽ� �߰�
-
-		if (RarityAttackBonusEffectClass)
-		{
-			FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
-			FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
-
-			if (BonusSpec.IsValid())
-			{
-				// ��ȹ�� ���� ��޺� ���ݷ� ���ʽ� ��ġ ����
-				float BonusValue = 0.0f;
-				switch (NewRelic->Rarity)
-				{
-				case ERelicRarity::Normal:  BonusValue = 1.007f; break; // 0.7%
-				case ERelicRarity::Rare:    BonusValue = 1.01f;  break; // 1.0%
-				case ERelicRarity::Unique:  BonusValue = 1.02f;  break; // 2.0%
-				}
-
-				// GAS�� SetByCaller�� Ȱ���� C++���� ������ ��ġ�� �������Ʈ GE�� ����
-				BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
-
-				ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
-			}
-		}
-	}
-	// 5. ���� ��Ͽ� ���� �߰�
-	EquippedRelics.Add(NewRelic);
-	return true;
-}
-
-bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
-{
-	// 1. ��� �ڵ�: ��û�� �ε����� �������� ����(0 ~ 5)����, �׸��� ������� ������ Ȯ��
-	if (!EquippedRelics.IsValidIndex(SlotIndex))
-	{
-		return false;
-	}
-
-	const URelicDefinition* RelicToRemove = EquippedRelics[SlotIndex];
-	if (!RelicToRemove) return false;
-
-	// 2. �÷��̾��� ASC ��������
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
-	{
-		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-
-		// 3. ������ ������ ��� '���� ȿ��(GE)'�� ����
-		if (ASC && RelicToRemove->RelicEffectClass)
-		{
-			ASC->RemoveActiveGameplayEffectBySourceEffect(RelicToRemove->RelicEffectClass, ASC);
-		}
-	}
-
-	// 4. ���� ���(�迭)���� �ش� ���� ����
-	EquippedRelics.RemoveAt(SlotIndex);
-
-	/*
-	* �� �׵� ��� ������ ������ ���� ���� �׵�� ��� ���ݷ� ���ʽ��� ���� �Ǿ�� �ϱ� ����
-	*/
-
-	return true;
-}
-
-void URelicComponent::ResetAllRelics()
-{
-	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-	if (OwnerCharacter)
-	{
-		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-		if (ASC)
-		{
-			// �����ߴ� ������ ���� ȿ���� ��� ����
-			for (FActiveGameplayEffectHandle Handle : RelicEffectHandles)
-			{
-				ASC->RemoveActiveGameplayEffect(Handle);
-			}
-
-			// ��޺� ���ݷ� ���ʽ� ����Ʈ�� ���� (Ŭ���� ������� ��� ����)
-			if (RarityAttackBonusEffectClass)
-			{
-				ASC->RemoveActiveGameplayEffectBySourceEffect(RarityAttackBonusEffectClass, ASC);
-			}
-		}
-	}
-
-	// �迭 �ʱ�ȭ
-	RelicEffectHandles.Empty();
-	EquippedRelics.Empty();
-	AcquiredHistory.Empty();
-}
-
-TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
-{
-	TArray<URelicDefinition*> FinalRewards;
-
-	// 1. ���������� ��� ���� Ȯ�� ��� (1 ~ 100 ���� ����)
-	float RandomValue = FMath::RandRange(0.0f, 100.0f);
-	ERelicRarity SelectedRarity = ERelicRarity::Normal; // �⺻��
-
-	if (CurrentStage <= 1) // �������� 1
-	{
-		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
-		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
-		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
-	}
-	else if (CurrentStage == 2) // �������� 2
-	{
-		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
-		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
-		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
-	}
-	else if (CurrentStage == 3) // �������� 3 �̻�
-	{
-		if (RandomValue <= 20.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 20 (20%)
-		else if (RandomValue <= 70.0f) SelectedRarity = ERelicRarity::Rare; // 21~ 70 (50%)
-		else SelectedRarity = ERelicRarity::Unique; // 71~100 (30%)
-	}
-
-	// 2. ��ü Ǯ���� ���ǿ� �´� ������ 1�� ���͸� (���õ� ��� ��ġ & ���� ������ ���� ��)
-	TArray<URelicDefinition*> FilteredRelics;
-	for (URelicDefinition* Relic : AllRelicPool)
-	{
-		if (Relic && Relic->Rarity == SelectedRarity)
-		{
-			// ���� ���� ���� ��Ͽ� ����� �� (�ߺ� ����)
-			if (!EquippedRelics.Contains(Relic))
-			{
-				FilteredRelics.Add(Relic);
-			}
-		}
-	}
-
-	// 3. ���͸��� �迭 ���� (����)
-	const int32 NumFiltered = FilteredRelics.Num();
-	if (NumFiltered > 0)
-	{
-		int32 LastIndex = NumFiltered - 1;
-		for (int32 i = 0; i <= LastIndex; ++i)
-		{
-			int32 SwapIndex = FMath::RandRange(i, LastIndex);
-			if (i != SwapIndex)
-			{
-				FilteredRelics.Swap(i, SwapIndex);
-			}
-		}
-	}
-
-	// 4. �տ������� �ִ� 3�������� �̾Ƽ� ���� �迭�� ���
-	int32 RewardsCount = FMath::Min(3, FilteredRelics.Num());
-	for (int32 i = 0; i < RewardsCount; ++i)
-	{
-		FinalRewards.Add(FilteredRelics[i]);
-	}
-
-	return FinalRewards;
-}
-
-void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
-{
-	ResetAllRelics();
-
-	ASPGASPlayerCharacter* OwnerCharacter = Cast<ASPGASPlayerCharacter>(GetOwner());
-	if (!OwnerCharacter) return;
-
-	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerCharacter);
-	if (!ASC) return;
-
-	for (const URelicDefinition* HistroyRelic : SavedRelicData.AcquiredHistory)
-	{
-		if (HistroyRelic)
-		{
-			AcquiredHistory.Add(HistroyRelic);
-
-			// (AddRelic�� �ִ� ��޺� ���ʽ� �ο� ���� �����)
-			if (RarityAttackBonusEffectClass)
-			{
-				FGameplayEffectContextHandle BonusContext = ASC->MakeEffectContext();
-				FGameplayEffectSpecHandle BonusSpec = ASC->MakeOutgoingSpec(RarityAttackBonusEffectClass, 1.0f, BonusContext);
-
-				if (BonusSpec.IsValid())
-				{
-					float BonusValue = 0.0f;
-					switch (HistroyRelic->Rarity)
-					{
-					case ERelicRarity::Normal:  BonusValue = 1.007f; break;
-					case ERelicRarity::Rare:    BonusValue = 1.01f;  break;
-					case ERelicRarity::Unique:  BonusValue = 1.02f;  break;
-					}
-					BonusSpec.Data.Get()->SetSetByCallerMagnitude(FSPGameplayTags::Get().Relic_Bonus_Attack, BonusValue);
-					ASC->ApplyGameplayEffectSpecToSelf(*BonusSpec.Data.Get());
-				}
-			}
-		}
-	}
-
-	for (const URelicDefinition* EquippedRelic : SavedRelicData.EquippedRelics)
-	{
-		if (EquippedRelic)
-		{
-			EquippedRelics.Add(EquippedRelic);
-
-			// ���� ȿ��(GE) �ٽ� �߶��ֱ�
-			if (EquippedRelic->RelicEffectClass)
-			{
-				FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-				Context.AddSourceObject(this);
-
-				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EquippedRelic->RelicEffectClass, 1.0f, Context);
-				if (SpecHandle.IsValid())
-				{
-					FActiveGameplayEffectHandle ActiveHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-					RelicEffectHandles.Add(ActiveHandle);
-				}
-			}
-		}
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[Relic] ���̺� �ε� �Ϸ�! (����: %d��, �̷�: %d��)"), EquippedRelics.Num(), AcquiredHistory.Num());
-}
-// ==========================================
-// FILE: ShopComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/ShopComponent.h"
-
-UShopComponent::UShopComponent()
-{
-	
-}
-
-TArray<FShopItemRow> UShopComponent::GetShopItems() const
-{
-	TArray<FShopItemRow> Items;
-
-	// 데이터 테이블이 설정되어 있는지 확인
-	if (ShopItemTable)
-	{
-		// 테이블의 모든 행(Row)을 가져옴.
-		FString ContextString;
-		TArray<FShopItemRow*> Rows;
-		ShopItemTable->GetAllRows<FShopItemRow>(ContextString, Rows);
-
-		// 가져온 행들을 리스트에 담음.
-		for (FShopItemRow* Row : Rows)
-		{
-			if (Row)
-			{
-				Items.Add(*Row);
-			}
-		}
-	}
-	else
-	{
-		// 테이블이 없을 경우 경고 로그
-		UE_LOG(LogTemp, Warning, TEXT("ShopComponent: 데이터 테이블이 설정되지 않았습니다!"));
-	}
-
-	return Items;
-}
-
-
-// ==========================================
-// FILE: SPInteractionComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPInteractionComponent.h"
-#include "Interface/InteractableInterface.h"
-#include "UI/SPInteractionWidget.h"
-#include "AbilitySystemBlueprintLibrary.h" 
-#include "AbilitySystemComponent.h"
-#include "GameFramework/Character.h" 
-#include "DrawDebugHelpers.h"
-#include "Project_SP/Project_SP.h"
-
-USPInteractionComponent::USPInteractionComponent()
-{
-	PrimaryComponentTick.bCanEverTick = true;
-}
-
-// Called every frame
-void USPInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	if (!InteractionWidgetInstance && InteractionWidgetClass)
-	{
-		APawn* OwnerPawn = Cast<APawn>(GetOwner());
-		if (OwnerPawn && OwnerPawn->IsLocallyControlled())
-		{
-			APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController());
-			if (PC)
-			{
-				InteractionWidgetInstance = CreateWidget<USPInteractionWidget>(PC, InteractionWidgetClass);
-				if (InteractionWidgetInstance)
-				{
-					InteractionWidgetInstance->AddToViewport(); 
-					InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-				}
-			}
-		}
-	}
-
-	if (!InteractionWidgetInstance) return;
-
-	//�÷��̾��� ��쿡�� ���� ����
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
-	{
-		PerformTrace();
-	}
-}
-
-void USPInteractionComponent::PerformTrace()
-{
-	if (!CurrentInteractable.IsExplicitlyNull() && !CurrentInteractable.IsValid())
-	{
-		CurrentInteractable = nullptr; 
-		if (InteractionWidgetInstance)
-		{
-			InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed); // UI ��� ���
-		}
-	}
-
-	AActor* Owner = GetOwner();
-	if (!Owner) return;
-
-
-	FVector Start = Owner->GetActorLocation();
-	FVector Forward = Owner->GetActorForwardVector(); 
-	FVector End = Start + (Forward * TraceDistance);
-
-	FHitResult HitResult;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(Owner); 
-
-	FCollisionShape SphereShape = FCollisionShape::MakeSphere(InteractionRadius);
-
-	bool bHit = GetWorld()->SweepSingleByChannel(
-		HitResult, Start, End, FQuat::Identity,
-		ECC_Interaction, SphereShape, Params
-	);
-
-#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-	if (bShowDebug)
-	{
-		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
-		FVector Center = (Start + End) * 0.5f;
-		float HalfHeight = (TraceDistance * 0.5f) + InteractionRadius;
-		DrawDebugCapsule(GetWorld(), Center, HalfHeight, InteractionRadius,
-			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
-	}
-#endif
-
-	AActor* NewTarget = nullptr;
-	if (bHit)
-	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor && HitActor->Implements<UInteractableInterface>())
-		{
-			IInteractableInterface* Interface = Cast<IInteractableInterface>(HitActor);
-			if (Interface)
-			{
-				if (Interface->CanInteract(Cast<APawn>(GetOwner())))
-				{
-					NewTarget = HitActor;
-				}
-				
-			}
-		}
-	}
-
-	// ���� ���� �� ó��
-	if (CurrentInteractable.Get() != NewTarget)
-	{
-		CurrentInteractable = NewTarget;
-
-		if (InteractionWidgetInstance)
-		{
-			if (NewTarget && NewTarget->Implements<UInteractableInterface>())
-			{
-				IInteractableInterface* Interface = Cast<IInteractableInterface>(NewTarget);
-				if (Interface)
-				{
-					FText ActionText = Interface->GetInteractText();
-					InteractionWidgetInstance->UpdateInteractionText(ActionText);
-				}
-
-				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
-			}
-			else
-			{
-				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-			}
-		}
-	}
-}
-
-// ==========================================
-// FILE: SPStatusEffectComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPStatusEffectComponent.h"
-#include "Data/Asset/StatusEffectData.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-#include "Character/SPGASMonsterCharacter.h"
-
-// Sets default values for this component's properties
-USPStatusEffectComponent::USPStatusEffectComponent()
-{
-}
-
-void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor)
-{
-	if (!TargetActor || !StatusEffectDataAsset) return;
-
-	// 타겟의 ASC 가져오기 (인터페이스 활용)
-	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-	if (!TargetASC) return;
-
-	// 확률 체크(추후 효과 명중과 연동)
-	/*if (FMath::RandRange(0.0f, 1.0f) > 0.6f)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 부여 실패"));
-		return;
-	}*/
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-	FGameplayTag StatusToApply;
-
-	// 무기 태그 -> 상태이상 태그 변환
-	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
-		StatusToApply = SPTags.Debuff_Basic_Weathering;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
-		StatusToApply = SPTags.Debuff_Basic_Burn;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
-		StatusToApply = SPTags.Debuff_Basic_Poison;
-
-	if (StatusToApply.IsValid())
-	{
-		// 이 컴포넌트의 주인이 시전자(Instigator)가 됨
-		ProcessStatusEffect(StatusToApply, TargetASC, GetOwner());
-	}
-}
-
-void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTag, UAbilitySystemComponent* TargetASC, AActor* InstigatorActor)
-{
-	if (!TargetASC || !StatusEffectDataAsset) return;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 풍화(Weathering)
-	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
-			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
-			return;
-		}
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
-			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	// 화상(Burn)
-	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
+﻿		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
@@ -583,7 +60,11 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		{
 			// 기존 상태이상을 싹 지워버립니다! (턴 수 누적 방지)
 			RemoveStatusEffectByTag(TargetASC, IncomingStatusTag);
-			UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *TargetASC->GetAvatarActor()->GetName(), *IncomingStatusTag.ToString());
+			AActor* AvatarActor = TargetASC->GetAvatarActor();
+			if (AvatarActor)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *AvatarActor->GetName(), *IncomingStatusTag.ToString());
+			}
 		}
 
 		FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
@@ -895,32 +376,830 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 
 
 // ==========================================
-// FILE: SPGA_BattleActionBase.cpp
+// FILE: SPAT_LerpCamera.cpp
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "GA/SPGA_BattleActionBase.h"
-#include "Character/SPGASPlayerCharacter.h"
-#include "Character/SPGASCharacterBase.h"
-#include "AttributeSet/SPGASAttributeSet.h"
+#include "GA/AT/SPAT_LerpCamera.h"
+
+USPAT_LerpCamera::USPAT_LerpCamera(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	bTickingTask = true;
+	bIsLerping = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_LerpCamera* USPAT_LerpCamera::LerpFloatOverTime(UGameplayAbility* OwningAbility, FName TaskInstanceName, float StartValue, float EndValue, float Duration)
+{
+	USPAT_LerpCamera* MyObj = NewAbilityTask<USPAT_LerpCamera>(OwningAbility, TaskInstanceName);
+	MyObj->StartValue = StartValue;
+	MyObj->EndValue = EndValue;
+	MyObj->Duration = FMath::Max(0.01f, Duration); 
+	return MyObj;
+}
+
+void USPAT_LerpCamera::Activate()
+{
+	Super::Activate();
+	bIsLerping = true;
+}
+
+void USPAT_LerpCamera::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsLerping)
+	{
+		ElapsedTime += DeltaTime;
+
+		float Alpha = FMath::Clamp(ElapsedTime / Duration, 0.0f, 1.0f);
+
+		// �������ϰ� ���ڰ� ���ϵ��� EaseInOut ����!
+		float SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+		float CurrentLerpValue = FMath::Lerp(StartValue, EndValue, SmoothAlpha);
+
+		// �������Ʈ�� ���� ��(CurrentValue) ���ֱ�!
+		if (ShouldBroadcastAbilityTaskDelegates())
+		{
+			OnUpdate.Broadcast(CurrentLerpValue);
+		}
+
+		// �� �������� Completed ���ְ� �Ҹ�!
+		if (Alpha >= 1.0f)
+		{
+			bIsLerping = false;
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast(EndValue);
+			}
+			EndTask();
+		}
+	}
+}
+// ==========================================
+// FILE: SPAT_MoveCameraRelative.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/AT/SPAT_MoveCameraRelative.h"
+
+USPAT_MoveCameraRelative::USPAT_MoveCameraRelative(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	bTickingTask = true;
+	bIsMoving = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_MoveCameraRelative* USPAT_MoveCameraRelative::MoveCameraRelative(UGameplayAbility* OwningAbility, FName TaskInstanceName, USceneComponent* TargetComponent, FVector TargetRelativeLocation, FRotator TargetRelativeRotation, float Duration, ECameraEasingType EasingType)
+{
+	USPAT_MoveCameraRelative* MyObj = NewAbilityTask<USPAT_MoveCameraRelative>(OwningAbility, TaskInstanceName);
+	MyObj->TargetComponent = TargetComponent;
+	MyObj->TargetLocation = TargetRelativeLocation;
+	MyObj->TargetRotation = TargetRelativeRotation;
+	MyObj->Duration = FMath::Max(0.01f, Duration);
+	MyObj->EasingType = EasingType; // 🌟 핀에서 받은 연출 방식 저장
+	return MyObj;
+}
+
+void USPAT_MoveCameraRelative::Activate()
+{
+	Super::Activate();
+	if (!TargetComponent)
+	{
+		EndTask();
+		return;
+	}
+	StartLocation = TargetComponent->GetRelativeLocation();
+	StartRotation = TargetComponent->GetRelativeRotation();
+	bIsMoving = true;
+}
+
+void USPAT_MoveCameraRelative::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsMoving && TargetComponent)
+	{
+		ElapsedTime += DeltaTime;
+		float Alpha = FMath::Clamp(ElapsedTime / Duration, 0.0f, 1.0f);
+
+		// 🌟 선택한 연출 방식에 따라 수학 공식을 다르게 적용합니다!
+		float SmoothAlpha = Alpha;
+		switch (EasingType)
+		{
+		case ECameraEasingType::EaseIn:
+			SmoothAlpha = FMath::InterpEaseIn(0.0f, 1.0f, Alpha, 2.0f); // 수치 2.0f는 강도입니다.
+			break;
+		case ECameraEasingType::EaseOut:
+			SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+			break;
+		case ECameraEasingType::EaseInOut:
+			SmoothAlpha = FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f);
+			break;
+		case ECameraEasingType::Linear:
+		default:
+			SmoothAlpha = Alpha; // 일정한 속도
+			break;
+		}
+
+		FVector NewLoc = FMath::Lerp(StartLocation, TargetLocation, SmoothAlpha);
+		FRotator NewRot = FMath::Lerp(StartRotation, TargetRotation, SmoothAlpha);
+
+		TargetComponent->SetRelativeLocationAndRotation(NewLoc, NewRot);
+
+		if (Alpha >= 1.0f)
+		{
+			bIsMoving = false;
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast();
+			}
+			EndTask();
+		}
+	}
+}
+// ==========================================
+// FILE: SPAT_MoveToTarget.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/AT/SPAT_MoveToTarget.h"
+#include "GameFramework/Character.h"
+#include "AbilitySystemComponent.h"
+
+USPAT_MoveToTarget::USPAT_MoveToTarget(const FObjectInitializer& ObjectInitializer):
+	Super(ObjectInitializer)
+{
+	bTickingTask = true; 
+	bIsMoving = false;
+	ElapsedTime = 0.0f;
+}
+
+USPAT_MoveToTarget* USPAT_MoveToTarget::MoveAndMontage(UGameplayAbility* OwningAbility, FName TaskInstanceName, AActor* TargetActor, FTransform TargetTransform, float DistanceOffset, float MoveDuration, UAnimMontage* MontageToPlay)
+{
+	USPAT_MoveToTarget* MyObj = NewAbilityTask<USPAT_MoveToTarget>(OwningAbility, TaskInstanceName);
+	MyObj->TargetActor = TargetActor;
+	MyObj->TargetTransform = TargetTransform;
+	MyObj->DistanceOffset = DistanceOffset;
+	MyObj->MoveDuration = FMath::Max(0.01f, MoveDuration); // 0���� ������ ����
+	MyObj->MontageToPlay = MontageToPlay;
+	return MyObj;
+}
+
+void USPAT_MoveToTarget::Activate()
+{
+	Super::Activate();
+
+	ACharacter* Character = Cast<ACharacter>(GetAvatarActor());
+	if (!Character)
+	{
+		EndTask();
+		return;
+	}
+
+	// 1. ���� �� ��ġ ���
+	StartLocation = Character->GetActorLocation();
+	StartRotation = Character->GetActorRotation();
+
+	// 2. ���� ��� (���� ����)
+	CalculateDestination();
+
+	// 3. ��Ÿ�� ��� (GAS �ý��� Ȱ��)
+	if (MontageToPlay && AbilitySystemComponent.IsValid())
+	{
+		AbilitySystemComponent->PlayMontage(Ability, Ability->GetCurrentActivationInfo(), MontageToPlay, 1.0f);
+	}
+
+	// 4. �̵� ����!
+	bIsMoving = true;
+}
+
+void USPAT_MoveToTarget::TickTask(float DeltaTime)
+{
+	Super::TickTask(DeltaTime);
+
+	if (bIsMoving)
+	{
+		ElapsedTime += DeltaTime;
+
+		// 0.0 ���� 1.0 ������ ���൵ (��: 0.1�� �������� 0.5)
+		float Alpha = FMath::Clamp(ElapsedTime / MoveDuration, 0.0f, 1.0f);
+
+		// �ε巯�� ���� �̵� (�������� �ٴٸ����� ������ ����)
+		float SmoothAlpha = FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f);
+
+		FVector NewLoc = FMath::Lerp(StartLocation, DestLocation, SmoothAlpha);
+		FRotator NewRot = FMath::Lerp(StartRotation, DestRotation, SmoothAlpha);
+
+		// ĳ���� ���� ���� �̵�!
+		if (ACharacter* Character = Cast<ACharacter>(GetAvatarActor()))
+		{
+			Character->SetActorLocationAndRotation(NewLoc, NewRot, true);
+		}
+
+		// ������ ����!
+		if (Alpha >= 1.0f)
+		{
+			bIsMoving = false;
+
+			if (ShouldBroadcastAbilityTaskDelegates())
+			{
+				OnCompleted.Broadcast(); // �������Ʈ�� Completed ������ ��ȣ ���!
+			}
+			EndTask(); // �½�ũ ������ �Ҹ�
+		}
+	}
+}
+
+void USPAT_MoveToTarget::CalculateDestination()
+{
+	// Ÿ�� ���Ͱ� �ԷµǾ��ٸ�? -> "�� �ھ� ��� ����" �ߵ�!
+	if (TargetActor)
+	{
+		FVector A = TargetActor->GetActorLocation();
+		FVector B = StartLocation;
+
+		FVector Direction = (B - A).GetSafeNormal();
+		DestLocation = A + (Direction * DistanceOffset); // �� ��ġ���� �� ������ 150��ŭ �� ��ġ!
+
+		DestRotation = (A - DestLocation).Rotation();
+		DestRotation.Pitch = 0.0f; // ���� �ȹٷ� �� �ֵ��� ����
+		DestRotation.Roll = 0.0f;
+	}
+	// Ÿ�� ���Ͱ� ���ٸ�? -> "�Է¹��� ��ǥ�� �׳� ���� (���ڸ� ���Ϳ�)" �ߵ�!
+	else
+	{
+		DestLocation = TargetTransform.GetLocation();
+		DestRotation = TargetTransform.Rotator();
+	}
+}
+// ==========================================
+// FILE: GA_Oparts_CrystalSkull.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/OpartsAbility/GA_Oparts_CrystalSkull.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "AbilitySystemComponent.h"
+
+UGA_Oparts_CrystalSkull::UGA_Oparts_CrystalSkull()
+{
+	// �нú� ��ų�̹Ƿ� �ν��Ͻ� ��å ���� (���� ���� CurrentGauge�� �����ϱ� ���� �ʿ�)
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+	// Ȱ��ȭ �ñ⸦ �ο� ���(Passive)�� ���� (���Ͻô� �±׷� ���߽ø� �˴ϴ�)
+	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+}
+
+void UGA_Oparts_CrystalSkull::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+	CurrentGauge = 0.0f; // ������ �� ������ 0���� �ʱ�ȭ
+
+	// Event.Combat.CriticalHit �� �޸� �̺�Ʈ�� �߻��� ������ ����ϴ� �½�ũ ����
+	UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, FGameplayTag::RequestGameplayTag(FName("Event.Combat.CriticalHit")));
+
+	if (WaitEventTask)
+	{
+		// �̺�Ʈ�� �߻��ϸ� OnCriticalHitReceived �Լ��� �����ϵ��� ����
+		WaitEventTask->EventReceived.AddDynamic(this, &UGA_Oparts_CrystalSkull::OnCriticalHitReceived);
+		// �½�ũ ����! ���� ��׶��忡�� ��� �̺�Ʈ�� ��ٸ��ϴ�.
+		WaitEventTask->ReadyForActivation();
+	}
+}
+
+void UGA_Oparts_CrystalSkull::OnCriticalHitReceived(FGameplayEventData Payload)
+{
+	// ġ��Ÿ �̺�Ʈ�� �߻��ϸ� ������ 20 ����
+	float GaugeToAdd = 20.0f;
+
+	if (GetAbilitySystemComponentFromActorInfo()->HasMatchingGameplayTag(FGameplayTag::RequestGameplayTag(FName("Oparts.CrystalSkull.Artifact2"))))
+	{
+		GaugeToAdd = 25.0f;
+	}
+
+	CurrentGauge += GaugeToAdd;
+
+	// �������� 100�� �����ߴ��� üũ
+	if (CurrentGauge >= 100.0f)
+	{
+		CurrentGauge = 0.0f; // 100 ���� �� ������ �ʱ�ȭ
+
+		// ���� ��ų ������ 100% ���� ���� ����
+		if (SkillDamageBuffClass)
+		{
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+			if (ASC)
+			{
+				FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
+				ASC->ApplyGameplayEffectToSelf(SkillDamageBuffClass->GetDefaultObject<UGameplayEffect>(), 1.0f, EffectContext);
+			}
+		}
+	}
+}
+// ==========================================
+// FILE: GA_Relic_AddGold.cpp
+// ==========================================
+#include "GA/Relic/GA_Relic_AddGold.h"
+#include "AbilitySystemComponent.h"
+#include "Component/InventoryComponent.h"
+
+UGA_Relic_AddGold::UGA_Relic_AddGold()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_AddGold::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    if (ActorInfo && ActorInfo->AvatarActor.IsValid())
+    {
+        // 🌟 플레이어의 몸에서 '인벤토리 컴포넌트'를 찾습니다.
+        if (UInventoryComponent* InventoryComp = ActorInfo->AvatarActor->FindComponentByClass<UInventoryComponent>())
+        {
+            // 🌟 100 골드(Money) 지급!
+            InventoryComp->AddMoney(GoldAmountToAdd);
+            UE_LOG(LogTemp, Warning, TEXT("100 골드 유물 획득! %d 골드가 즉시 지급되었습니다. (현재 골드: %d)"), GoldAmountToAdd, InventoryComp->GetMoney());
+        }
+
+        // 일회성 효과이므로 어빌리티 즉시 종료
+        EndAbility(Spec.Handle, ActorInfo, Spec.ActivationInfo, true, false);
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BentIron.cpp
+// ==========================================
+#pragma once
+
+#include "GA/Relic/GA_Relic_BentIron.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BentIron::UGA_Relic_BentIron()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BentIron::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    // 장착 즉시 대기 모드로 진입
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BentIron::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    UE_LOG(LogTemp, Warning, TEXT("🎧 구부러진 쇳덩이 유물 켜짐! 패링 신호 대기 중..."));
+    // 🌟 패링 성공(Event.Combat.ParrySuccess) 무전을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_ParrySuccess,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BentIron::OnParrySuccessReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BentIron::OnParrySuccessReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 AddBPGEClass (BP 회복 약)을 주사합니다!
+    if (ASC && AddBPGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 구부러진 쇳덩이! 패링 성공으로 BP를 회복합니다."));
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BloodyCoin.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_BloodyCoin.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BloodyCoin::UGA_Relic_BloodyCoin()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BloodyCoin::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BloodyCoin::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    //  무기 스킬 처치(Event.Combat.SkillKill) 무전을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_SkillKill,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BloodyCoin::OnSkillKillReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BloodyCoin::OnSkillKillReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 BP 회복 약을 주사합니다!
+    if (ASC && AddBPGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 피 묻은 동전! 무기 스킬로 적을 처치하여 BP를 1 회복합니다."));
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BrokenWatch.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_BrokenWatch.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BrokenWatch::UGA_Relic_BrokenWatch()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BrokenWatch::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BrokenWatch::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 🌟 패링 성공 무전을 대기합니다. (이미 구부러진 쇳덩이 때 발사기 설치 완료!)
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_ParrySuccess,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BrokenWatch::OnParrySuccessReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BrokenWatch::OnParrySuccessReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 HealGEClass (체력 회복 약)을 주사합니다!
+    if (ASC && HealGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(HealGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 깨진 회중시계! 패링 성공으로 체력을 회복합니다."));
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_ChaosPrism.cpp
+// ==========================================
+#include "GA/Relic/GA_Relic_ChaosPrism.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Component/SPStatusEffectComponent.h"
+#include "Kismet/GameplayStatics.h"
+
+UGA_Relic_ChaosPrism::UGA_Relic_ChaosPrism()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_ChaosPrism::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle); // 자동 켜기!
+    }
+}
+
+void UGA_Relic_ChaosPrism::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격이 아니라 "처치(Kill)" 이벤트를 기다립니다!
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_AttackKill,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_ChaosPrism::OnKillEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_ChaosPrism::OnKillEventReceived(FGameplayEventData Payload)
+{
+    // 일반 공격인지 검증
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack)) return;
+
+    AActor* DeadEnemy = const_cast<AActor*>(Payload.Target.Get());
+    UAbilitySystemComponent* DeadASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(DeadEnemy);
+    if (!DeadASC || StatusEffectMap.IsEmpty()) return;
+
+    // 1. 죽은 적이 가지고 있는 상태이상(태그) 색출하기
+    TArray<FGameplayTag> TagsToTransfer;
+    for (const auto& Pair : StatusEffectMap)
+    {
+        if (DeadASC->HasMatchingGameplayTag(Pair.Key))
+        {
+            TagsToTransfer.Add(Pair.Key); // 걸려있던 태그들만 수집
+        }
+    }
+
+    if (TagsToTransfer.IsEmpty()) return; // 뺏을 상태이상이 없으면 그냥 종료
+
+    //  2. 살아있는 무작위 적 찾기
+    TArray<AActor*> AllEnemies;
+    UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), AllEnemies);
+    TArray<AActor*> AliveEnemies;
+
+    for (AActor* Enemy : AllEnemies)
+    {
+        if (Enemy == DeadEnemy) continue; // 방금 죽은 애는 패스
+
+        UAbilitySystemComponent* EnemyASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Enemy);
+        // 사망 태그가 없는 살아있는 적만 리스트업
+        if (EnemyASC && !EnemyASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+        {
+            AliveEnemies.Add(Enemy);
+        }
+    }
+
+    if (AliveEnemies.IsEmpty()) return; // 남은 적이 한 명도 없으면(전투 종료) 전이 안 함
+
+    // 무작위로 한 명 뽑기
+    int32 RandIdx = FMath::RandRange(0, AliveEnemies.Num() - 1);
+    AActor* RandomTarget = AliveEnemies[RandIdx];
+    UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(RandomTarget);
+
+    // 3. 수집해둔 상태이상들을 무작위 적에게 덮어씌우고 매니저에게 보고
+    if (TargetASC)
+    {
+        USPStatusEffectComponent* TargetStatusComp = RandomTarget->FindComponentByClass<USPStatusEffectComponent>();
+
+        for (FGameplayTag Tag : TagsToTransfer)
+        {
+            TSubclassOf<UGameplayEffect> GEToApply = StatusEffectMap[Tag];
+            if (GEToApply)
+            {
+                FGameplayEffectContextHandle Context = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+                FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(GEToApply, GetAbilityLevel(), Context);
+
+                if (SpecHandle.IsValid())
+                {
+                    TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+                    if (TargetStatusComp)
+                    {
+                        // 전광판 매니저에게 아이콘 띄우라고 지시!
+                        TargetStatusComp->ProcessStatusEffect(Tag, TargetASC, GetAvatarActorFromActorInfo());
+                    }
+                }
+            }
+        }
+        UE_LOG(LogTemp, Warning, TEXT("혼돈의 프리즘 발동! 죽은 적의 상태이상 %d개를 무작위 적에게 전이했습니다."), TagsToTransfer.Num());
+    }
+}
+// ==========================================
+// FILE: GA_Relic_MultiStatusCore.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_MultiStatusCore.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Component/SPStatusEffectComponent.h"
+
+UGA_Relic_MultiStatusCore::UGA_Relic_MultiStatusCore()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_MultiStatusCore::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격 순간을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_AttackHit,
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_MultiStatusCore::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_MultiStatusCore::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
+void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. 타겟의 ASC 가져오기 (const_cast 적용)
+    AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+    UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+
+    // 타겟이 없거나, 에디터에서 Map을 안 채워놨으면 중단
+    if (!TargetASC || StatusEffectMap.IsEmpty()) return;
+
+    // 3. 타겟에게 "없는" 상태이상 분류하기
+    TArray<FGameplayTag> MissingTags;
+    TArray<FGameplayTag> AllTags;
+
+    for (const auto& Pair : StatusEffectMap)
+    {
+        FGameplayTag StatusTag = Pair.Key;
+        AllTags.Add(StatusTag); // 전체 목록 저장
+
+        // 타겟이 이 상태이상 태그를 가지고 있지 않다면 MissingTags에 추가
+        if (!TargetASC->HasMatchingGameplayTag(StatusTag))
+        {
+            MissingTags.Add(StatusTag);
+        }
+    }
+
+    // 4. 부여할 상태이상 무작위 선정
+    FGameplayTag TagToApply;
+    if (MissingTags.Num() > 0)
+    {
+        // 안 걸린 게 하나라도 있으면, 그 '없는 것들' 중에서 무작위 선정
+        int32 RandomIndex = FMath::RandRange(0, MissingTags.Num() - 1);
+        TagToApply = MissingTags[RandomIndex];
+    }
+    else
+    {
+        // 3개 다 걸려있으면 전체 중에서 무작위 선정 (갱신용)
+        int32 RandomIndex = FMath::RandRange(0, AllTags.Num() - 1);
+        TagToApply = AllTags[RandomIndex];
+    }
+
+    TSubclassOf<UGameplayEffect> GEToApply = StatusEffectMap[TagToApply];
+    if (GEToApply)
+    {
+        FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+        EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+        FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(GEToApply, GetAbilityLevel(), EffectContext);
+        if (SpecHandle.IsValid())
+        {
+            // [1] 먼저 기존처럼 ASC(혈관)에 약(GE)을 주사합니다.
+            TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+            // [2] 몬스터 몸에서 '전광판 매니저'를 찾습니다.
+            USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
+
+            if (TargetStatusComp)
+            {
+                // [3] 매니저에게 "방금 이 태그(TagToApply) 걸었어!" 라고 보고합니다.
+                // (이 함수가 호출되면 성민님이 짜두신 로직에 의해 UI 아이콘이 예쁘게 뜰 겁니다)
+                TargetStatusComp->ProcessStatusEffect(TagToApply, TargetASC, GetAvatarActorFromActorInfo());
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("오색 마력핵 발동! 적에게 [%s] 부여 및 매니저 등록 완료!"), *TagToApply.ToString());
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_OnHitStatusBase.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "Tag/SPGameplayTags.h"
-#include "Game/ASPCombatGameMode.h"
-#include "Kismet/GameplayStatics.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Component/SPStatusEffectComponent.h"
 
-
-USPGA_BattleActionBase::USPGA_BattleActionBase()
+UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
 {
-	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-	CooldownGameplayEffectClass = nullptr;
-	CostGameplayEffectClass = nullptr;
+    // 패시브니까 인스턴싱 정책을 '기능별 하나'로 설정
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
-bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
-	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격 이벤트가 발생할 때까지 무한 대기
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_AttackHit, // 우리가 등록한 타격 태그
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
+void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인 (방금 우리가 추가한 그 증명서!)
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. 확률 주사위 굴리기
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue <= TriggerChance)
+    {
+        AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+        UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+
+        if (TargetASC && TargetStatusGEClass)
+        {
+            FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+            EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+            FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);

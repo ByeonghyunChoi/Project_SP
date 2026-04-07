@@ -1,4 +1,215 @@
-﻿/**
+﻿
+	// �ݰ� ������ ��� �����ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckCounterConditions();
+
+	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	void SendParriedEventToMonster(AActor* TargetMonster);
+
+protected:
+	// �ݰ� ������� Ȯ���ϴ� �±�
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterModeTag;
+
+	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterSkillTag;
+};
+// ==========================================
+// FILE: ASPCombatGameMode.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "ASPCombatGameMode.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API AASPCombatGameMode : public AGameModeBase
+{
+	GENERATED_BODY()
+	
+public:
+	AASPCombatGameMode();
+	virtual void BeginPlay() override;
+
+	void StartTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void EndTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
+	void ReportCharacterReady(AActor* Character);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void EndBattle(bool bPlayerWon);
+
+	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
+
+	//���� �¸� �� ȣ���� ���� �Լ�
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
+	void PlayVictorySequence();
+
+protected:
+	// �������Ʈ���� BP_TurnManager�� �����ؾ� ��
+	UPROPERTY(EditDefaultsOnly, Category = "Battle")
+	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
+
+	// ���� ������ �Ŵ���
+	UPROPERTY(BlueprintReadOnly, Category = "Battle")
+	TObjectPtr <class ASPCombatTurnManager> TurnManager;
+
+	// ���� �� ����
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
+	TObjectPtr<AActor> CurrentTurnActor;
+
+	// ���� ������ ���
+	UPROPERTY()
+	TArray<AActor*> AllParticipants;
+
+	//���� �غ� �Ϸ�� ������ ��� 
+	UPROPERTY()
+	TSet<AActor*> ReadyParticipants;
+
+	bool bIsBattleInitialized = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
+	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
+
+	//���� ��ü ���� ��
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
+	int32 TotalExpectedParticipants = 0;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnInterrupt = false;
+
+protected:
+	void ProcessEndOfTurn();
+
+private:
+	FTransform GetSpawnTransformByIndex(int32 Index);
+
+	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
+
+	void FinalizeBattleSetup();
+
+	void CheckAndStartBattle();
+
+	//������ ���� �Լ�
+	void ApplyPlayerSavedData();
+
+};
+// ==========================================
+// FILE: SPGASGameInstance.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/GameInstance.h"
+#include "SPGASGameInstance.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGASGameInstance : public UGameInstance
+{
+	GENERATED_BODY()
+
+public:
+	USPGASGameInstance();
+
+private:
+	bool bIsReturnFromGame;
+
+public:
+	UFUNCTION(BlueprintCallable)
+	void SetbIsReturnFromGame(bool IsReturn);
+	
+	UFUNCTION(BlueprintCallable)
+	bool GetbIsReturnFromGame() const;
+};
+// ==========================================
+// FILE: InteractionActorBase.h
+// ==========================================
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Interface/InteractableInterface.h"
+#include "InteractionActorBase.generated.h"
+
+UCLASS()
+class PROJECT_SP_API AInteractionActorBase : public AActor, public IInteractableInterface
+{
+	GENERATED_BODY()
+	
+public:	
+	AInteractionActorBase();
+
+protected:
+	virtual void BeginPlay() override;
+
+	virtual void ExecuteInteraction(class AActor* Interactor) override;
+
+	virtual FText GetInteractText()const override;
+
+};
+// ==========================================
+// FILE: InteractableInterface.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/Interface.h"
+#include "InteractableInterface.generated.h"
+
+// This class does not need to be modified.
+UINTERFACE(MinimalAPI)
+class UInteractableInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * 
+ */
+class PROJECT_SP_API IInteractableInterface
+{
+	GENERATED_BODY()
+
+	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
+public:
+	//��ȣ�ۿ��� ������ �� ȣ��
+	virtual void ExecuteInteraction(AActor* Interactor) = 0;
+	//UI�� ǥ���� ��ȣ�ۿ� �ؽ�Ʈ ��ȯ
+	virtual FText GetInteractText() const = 0;
+	//���� ��ȣ�ۿ��� ������ �������� Ȯ��
+	virtual bool CanInteract(AActor* Interactor) const { return true; }
+};
+// ==========================================
+// FILE: SPCombatTurnManager.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Info.h"
+#include "SPCombatTurnManager.generated.h"
+
+/**
  * 
  */
 UCLASS(Blueprintable)
@@ -29,6 +240,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
 	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
 
+	//�и� ���� �ڵ����� �ߵ��� ��(�ؽ� �ʻ�� ����)
+	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
+	void RequestInterruptTurn(AActor* Interrupter);
+
+	AActor* PopInterruptActor();
+
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
@@ -44,6 +261,10 @@ private:
 	// �ൿ ���� ���°� �� ���ֵ��� ��⿭
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
 	TArray<AActor*> TurnQueue;
+
+	// �ൿ �������� �����ϰ� �켱������ ���� �޴� ��⿭
+	UPROPERTY(VisibleAnywhere, Category = "TurnManager | Interrupt")
+	TArray<AActor*> InterruptQueue;
 
 	
 };
@@ -285,13 +506,13 @@ public:
 	int32 GetCurrentFloor() const { return CurrentFloor; }
 	EMapType GetCurrentMapType() const { return CurrentMapType; }
 	EMapState GetCurrentRoomState() const { return CurrentRoomState; }
-
+	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
 
 	// �ε� �ý���
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
-	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby);
+	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
 
 protected:
 	// �κ� ���� ���۷��� (�����Ϳ��� ��� Ȯ�� �ʿ�)
@@ -317,6 +538,10 @@ private:
 	// [�����] �ʵ� ��ġ ����
 	UPROPERTY()
 	FTransform SavedFieldTransform;
+
+	// [�����] ���� ��Ż ���� ���
+	UPROPERTY()
+	TArray<EMapType> CurrentPortalOptions;
 
 	// [�÷���] �������� ���ƿ��� ���ΰ�?
 	bool bIsReturningFromBattle = false;
@@ -346,6 +571,7 @@ private:
 	// ���̵�/Ÿ�� ���� ����
 	EMapGrade GetMapGradeByFloor(int32 Floor) const;
 	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
+
 };
 // ==========================================
 // FILE: PortalActor.h
@@ -408,8 +634,11 @@ protected:
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interface/InteractableInterface.h"
+#include "Map/MapInfo.h"
 #include "RewardBox.generated.h"
 
+class UNiagaraSystem;
+class UNiagaraComponent;
 
 UCLASS()
 class PROJECT_SP_API ARewardBox : public AActor, public IInteractableInterface
@@ -423,10 +652,15 @@ public:
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	//UI에 표시할 상호작용 텍스트 반환
 	virtual FText GetInteractText() const override;
+	// 보상 상자 파티클 키는 함수
+	void SetupParticleByMapType(EMapType InMapType);
 
 protected:
 	UPROPERTY(VisibleAnywhere)
 	UStaticMeshComponent* MeshComp;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UNiagaraComponent* RewardParticle;
 
 	//에디터에서 WBP_RelicReward를 할당할 변수
 	UPROPERTY(EditAnywhere, Category = "UI")
@@ -438,6 +672,14 @@ protected:
 
 	bool bIsOpened = false;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* NormalParticle;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* EpicParticle;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Reward | Particles")
+	UNiagaraSystem* BossParticle;
 };
 // ==========================================
 // FILE: SPGASSpawnPoint.h
@@ -694,7 +936,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadPermFromDisk();
 
-	//�̾��ϱ� ���� üũ
+	//���� ������ ���� ���� Ȯ��
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
+	bool HasValidPermSave() const;
+
+	//�� ������ ���� ���� Ȯ��
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
 
@@ -739,6 +985,9 @@ public:
 	FGameplayTag State_Status_SkipTurn;
 	FGameplayTag State_TimeInterference;
 	FGameplayTag State_Death;
+	FGameplayTag State_ParryWindow;
+	FGameplayTag State_CounterMode;
+	FGameplayTag State_AutoCounterReady;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
@@ -750,11 +999,17 @@ public:
 
 	// 오파츠(Oparts)
 	FGameplayTag Oparts_CrystalSkull;
+	FGameplayTag Oparts_CrystalSkull_Artifact2;
 	FGameplayTag Oparts_JadeClock;
 	FGameplayTag Oparts_GoldBug;
 
 	// 유물(Relic)
 	FGameplayTag Relic_Bonus_Attack;
+	FGameplayTag Relic_WornWhetstone; // 마모된 숫돌
+	FGameplayTag Relic_FadingCandle; // 꺼져가는 양초
+	FGameplayTag Relic_RustedNeedle; // 녹슨 구리 침
+	FGameplayTag Relic_Passive_ResonatingRune; // 공명하는 룬
+
 
 	//이벤트
 	FGameplayTag Event_Interaction;
@@ -762,10 +1017,23 @@ public:
 	FGameplayTag Event_Battle_TurnStart;
 	FGameplayTag Event_Battle_TurnEnd;
 	FGameplayTag Event_Battle_ExecuteAction;
+	FGameplayTag Event_Battle_ApplyDamage;
+	FGameplayTag Event_Battle_Parried;
 	FGameplayTag Event_Montage_Hit;
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
+	FGameplayTag Event_Jormungandr_Fire;
+	FGameplayTag Event_Jourmungandr_Hit;
+
+	//유물 전용 이벤트들
+	FGameplayTag Event_Combat_CriticalHit;
+	FGameplayTag Event_Battle_Start;
+	FGameplayTag Event_Battle_End;
+	FGameplayTag Event_Combat_AttackHit;
+	FGameplayTag Event_Combat_AttackKill;
+	FGameplayTag Event_Combat_SkillKill;
+	FGameplayTag Event_Combat_ParrySuccess;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;
@@ -799,7 +1067,9 @@ public:
 	FGameplayTag Battle_Action_Attack;
 	FGameplayTag Battle_Action_Skill;
 	FGameplayTag Battle_Action_Parry;
+	FGameplayTag Battle_Action_CounterAttack;
 	FGameplayTag Battle_Action_TimeInterference;
+	FGameplayTag Battle_Monster_BasicAttack; // 임시 몬스터 공격 태그
 
 	//데미지 종류
 	FGameplayTag Damage_Type_Normal;
@@ -814,7 +1084,14 @@ public:
 
 	//데이터 전달(Data)
 	FGameplayTag Data_Damage;
+	FGameplayTag Data_HealAmount; // 힐량 전달
 
+	//이펙트, 사운드
+	FGameplayTag GameplayCue_Hit_Fenrir;
+	FGameplayTag GameplayCue_Hit_Surtr;
+	FGameplayTag GameplayCue_Hit_Jormungandr;
+	FGameplayTag GameplayCue_Hit_Player;
+	FGameplayTag GameplayCue_Parry;
 protected:
 	void AddAllTags(class UGameplayTagsManager& Manager);
 
