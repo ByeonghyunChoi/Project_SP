@@ -108,6 +108,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Enemy_Rank_Boss = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Boss"), TEXT("보스 몬스터"));
 
 	Data_Damage = Manager.AddNativeGameplayTag(FName("Data.Damage"), TEXT("데미지 배율 전달용"));
+	Data_HealAmount = Manager.AddNativeGameplayTag(FName("Data.HealAmount"), TEXT("데미지 배율 전달용"));
 
 	GameplayCue_Hit_Fenrir = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Fenrir"), TEXT("펜리르 타격음, 이펙트"));
 	GameplayCue_Hit_Surtr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Surtr"), TEXT("수르트 타격음, 이펙트"));

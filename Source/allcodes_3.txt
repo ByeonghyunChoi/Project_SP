@@ -1,33 +1,4 @@
-﻿			}
-		}
-	}
-}
-
-void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType, AActor* TargetActor)
-{
-	if (ASPGASPlayerCharacter* PlayerCharacter = Cast<ASPGASPlayerCharacter>(GetPawn()))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("EXECUTE! 무기: %s, 타겟: %s"),
-			*CurrentWeaponTag.ToString(), *TargetActor->GetName());
-
-		// 캐릭터에게 실행 요청 (타겟 정보 전달)
-		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
-	}
-}
-
-void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
-{
-	UE_LOG(LogTemp, Warning, TEXT("=== 1. 마우스 클릭 버튼 눌림! ==="));
-	// 타겟팅 모드 검사
-	if (!bIsSelectingTarget)
-	{
-		UE_LOG(LogTemp, Error, TEXT("X. 타겟팅 모드가 아니라서 취소됨"));
-		return;
-	}
-	UE_LOG(LogTemp, Warning, TEXT("=== 2. 타겟팅 모드 통과! ==="));
-
-	// 마우스 커서 아래에 있는 물체(액터)를 쏩니다
-	FHitResult HitResult;
+﻿	FHitResult HitResult;
 	if (GetHitResultUnderCursor(ECC_GameTraceChannel2, false, HitResult))
 	{
 		AActor* ClickedActor = HitResult.GetActor();
@@ -241,6 +212,7 @@ void UInventoryComponent::BeginPlay()
 	// [테스트용] 개발 편의를 위해 초기 자원 지급 (나중에 삭제)
 	PermanentWallet.Sand = 1000;
 	PermanentWallet.IncompleteEnergy = 10;
+	RunWallet.Money = 500;
 
 	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
@@ -850,7 +822,7 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 
 	if (CurrentStage <= 1) // 스테이지 1
 	{
-		if (RandomValue <= 0.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
+		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
 		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
 		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
 	}
@@ -975,43 +947,48 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 
 
 #include "Component/ShopComponent.h"
+#include "Engine/DataTable.h"
 
 UShopComponent::UShopComponent()
 {
-	
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
-TArray<FShopItemRow> UShopComponent::GetShopItems() const
+void UShopComponent::BeginPlay()
 {
-	TArray<FShopItemRow> Items;
+	Super::BeginPlay();
 
-	// 데이터 테이블이 설정되어 있는지 확인
-	if (ShopItemTable)
+	// 🌟 레벨이 시작될 때 딱 한 번! 데이터 테이블 원본을 내 주머니(RuntimeShopItems)로 복사해옵니다.
+	if (ShopDataTable)
 	{
-		// 테이블의 모든 행(Row)을 가져옴.
-		FString ContextString;
-		TArray<FShopItemRow*> Rows;
-		ShopItemTable->GetAllRows<FShopItemRow>(ContextString, Rows);
-
-		// 가져온 행들을 리스트에 담음.
-		for (FShopItemRow* Row : Rows)
+		TArray<FShopItemRow*> AllRows;
+		ShopDataTable->GetAllRows<FShopItemRow>(TEXT("ShopComponent Context"), AllRows);
+		for (FShopItemRow* Row : AllRows)
 		{
 			if (Row)
 			{
-				Items.Add(*Row);
+				RuntimeShopItems.Add(*Row);
 			}
 		}
 	}
-	else
-	{
-		// 테이블이 없을 경우 경고 로그
-		UE_LOG(LogTemp, Warning, TEXT("ShopComponent: 데이터 테이블이 설정되지 않았습니다!"));
-	}
-
-	return Items;
 }
 
-
+void UShopComponent::ConsumeStock(FName ItemID)
+{
+	// 🌟 주머니를 뒤져서 방금 산 아이템의 재고를 1 깎습니다.
+	for (FShopItemRow& Item : RuntimeShopItems)
+	{
+		if (Item.ItemID == ItemID)
+		{
+			if (Item.Stock > 0)
+			{
+				Item.Stock--;
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 재고 감소! 남은 수량: %d"), *ItemID.ToString(), Item.Stock);
+			}
+			return; // 찾았으니 종료
+		}
+	}
+}
 // ==========================================
 // FILE: SPInteractionComponent.cpp
 // ==========================================
@@ -1147,3 +1124,82 @@ void USPInteractionComponent::PerformTrace()
 				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
+	}
+}
+
+// ==========================================
+// FILE: SPStatusEffectComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Component/SPStatusEffectComponent.h"
+#include "Data/Asset/StatusEffectData.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Character/SPGASMonsterCharacter.h"
+
+// Sets default values for this component's properties
+USPStatusEffectComponent::USPStatusEffectComponent()
+{
+}
+
+void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor)
+{
+	if (!TargetActor || !StatusEffectDataAsset) return;
+
+	// 타겟의 ASC 가져오기 (인터페이스 활용)
+	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+	if (!TargetASC) return;
+
+	// 확률 체크(추후 효과 명중과 연동)
+	/*if (FMath::RandRange(0.0f, 1.0f) > 0.6f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 부여 실패"));
+		return;
+	}*/
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+	FGameplayTag StatusToApply;
+
+	// 무기 태그 -> 상태이상 태그 변환
+	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
+		StatusToApply = SPTags.Debuff_Basic_Weathering;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
+		StatusToApply = SPTags.Debuff_Basic_Burn;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
+		StatusToApply = SPTags.Debuff_Basic_Poison;
+
+	if (StatusToApply.IsValid())
+	{
+		// 이 컴포넌트의 주인이 시전자(Instigator)가 됨
+		ProcessStatusEffect(StatusToApply, TargetASC, GetOwner());
+	}
+}
+
+void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTag, UAbilitySystemComponent* TargetASC, AActor* InstigatorActor)
+{
+	if (!TargetASC || !StatusEffectDataAsset) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 풍화(Weathering)
+	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
+	{
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
+		{
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
+			return;
+		}
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
+		{
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
+			return;
+		}
+	}
+	// 화상(Burn)
+	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
+	{

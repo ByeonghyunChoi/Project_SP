@@ -1,4 +1,98 @@
-﻿	if (TurnManager)
+﻿
+	USPStatusEffectComponent* StatusComp = TurnActor->FindComponentByClass<USPStatusEffectComponent>();
+
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
+
+				// 딱지는 1회용이므로 떼어줍니다.
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+
+				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
+				{
+					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+					{
+						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
+
+						// 선생님이 만드신 'GetWeaponData' 함수 활용!
+						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
+
+						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
+						if (WeaponData && WeaponData->ParrySkillAbility)
+						{
+							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
+							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+							{
+								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
+								{
+									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
+
+									if (bActivated)
+									{
+										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+									}
+									else
+									{
+										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
+										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
+
+										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
+										EndTurn(TurnActor);
+									}
+									break;
+								}
+							}
+						}
+						else
+						{
+							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
+						}
+					}
+				}
+			}
+
+			if (StatusComp)
+			{
+				StatusComp->ProcessTurnStartDoT();
+				StatusComp->ReduceStatusEffectTurns();
+			}
+
+			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
+
+				EndTurn(TurnActor);
+				return;
+			}
+
+			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
+
+				// 태그 지워주기 (1회용이므로)
+				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
+
+				// 바로 턴 종료시켜버리기
+				EndTurn(TurnActor);
+				return;
+			}
+
+			// 턴 활성화 태그 부여 (PlayerController가 입력을 받기 시작함)
+			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+
+			// 턴 시작 이벤트 전송
+			FGameplayEventData Payload;
+			Payload.Instigator = TurnActor;
+			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
+		}
+	}
+
+	if (TurnManager)
 	{
 		TArray<AActor*> PredictedOrder = TurnManager->PredictTurnOrder(6);
 
@@ -101,13 +195,29 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	UGameInstance* GI = GetGameInstance();
 	if (!GI) return;
 
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr;
+
+	// 🌟 1. [가장 먼저 실행] 세이브하기 전에 유물들에게 "전투 끝났으니 버프 다 빼라!" 라고 방송합니다.
+	if (PlayerPawn)
+	{
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				FGameplayEventData EndPayload;
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_End, &EndPayload);
+				UE_LOG(LogTemp, Warning, TEXT("📢 전투 종료 방송 송출! 유물들이 버프를 초기화합니다."));
+			}
+		}
+	}
+
 	if (bPlayerWon)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
 
 		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
-		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-		if (APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
+		if (PlayerPawn)
 		{
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
@@ -1093,57 +1203,3 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 	}
 }
 
-void UMapManagerSubsystem::LoadStageLevel()
-{
-	bIsInLobby = false;
-	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
-	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
-	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
-}
-
-void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
-{
-	CurrentRoomState = EMapState::InProgress;
-	CurrentPortalOptions.Empty();
-
-	if (CurrentFloor >= 11 && CurrentStage < 3)
-	{
-		// 다음 스테이지로
-		CurrentStage++;
-		CurrentFloor = 1;
-		bIsReturningFromBattle = false;
-		LoadStageLevel();
-	}
-	else if (CurrentFloor < 11)
-	{
-		// 같은 스테이지 다음 층
-		CurrentFloor++;
-		SpawnMapActor(SelectedType);
-	}
-}
-
-EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
-{
-	switch (Floor)
-	{
-	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
-	case 3: case 6: case 9: return EMapGrade::Epic;
-	case 10: return EMapGrade::Prepare;
-	case 11: return EMapGrade::Boss;
-	default: return EMapGrade::Normal;
-	}
-}
-
-EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
-{
-	switch (Grade)
-	{
-	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
-	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
-	case EMapGrade::Prepare: return EMapType::Prepare;
-	case EMapGrade::Boss: return EMapType::BossBattle;
-	default: return EMapType::NormalBattle;
-	}
-}
-
-TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()

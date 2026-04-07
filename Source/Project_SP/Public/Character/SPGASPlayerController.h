@@ -208,6 +208,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
 
+	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	bool BuyShopItem(const FShopItemRow& ItemData);
+
+	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	class AMerchantNPC* CurrentMerchant;
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;

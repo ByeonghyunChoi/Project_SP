@@ -124,6 +124,7 @@ public:
 
 	//데이터 전달(Data)
 	FGameplayTag Data_Damage;
+	FGameplayTag Data_HealAmount; // 힐량 전달
 
 	//이펙트, 사운드
 	FGameplayTag GameplayCue_Hit_Fenrir;

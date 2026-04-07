@@ -1,4 +1,103 @@
-﻿// ==========================================
+﻿
+            if (SpecHandle.IsValid())
+            {
+                // [1] 엔진(혈관)에 직접 GE 부여
+                TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+                // [2] 몬스터 몸에서 '전광판 매니저' 찾기
+                USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
+
+                // [3] 매니저가 있고, 에디터에서 태그를 제대로 세팅해 뒀다면 보고!
+                if (TargetStatusComp && TargetStatusTag.IsValid())
+                {
+                    TargetStatusComp->ProcessStatusEffect(TargetStatusTag, TargetASC, GetAvatarActorFromActorInfo());
+                }
+
+                UE_LOG(LogTemp, Log, TEXT("기초 유물 효과 발동: [%s] 부여 및 매니저 등록 완료!"), *TargetStatusTag.ToString());
+            }
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_SeedOfDisaster.cpp
+// ==========================================
+#include "GA/Relic/GA_Relic_SeedOfDisaster.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_SeedOfDisaster::UGA_Relic_SeedOfDisaster()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_SeedOfDisaster::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_SeedOfDisaster::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FGameplayTag::RequestGameplayTag(FName("Event.Combat.AttackHit")),
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_SeedOfDisaster::OnNormalAttackHitReceived);
+    WaitEventTask->ReadyForActivation();
+
+    UAbilityTask_WaitGameplayEvent* WaitEndTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this, 
+        FSPGameplayTags::Get().Event_Battle_End, 
+        nullptr, false, false);
+
+    WaitEndTask->EventReceived.AddDynamic(this, &UGA_Relic_SeedOfDisaster::OnBattleEndReceived);
+    WaitEndTask->ReadyForActivation();
+}
+
+void UGA_Relic_SeedOfDisaster::OnNormalAttackHitReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && SeedStackGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(SeedStackGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            // 몸에 버프 씌우기 (엔진이 5스택까지만 알아서 컷해줍니다)
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+            int32 CurrentStack = ASC->GetGameplayEffectCount(SeedStackGEClass, ASC);
+            UE_LOG(LogTemp, Warning, TEXT("🌱 [재앙의 씨앗] 평타 적중! 효과 명중률 버프 (현재 스택: %d / 5)"), CurrentStack);
+        }
+    }
+}
+
+void UGA_Relic_SeedOfDisaster::OnBattleEndReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && SeedStackGEClass)
+    {
+        // 🌟 핵심: 내가 부여했던 '이 클래스(SeedStackGEClass)'의 GE를 몸에서 전부 제거합니다.
+        // GE가 제거되는 순간 엔진이 알아서 EffectHitRate를 원래대로 깎아버립니다!
+        ASC->RemoveActiveGameplayEffectBySourceEffect(SeedStackGEClass, ASC);
+
+        UE_LOG(LogTemp, Warning, TEXT("🌱 [재앙의 씨앗] 전투 종료! 명중률 스택이 0으로 초기화되었습니다."));
+    }
+}
+// ==========================================
+// FILE: GA_Relic_VibrationStone.cpp
+// ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
@@ -309,6 +408,32 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 				}
 			}
 		}
+		// [추가한 부분] 만약 공격 방식이 '무기 스킬(Skill)' 이라면?
+		else if (AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_Skill))
+		{
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+			UAbilitySystemComponent* EventTargetASC = nullptr;
+			if (IsValid(TargetActor))
+			{
+				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			}
+
+			if (ASC && EventTargetASC)
+			{
+				// 타겟에게 사망 태그가 생겼다면? (방금 내 스킬로 죽었다는 뜻!)
+				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+
+					// 피 묻은 동전이 들을 수 있게 "스킬 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_SkillKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("무기 스킬 처치 발생! 유물들에게 SkillKill 신호를 보냅니다."));
+				}
+			}
+		}
 
 		FHitResult HitResult;
 		AActor* AvatarActor = GetAvatarActorFromActorInfo();
@@ -361,6 +486,20 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
 		return;
+	}
+	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
+	if (AbilityTags.HasTag(SPTags.Battle_Action_Skill)) // 일반 공격이 아니라 '스킬'일 때만!
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🔍 [테스트] 이 어빌리티는 '스킬(Battle.Action.Skill)' 태그를 가지고 있습니다!")); // 2번 체크용
+		if (ASC->HasMatchingGameplayTag(SPTags.Relic_Passive_ResonatingRune))
+		{
+			// 1~100 사이의 난수를 뽑아서 25 이하인지 확인 (25% 확률)
+			if (FMath::RandRange(1, 25) <= 100)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("✨ [유물 발동] 공명하는 룬! 이번 스킬은 쿨타임이 돌지 않습니다!"));
+				return; // 여기서 함수를 끝내버려서 아래의 쿨타임 GE가 아예 안 들어가게 만듭니다!
+			}
+		}
 	}
 
 	// 쿨타임이 없거나 클래스가 없으면 패스
@@ -844,6 +983,17 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		ASI->GetAbilitySystemComponent()->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_Parried, &Payload);
 		UE_LOG(LogTemp, Warning, TEXT("몬스터에게 패링 이벤트를 성공적으로 전송했습니다."));
 	}
+
+	//  [추가할 코드] 내 몸의 유물들에게 패링 성공했다고 알림
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (ASC)
+	{
+		FGameplayEventData ParryPayload;
+		ParryPayload.Instigator = GetAvatarActorFromActorInfo();
+		ParryPayload.Target = TargetMonster;
+
+		ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_ParrySuccess, &ParryPayload);
+	}
 }
 // ==========================================
 // FILE: ASPCombatGameMode.cpp
@@ -1053,97 +1203,3 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 	CurrentTurnActor = TurnActor;
 	UE_LOG(LogTemp, Log, TEXT("턴 시작: %s"), *TurnActor->GetName());
-
-	USPStatusEffectComponent* StatusComp = TurnActor->FindComponentByClass<USPStatusEffectComponent>();
-
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
-	{
-		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-		{
-			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
-
-				// 딱지는 1회용이므로 떼어줍니다.
-				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
-
-				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
-				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
-				{
-					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
-					{
-						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
-
-						// 선생님이 만드신 'GetWeaponData' 함수 활용!
-						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
-
-						// 🌟 3. 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
-						if (WeaponData && WeaponData->ParrySkillAbility)
-						{
-							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
-							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
-							{
-								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
-								{
-									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
-
-									if (bActivated)
-									{
-										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
-									}
-									else
-									{
-										// 이 로그가 뜰 일은 이제 없어야 정상입니다 (미리 막았으니까요!)
-										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
-
-										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
-										EndTurn(TurnActor);
-									}
-									break;
-								}
-							}
-						}
-						else
-						{
-							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
-						}
-					}
-				}
-			}
-
-			if (StatusComp)
-			{
-				StatusComp->ProcessTurnStartDoT();
-				StatusComp->ReduceStatusEffectTurns();
-			}
-
-			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
-
-				EndTurn(TurnActor);
-				return;
-			}
-
-			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
-
-				// 태그 지워주기 (1회용이므로)
-				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
-
-				// 바로 턴 종료시켜버리기
-				EndTurn(TurnActor);
-				return;
-			}
-
-			// 턴 활성화 태그 부여 (PlayerController가 입력을 받기 시작함)
-			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
-
-			// 턴 시작 이벤트 전송
-			FGameplayEventData Payload;
-			Payload.Instigator = TurnActor;
-			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
-		}
-	}
-

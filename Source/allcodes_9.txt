@@ -1,35 +1,4 @@
-﻿	// UI ǥ�ÿ�: ������
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
-	TObjectPtr<UTexture2D> Icon;
-
-	// [GAS] �� ��Ƽ��Ʈ �ر� �� �ο��� �нú� �ɷ� (������ None)
-	// ��: ũ��Ƽ�� ���� ��Ŀ���� ����, �ð� ���� ��ų ���� ��
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS")
-	TSubclassOf<UGameplayAbility> ArtifactAbilityClass;
-
-	// [GAS] �� ��Ƽ��Ʈ �ر� �� ������ ���� ���ʽ� (������ None)
-	// ��: ġ��Ÿ Ȯ�� +20%, ���ݷ� +20% (Infinite Duration GE ���)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS")
-	TSubclassOf<UGameplayEffect> ArtifactStatEffectClass;
-};
-
-UCLASS(BlueprintType, Const)
-class PROJECT_SP_API UOpartsDefinition : public UDataAsset
-{
-	GENERATED_BODY()
-	
-public:
-	// 1. UI ǥ�ÿ� ����
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
-	FText DisplayName; // ��: "�����ذ�"
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
-	UTexture2D* Icon; // ������ ������
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
-	FText Description; // �ش��ϴ� ������ ��ü ����
-
-
+﻿
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
 	FText UniqueAbilityName; // ��: "ġ��Ÿ Ưȭ"
 
@@ -271,6 +240,7 @@ public:
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h" //
+#include "GameplayEffect.h"
 #include "ShopDataStructs.generated.h" //
 
 /**
@@ -301,6 +271,14 @@ public:
 	// ��� (-1�̸� ����)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Stock = -1;
+
+	// ������ ��ġ (ȸ�����̸� ȸ����, ���� ��� 400.0f)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	float ValueAmount = 0.0f;
+
+	// ������ ����Ʈ Ŭ���� (ȸ������ ��� ȸ�� GE �Ҵ�)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	TSubclassOf<class UGameplayEffect> EffectClass;
 };
 // ==========================================
 // FILE: SPDataStructs.h
@@ -753,6 +731,98 @@ protected:
 
 };
 // ==========================================
+// FILE: GA_Relic_BentIron.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_BentIron.generated.h"
+
+UCLASS()
+class PROJECT_SP_API UGA_Relic_BentIron : public UGameplayAbility
+{
+    GENERATED_BODY()
+
+public:
+    UGA_Relic_BentIron();
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnParrySuccessReceived(FGameplayEventData Payload);
+
+    // BP�� 1 �÷��� Gameplay Effect (�����Ϳ��� �Ҵ�)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> AddBPGEClass;
+};
+// ==========================================
+// FILE: GA_Relic_BloodyCoin.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_BloodyCoin.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_BloodyCoin : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+    UGA_Relic_BloodyCoin();
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnSkillKillReceived(FGameplayEventData Payload);
+
+    // BP�� 1 �÷��� Gameplay Effect (�����Ϳ��� �Ҵ�)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> AddBPGEClass;
+
+};
+// ==========================================
+// FILE: GA_Relic_BrokenWatch.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_BrokenWatch.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_BrokenWatch : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+    UGA_Relic_BrokenWatch();
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnParrySuccessReceived(FGameplayEventData Payload);
+
+    // ü���� ȸ�������� Gameplay Effect (�����Ϳ��� �Ҵ�)
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> HealGEClass;
+};
+// ==========================================
 // FILE: GA_Relic_ChaosPrism.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -858,6 +928,43 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Stats")
     float TriggerChance = 30.0f;
 	
+};
+// ==========================================
+// FILE: GA_Relic_SeedOfDisaster.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "GA_Relic_SeedOfDisaster.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API UGA_Relic_SeedOfDisaster : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+    UGA_Relic_SeedOfDisaster();
+    virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+    virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+protected:
+    UFUNCTION()
+    void OnNormalAttackHitReceived(FGameplayEventData Payload);
+
+    //���� ���� ����� ����� �� ������ �Լ�
+    UFUNCTION()
+    void OnBattleEndReceived(FGameplayEventData Payload);
+
+    // �����Ϳ��� ��� ���� 5���� GE(GE_Relic_SeedBuff)�� �Ҵ��� ����
+    UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
+    TSubclassOf<class UGameplayEffect> SeedStackGEClass;
+
 };
 // ==========================================
 // FILE: GA_Relic_VibrationStone.h
@@ -1096,54 +1203,3 @@ public:
 	// ����� ������ ��ġ�ϴ��� �˻�
 	UFUNCTION(BlueprintCallable, Category = "Parry")
 	bool CheckWeaponMatch(class ASPGASMonsterCharacter* TargetMonster);
-
-	// �ݰ� ������ ��� �����ϴ��� �˻�
-	UFUNCTION(BlueprintCallable, Category = "Parry")
-	bool CheckCounterConditions();
-
-	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
-	UFUNCTION(BlueprintCallable, Category = "Parry")
-	void SendParriedEventToMonster(AActor* TargetMonster);
-
-protected:
-	// �ݰ� ������� Ȯ���ϴ� �±�
-	UPROPERTY(EditDefaultsOnly, Category = "Parry")
-	FGameplayTag CounterModeTag;
-
-	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
-	UPROPERTY(EditDefaultsOnly, Category = "Parry")
-	FGameplayTag CounterSkillTag;
-};
-// ==========================================
-// FILE: ASPCombatGameMode.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
-#include "ASPCombatGameMode.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API AASPCombatGameMode : public AGameModeBase
-{
-	GENERATED_BODY()
-	
-public:
-	AASPCombatGameMode();
-	virtual void BeginPlay() override;
-
-	void StartTurn(AActor* TurnActor);
-
-	UFUNCTION(BlueprintCallable, Category = "Battle")
-	void EndTurn(AActor* TurnActor);
-
-	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
-	void ReportCharacterReady(AActor* Character);
-
-	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
-	void EndBattle(bool bPlayerWon);

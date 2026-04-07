@@ -1,83 +1,4 @@
-﻿	}
-}
-
-// ==========================================
-// FILE: SPStatusEffectComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPStatusEffectComponent.h"
-#include "Data/Asset/StatusEffectData.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-#include "Character/SPGASMonsterCharacter.h"
-
-// Sets default values for this component's properties
-USPStatusEffectComponent::USPStatusEffectComponent()
-{
-}
-
-void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor)
-{
-	if (!TargetActor || !StatusEffectDataAsset) return;
-
-	// 타겟의 ASC 가져오기 (인터페이스 활용)
-	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-	if (!TargetASC) return;
-
-	// 확률 체크(추후 효과 명중과 연동)
-	/*if (FMath::RandRange(0.0f, 1.0f) > 0.6f)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 부여 실패"));
-		return;
-	}*/
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-	FGameplayTag StatusToApply;
-
-	// 무기 태그 -> 상태이상 태그 변환
-	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
-		StatusToApply = SPTags.Debuff_Basic_Weathering;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
-		StatusToApply = SPTags.Debuff_Basic_Burn;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
-		StatusToApply = SPTags.Debuff_Basic_Poison;
-
-	if (StatusToApply.IsValid())
-	{
-		// 이 컴포넌트의 주인이 시전자(Instigator)가 됨
-		ProcessStatusEffect(StatusToApply, TargetASC, GetOwner());
-	}
-}
-
-void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTag, UAbilitySystemComponent* TargetASC, AActor* InstigatorActor)
-{
-	if (!TargetASC || !StatusEffectDataAsset) return;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 풍화(Weathering)
-	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
-			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
-			return;
-		}
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
-			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	// 화상(Burn)
-	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
+﻿		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
@@ -786,17 +707,12 @@ void UGA_Oparts_CrystalSkull::OnCriticalHitReceived(FGameplayEventData Payload)
 // ==========================================
 // FILE: GA_Relic_AddGold.cpp
 // ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "GA/Relic/GA_Relic_AddGold.h"
 #include "AbilitySystemComponent.h"
-#include "SubSystem/SPSaveGameSubsystem.h" // 🌟 성민님의 세이브(또는 재화) 관리 헤더 포함
-#include "Kismet/GameplayStatics.h"
+#include "Component/InventoryComponent.h"
 
 UGA_Relic_AddGold::UGA_Relic_AddGold()
 {
-    // 액터마다 개별적으로 생성되도록 설정
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
@@ -804,25 +720,187 @@ void UGA_Relic_AddGold::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, 
 {
     Super::OnAvatarSet(ActorInfo, Spec);
 
-    // 액터 정보가 정상적인지 확인
     if (ActorInfo && ActorInfo->AvatarActor.IsValid())
     {
-        // 1. 게임 인스턴스에서 세이브(재화) 서브시스템을 가져옵니다.
-        if (UGameInstance* GI = UGameplayStatics::GetGameInstance(ActorInfo->AvatarActor.Get()))
+        // 🌟 플레이어의 몸에서 '인벤토리 컴포넌트'를 찾습니다.
+        if (UInventoryComponent* InventoryComp = ActorInfo->AvatarActor->FindComponentByClass<UInventoryComponent>())
         {
-            if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
-            {
-                // 🌟 [핵심] 성민님의 프로젝트에 맞춰 골드를 추가하는 함수를 호출하세요!
-                // (예시 함수명이 AddGold 라고 가정)
-                // SaveSys->AddGold(GoldAmountToAdd); 
-
-                UE_LOG(LogTemp, Warning, TEXT("100 골드 유물 획득! %d 골드가 즉시 지급되었습니다."), GoldAmountToAdd);
-            }
+            // 🌟 100 골드(Money) 지급!
+            InventoryComp->AddMoney(GoldAmountToAdd);
+            UE_LOG(LogTemp, Warning, TEXT("100 골드 유물 획득! %d 골드가 즉시 지급되었습니다. (현재 골드: %d)"), GoldAmountToAdd, InventoryComp->GetMoney());
         }
 
-        // 2. 할 일(골드 지급)을 다 했으므로 이 어빌리티를 즉시 종료합니다.
-        // 일회성 효과이므로 주머니에 계속 남아있을 필요가 없습니다.
+        // 일회성 효과이므로 어빌리티 즉시 종료
         EndAbility(Spec.Handle, ActorInfo, Spec.ActivationInfo, true, false);
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BentIron.cpp
+// ==========================================
+#pragma once
+
+#include "GA/Relic/GA_Relic_BentIron.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BentIron::UGA_Relic_BentIron()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BentIron::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    // 장착 즉시 대기 모드로 진입
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BentIron::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    UE_LOG(LogTemp, Warning, TEXT("🎧 구부러진 쇳덩이 유물 켜짐! 패링 신호 대기 중..."));
+    // 🌟 패링 성공(Event.Combat.ParrySuccess) 무전을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_ParrySuccess,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BentIron::OnParrySuccessReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BentIron::OnParrySuccessReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 AddBPGEClass (BP 회복 약)을 주사합니다!
+    if (ASC && AddBPGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 구부러진 쇳덩이! 패링 성공으로 BP를 회복합니다."));
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BloodyCoin.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_BloodyCoin.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BloodyCoin::UGA_Relic_BloodyCoin()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BloodyCoin::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BloodyCoin::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    //  무기 스킬 처치(Event.Combat.SkillKill) 무전을 기다립니다.
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_SkillKill,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BloodyCoin::OnSkillKillReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BloodyCoin::OnSkillKillReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 BP 회복 약을 주사합니다!
+    if (ASC && AddBPGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 피 묻은 동전! 무기 스킬로 적을 처치하여 BP를 1 회복합니다."));
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_BrokenWatch.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_BrokenWatch.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_BrokenWatch::UGA_Relic_BrokenWatch()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_BrokenWatch::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_BrokenWatch::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 🌟 패링 성공 무전을 대기합니다. (이미 구부러진 쇳덩이 때 발사기 설치 완료!)
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_ParrySuccess,
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_BrokenWatch::OnParrySuccessReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_BrokenWatch::OnParrySuccessReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    // 무전을 받으면 내 몸에 HealGEClass (체력 회복 약)을 주사합니다!
+    if (ASC && HealGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(HealGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Warning, TEXT("[유물 발동] 깨진 회중시계! 패링 성공으로 체력을 회복합니다."));
+        }
     }
 }
 // ==========================================
@@ -1125,25 +1203,3 @@ void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
             EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
 
             FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
-
-            if (SpecHandle.IsValid())
-            {
-                // [1] 엔진(혈관)에 직접 GE 부여
-                TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-
-                // [2] 몬스터 몸에서 '전광판 매니저' 찾기
-                USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
-
-                // [3] 매니저가 있고, 에디터에서 태그를 제대로 세팅해 뒀다면 보고!
-                if (TargetStatusComp && TargetStatusTag.IsValid())
-                {
-                    TargetStatusComp->ProcessStatusEffect(TargetStatusTag, TargetASC, GetAvatarActorFromActorInfo());
-                }
-
-                UE_LOG(LogTemp, Log, TEXT("기초 유물 효과 발동: [%s] 부여 및 매니저 등록 완료!"), *TargetStatusTag.ToString());
-            }
-        }
-    }
-}
-// ==========================================
-// FILE: GA_Relic_VibrationStone.cpp

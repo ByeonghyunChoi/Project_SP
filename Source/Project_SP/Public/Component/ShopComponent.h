@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -14,12 +14,18 @@ public:
 	UShopComponent();
 
 protected:
-	// [¼³Á¤] ÀÌ »óÀÎÀÌ ÆÇ¸ÅÇÒ ¾ÆÀÌÅÛ ¸ñ·Ï µ¥ÀÌÅÍ Å×ÀÌºí
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop Settings")
-	TObjectPtr<class UDataTable> ShopItemTable;
+	virtual void BeginPlay() override;
 
 public:
-	// µ¥ÀÌÅÍ Å×ÀÌºíÀ» ÀĞ¾î¼­ ¾ÆÀÌÅÛ ¸®½ºÆ®¸¦ ¹İÈ¯ÇÏ´Â ÇÔ¼ö
+	//  ì—ë””í„°ì—ì„œ ì„¤ì •í•  ì›ë³¸ ë°ì´í„° í…Œì´ë¸” (ì„¤ê³„ë„)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop")
+	class UDataTable* ShopDataTable;
+
+	//  ê²Œì„ ì¤‘ì— ê¹ì´ëŠ” ì§„ì§œ ì¬ê³  ì£¼ë¨¸ë‹ˆ (ì‹¤ì‹œê°„)
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	TArray<FShopItemRow> RuntimeShopItems;
+
+	//  ì¬ê³  ì°¨ê° í•¨ìˆ˜
 	UFUNCTION(BlueprintCallable, Category = "Shop")
-	TArray<FShopItemRow> GetShopItems() const;
+	void ConsumeStock(FName ItemID);
 };

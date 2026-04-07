@@ -59,10 +59,19 @@ public:
 	bool GetIsInLobby() const { return bIsInLobby; }
 
 	//Getter
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentFloor() const { return CurrentFloor; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	EMapType GetCurrentMapType() const { return CurrentMapType; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	EMapState GetCurrentRoomState() const { return CurrentRoomState; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }

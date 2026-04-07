@@ -1,4 +1,55 @@
 ﻿
+	// �ݰ� ������ ��� �����ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckCounterConditions();
+
+	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	void SendParriedEventToMonster(AActor* TargetMonster);
+
+protected:
+	// �ݰ� ������� Ȯ���ϴ� �±�
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterModeTag;
+
+	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterSkillTag;
+};
+// ==========================================
+// FILE: ASPCombatGameMode.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "ASPCombatGameMode.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API AASPCombatGameMode : public AGameModeBase
+{
+	GENERATED_BODY()
+	
+public:
+	AASPCombatGameMode();
+	virtual void BeginPlay() override;
+
+	void StartTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void EndTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
+	void ReportCharacterReady(AActor* Character);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void EndBattle(bool bPlayerWon);
+
 	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
 
 	//���� �¸� �� ȣ���� ���� �Լ�
@@ -957,6 +1008,7 @@ public:
 	FGameplayTag Relic_WornWhetstone; // 마모된 숫돌
 	FGameplayTag Relic_FadingCandle; // 꺼져가는 양초
 	FGameplayTag Relic_RustedNeedle; // 녹슨 구리 침
+	FGameplayTag Relic_Passive_ResonatingRune; // 공명하는 룬
 
 
 	//이벤트
@@ -974,10 +1026,14 @@ public:
 	FGameplayTag Event_Jormungandr_Fire;
 	FGameplayTag Event_Jourmungandr_Hit;
 
+	//유물 전용 이벤트들
 	FGameplayTag Event_Combat_CriticalHit;
 	FGameplayTag Event_Battle_Start;
+	FGameplayTag Event_Battle_End;
 	FGameplayTag Event_Combat_AttackHit;
 	FGameplayTag Event_Combat_AttackKill;
+	FGameplayTag Event_Combat_SkillKill;
+	FGameplayTag Event_Combat_ParrySuccess;
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;
@@ -1028,6 +1084,7 @@ public:
 
 	//데이터 전달(Data)
 	FGameplayTag Data_Damage;
+	FGameplayTag Data_HealAmount; // 힐량 전달
 
 	//이펙트, 사운드
 	FGameplayTag GameplayCue_Hit_Fenrir;

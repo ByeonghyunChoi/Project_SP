@@ -1,4 +1,7 @@
-﻿
+﻿#include "CoreMinimal.h"
+#include "GameplayEffectExecutionCalculation.h"
+#include "SPGAS_DamageCalculation.generated.h"
+
 /**
  * 
  */
@@ -18,6 +21,7 @@ public:
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Blueprint/UserWidget.h"
 #include "Interface/InteractableInterface.h"
 #include "MerchantNPC.generated.h"
 
@@ -31,25 +35,32 @@ class PROJECT_SP_API AMerchantNPC : public ACharacter, public IInteractableInter
 public:
 	AMerchantNPC();
 
-	//��ȣ�ۿ��� ������ �� ȣ��
+	//상호작용을 실행할 때 호출
 	virtual void ExecuteInteraction(AActor* Interactor) override;
-	//UI�� ǥ���� ��ȣ�ۿ� �ؽ�Ʈ ��ȯ
+	//UI에 표시할 상호작용 텍스트 반환
 	virtual FText GetInteractText() const override;
 
 protected:
-	// ���� ����� ����� ������Ʈ
+	// 상점 기능을 담당할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UShopComponent> ShopComp;
 
-	// ���� �̸� (��: "���� ����", "��ȭ ����") - ���߿� UI �������� ���
+	// 상인 이름 (예: "무기 상인", "잡화 상인") - 나중에 UI 제목으로 사용
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant Info")
 	FText MerchantName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant | UI")
+	TSubclassOf<class UUserWidget> ShopWidgetClass;
+
+	// [추가] 생성된 위젯 인스턴스를 저장 (중복 생성 방지)
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> ShopWidgetInstance;
 
 protected:
 	virtual void BeginPlay() override;
 
 public:
-	// �÷��̾� ��Ʈ�ѷ����� ȣ���� �Լ�
+	// 플레이어 컨트롤러에서 호출할 함수
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void OpenShop(APlayerController* PlayerController);
 };
@@ -636,6 +647,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
 
+	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	bool BuyShopItem(const FShopItemRow& ItemData);
+
+	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	class AMerchantNPC* CurrentMerchant;
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
@@ -1001,14 +1020,20 @@ public:
 	UShopComponent();
 
 protected:
-	// [����] �� ������ �Ǹ��� ������ ��� ������ ���̺�
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop Settings")
-	TObjectPtr<class UDataTable> ShopItemTable;
+	virtual void BeginPlay() override;
 
 public:
-	// ������ ���̺��� �о ������ ����Ʈ�� ��ȯ�ϴ� �Լ�
+	//  에디터에서 설정할 원본 데이터 테이블 (설계도)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop")
+	class UDataTable* ShopDataTable;
+
+	//  게임 중에 깎이는 진짜 재고 주머니 (실시간)
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	TArray<FShopItemRow> RuntimeShopItems;
+
+	//  재고 차감 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")
-	TArray<FShopItemRow> GetShopItems() const;
+	void ConsumeStock(FName ItemID);
 };
 // ==========================================
 // FILE: SPInteractionComponent.h
@@ -1146,4 +1171,35 @@ public:
 	// UI ǥ�ÿ�: ȿ�� ���� (��: "ġ��Ÿ Ȯ�� +20%")
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display", meta = (MultiLine = true))
 	FText Description;
+
+	// UI ǥ�ÿ�: ������
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Display")
+	TObjectPtr<UTexture2D> Icon;
+
+	// [GAS] �� ��Ƽ��Ʈ �ر� �� �ο��� �нú� �ɷ� (������ None)
+	// ��: ũ��Ƽ�� ���� ��Ŀ���� ����, �ð� ���� ��ų ���� ��
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS")
+	TSubclassOf<UGameplayAbility> ArtifactAbilityClass;
+
+	// [GAS] �� ��Ƽ��Ʈ �ر� �� ������ ���� ���ʽ� (������ None)
+	// ��: ġ��Ÿ Ȯ�� +20%, ���ݷ� +20% (Infinite Duration GE ���)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS")
+	TSubclassOf<UGameplayEffect> ArtifactStatEffectClass;
+};
+
+UCLASS(BlueprintType, Const)
+class PROJECT_SP_API UOpartsDefinition : public UDataAsset
+{
+	GENERATED_BODY()
+	
+public:
+	// 1. UI ǥ�ÿ� ����
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText DisplayName; // ��: "�����ذ�"
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	UTexture2D* Icon; // ������ ������
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText Description; // �ش��ϴ� ������ ��ü ����
 

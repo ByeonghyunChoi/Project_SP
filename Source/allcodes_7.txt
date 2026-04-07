@@ -1,4 +1,58 @@
-﻿{
+﻿void UMapManagerSubsystem::LoadStageLevel()
+{
+	bIsInLobby = false;
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
+	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+}
+
+void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
+{
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+
+	if (CurrentFloor >= 11 && CurrentStage < 3)
+	{
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
+}
+
+EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
+{
+	switch (Grade)
+	{
+	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
+	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
+	case EMapGrade::Prepare: return EMapType::Prepare;
+	case EMapGrade::Boss: return EMapType::BossBattle;
+	default: return EMapType::NormalBattle;
+	}
+}
+
+TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
+{
 	if (CurrentPortalOptions.Num() > 0)
 	{
 		return CurrentPortalOptions;
@@ -690,6 +744,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Relic_WornWhetstone = Manager.AddNativeGameplayTag(FName("Relic.WornWhetstone"), TEXT("유물: 마모된 숫돌"));
 	Relic_FadingCandle = Manager.AddNativeGameplayTag(FName("Relic.FadingCandle"), TEXT("유물: 꺼져가는 양초"));
 	Relic_RustedNeedle = Manager.AddNativeGameplayTag(FName("Relic.RustedNeedle"), TEXT("유물: 녹슨 구리 침"));
+	Relic_Passive_ResonatingRune = Manager.AddNativeGameplayTag(FName("Relic.Passive.ResonatingRune"), TEXT("공명하는 룬: 무기 스킬 쿨타임 무시"));
 	
 	Event_Interaction = Manager.AddNativeGameplayTag(FName("Event.Interaction"), TEXT("상호작용 이벤트 활성화"));
 	Event_Field_Hit = Manager.AddNativeGameplayTag(FName("Event.Field.Hit"), TEXT("필드공격 이벤트 활성화"));
@@ -707,8 +762,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
+	Event_Battle_End = Manager.AddNativeGameplayTag(FName("Event.Battle.End"), TEXT("전투 종료 시 이벤트"));
 	Event_Combat_AttackHit = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackHit"), TEXT("일반 공격 적중 이벤트"));
 	Event_Combat_AttackKill = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackKill"), TEXT("일반 공격으로 적 처치 시 이벤트"));
+	Event_Combat_SkillKill = Manager.AddNativeGameplayTag(FName("Event.Combat.SkillKill"), TEXT("무기 스킬로 적 처치 시 이벤트"));
+	Event_Combat_ParrySuccess = Manager.AddNativeGameplayTag(FName("Event.Combat.ParrySuccess"), TEXT("패링 성공 시 발생하는 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -752,6 +810,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Enemy_Rank_Boss = Manager.AddNativeGameplayTag(FName("Enemy.Rank.Boss"), TEXT("보스 몬스터"));
 
 	Data_Damage = Manager.AddNativeGameplayTag(FName("Data.Damage"), TEXT("데미지 배율 전달용"));
+	Data_HealAmount = Manager.AddNativeGameplayTag(FName("Data.HealAmount"), TEXT("데미지 배율 전달용"));
 
 	GameplayCue_Hit_Fenrir = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Fenrir"), TEXT("펜리르 타격음, 이펙트"));
 	GameplayCue_Hit_Surtr = Manager.AddNativeGameplayTag(FName("GameplayCue.Hit.Surtr"), TEXT("수르트 타격음, 이펙트"));
@@ -1144,6 +1203,3 @@ public:
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "GameplayEffectExecutionCalculation.h"
-#include "SPGAS_DamageCalculation.generated.h"
