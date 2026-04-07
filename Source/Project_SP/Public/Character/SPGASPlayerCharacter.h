@@ -40,8 +40,25 @@ class PROJECT_SP_API ASPGASPlayerCharacter : public ASPGASCharacterBase
 
 public:
 	ASPGASPlayerCharacter();
+
 	virtual void PossessedBy(AController* NewController) override;
+
 	void ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor);
+	
+	// 전투 시작 시 호출할 전투 준비 함수
+	virtual void OnBattleStarted() override;
+	
+	//카메라 모드(전투/ 필드) 변경 함수
+	void SwitchCameraMode(bool bIsBattle);
+
+public:
+	// 스탯 상승용 커브 테이블 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
+	class UCurveTable* PlayerStatCurve;
+
+	// 레벨업 보상용 데이터 테이블(일단 지금은 비워 둠)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
+	class UDataTable* PlayerRewardTable;
 
 protected:
 	virtual void OnRep_PlayerState() override;
@@ -79,6 +96,14 @@ protected:
 	void OnHealthChanged(const struct FOnAttributeChangeData& Data);
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
+
+	void CheckLevelUp();
+
+	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
+
+	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
+	void OnLevelUpEffect();
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
@@ -106,6 +131,7 @@ public:
 	TObjectPtr<AActor> LastParriedTarget;
 
 public:
+	// Setter
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
@@ -116,6 +142,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
-	virtual void OnBattleStarted() override;
-	void SwitchCameraMode(bool bIsBattle);
+	
+public:
+	// 경험치 획득 함수
+	UFUNCTION(BlueprintCallable, Category = "Player | Growth")
+	void AddExperience(float ExpAmount);
 };

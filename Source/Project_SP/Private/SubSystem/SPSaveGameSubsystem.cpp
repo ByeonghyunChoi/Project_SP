@@ -85,44 +85,50 @@ void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
 {
 	if (!PlayerPawn || !RunData.IsValid()) return;
 
-	// 1. 스탯 복구
+	// 스탯 복구
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), RunData.Stats.MaxHealth);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute(), RunData.Stats.MaxBattlePoint);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute(), RunData.Stats.MaxTimePower);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), RunData.Stats.Level);
+			// 경험치 복구
 			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), RunData.Stats.Experience);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), RunData.Stats.MaxExperience);
 
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), RunData.Stats.Attack);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), RunData.Stats.Defense);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), RunData.Stats.Speed);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute(), RunData.Stats.DefenseIgnore);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), RunData.Stats.CriticalRate);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute(), RunData.Stats.CriticalDamage);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute(), RunData.Stats.EffectHitRate);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute(), RunData.Stats.EffectAmplify);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(), RunData.Stats.OutgoingDamageMultiplier);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute(), RunData.Stats.IncomingDamageMultiplier);
+			// 맵 매니저를 통해 로비인지 확인
+			UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
 
-			// 자원 (Current) 복구 - 마지막에!
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), RunData.Stats.CurrentHealth);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), RunData.Stats.CurrentBattlePoint);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), RunData.Stats.CurrentTimePower);
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), RunData.Stats.CurrentActionGauge);
+			if (MapManager && MapManager->GetIsInLobby())
+			{
+				float FinalMaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+				float FinalMaxTP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+				// [로비일 때] 데이터 초기화
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), FinalMaxHP);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), FinalMaxTP);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), 0.0f);
+
+				// 런타임 데이터에 덮어쓰기
+				RunData.Stats.CurrentHealth = FinalMaxHP;
+				RunData.Stats.CurrentTimePower = FinalMaxTP;
+				RunData.Stats.CurrentActionGauge = 0.0f;
+			}
+			else
+			{
+				// [던전/전투일 때] 세이브 파일에 기록된 현재 상태를 그대로 불러옵니다.
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), RunData.Stats.CurrentHealth);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), RunData.Stats.CurrentBattlePoint);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), RunData.Stats.CurrentTimePower);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), RunData.Stats.CurrentActionGauge);
+			}
 		}
 	}
 
-	// 2. 유물 복구 (스탯 기반으로 적용되므로 스탯 이후에 호출)
+	// 유물 복구 (스탯 기반으로 적용되므로 스탯 이후에 호출)
 	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
 	{
 		RelicComp->LoadRelicData(RunData.RelicData);
 	}
 
-	// 3. 런/영구 지갑 일괄 세팅 (UI 갱신을 위해 한 번에 넘겨줌)
+	// 런/영구 지갑 일괄 세팅 (UI 갱신을 위해 한 번에 넘겨줌)
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		InventoryComp->LoadWalletData(RunData.RunWallet, PermData.PermanentWallet);

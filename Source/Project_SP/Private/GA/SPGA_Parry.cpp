@@ -16,11 +16,12 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 	if (!TargetMonster) return false;
 
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
-	if (!PlayerASC) return false;
+	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
+	if (!PlayerASC || !TargetASC) return false;
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	// 1. 패링 창문이 열려있는지 검사 (태그 확인)
+	// 패링 창이 열려있는지 검사 (태그 확인)
 	if (!TargetMonster->GetAbilitySystemComponent()->HasMatchingGameplayTag(SPTags.State_ParryWindow))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태(창문)가 아닙니다."));
@@ -30,21 +31,21 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 	// 2. 무기와 약점 상성 확인 (선생님의 태그 이름에 맞춰 수정하세요!)
 	// [펜리르]
 	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) &&
-		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Fenrir))
+		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir))
 	{
 		return true;
 	}
 
 	// [수르트]
 	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) &&
-		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Surtr))
+		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr))
 	{
 		return true;
 	}
 
 	// [요르문간드]
 	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) &&
-		TargetMonster->WeaknessTags.HasTag(SPTags.Weakness_Jormungandr))
+		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr))
 	{
 		return true;
 	}

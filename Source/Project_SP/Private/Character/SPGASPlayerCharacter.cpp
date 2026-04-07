@@ -88,6 +88,17 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		
 		GiveAbilities();
 
+		int32 TargetLevel = 1;
+
+		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			// 세이브된 런 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
+			TargetLevel = FMath::RoundToInt(SaveSys->GetRunData().Stats.Level);
+		}
+
+		// 커브 테이블을 읽어와서 뼈대 스탯 세팅
+		ApplyLevelStats(TargetLevel, false);
+
 		UE_LOG(LogTemp, Warning, TEXT("[Server] GAS Initialized & Abilities Given"));
 	}
 
@@ -113,18 +124,11 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		if (GetAbilitySystemComponent() && AttributeSet)
-		{
-			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
-			if (SaveSystem)
-			{
-				SaveSystem->RestoreRunDataToPlayer(this);
-				SaveSys->RestorePermDataToPlayer(this);
-			}
-		}
+		SaveSys->RestorePermDataToPlayer(this);
+		SaveSys->RestoreRunDataToPlayer(this);
 	}
-	SetCameraProfile(FieldCameraSetting);
 
+	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
 	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
@@ -196,9 +200,10 @@ void ASPGASPlayerCharacter::OnRep_PlayerState()
 	{
 		ASC = SPGAS->GetAbilitySystemComponent();
 		AttributeSet = SPGAS->GetAttributeSet();
-
-		// 클라이언트 쪽 ASC 연결 (이게 있어야 컨트롤러가 ASC를 찾음)
 		ASC->InitAbilityActorInfo(SPGAS, this);
+
+		float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), false);
 
 		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
 	}
@@ -344,6 +349,25 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 	return nullptr;
 }
 
+void ASPGASPlayerCharacter::AddExperience(float ExpAmount)
+{
+	if (!ASC || ExpAmount <= 0.0f) return;
+
+	float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+	if (CurrentLevel >= 30.0f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("이미 만렙(Lv.30)이므로 경험치를 획득하지 않습니다."));
+		return;
+	}
+
+	float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp + ExpAmount);
+
+	UE_LOG(LogTemp, Log, TEXT("경험치 획득: +%.0f (현재 %.0f)"), ExpAmount, CurrentExp + ExpAmount);
+
+	CheckLevelUp();
+}
+
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();
@@ -439,5 +463,84 @@ void ASPGASPlayerCharacter::OnTimePowerChanged(const FOnAttributeChangeData& Dat
 		UGameInstance* GI = GetGameInstance();
 		UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr;
 		MapManager->GoToLobby();
+	}
+}
+
+void ASPGASPlayerCharacter::CheckLevelUp()
+{
+	if (!ASC || !PlayerStatCurve) return; // 커브가 없으면 레벨업 불가
+
+	float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	float MaxExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+	float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+
+	bool bDidLevelUp = false;
+
+	// 경험치가 꽉 찼다면? (한 번에 2업 이상 하는 경우를 대비해 while문 사용)
+	while (MaxExp > 0.0f && CurrentExp >= MaxExp && CurrentLevel < 30.0f)
+	{
+		CurrentExp -= MaxExp; // 경험치 초과분 이월
+		CurrentLevel += 1.0f; // 레벨 1 증가
+
+		bDidLevelUp = true;
+
+		// 갱신된 레벨의 스탯과 MaxExp를 커브에서 즉시 읽어오기!
+		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), true);
+
+		// 🌟 [추가] 방금 레벨업해서 30레벨이 되었다면? 초과분은 증발시키고 루프 강제 종료!
+		if (CurrentLevel >= 30.0f)
+		{
+			CurrentExp = 0.0f;
+			UE_LOG(LogTemp, Warning, TEXT("만렙(Lv.30) 달성! 더 이상 경험치가 오르지 않습니다."));
+			break;
+		}
+
+		// 갱신된 다음 레벨의 MaxExp를 다시 가져와서 while문 조건 재검사
+		MaxExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+	}
+
+	// 초과분을 깎은(혹은 만렙이라 0이 된) 최종 경험치 저장
+	if (bDidLevelUp)
+	{
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp);
+		OnLevelUpEffect();
+	}
+}
+
+void ASPGASPlayerCharacter::ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp)
+{
+	if (!ASC) return;
+
+	// 커브 테이블에서 스탯 뽑아오기 (무조건 실행)
+	if (PlayerStatCurve)
+	{
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), TargetLevel);
+
+		FString ContextString = TEXT("PlayerStatGrowth");
+
+		float RequiredExp = PlayerStatCurve->FindCurve(FName("Exp"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), RequiredExp);
+		float MaxHP = PlayerStatCurve->FindCurve(FName("HP"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), MaxHP);
+		float Attack = PlayerStatCurve->FindCurve(FName("Attack"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), Attack);
+		float Defense = PlayerStatCurve->FindCurve(FName("Defense"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), Defense);
+		float CriticalRate = PlayerStatCurve->FindCurve(FName("CriticalRate"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), CriticalRate);
+		float Speed = PlayerStatCurve->FindCurve(FName("Speed"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), Speed);
+		
+		// 레벨업 시 체력 100% 회복
+		if (bIsLevelUp)
+		{
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), MaxHP);
+		}
+	}
+
+	// 데이터 테이블에서 보상 뽑아오기
+	if (PlayerRewardTable && bIsLevelUp)
+	{
+		// 지금은 비워 둠
 	}
 }

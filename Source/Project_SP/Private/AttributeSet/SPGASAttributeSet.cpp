@@ -9,31 +9,35 @@
 
 USPGASAttributeSet::USPGASAttributeSet()  
 {
-	InitHealth(500.0f);
-	InitMaxHealth(500.0f);
-	InitBattlePoint(2.0f);
+	InitHealth(1.0f);
+	InitMaxHealth(1.0f);
+	InitLevel(1.0f);
+	InitSpeed(1.0f);
+	InitMaxActionGauge(100.0f); 
+	InitMaxExperience(3000.0f);  
+
+	InitAttack(0.0f);
+	InitDefense(0.0f);
+	InitBattlePoint(0.0f);
 	InitMaxBattlePoint(5.0f);
-	InitTimePower(200.0f);
+	InitTimePower(0.0f);
 	InitMaxTimePower(200.0f);
-	InitDefense(10.0f);
-	InitSpeed(100.0f);
 	InitActionGauge(0.0f);
-	InitMaxActionGauge(100.0f);
-	InitAttack(20.0f);
+	InitExperience(0.0f);
+
 	InitDefenseIgnore(0.0f);
-	InitCriticalRate(0.05f);
-	InitCriticalDamage(1.5f);
+	InitCriticalRate(0.0f);
+	InitCriticalDamage(0.0f);
 	InitEffectHitRate(0.0f);
 	InitEffectAmplify(0.0f);
 	InitOutgoingDamageMultiplier(0.0f);
 	InitIncomingDamageMultiplier(0.0f);
-	InitLevel(1.0f);
-	InitExperience(0.0f);
-	InitMaxExperience(100.0f);
+
 	InitIncomingDamage(0.0f);
 	InitIncomingHeal(0.0f);
 	InitIncomingIsCritical(0.0f);
 }
+
 
 void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {

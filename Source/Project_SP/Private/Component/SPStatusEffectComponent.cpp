@@ -226,7 +226,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
 				if (bIsExecute)
 				{
-					SpecHandle.Data->DynamicAssetTags.AddTag(SPTags.Damage_Type_Execute);
+					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
 				}
 
 				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
