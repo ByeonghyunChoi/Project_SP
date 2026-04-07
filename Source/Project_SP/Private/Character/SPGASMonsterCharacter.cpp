@@ -100,21 +100,18 @@ void ASPGASMonsterCharacter::ApplyMonsterData()
 	UE_LOG(LogTemp, Log, TEXT("[%s] 데이터베이스 스탯 & 약점 적용 완료!"), *MonsterDataAsset->MonsterName.ToString());
 }
 
-void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimary)
+void ASPGASMonsterCharacter::SetSelectedWidget(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI)
 {
 	if (TargetIndicatorWidget)
 	{
 		TargetIndicatorWidget->SetVisibility(bSelected);
 	}
-
-	// 외곽선 (포스트 프로세스)
 	if (GetMesh())
 	{
 		GetMesh()->SetRenderCustomDepth(bSelected);
 	}
-
-	//블루프린트로 상태를 넘겨서 UI 크기나 애니메이션을 직접 처리하게 합니다.
-	OnTargetStateChanged(bSelected, bIsPrimary);
+	// 블루프린트로 3개의 값을 전달!
+	OnTargetStateChanged(bSelected, bIsPrimaryMarker, bShowOnHubUI);
 }
 
 TMap<FGameplayTag, int32> ASPGASMonsterCharacter::GetActiveDebuffs() const

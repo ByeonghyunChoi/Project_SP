@@ -12,6 +12,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -159,6 +160,9 @@ protected:
 	//배틀 포인트 최대값 변경시 실행될 함수
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
 
+	// 플레이어의 행동 상태 변경을 관리할 함수
+	void SetCurrentSelectedAction(ESelectedActionType NewAction);
+
 
 public:
 	// 무기 교체 처리
@@ -218,5 +222,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnActionStateChangedDelegate OnActionStateChanged;
 
 };

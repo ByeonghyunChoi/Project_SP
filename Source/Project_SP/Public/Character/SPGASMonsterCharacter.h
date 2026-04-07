@@ -42,14 +42,14 @@ public:
     void ApplyMonsterData();
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
-    void SetSelectedWidget(bool bSelected, bool bIsPrimary);
+    void SetSelectedWidget(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     //상태이상 태그과 남은 턴 수를 가져올 함수
     UFUNCTION(BlueprintPure, Category = "Combat | UI")
     TMap<FGameplayTag, int32> GetActiveDebuffs() const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
-    void OnTargetStateChanged(bool bSelected, bool bIsPrimary);
+    void OnTargetStateChanged(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     // UI 갱신 방송 함수(상태이상)
     void BroadcastStatusUI();
