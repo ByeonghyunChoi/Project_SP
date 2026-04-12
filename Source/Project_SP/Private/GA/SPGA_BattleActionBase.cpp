@@ -171,6 +171,13 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			SPTags.Data_Damage,
 			DamageMultiplier
 		);
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		//  [핵심 방어막] 데미지를 입히기 직전에, 이 몬스터가 아직 살아있는지 기억해둠
+		bool bWasAliveBeforeHit = false;
+		if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+		{
+			bWasAliveBeforeHit = true; // 때리기 전엔 살아있었음!
+		}
 
 		// 이펙트 적용
 		ApplyGameplayEffectSpecToTarget(
@@ -194,7 +201,7 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent() && IsValid(TargetActor))
 			{
 				// 타겟의 체력이 0이하라면 상태이상을 적용하지 않음
-				UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+				TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 				if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
 				{
 					FGameplayTag EquippedWeaponTag;
@@ -227,10 +234,10 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 			}
 
-			if (ASC && EventTargetASC) // 2. 처치 이벤트 발사
+			if (ASC && TargetASC) // 2. 처치 이벤트 발사
 			{
-				// 타겟에게 사망 태그가 생겼다면? (방금 내 공격으로 죽었다는 뜻!)
-				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				//  [수정됨] 방금 전까지 살아있었는데(bWasAliveBeforeHit), 방금 때리고 나니 죽었다면(State_Death)?
+				if (bWasAliveBeforeHit && TargetASC->HasMatchingGameplayTag(SPTags.State_Death))
 				{
 					FGameplayEventData RelicKillPayload;
 					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
@@ -238,38 +245,34 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 					RelicKillPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
 
 					// 프리즘이 들을 수 있게 "일반 공격 처치!" 신호 쏘기
-					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackKill, &RelicKillPayload);
+					ASC->HandleGameplayEvent(SPTags.Event_Combat_AttackKill, &RelicKillPayload);
 
 					UE_LOG(LogTemp, Warning, TEXT("일반 공격 처치 발생! 유물들에게 Kill 신호를 보냅니다."));
 				}
 			}
 		}
 		// [추가한 부분] 만약 공격 방식이 '무기 스킬(Skill)' 이라면?
-		else if (AbilityTags.HasTag(FSPGameplayTags::Get().Battle_Action_Skill))
+		else if (AbilityTags.HasTag(SPTags.Battle_Action_Skill))
 		{
 			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-			UAbilitySystemComponent* EventTargetASC = nullptr;
-			if (IsValid(TargetActor))
-			{
-				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-			}
 
-			if (ASC && EventTargetASC)
+			if (ASC && TargetASC)
 			{
-				// 타겟에게 사망 태그가 생겼다면? (방금 내 스킬로 죽었다는 뜻!)
-				if (EventTargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				//  [수정됨] 스킬 처치 판정에도 동일하게 '막타' 방어막 적용
+				if (bWasAliveBeforeHit && TargetASC->HasMatchingGameplayTag(SPTags.State_Death))
 				{
 					FGameplayEventData RelicKillPayload;
 					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
 					RelicKillPayload.Target = TargetActor;
 
 					// 피 묻은 동전이 들을 수 있게 "스킬 처치!" 신호 쏘기
-					ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_SkillKill, &RelicKillPayload);
+					ASC->HandleGameplayEvent(SPTags.Event_Combat_SkillKill, &RelicKillPayload);
 
 					UE_LOG(LogTemp, Warning, TEXT("무기 스킬 처치 발생! 유물들에게 SkillKill 신호를 보냅니다."));
 				}
 			}
 		}
+		
 
 		FHitResult HitResult;
 		AActor* AvatarActor = GetAvatarActorFromActorInfo();
@@ -290,7 +293,7 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			HitResult.HitObjectHandle = FActorInstanceHandle(TargetActor); // 맞은 놈이 얘라고 명시
 
 			// 적의 ASC에 Hit VFX(GameplayCue) 실행 명령!
-			UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 			if (TargetASC && HitVFXTag.IsValid())
 			{
 				FGameplayCueParameters CueParams;
@@ -330,7 +333,7 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 		if (ASC->HasMatchingGameplayTag(SPTags.Relic_Passive_ResonatingRune))
 		{
 			// 1~100 사이의 난수를 뽑아서 25 이하인지 확인 (25% 확률)
-			if (FMath::RandRange(1, 25) <= 100)
+			if (FMath::RandRange(1, 25) <= 25)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("✨ [유물 발동] 공명하는 룬! 이번 스킬은 쿨타임이 돌지 않습니다!"));
 				return; // 여기서 함수를 끝내버려서 아래의 쿨타임 GE가 아예 안 들어가게 만듭니다!

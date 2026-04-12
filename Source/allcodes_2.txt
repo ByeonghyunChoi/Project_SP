@@ -1,70 +1,19 @@
-﻿}
-
-void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
-{
-	Super::PossessedBy(NewController);
-
-	ASPGASPlayerState* SPGAS = GetPlayerState<ASPGASPlayerState>();
-	if (SPGAS)
-	{
-		ASC = SPGAS->GetAbilitySystemComponent();
-		AttributeSet = SPGAS->GetAttributeSet();
-		ASC->InitAbilityActorInfo(SPGAS, this);
-		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
-			.AddUObject(this, &ASPGASPlayerCharacter::OnHealthChanged);
-
-		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetTimePowerAttribute())
-			.AddUObject(this, &ASPGASPlayerCharacter::OnTimePowerChanged);
-
-		if (USPGASAttributeSet* SPAS = Cast<USPGASAttributeSet>(AttributeSet))
-		{
-			SPAS->OnDamageTakenEvent.RemoveAll(this);
-			SPAS->OnDamageTakenEvent.AddUObject(this, &ASPGASCharacterBase::BroadcastDamageText);
-		}
-		
-		GiveAbilities();
-
-		UE_LOG(LogTemp, Warning, TEXT("[Server] GAS Initialized & Abilities Given"));
-	}
-
-	if (ASC)
-	{
-		// 기본은 필드 태그
-		FGameplayTag ModeTag = FSPGameplayTags::Get().State_Mode_Field;
-
-		// 매니저에게 현재 상태 확인
-		UGameInstance* GI = GetGameInstance();
-		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
-		{
-			if (MapManager->IsInBattleMap())
-			{
-				ModeTag = FSPGameplayTags::Get().State_Mode_Battle;
-			}
-		}
-
-		// 결정된 태그 부착
+﻿		// 결정된 태그 부착
 		ASC->AddLooseGameplayTag(ModeTag);
 		UE_LOG(LogTemp, Log, TEXT("Input Mode Initialized: %s"), *ModeTag.ToString());
 	}
 
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		if (GetAbilitySystemComponent() && AttributeSet)
-		{
-			USPSaveGameSubsystem* SaveSystem = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
-			if (SaveSystem)
-			{
-				SaveSystem->RestoreRunDataToPlayer(this);
-				SaveSys->RestorePermDataToPlayer(this);
-			}
-		}
+		SaveSys->RestorePermDataToPlayer(this);
+		SaveSys->RestoreRunDataToPlayer(this);
 	}
-	SetCameraProfile(FieldCameraSetting);
 
+	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
-	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
-	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
+	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
+	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
 }
 
 
@@ -132,9 +81,10 @@ void ASPGASPlayerCharacter::OnRep_PlayerState()
 	{
 		ASC = SPGAS->GetAbilitySystemComponent();
 		AttributeSet = SPGAS->GetAttributeSet();
-
-		// 클라이언트 쪽 ASC 연결 (이게 있어야 컨트롤러가 ASC를 찾음)
 		ASC->InitAbilityActorInfo(SPGAS, this);
+
+		float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), false);
 
 		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
 	}
@@ -280,6 +230,25 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 	return nullptr;
 }
 
+void ASPGASPlayerCharacter::AddExperience(float ExpAmount)
+{
+	if (!ASC || ExpAmount <= 0.0f) return;
+
+	float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+	if (CurrentLevel >= 30.0f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("이미 만렙(Lv.30)이므로 경험치를 획득하지 않습니다."));
+		return;
+	}
+
+	float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp + ExpAmount);
+
+	UE_LOG(LogTemp, Log, TEXT("경험치 획득: +%.0f (현재 %.0f)"), ExpAmount, CurrentExp + ExpAmount);
+
+	CheckLevelUp();
+}
+
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();
@@ -375,6 +344,85 @@ void ASPGASPlayerCharacter::OnTimePowerChanged(const FOnAttributeChangeData& Dat
 		UGameInstance* GI = GetGameInstance();
 		UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr;
 		MapManager->GoToLobby();
+	}
+}
+
+void ASPGASPlayerCharacter::CheckLevelUp()
+{
+	if (!ASC || !PlayerStatCurve) return; // 커브가 없으면 레벨업 불가
+
+	float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	float MaxExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+	float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+
+	bool bDidLevelUp = false;
+
+	// 경험치가 꽉 찼다면? (한 번에 2업 이상 하는 경우를 대비해 while문 사용)
+	while (MaxExp > 0.0f && CurrentExp >= MaxExp && CurrentLevel < 30.0f)
+	{
+		CurrentExp -= MaxExp; // 경험치 초과분 이월
+		CurrentLevel += 1.0f; // 레벨 1 증가
+
+		bDidLevelUp = true;
+
+		// 갱신된 레벨의 스탯과 MaxExp를 커브에서 즉시 읽어오기!
+		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), true);
+
+		// 🌟 [추가] 방금 레벨업해서 30레벨이 되었다면? 초과분은 증발시키고 루프 강제 종료!
+		if (CurrentLevel >= 30.0f)
+		{
+			CurrentExp = 0.0f;
+			UE_LOG(LogTemp, Warning, TEXT("만렙(Lv.30) 달성! 더 이상 경험치가 오르지 않습니다."));
+			break;
+		}
+
+		// 갱신된 다음 레벨의 MaxExp를 다시 가져와서 while문 조건 재검사
+		MaxExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+	}
+
+	// 초과분을 깎은(혹은 만렙이라 0이 된) 최종 경험치 저장
+	if (bDidLevelUp)
+	{
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp);
+		OnLevelUpEffect();
+	}
+}
+
+void ASPGASPlayerCharacter::ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp)
+{
+	if (!ASC) return;
+
+	// 커브 테이블에서 스탯 뽑아오기 (무조건 실행)
+	if (PlayerStatCurve)
+	{
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute(), TargetLevel);
+
+		FString ContextString = TEXT("PlayerStatGrowth");
+
+		float RequiredExp = PlayerStatCurve->FindCurve(FName("Exp"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute(), RequiredExp);
+		float MaxHP = PlayerStatCurve->FindCurve(FName("HP"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute(), MaxHP);
+		float Attack = PlayerStatCurve->FindCurve(FName("Attack"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), Attack);
+		float Defense = PlayerStatCurve->FindCurve(FName("Defense"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), Defense);
+		float CriticalRate = PlayerStatCurve->FindCurve(FName("CriticalRate"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute(), CriticalRate);
+		float Speed = PlayerStatCurve->FindCurve(FName("Speed"), ContextString)->Eval(TargetLevel);
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), Speed);
+		
+		// 레벨업 시 체력 100% 회복
+		if (bIsLevelUp)
+		{
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), MaxHP);
+		}
+	}
+
+	// 데이터 테이블에서 보상 뽑아오기
+	if (PlayerRewardTable && bIsLevelUp)
+	{
+		// 지금은 비워 둠
 	}
 }
 // ==========================================
@@ -764,7 +812,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
 			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
 
-			CurrentSelectedAction = InputType;
+			SetCurrentSelectedAction(InputType);
 			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
 
 			StartTargetSelection();
@@ -1056,7 +1104,7 @@ bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 		}
 	}
 
-	return false;
+	return true;
 }
 
 
@@ -1108,7 +1156,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
 
 		// 행동 초기화 (다음 턴을 위해)
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 	}
 	else
 	{
@@ -1118,7 +1166,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		// 꼬임을 방지하기 위해 타겟팅 상태를 강제로 초기화
 		HighlightCurrentTarget(false);
 		bIsSelectingTarget = false;
-		CurrentSelectedAction = ESelectedActionType::None;
+		SetCurrentSelectedAction(ESelectedActionType::None);
 
 		StartTargetSelection();
 	}
@@ -1128,7 +1176,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 {
 	HighlightCurrentTarget(false);
 	bIsSelectingTarget = false;
-	CurrentSelectedAction = ESelectedActionType::None;
+	SetCurrentSelectedAction(ESelectedActionType::None);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
 }
@@ -1137,21 +1185,22 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 {
 	if (AvailableTargets.Num() == 0) return;
 
-	// 1. 🌟 [전체 공격(All)] 이라면 -> 모두를 평등하게 '주 타겟(100% 크기)'으로 켭니다!
+	// 1. [전체 공격(All)]
 	if (CurrentTargetingType == ETargetingType::All)
 	{
-		for (TWeakObjectPtr<AActor> TargetPtr : AvailableTargets)
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
 		{
-			if (TargetPtr.IsValid())
+			if (AvailableTargets[i].IsValid())
 			{
-				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetPtr.Get()))
+				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
-					Monster->SetSelectedWidget(bHighlight, true);
+					// 마커는 전부 크게(true)! 하지만 메인 전광판은 0번만(i==0)!
+					Monster->SetSelectedWidget(bHighlight, true, (i == 0));
 				}
 			}
 		}
 	}
-	// 2. 💥 [광역 공격(Area)] 이라면 -> A/D로 선택한 놈만 주 타겟(크게), 나머진 보조 타겟(작게)!
+	// 2. [광역 공격(Area)]
 	else if (CurrentTargetingType == ETargetingType::Area)
 	{
 		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
@@ -1161,19 +1210,21 @@ void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
 				if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[i].Get()))
 				{
 					bool bIsPrimary = (i == CurrentTargetIndex);
-					Monster->SetSelectedWidget(bHighlight, bIsPrimary);
+					// 내가 선택한 놈만 마커도 크게, 전광판도 띄움!
+					Monster->SetSelectedWidget(bHighlight, bIsPrimary, bIsPrimary);
 				}
 			}
 		}
 	}
-	// 3. 🎯 [단일(Single) / 랜덤(Random)] 이라면 -> 현재 인덱스 한 명만!
+	// 3. [단일 공격(Single)]
 	else
 	{
 		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 		{
 			if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(AvailableTargets[CurrentTargetIndex].Get()))
 			{
-				Monster->SetSelectedWidget(bHighlight, true);
+				// 한 놈이니까 무조건 둘 다 true!
+				Monster->SetSelectedWidget(bHighlight, true, true);
 			}
 		}
 	}
@@ -1203,3 +1254,16 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 	UE_LOG(LogTemp, Warning, TEXT("=== 2. 타겟팅 모드 통과! ==="));
 
 	// 마우스 커서 아래에 있는 물체(액터)를 쏩니다
+	FHitResult HitResult;
+	if (GetHitResultUnderCursor(ECC_GameTraceChannel2, false, HitResult))
+	{
+		AActor* ClickedActor = HitResult.GetActor();
+		if (!IsValid(ClickedActor))
+		{
+			return;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
+
+		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)

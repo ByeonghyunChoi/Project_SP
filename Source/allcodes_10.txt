@@ -1,4 +1,57 @@
 ﻿
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "SPGA_MonsterAttackBase.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGA_MonsterAttackBase : public UGameplayAbility
+{
+	GENERATED_BODY()
+
+public:
+	USPGA_MonsterAttackBase();
+
+protected:
+	// ����Ƽ ���� �� �и� �̺�Ʈ ������(WaitGameplayEvent)�� �մϴ�.
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+	// �÷��̾�� �и� ������ �� ȣ��Ǵ� �Լ�! (�������Ʈ���� ���� ����)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void OnParried();
+
+	UFUNCTION()
+	void OnParriedEventCallback(FGameplayEventData Payload);
+	
+};
+// ==========================================
+// FILE: SPGA_Parry.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "SPGA_Parry.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGA_Parry : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+	// ����� ������ ��ġ�ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckWeaponMatch(class ASPGASMonsterCharacter* TargetMonster);
+
 	// �ݰ� ������ ��� �����ϴ��� �˻�
 	UFUNCTION(BlueprintCallable, Category = "Parry")
 	bool CheckCounterConditions();
@@ -282,8 +335,8 @@ enum class EBattleState : uint8
 {
 	Ready,              // 전투 진입 및 초기화
 	DetermineNextTurn,  // 다음 턴 주인공 결정
-	ActiveTurn,         // 현재 유닛 행동 중 (입력 대기 포함)
-	ActionExecuting,    // 행동 실행 중 (몽타주 재생 등)
+	ActiveTurn,         // 현재 유닛 행동 중
+	ActionExecuting,    // 행동 실행 중
 	Victory,            // 플레이어 승리
 	Defeat              // 플레이어 패배
 };
@@ -502,10 +555,19 @@ public:
 	bool GetIsInLobby() const { return bIsInLobby; }
 
 	//Getter
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentFloor() const { return CurrentFloor; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	EMapType GetCurrentMapType() const { return CurrentMapType; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	EMapState GetCurrentRoomState() const { return CurrentRoomState; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }

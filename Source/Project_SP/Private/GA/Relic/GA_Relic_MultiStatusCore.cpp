@@ -50,6 +50,13 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
         return;
     }
 
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue > TriggerChance)
+    {
+        // 주사위 굴림 실패 (70% 확률로 여기 걸림). 효과를 주지 않고 그대로 끝냅니다!
+        return;
+    }
+
     // 2. 타겟의 ASC 가져오기 (const_cast 적용)
     AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
     UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);

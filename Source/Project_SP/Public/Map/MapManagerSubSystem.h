@@ -6,6 +6,7 @@
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
 #include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage 정의
+#include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
 
 // 데이터 테이블 구조체
@@ -79,6 +80,10 @@ public:
 	// 로드 시스템
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
+
+	// 필드 복귀 시 화면에 띄워줄 보상 대기열 (재화 종류, 수량)
+	UPROPERTY(BlueprintReadWrite, Category = "Reward")
+	TMap<EResourceType, int32> PendingToastRewards;
 
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)

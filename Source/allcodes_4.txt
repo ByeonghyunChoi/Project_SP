@@ -1,4 +1,113 @@
-﻿		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
+﻿					NewTarget = HitActor;
+				}
+				
+			}
+		}
+	}
+
+	// ���� ���� �� ó��
+	if (CurrentInteractable.Get() != NewTarget)
+	{
+		CurrentInteractable = NewTarget;
+
+		if (InteractionWidgetInstance)
+		{
+			if (NewTarget && NewTarget->Implements<UInteractableInterface>())
+			{
+				IInteractableInterface* Interface = Cast<IInteractableInterface>(NewTarget);
+				if (Interface)
+				{
+					FText ActionText = Interface->GetInteractText();
+					InteractionWidgetInstance->UpdateInteractionText(ActionText);
+				}
+
+				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+			}
+			else
+			{
+				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+			}
+		}
+	}
+}
+
+// ==========================================
+// FILE: SPStatusEffectComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Component/SPStatusEffectComponent.h"
+#include "Data/Asset/StatusEffectData.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Character/SPGASMonsterCharacter.h"
+
+// Sets default values for this component's properties
+USPStatusEffectComponent::USPStatusEffectComponent()
+{
+}
+
+void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor)
+{
+	if (!TargetActor || !StatusEffectDataAsset) return;
+
+	// 타겟의 ASC 가져오기 (인터페이스 활용)
+	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+	if (!TargetASC) return;
+
+	// 확률 체크(추후 효과 명중과 연동)
+	/*if (FMath::RandRange(0.0f, 1.0f) > 0.6f)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 부여 실패"));
+		return;
+	}*/
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+	FGameplayTag StatusToApply;
+
+	// 무기 태그 -> 상태이상 태그 변환
+	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
+		StatusToApply = SPTags.Debuff_Basic_Weathering;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
+		StatusToApply = SPTags.Debuff_Basic_Burn;
+	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
+		StatusToApply = SPTags.Debuff_Basic_Poison;
+
+	if (StatusToApply.IsValid())
+	{
+		// 이 컴포넌트의 주인이 시전자(Instigator)가 됨
+		ProcessStatusEffect(StatusToApply, TargetASC, GetOwner());
+	}
+}
+
+void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTag, UAbilitySystemComponent* TargetASC, AActor* InstigatorActor)
+{
+	if (!TargetASC || !StatusEffectDataAsset) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 풍화(Weathering)
+	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
+	{
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
+		{
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
+			return;
+		}
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
+		{
+			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
+			return;
+		}
+	}
+	// 화상(Burn)
+	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
+	{
+		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
@@ -153,7 +262,7 @@
 				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
 				if (bIsExecute)
 				{
-					SpecHandle.Data->DynamicAssetTags.AddTag(SPTags.Damage_Type_Execute);
+					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
 				}
 
 				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
@@ -335,6 +444,14 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 #include "Data/Asset/RelicDefinition.h"
 
 // ==========================================
+// FILE: SPMonsterData.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Data/Asset/SPMonsterData.h"
+
+// ==========================================
 // FILE: StatusEffectData.cpp
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -358,6 +475,13 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 
 #include "Data/CombatEncounterData.h"
 
+// ==========================================
+// FILE: RewardDataStructs.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Data/RewardDataStructs.h"
 // ==========================================
 // FILE: ShopDataStructs.cpp
 // ==========================================
@@ -1070,6 +1194,13 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
         return;
     }
 
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue > TriggerChance)
+    {
+        // 주사위 굴림 실패 (70% 확률로 여기 걸림). 효과를 주지 않고 그대로 끝냅니다!
+        return;
+    }
+
     // 2. 타겟의 ASC 가져오기 (const_cast 적용)
     AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
     UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
@@ -1136,70 +1267,3 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
 }
 // ==========================================
 // FILE: GA_Relic_OnHitStatusBase.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "GA/Relic/GA_Relic_OnHitStatusBase.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemComponent.h"
-#include "Tag/SPGameplayTags.h"
-#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
-#include "Component/SPStatusEffectComponent.h"
-
-UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
-{
-    // 패시브니까 인스턴싱 정책을 '기능별 하나'로 설정
-    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
-}
-
-void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
-{
-    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-
-    // 타격 이벤트가 발생할 때까지 무한 대기
-    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
-        this,
-        FSPGameplayTags::Get().Event_Combat_AttackHit, // 우리가 등록한 타격 태그
-        nullptr,
-        false,
-        false
-    );
-
-    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
-    WaitEventTask->ReadyForActivation();
-}
-
-void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
-{
-    Super::OnAvatarSet(ActorInfo, Spec);
-
-    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
-    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
-    {
-        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
-        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
-    }
-}
-
-void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
-{
-    // 1. 일반 공격(Battle.Action.Attack)인지 확인 (방금 우리가 추가한 그 증명서!)
-    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
-    {
-        return;
-    }
-
-    // 2. 확률 주사위 굴리기
-    float RandValue = FMath::FRandRange(0.0f, 100.0f);
-    if (RandValue <= TriggerChance)
-    {
-        AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
-        UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-
-        if (TargetASC && TargetStatusGEClass)
-        {
-            FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
-            EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
-
-            FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);

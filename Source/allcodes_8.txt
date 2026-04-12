@@ -1,98 +1,4 @@
-﻿#include "CoreMinimal.h"
-#include "GameplayEffectExecutionCalculation.h"
-#include "SPGAS_DamageCalculation.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
-{
-	GENERATED_BODY()
-public:
-	USPGAS_DamageCalculation();
-	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
-	
-};
-// ==========================================
-// FILE: MerchantNPC.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Character.h"
-#include "Blueprint/UserWidget.h"
-#include "Interface/InteractableInterface.h"
-#include "MerchantNPC.generated.h"
-
-class UShopComponent;
-
-UCLASS()
-class PROJECT_SP_API AMerchantNPC : public ACharacter, public IInteractableInterface
-{
-	GENERATED_BODY()
-
-public:
-	AMerchantNPC();
-
-	//상호작용을 실행할 때 호출
-	virtual void ExecuteInteraction(AActor* Interactor) override;
-	//UI에 표시할 상호작용 텍스트 반환
-	virtual FText GetInteractText() const override;
-
-protected:
-	// 상점 기능을 담당할 컴포넌트
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UShopComponent> ShopComp;
-
-	// 상인 이름 (예: "무기 상인", "잡화 상인") - 나중에 UI 제목으로 사용
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant Info")
-	FText MerchantName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant | UI")
-	TSubclassOf<class UUserWidget> ShopWidgetClass;
-
-	// [추가] 생성된 위젯 인스턴스를 저장 (중복 생성 방지)
-	UPROPERTY()
-	TObjectPtr<class UUserWidget> ShopWidgetInstance;
-
-protected:
-	virtual void BeginPlay() override;
-
-public:
-	// 플레이어 컨트롤러에서 호출할 함수
-	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void OpenShop(APlayerController* PlayerController);
-};
-// ==========================================
-// FILE: MonsterInfo.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "MonsterInfo.generated.h"
-
-UENUM(BlueprintType)
-enum class EEnemyRank :uint8
-{
-    Normal,
-    Epic,
-    Boss
-};
-// ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;
-/**
+﻿/**
  * 
  */
 UCLASS()
@@ -212,7 +118,7 @@ public:
 #include "CoreMinimal.h"
 #include "Character/SPGASCharacterBase.h"
 #include "Data/CombatEncounterData.h"
-#include "Character/MonsterInfo.h"
+#include "Data/Asset/SPMonsterData.h"
 #include "Components/WidgetComponent.h"
 #include "Tag/SPGameplayTags.h"
 #include "SPGASMonsterCharacter.generated.h"
@@ -235,21 +141,30 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
     TObjectPtr<UCombatEncounterData> EncounterData;
 
+    //몬스터 데이터
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+    class USPMonsterData* MonsterDataAsset;
+
+    //해당 몬스터의 현재 레벨
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
+    float CurrentLevel = 1.0f;
+
+public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
-    EEnemyRank GetEnemyRank() const { return EnemyRank; }
+    EMonsterRank GetEnemyRank() const { return MonsterDataAsset ? MonsterDataAsset->MonsterRank : EMonsterRank::Normal; }
 
     UFUNCTION(BlueprintCallable, Category = "GAS")
-    void InitializeEnemyStats(int32 NewLevel, float StatMultiplier);
+    void ApplyMonsterData();
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
-    void SetSelectedWidget(bool bSelected, bool bIsPrimary);
+    void SetSelectedWidget(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     //상태이상 태그과 남은 턴 수를 가져올 함수
     UFUNCTION(BlueprintPure, Category = "Combat | UI")
     TMap<FGameplayTag, int32> GetActiveDebuffs() const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
-    void OnTargetStateChanged(bool bSelected, bool bIsPrimary);
+    void OnTargetStateChanged(bool bSelected, bool bIsPrimaryMarker, bool bShowOnHubUI);
 
     // UI 갱신 방송 함수(상태이상)
     void BroadcastStatusUI();
@@ -260,10 +175,16 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat")
     float GetDeathMontageDuration() const;
 
-public:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
-    FGameplayTagContainer WeaknessTags;
+    UFUNCTION(BlueprintPure, Category = "Combat | Data")
+    FGameplayTagContainer GetCurrentWeaknessTags() const;
 
+    void SetWeaknessOverride(const FGameplayTagContainer& NewWeaknesses)
+    {
+        bHasWeaknessOverride = true;
+        OverriddenWeaknessTags = NewWeaknesses;
+    }
+
+public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
     FOnMonsterHPChangedDelegate OnMonsterHPChanged;
 
@@ -284,19 +205,15 @@ protected:
     void GiveDefaultAbilities();
 
 protected:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Stats")
-    EEnemyRank EnemyRank = EEnemyRank::Normal;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UWidgetComponent> TargetIndicatorWidget;
-
-    //몬스터 등급 태그
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster | Tags")
-    FGameplayTag MonsterRankTag;
 
     //몬스터 정보 위젯
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<class UWidgetComponent> StatusWidgetComponent;
+
+    bool bHasWeaknessOverride = false;
+    FGameplayTagContainer OverriddenWeaknessTags;
 
     UPROPERTY(VisibleAnywhere)
     bool bIsDead = false;
@@ -355,8 +272,25 @@ class PROJECT_SP_API ASPGASPlayerCharacter : public ASPGASCharacterBase
 
 public:
 	ASPGASPlayerCharacter();
+
 	virtual void PossessedBy(AController* NewController) override;
+
 	void ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor);
+	
+	// 전투 시작 시 호출할 전투 준비 함수
+	virtual void OnBattleStarted() override;
+	
+	//카메라 모드(전투/ 필드) 변경 함수
+	void SwitchCameraMode(bool bIsBattle);
+
+public:
+	// 스탯 상승용 커브 테이블 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
+	class UCurveTable* PlayerStatCurve;
+
+	// 레벨업 보상용 데이터 테이블(일단 지금은 비워 둠)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
+	class UDataTable* PlayerRewardTable;
 
 protected:
 	virtual void OnRep_PlayerState() override;
@@ -394,6 +328,14 @@ protected:
 	void OnHealthChanged(const struct FOnAttributeChangeData& Data);
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
+
+	void CheckLevelUp();
+
+	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
+
+	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
+	void OnLevelUpEffect();
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
@@ -421,6 +363,7 @@ public:
 	TObjectPtr<AActor> LastParriedTarget;
 
 public:
+	// Setter
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
@@ -431,8 +374,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
-	virtual void OnBattleStarted() override;
-	void SwitchCameraMode(bool bIsBattle);
+	
+public:
+	// 경험치 획득 함수
+	UFUNCTION(BlueprintCallable, Category = "Player | Growth")
+	void AddExperience(float ExpAmount);
 };
 // ==========================================
 // FILE: SPGASPlayerController.h
@@ -451,6 +397,7 @@ public:
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -598,6 +545,9 @@ protected:
 	//배틀 포인트 최대값 변경시 실행될 함수
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
 
+	// 플레이어의 행동 상태 변경을 관리할 함수
+	void SetCurrentSelectedAction(ESelectedActionType NewAction);
+
 
 public:
 	// 무기 교체 처리
@@ -665,6 +615,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnActionStateChangedDelegate OnActionStateChanged;
 
 };
 // ==========================================
@@ -1027,6 +980,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop")
 	class UDataTable* ShopDataTable;
 
+	// 유물 풀 데이터 테이블 (새로 만든 FRelicPoolRow 구조체를 사용하는 테이블)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shop")
+	class UDataTable* RelicPoolDataTable;
+
 	//  게임 중에 깎이는 진짜 재고 주머니 (실시간)
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
 	TArray<FShopItemRow> RuntimeShopItems;
@@ -1034,6 +991,26 @@ public:
 	//  재고 차감 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")
 	void ConsumeStock(FName ItemID);
+
+	//  랜덤 유물 생성 함수 (진열대에 유물 하나 만들어주는 역할)
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	FShopItemRow GenerateRandomRelic();
+
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	void ApplyRelicToPlayer(URelicDefinition* RelicAsset, AActor* TargetActor);
+
+
+	UPROPERTY(EditAnywhere, Category = "Shop")
+	UDataTable* CurrencyDataTable; // 에디터에서 재화 테이블 연결용
+
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	FShopItemRow GenerateRandomCurrency();
+
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	void GiveCurrencyToPlayer(ECurrencyType Type, int32 Amount, AActor* TargetActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Shop")
+	void ResetShopForNextLevel();
 };
 // ==========================================
 // FILE: SPInteractionComponent.h
@@ -1203,3 +1180,90 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
 	FText Description; // �ش��ϴ� ������ ��ü ����
 
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText UniqueAbilityName; // ��: "ġ��Ÿ Ưȭ"
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText UniqueAbilityDesc; // ��: "ġ��Ÿ ���ط� +20%"
+
+	// ������ �ĺ� �±� (��: Item.Oparts.CrystalSkull)
+	// ���� �� ĳ���Ϳ��� �� �±׸� �����Ͽ�, Ư�� ��ȣ�ۿ��̳� ���� �б⿡ ����մϴ�.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FGameplayTag OpartsTag;
+
+	// [GAS] ������ ���� �нú� �ɷ� (���� ��� �ο�)
+	// ��: �����ذ��� "ũ��Ƽ�� ����" �ý���
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Base Ability")
+	TSubclassOf<UGameplayAbility> BasePassiveAbility;
+
+	// [GAS] ������ �⺻ ���� (HP, ATK, SPD ��)
+	// Infinite Duration GE�� ����ϸ�, GE ������ CurveTable�� ���� ����(1~5)�� ��ġ�� ����
+	// ��: Lv1 -> HP+140, Lv5 -> HP+700
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Base Ability")
+	TSubclassOf<UGameplayEffect> BaseStatEffectClass;
+
+	// �� 5���� ��Ƽ��Ʈ ���� ����
+	// �ε��� 0: 1�ܰ� �ر�, �ε��� 4: 5�ܰ� �ر�
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Artifacts")
+	TArray<FOpartsArtifactData> Artifacts;
+
+	// ������ ��ȿ�� �˻� (������ ���Ǽ�)
+	virtual void PostLoad() override
+	{
+		Super::PostLoad();
+		// ��Ƽ��Ʈ�� �׻� 5������ �ϹǷ�, �����ϸ� ä���ְų� ���� ��� �� ����
+	}
+};
+// ==========================================
+// FILE: RelicDefinition.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayEffect.h"
+#include "RelicDefinition.generated.h"
+
+UENUM(BlueprintType)
+enum class ERelicRarity : uint8
+{
+    Normal  UMETA(DisplayName = "일반"),
+    Rare    UMETA(DisplayName = "희귀"),
+    Unique  UMETA(DisplayName = "유니크")
+};
+
+UCLASS(BlueprintType, Const)
+class PROJECT_SP_API URelicDefinition : public UDataAsset
+{
+	GENERATED_BODY()
+	
+public:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText RelicName; // 유물 이름
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	UTexture2D* Icon; // 유물 아이콘
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText Description; // 유물 설명
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Info")
+	ERelicRarity Rarity; // 유물 희귀도
+
+    //장착 시 플레이어에게 부여할 패시브 스탯/능력 이펙트
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Ability")
+    TSubclassOf<UGameplayEffect> RelicEffectClass;
+};
+// ==========================================
+// FILE: SPMonsterData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Tag/SPGameplayTags.h"

@@ -68,6 +68,10 @@ protected:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
+	// 전투 보상 데이터 테이블 (에디터에서 연결)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+	UDataTable* CombatRewardDataTable;
+	
 protected:
 	void ProcessEndOfTurn();
 

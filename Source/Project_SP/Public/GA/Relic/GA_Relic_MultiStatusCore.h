@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -19,11 +19,15 @@ public:
 
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
     virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+
+    // ì˜¤ìƒ‰ ë§ˆë ¥í•µ ë°œë™ í™•ë¥  (ê¸°ë³¸ê°’ 30%)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Relic")
+    float TriggerChance = 30.0f;
 protected:
     UFUNCTION()
     void OnHitEventReceived(FGameplayEventData Payload);
 
-    // »óÅÂÀÌ»ó ÅÂ±×¿Í ±×¿¡ ¸Â´Â GE¸¦ ¿¬°áÇÒ »çÀü(Map)
+    // ìƒíƒœì´ìƒ íƒœê·¸ì™€ ê·¸ì— ë§ëŠ” GEë¥¼ ì—°ê²°í•  ì‚¬ì „(Map)
     UPROPERTY(EditDefaultsOnly, Category = "Relic | Effect")
     TMap<FGameplayTag, TSubclassOf<class UGameplayEffect>> StatusEffectMap;
 	

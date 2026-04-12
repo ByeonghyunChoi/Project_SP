@@ -20,6 +20,8 @@
 #include "Component/SPStatusEffectComponent.h"
 #include "Character/SPGASPlayerController.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Component/InventoryComponent.h"
+#include "Data/RewardDataStructs.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -439,15 +441,58 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
 
-		// 1. 플레이어의 '전투 후 체력/스탯'을 세이브 시스템에 덮어씌워서 저장!
 		if (PlayerPawn)
 		{
+			UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+
+			if (InventoryComp && MapManager && CombatRewardDataTable)
+			{
+				// 1. Enum에서 앞에 붙는 'EMapType::'을 떼어내고 순수 이름(NormalBattle)만 가져오기
+				FString MapTypeStr = StaticEnum<EMapType>()->GetNameStringByValue((int64)MapManager->GetCurrentMapType());
+
+				// 2. 이제 "Stage1_NormalBattle" 형태로 깨끗하게 조합됩니다.
+				FString RowNameStr = FString::Printf(TEXT("Stage%d_%s"), MapManager->GetCurrentStage(), *MapTypeStr);
+
+				// 3. 테이블 검색 (이제 이름을 정확히 찾을 겁니다!)
+				FCombatRewardRow* RewardRow = CombatRewardDataTable->FindRow<FCombatRewardRow>(FName(*RowNameStr), TEXT(""));
+
+				if (RewardRow)
+				{
+					for (const FCombatRewardInfo& Reward : RewardRow->GuaranteedRewards)
+					{
+						int32 FinalAmount = FMath::RandRange(Reward.MinAmount, Reward.MaxAmount);
+						switch (Reward.ResourceType)
+						{
+						case EResourceType::Gold:
+							InventoryComp->AddMoney(FinalAmount); 
+							break;
+						case EResourceType::Sand:
+							InventoryComp->AddSand(FinalAmount);
+							break;
+						case EResourceType::IncompleteEnergy:
+							InventoryComp->AddIncompleteEnergy(FinalAmount);
+							break;
+						case EResourceType::Fragment:
+							InventoryComp->AddFragment(FinalAmount);
+							break;
+						}
+						if (MapManager)
+						{
+							// 동일한 재화가 여러 번 들어오면 수량을 합쳐줍니다.
+							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Reward.ResourceType);
+							SavedAmount += FinalAmount;
+						}
+
+						UE_LOG(LogTemp, Warning, TEXT("[전투 보상] %d 획득 완료"), FinalAmount);
+					}
+				}
+			}
+
+			// 3. 인벤토리에 들어간 재화까지 포함해서 세이브 시스템에 덮어쓰기!
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
-				// Cache(메모리 덮어쓰기)
 				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
-
-				// 안전하게 하드디스크에 한 번 구워줍니다.
 				SaveSys->SaveRunToDisk();
 			}
 		}

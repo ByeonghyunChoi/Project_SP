@@ -662,13 +662,21 @@ bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 
 			if (SpecHandle.IsValid())
 			{
-				// 🌟 [핵심] 데이터 테이블에 적혀있는 ValueAmount을 GE에 주입합니다!
-				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), ItemData.ValueAmount);
+				// 🌟 [수정된 핵심 1] 플레이어의 현재 '최대 체력(MaxHP)'을 가져옵니다.
+				float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+
+				// 🌟 [수정된 핵심 2] 데이터 테이블의 수치를 '퍼센트'로 계산합니다.
+				// (예: MaxHP 1000 * (30.0 / 100.0) = 300.0)
+				float FinalHealAmount = MaxHP * (ItemData.ValueAmount / 100.0f);
+
+				// 🌟 [수정된 핵심 3] 원래의 ValueAmount 대신, 방금 계산한 FinalHealAmount를 주입합니다!
+				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), FinalHealAmount);
 
 				// 내 몸에 약 주사!
 				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (수치: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount);
+				// 로그도 보기 좋게 변경해줍니다.
+				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (비율: %f%% / 실제 회복량: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount, FinalHealAmount);
 				return true;
 			}
 		}
