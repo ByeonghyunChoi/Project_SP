@@ -227,6 +227,7 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 		// 3. 새 타겟 하이라이트 켜기
 		HighlightCurrentTarget(true);
 		UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
+		OnTargetChanged.Broadcast(SelectedTarget);
 	}
 	else
 	{
@@ -254,8 +255,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			UE_LOG(LogTemp, Log, TEXT("이미 장착 중인 무기입니다. 입력을 무시합니다."));
 			return;
 		}
-		// 타겟팅 중에 무기를 바꾸면 타겟팅 취소
-		if (bIsSelectingTarget) CancelTargetSelection();
 
 		ProcessWeaponSwitch(InputTag);
 		return;
@@ -379,13 +378,30 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		}
 		else
 		{
-			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
-			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
+			if (bIsSelectingTarget)
+			{
+				// 🌟 1. 이미 타겟팅 중이었다면 타겟을 유지합니다!
+				HighlightCurrentTarget(false); // 잠시 기존 불빛 끄기
 
-			SetCurrentSelectedAction(InputType);
-			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
+				SetCurrentSelectedAction(InputType); // 행동 상태 변경
 
-			StartTargetSelection();
+				// (주의: CurrentTargetingType은 이 코드 직전에 이미 새 행동에 맞춰 갱신되어 있습니다!)
+				HighlightCurrentTarget(true);  // 바뀐 규칙(단일/광역)으로 불빛 다시 켜기
+
+				// 🌟 행동이 바뀌면 UI에 뜨는 예상 수치나 설명이 달라질 수 있으므로 방송을 한 번 쏴줍니다!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("행동 변경됨: %d -> 기존 타겟[%d] 유지"), (int32)InputType, CurrentTargetIndex);
+			}
+			else
+			{
+				// 🌟 2. 타겟팅 중이 아니었다면 처음부터 시작합니다. (이때만 0번으로 리셋)
+				SetCurrentSelectedAction(InputType);
+				StartTargetSelection();
+			}
 		}
 	}
 }
@@ -710,6 +726,11 @@ void ASPGASPlayerController::StartTargetSelection()
 
 	// 3. 하이라이트 ON
 	HighlightCurrentTarget(true);
+
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+	{
+		OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+	}
 }
 
 void ASPGASPlayerController::ConfirmTargetAndExecute()
@@ -727,6 +748,8 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 
 		// 행동 초기화 (다음 턴을 위해)
 		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		OnTargetChanged.Broadcast(nullptr);
 	}
 	else
 	{
@@ -749,6 +772,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 	SetCurrentSelectedAction(ESelectedActionType::None);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
+	OnTargetChanged.Broadcast(nullptr);
 }
 
 void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
@@ -873,6 +897,7 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 				HighlightCurrentTarget(true);
 
 				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+				OnTargetChanged.Broadcast(ClickedActor);
 			}
 		}
 	}
@@ -947,7 +972,7 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	if (bIsSelectingTarget)
 	{
-		CancelTargetSelection();
+		HighlightCurrentTarget(false);
 	}
 
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
@@ -955,12 +980,30 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
 
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
-
 	CurrentWeaponTag = NewWeaponTag;
-	SetCurrentSelectedAction(ESelectedActionType::None); // 무기 바뀌면 행동 리셋
+
+	if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+	{
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
+		}
+		// 바뀐 타겟팅 규칙으로 불빛을 다시 켭니다! 
+		HighlightCurrentTarget(true);
+
+		// 타겟이 갱신 브로드캐스트
+		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+		{
+			OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+		}
+	}
+	else
+	{
+		// 타겟팅 중이 아니었다면 (그냥 턴 시작하자마자 무기만 바꾼 경우) 행동 리셋
+		SetCurrentSelectedAction(ESelectedActionType::None);
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
-
 }
 
 bool ASPGASPlayerController::IsMyTurn() const

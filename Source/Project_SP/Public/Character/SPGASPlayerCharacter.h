@@ -51,6 +51,9 @@ public:
 	//카메라 모드(전투/ 필드) 변경 함수
 	void SwitchCameraMode(bool bIsBattle);
 
+	//행동을 태그로 감지할 콜백 함수
+	virtual void OnActionTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
+
 public:
 	// 스탯 상승용 커브 테이블 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")

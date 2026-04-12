@@ -74,6 +74,13 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		ASC = SPGAS->GetAbilitySystemComponent();
 		AttributeSet = SPGAS->GetAttributeSet();
 		ASC->InitAbilityActorInfo(SPGAS, this);
+
+		ASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_ActionExecuting, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerCharacter::OnActionTagChanged);
+
+		ASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Battle_TurnActive, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerCharacter::OnActionTagChanged);
+
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
 			.AddUObject(this, &ASPGASPlayerCharacter::OnHealthChanged);
 
@@ -131,8 +138,8 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
-	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
-	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
+	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
+	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
 
 
@@ -397,25 +404,54 @@ void ASPGASPlayerCharacter::SwitchCameraMode(bool bIsBattle)
 {
 	if (bIsBattle)
 	{
-		// 1. 일반 카메라 끄고, 시네 카메라 켜기
+		// 일반 카메라 끄고, 전투 카메라 켜기
 		FollowCamera->Deactivate();
 		CombatCineCamera->Activate();
 
-		// 2. 선생님이 짜두신 전투용 거리/각도(Profile) 적용
 		SetCameraProfile(CombatCameraSetting);
 
 		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 전투용 CineCamera 활성화"));
 	}
 	else
 	{
-		// 1. 시네 카메라 끄고, 일반 카메라 켜기
+		// 전투 카메라 끄고, 일반 카메라 켜기
 		CombatCineCamera->Deactivate();
 		FollowCamera->Activate();
 
-		// 2. 필드용 거리/각도(Profile) 적용
 		SetCameraProfile(FieldCameraSetting);
 
 		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 필드용 FollowCamera 활성화"));
+	}
+}
+
+void ASPGASPlayerCharacter::OnActionTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
+{
+	if (!ASC) return;
+
+	// 지금 내 턴인가?
+	bool bIsMyTurn = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+
+	// 지금 스킬을 실행 중인가?
+	bool bIsExecuting = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting);
+
+	// 내 턴이면서 행동 중이 아닐 때
+	bool bShouldShowUI = (bIsMyTurn && !bIsExecuting);
+
+	// 행동 중이 아닐 때
+	bool bShouldShowUIWeapon = !bIsExecuting;
+
+	// 위젯 켜고 끄기 적용
+	if (WeaponWidgetComponent)
+	{
+		WeaponWidgetComponent->SetVisibility(bShouldShowUIWeapon);
+	}
+	if (ActionWidgetComponent)
+	{
+		ActionWidgetComponent->SetVisibility(bShouldShowUI);
+	}
+	if (BattlePointWidgetComponent)
+	{
+		BattlePointWidgetComponent->SetVisibility(bShouldShowUI);
 	}
 }
 
