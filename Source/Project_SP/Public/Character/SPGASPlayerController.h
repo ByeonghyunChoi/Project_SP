@@ -11,7 +11,6 @@
 #include "SPGASPlayerController.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChangedDelegate, AActor*, TargetActor);
 
@@ -97,10 +96,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
 	TObjectPtr<class UInputAction> ParryAction;
 
-	// 반격 모드 토글 액션
-	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
-	TObjectPtr<class UInputAction> ToggleCounterModeAction;
-
 	//필드 용 UI
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> FieldHUDClass;
@@ -112,8 +107,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> BattleHUDClass;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<class UUserWidget> BattleHUDWidget;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | TimeMagic")
+	TObjectPtr<class UMaterialParameterCollection> TimeMagicMPC;
 
 protected:
 	// 필드 이동 처리
@@ -152,9 +150,6 @@ protected:
 	// 패링 키 클릭 시 실행 함수
 	void OnParryPressed(const FInputActionValue& Value);
 
-	// 반격 모드 토글 키 클릭 시 실행 함수
-	void OnToggleCounterModePressed(const FInputActionValue& Value);
-
 	//배틀 포인트 변경시 실행될 함수
 	void OnBattlePointChanged(const FOnAttributeChangeData& Data);
 
@@ -164,6 +159,8 @@ protected:
 	// 플레이어의 행동 상태 변경을 관리할 함수
 	void SetCurrentSelectedAction(ESelectedActionType NewAction);
 
+	// 시간 간섭 상태 변경 감지 함수
+	void OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount);
 
 public:
 	// 무기 교체 처리
@@ -210,12 +207,16 @@ public:
 	void RefreshBattlePointUI();
 
 	//턴 순서 UI를 업데이트 하는 함수
-	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
-	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns);
 
 	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")
 	bool BuyShopItem(const FShopItemRow& ItemData);
+
+	// 블루프린트에서 UI 필터를 켜고 끄는 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void ToggleTimeInterferenceUI(bool bIsActive);
 
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
@@ -228,9 +229,6 @@ private:
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnBattlePointUpdatedDelegate OnBattlePointUIUpdated;
-
-	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
-	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnActionStateChangedDelegate OnActionStateChanged;

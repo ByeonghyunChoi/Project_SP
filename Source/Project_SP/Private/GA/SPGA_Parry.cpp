@@ -59,12 +59,8 @@ bool USPGA_Parry::CheckCounterConditions()
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
 	if (!PlayerASC) return false;
 
-	// 1. 반격 모드인지 확인
-	if (!PlayerASC->HasMatchingGameplayTag(CounterModeTag))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("패링 성공: 하지만 반격 모드가 아니므로 턴만 종료합니다."));
-		return false;
-	}
+	// ❌ [삭제됨] 1. 반격 모드인지 확인하는 로직 완전 삭제! 
+	// 이제 패링에 성공하면 반격 모드와 상관없이 무조건 아래의 쿨타임 검사로 넘어갑니다.
 
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))
 	{
@@ -75,10 +71,10 @@ bool USPGA_Parry::CheckCounterConditions()
 
 			if (WeaponData && WeaponData->ParrySkillAbility)
 			{
-				// 🌟 기본 UGameplayAbility가 아니라, 선생님의 베이스 클래스로 캐스팅합니다!
+				// 기본 UGameplayAbility가 아니라, 베이스 클래스로 캐스팅합니다!
 				if (USPGA_BattleActionBase* AbilityCDO = WeaponData->ParrySkillAbility->GetDefaultObject<USPGA_BattleActionBase>())
 				{
-					// 선생님이 직접 만드신 CooldownTag 변수를 가져옵니다.
+					// CooldownTag 변수를 가져옵니다.
 					FGameplayTag TargetCooldownTag = AbilityCDO->GetCooldownTag();
 
 					// 태그가 유효하고, 내 몸(ASC)에 그 태그가 붙어있다면 쿨타임 중인 것!
@@ -92,7 +88,7 @@ bool USPGA_Parry::CheckCounterConditions()
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("반격 조건 올 클리어! 반격 턴을 획득합니다."));
+	UE_LOG(LogTemp, Warning, TEXT("패링 성공 & 쿨타임 통과! 즉시 반격 턴을 획득합니다."));
 	return true;
 }
 

@@ -297,8 +297,10 @@ void ASPCombatTurnManager::RequestInterruptTurn(AActor* Interrupter)
 		return; // 유효하지 않으면 즉시 종료
 	}
 
-	InterruptQueue.AddUnique(Interrupter);
+	InterruptQueue.Add(Interrupter);
 	UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %s 가 새치기(인터럽트) 턴을 예약했습니다!"), *Interrupter->GetName());
+
+	OnTurnOrderChanged.Broadcast();
 }
 
 AActor* ASPCombatTurnManager::PopInterruptActor()

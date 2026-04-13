@@ -31,9 +31,15 @@ public:
 
 	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
 
+	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
+	void RefreshTurnTimelineUI();
+
 	//전투 승리 시 호출할 연출 함수
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
+
+	//getter
+	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 
 protected:
 	// 블루프린트에서 BP_TurnManager를 지정해야 함
@@ -42,7 +48,7 @@ protected:
 
 	// 실제 생성된 매니저
 	UPROPERTY(BlueprintReadOnly, Category = "Battle")
-	TObjectPtr <class ASPCombatTurnManager> TurnManager;
+	TObjectPtr<class ASPCombatTurnManager> TurnManager;
 
 	// 현재 턴 주인
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
@@ -67,6 +73,9 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnParry = false;
 
 protected:
 	void ProcessEndOfTurn();

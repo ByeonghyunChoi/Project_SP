@@ -75,6 +75,9 @@ protected:
 	UFUNCTION()
 	void OnDamageEventReceived(FGameplayEventData Payload);
 
+	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
+	void ActivateTimeInterference(int32 ExtraTurns = 2);
+
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
 	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
 };
