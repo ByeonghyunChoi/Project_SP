@@ -1,4 +1,13 @@
-﻿
+﻿	USPGA_Interact();
+
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+
+};
+// ==========================================
+// FILE: SPGA_MonsterAttackBase.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -142,6 +151,10 @@ protected:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
+	// ���� ���� ������ ���̺� (�����Ϳ��� ����)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
+	UDataTable* CombatRewardDataTable;
+	
 protected:
 	void ProcessEndOfTurn();
 
@@ -502,7 +515,10 @@ enum class EMapGrade : uint8
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
 #include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage ����
+#include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMapLocationChanged, int32, NewStage, int32, NewFloor);
 
 // ������ ���̺� ����ü
 USTRUCT(BlueprintType)
@@ -549,6 +565,10 @@ public:
 	void MoveToNextFloor(EMapType SelectedType);
 	TArray<EMapType> GenerateNextFloorOptions();
 
+	// �� �ٲ�� �˸���
+	UPROPERTY(BlueprintAssignable, Category = "Map")
+	FOnMapLocationChanged OnMapLocationChanged;
+
 	bool IsInBattleMap() { return bIsBattleActive; }
 	
 	//�κ� �� �ǵ���
@@ -575,6 +595,10 @@ public:
 	// �ε� �ý���
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
+
+	// �ʵ� ���� �� ȭ�鿡 ����� ���� ��⿭ (��ȭ ����, ����)
+	UPROPERTY(BlueprintReadWrite, Category = "Reward")
+	TMap<EResourceType, int32> PendingToastRewards;
 
 protected:
 	// �κ� ���� ���۷��� (�����Ϳ��� ��� Ȯ�� �ʿ�)

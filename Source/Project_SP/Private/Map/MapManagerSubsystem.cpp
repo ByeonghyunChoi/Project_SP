@@ -60,6 +60,8 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
 
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
+
 	LoadStageLevel();
 }
 
@@ -246,6 +248,8 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 		CurrentFloor++;
 		SpawnMapActor(SelectedType);
 	}
+
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
 EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
@@ -321,6 +325,7 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 		LoadStageLevel();
 		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
 	}
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
 void UMapManagerSubsystem::GoToLobby()

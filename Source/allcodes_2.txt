@@ -1,21 +1,4 @@
-﻿		// 결정된 태그 부착
-		ASC->AddLooseGameplayTag(ModeTag);
-		UE_LOG(LogTemp, Log, TEXT("Input Mode Initialized: %s"), *ModeTag.ToString());
-	}
-
-	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveSys->RestorePermDataToPlayer(this);
-		SaveSys->RestoreRunDataToPlayer(this);
-	}
-
-	SetCameraProfile(FieldCameraSetting);
-	ReportReadyToGameMode();
-
-	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
-	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
-}
-
+﻿
 
 void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
 {
@@ -1092,13 +1075,21 @@ bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 
 			if (SpecHandle.IsValid())
 			{
-				// 🌟 [핵심] 데이터 테이블에 적혀있는 ValueAmount을 GE에 주입합니다!
-				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), ItemData.ValueAmount);
+				// 🌟 [수정된 핵심 1] 플레이어의 현재 '최대 체력(MaxHP)'을 가져옵니다.
+				float MaxHP = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+
+				// 🌟 [수정된 핵심 2] 데이터 테이블의 수치를 '퍼센트'로 계산합니다.
+				// (예: MaxHP 1000 * (30.0 / 100.0) = 300.0)
+				float FinalHealAmount = MaxHP * (ItemData.ValueAmount / 100.0f);
+
+				// 🌟 [수정된 핵심 3] 원래의 ValueAmount 대신, 방금 계산한 FinalHealAmount를 주입합니다!
+				SpecHandle.Data->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(FName("Data.HealAmount")), FinalHealAmount);
 
 				// 내 몸에 약 주사!
 				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
-				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (수치: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount);
+				// 로그도 보기 좋게 변경해줍니다.
+				UE_LOG(LogTemp, Warning, TEXT("구매 성공! %s 사용됨 (비율: %f%% / 실제 회복량: %f)"), *ItemData.DisplayName.ToString(), ItemData.ValueAmount, FinalHealAmount);
 				return true;
 			}
 		}
@@ -1267,3 +1258,29 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
 		int32 FoundIndex = INDEX_NONE;
 		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+
+		// 찾았다면? (적을 클릭한 게 맞다면)
+		if (FoundIndex != INDEX_NONE)
+		{
+			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
+			if (CurrentTargetingType == ETargetingType::All)
+			{
+				ConfirmTargetAndExecute();
+				return;
+			}
+
+			// [광역(Area) / 단일 / 랜덤] 이라면
+			if (FoundIndex == CurrentTargetIndex)
+			{
+				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+					ConfirmTargetAndExecute();

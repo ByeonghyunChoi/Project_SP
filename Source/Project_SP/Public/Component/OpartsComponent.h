@@ -122,6 +122,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
 	void LoadOpartsData(const FPlayerOpartsData& SavedData);
 
+	// [UI 전용] 다음 해금할 아티팩트의 정보(이름, 설명 등) 가져오기
+	// 해금할 게 없으면(만렙이면) false 반환
+	UFUNCTION(BlueprintPure, Category = "Oparts|UI")
+	bool GetNextArtifactData(FOpartsArtifactData& OutArtifactData) const;
+
+	// [UI 전용] 다음 아티팩트 해금에 필요한 '불완전한 기운' 비용 가져오기
+	// 해금할 게 없으면 -1 반환
+	UFUNCTION(BlueprintPure, Category = "Oparts|UI")
+	int32 GetNextArtifactUnlockCost() const;
+
 private:
 	// 내부 헬퍼: 현재 상태(레벨, 아티팩트)에 맞춰 GAS 능력/스탯 재적용
 	void ApplyOpartsStatsAndAbilities();

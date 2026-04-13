@@ -1,4 +1,30 @@
-﻿#include "ScalableFloat.h"
+﻿    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText RelicName; // 유물 이름
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	UTexture2D* Icon; // 유물 아이콘
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText Description; // 유물 설명
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Info")
+	ERelicRarity Rarity; // 유물 희귀도
+
+    //장착 시 플레이어에게 부여할 패시브 스탯/능력 이펙트
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Ability")
+    TSubclassOf<UGameplayEffect> RelicEffectClass;
+};
+// ==========================================
+// FILE: SPMonsterData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Tag/SPGameplayTags.h"
+#include "ScalableFloat.h"
 #include "SPMonsterData.generated.h"
 
 UENUM(BlueprintType)
@@ -255,7 +281,7 @@ public:
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ShopDataStructs.h"
+#include "Component/InventoryComponent.h"
 #include "RewardDataStructs.generated.h"
 
 USTRUCT(BlueprintType)
@@ -264,7 +290,7 @@ struct FCombatRewardInfo
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	ECurrencyType CurrencyType; // 아까 만든 Enum (Energy, Sand, Fragment, Gold)
+	EResourceType ResourceType; // 아까 만든 Enum (Energy, Sand, Fragment, Gold)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MinAmount = 10;
@@ -1258,12 +1284,3 @@ class PROJECT_SP_API USPGA_Interact : public UGameplayAbility
 	GENERATED_BODY()
 	
 public:
-	USPGA_Interact();
-
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-
-};
-// ==========================================
-// FILE: SPGA_MonsterAttackBase.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.

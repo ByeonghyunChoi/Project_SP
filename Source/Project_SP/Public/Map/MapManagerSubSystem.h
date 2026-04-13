@@ -9,6 +9,8 @@
 #include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMapLocationChanged, int32, NewStage, int32, NewFloor);
+
 // 데이터 테이블 구조체
 USTRUCT(BlueprintType)
 struct FMapLevelData : public FTableRowBase
@@ -53,6 +55,10 @@ public:
 	// 층 이동 로직
 	void MoveToNextFloor(EMapType SelectedType);
 	TArray<EMapType> GenerateNextFloorOptions();
+
+	// 맵 바뀐거 알림용
+	UPROPERTY(BlueprintAssignable, Category = "Map")
+	FOnMapLocationChanged OnMapLocationChanged;
 
 	bool IsInBattleMap() { return bIsBattleActive; }
 	

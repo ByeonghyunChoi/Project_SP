@@ -18,6 +18,21 @@ void URelicComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
+bool URelicComponent::CanReroll() const
+{
+	return CurrentRerollCount > 0;
+}
+
+bool URelicComponent::UseReroll()
+{
+	if (CanReroll())
+	{
+		CurrentRerollCount--;
+		return true;
+	}
+	return false;
+}
+
 bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 {
 	// 빈 값이 들어오지 않도록 검사
@@ -86,6 +101,11 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 	}
 	// 5. 장착 목록에 최종 추가
 	EquippedRelics.Add(NewRelic);
+	//  [핵심 추가됨] 유물이 장착되었으니 UI를 갱신하라고 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
 	return true;
 }
 
@@ -120,6 +140,12 @@ bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 	* 단 휙득 기록 에서는 지우지 않음 최초 휙득시 얻는 공격력 보너스는 유지 되어야 하기 때문
 	*/
 
+	//  [핵심 추가됨] 유물이 삭제(교체)되었으니 UI를 갱신하라고 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
+
 	return true;
 }
 
@@ -149,6 +175,9 @@ void URelicComponent::ResetAllRelics()
 	RelicEffectHandles.Empty();
 	EquippedRelics.Empty();
 	AcquiredHistory.Empty();
+
+	//  [추가] 런이 초기화될 때 리롤 횟수도 가득 채워줍니다!
+	CurrentRerollCount = MaxRerollCount;
 }
 
 TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
@@ -278,4 +307,10 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Relic] 세이브 로드 완료! (장착: %d개, 이력: %d개)"), EquippedRelics.Num(), AcquiredHistory.Num());
+	
+	//  [핵심 추가됨] 세이브 데이터를 불러온 직후에도 UI 갱신 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
 }

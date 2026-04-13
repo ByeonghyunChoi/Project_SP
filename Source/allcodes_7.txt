@@ -1,4 +1,32 @@
-﻿	case 11: return EMapGrade::Boss;
+﻿	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+
+	if (CurrentFloor >= 11 && CurrentStage < 3)
+	{
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
 	default: return EMapGrade::Normal;
 	}
 }
@@ -64,6 +92,7 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 		LoadStageLevel();
 		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
 	}
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
 void UMapManagerSubsystem::GoToLobby()
@@ -1255,15 +1284,3 @@ enum class EEnemyRank :uint8
     Boss
 };
 // ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;

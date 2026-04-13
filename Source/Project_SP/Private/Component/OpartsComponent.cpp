@@ -160,6 +160,44 @@ void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
 	}
 }
 
+bool UOpartsComponent::GetNextArtifactData(FOpartsArtifactData& OutArtifactData) const
+{
+	// 장착된 오파츠가 없거나, 이미 5개(최대치) 다 해금했으면 false
+	if (!RuntimeData.Definition || RuntimeData.UnlockedArtifactCount >= 5)
+	{
+		return false;
+	}
+
+	// Definition 안에 들어있는 Artifacts 배열에서 다음 번호의 데이터를 꺼내줍니다.
+	// 예: 0개 해금했으면 인덱스 0번(첫 번째) 아티팩트 정보를 줌
+	if (RuntimeData.Definition->Artifacts.IsValidIndex(RuntimeData.UnlockedArtifactCount))
+	{
+		OutArtifactData = RuntimeData.Definition->Artifacts[RuntimeData.UnlockedArtifactCount];
+		return true;
+	}
+
+	return false;
+}
+
+int32 UOpartsComponent::GetNextArtifactUnlockCost() const
+{
+	if (!RuntimeData.Definition || RuntimeData.UnlockedArtifactCount >= 5)
+	{
+		return -1; // 더 이상 해금 불가
+	}
+
+	// 기획서 기준: 1 -> 2 -> 3 -> 3 -> 4
+	int32 Costs[] = { 1, 2, 3, 3, 4 };
+	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount;
+
+	if (CurrentIndex >= 0 && CurrentIndex < 5)
+	{
+		return Costs[CurrentIndex];
+	}
+
+	return -1;
+}
+
 void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 {
 	if (!ASC || !RuntimeData.Definition) return;

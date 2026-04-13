@@ -1,4 +1,34 @@
-﻿					NewTarget = HitActor;
+﻿
+	FCollisionShape SphereShape = FCollisionShape::MakeSphere(InteractionRadius);
+
+	bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult, Start, End, FQuat::Identity,
+		ECC_Interaction, SphereShape, Params
+	);
+
+#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
+	if (bShowDebug)
+	{
+		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
+		FVector Center = (Start + End) * 0.5f;
+		float HalfHeight = (TraceDistance * 0.5f) + InteractionRadius;
+		DrawDebugCapsule(GetWorld(), Center, HalfHeight, InteractionRadius,
+			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
+	}
+#endif
+
+	AActor* NewTarget = nullptr;
+	if (bHit)
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor && HitActor->Implements<UInteractableInterface>())
+		{
+			IInteractableInterface* Interface = Cast<IInteractableInterface>(HitActor);
+			if (Interface)
+			{
+				if (Interface->CanInteract(Cast<APawn>(GetOwner())))
+				{
+					NewTarget = HitActor;
 				}
 				
 			}
@@ -1254,16 +1284,3 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
             // [2] 몬스터 몸에서 '전광판 매니저'를 찾습니다.
             USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
 
-            if (TargetStatusComp)
-            {
-                // [3] 매니저에게 "방금 이 태그(TagToApply) 걸었어!" 라고 보고합니다.
-                // (이 함수가 호출되면 성민님이 짜두신 로직에 의해 UI 아이콘이 예쁘게 뜰 겁니다)
-                TargetStatusComp->ProcessStatusEffect(TagToApply, TargetASC, GetAvatarActorFromActorInfo());
-            }
-
-            UE_LOG(LogTemp, Log, TEXT("오색 마력핵 발동! 적에게 [%s] 부여 및 매니저 등록 완료!"), *TagToApply.ToString());
-        }
-    }
-}
-// ==========================================
-// FILE: GA_Relic_OnHitStatusBase.cpp

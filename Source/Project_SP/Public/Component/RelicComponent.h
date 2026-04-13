@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -9,6 +9,7 @@
 #include "Data/SPDataStructs.h"
 #include "RelicComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRelicUpdatedDelegate);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API URelicComponent : public UActorComponent
@@ -22,43 +23,63 @@ protected:
     virtual void BeginPlay() override;
 
 public:
-    // ÃÖ´ë ÀåÂø °¡´É °³¼ö
+    // ê¸°ë³¸ ì œê³µë˜ëŠ” ìµœëŒ€ ë¦¬ë¡¤ íšŸìˆ˜ (BPì—ì„œ ìˆ˜ì • ê°€ëŠ¥)
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Relic|Reroll")
+    int32 MaxRerollCount = 3;
+
+    // í˜„ì¬ ë‚¨ì€ ë¦¬ë¡¤ íšŸìˆ˜
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Relic|Reroll")
+    int32 CurrentRerollCount = 3;
+
+    // ë¦¬ë¡¤ì´ ê°€ëŠ¥í•œì§€ í™•ì¸
+    UFUNCTION(BlueprintPure, Category = "Relic|Reroll")
+    bool CanReroll() const;
+
+    // ë¦¬ë¡¤ íšŸìˆ˜ë¥¼ 1 ì°¨ê° (ì„±ê³µí•˜ë©´ true ë°˜í™˜)
+    UFUNCTION(BlueprintCallable, Category = "Relic|Reroll")
+    bool UseReroll();
+
+    // [ì¶”ê°€ë¨] ìœ ë¬¼ ìƒíƒœê°€ ë³€í•  ë•Œ(íšë“/ì‚­ì œ/ë¡œë“œ) í˜¸ì¶œë  ì´ë²¤íŠ¸ ë³€ìˆ˜
+    UPROPERTY(BlueprintAssignable, Category = "Relic")
+    FOnRelicUpdatedDelegate OnRelicUpdated;
+
+    // ìµœëŒ€ ì¥ì°© ê°€ëŠ¥ ê°œìˆ˜
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Relic")
     int32 MaxRelicCount = 6;
 
-    // ÇöÀç ÀåÂø ÁßÀÎ À¯¹° ¸ñ·Ï
+    // í˜„ì¬ ì¥ì°© ì¤‘ì¸ ìœ ë¬¼ ëª©ë¡
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Relic")
     TArray<TObjectPtr<const URelicDefinition>> EquippedRelics;
 
-    // À¯¹°ÀÌ ºÎ¿©ÇÑ °íÀ¯ GE ÇÚµé °ü¸® (ÃÊ±âÈ­ ½Ã Áö¿ì±â À§ÇÔ)
+    // ìœ ë¬¼ì´ ë¶€ì—¬í•œ ê³ ìœ  GE í•¸ë“¤ ê´€ë¦¬ (ì´ˆê¸°í™” ì‹œ ì§€ìš°ê¸° ìœ„í•¨)
     TArray<FActiveGameplayEffectHandle> RelicEffectHandles;
 
-    // È¹µæ ½Ã µî±Şº° °ø°İ·Â º¸³Ê½º¸¦ ÁÖ±â À§ÇÑ GE Å¬·¡½º
+    // íšë“ ì‹œ ë“±ê¸‰ë³„ ê³µê²©ë ¥ ë³´ë„ˆìŠ¤ë¥¼ ì£¼ê¸° ìœ„í•œ GE í´ë˜ìŠ¤
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Relic|Bonus")
     TSubclassOf<UGameplayEffect> RarityAttackBonusEffectClass;
 
-    // "ÀÌ¹ø È¸Â÷"ÀÇ À¯¹° È¹µæ ±â·Ï (Áßº¹ º¸³Ê½º ¹æÁö¿ë)
+    // "ì´ë²ˆ íšŒì°¨"ì˜ ìœ ë¬¼ íšë“ ê¸°ë¡ (ì¤‘ë³µ ë³´ë„ˆìŠ¤ ë°©ì§€ìš©)
     UPROPERTY(VisibleAnywhere, Category = "Relic")
     TArray<TObjectPtr<const URelicDefinition>> AcquiredHistory;
 
-	///////////////// À¯¹° °ü¸® ÇÔ¼öµé /////////////////
-    // 1. À¯¹° ÀåÂø
+	///////////////// ìœ ë¬¼ ê´€ë¦¬ í•¨ìˆ˜ë“¤ /////////////////
+    // 1. ìœ ë¬¼ ì¥ì°©
     UFUNCTION(BlueprintCallable, Category = "Relic")
     bool AddRelic(const URelicDefinition* NewRelic);
 
-    // 2. À¯¹° ÇØÁ¦(¹ö¸®±â)
+    // 2. ìœ ë¬¼ í•´ì œ(ë²„ë¦¬ê¸°)
     UFUNCTION(BlueprintCallable, Category = "Relic")
     bool RemoveRelicAtIndex(int32 SlotIndex);
 
-    // 3. È¸Â÷ Á¾·á ½Ã ¸ğµç À¯¹° ¹× ½ºÅÈ º¸³Ê½º ÃÊ±âÈ­
+    // 3. íšŒì°¨ ì¢…ë£Œ ì‹œ ëª¨ë“  ìœ ë¬¼ ë° ìŠ¤íƒ¯ ë³´ë„ˆìŠ¤ ì´ˆê¸°í™”
     UFUNCTION(BlueprintCallable, Category = "Relic")
     void ResetAllRelics();
 
-    // 4. ½ºÅ×ÀÌÁö¿Í ÀüÃ¼ À¯¹° ¸ñ·ÏÀ» ¹Ş¾Æ, 3°³ÀÇ À¯¹°À» »Ì¾ÆÁÖ´Â ÇÔ¼ö
+    // 4. ìŠ¤í…Œì´ì§€ì™€ ì „ì²´ ìœ ë¬¼ ëª©ë¡ì„ ë°›ì•„, 3ê°œì˜ ìœ ë¬¼ì„ ë½‘ì•„ì£¼ëŠ” í•¨ìˆ˜
     UFUNCTION(BlueprintCallable, Category = "Relic")
     TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool);
 
-    //¼¼ÀÌºê ½Ã½ºÅÛ¿¡¼­ È£ÃâÇÒ ·Îµå Àü¿ë ÇÔ¼ö
+    //ì„¸ì´ë¸Œ ì‹œìŠ¤í…œì—ì„œ í˜¸ì¶œí•  ë¡œë“œ ì „ìš© í•¨ìˆ˜
     UFUNCTION(BlueprintCallable, Category = "Relic")
     void LoadRelicData(const FPlayerRelicData& SavedRelicData);
 };

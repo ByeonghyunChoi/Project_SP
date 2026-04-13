@@ -1,30 +1,4 @@
-﻿		{
-			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
-			{
-				FoundIndex = i;
-				break;
-			}
-		}
-
-		// 찾았다면? (적을 클릭한 게 맞다면)
-		if (FoundIndex != INDEX_NONE)
-		{
-			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
-			if (CurrentTargetingType == ETargetingType::All)
-			{
-				ConfirmTargetAndExecute();
-				return;
-			}
-
-			// [광역(Area) / 단일 / 랜덤] 이라면
-			if (FoundIndex == CurrentTargetIndex)
-			{
-				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
-				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-				{
-					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
-					ConfirmTargetAndExecute();
-				}
+﻿				}
 			}
 			else
 			{
@@ -494,6 +468,44 @@ void UOpartsComponent::LoadOpartsData(const FPlayerOpartsData& SavedData)
 	}
 }
 
+bool UOpartsComponent::GetNextArtifactData(FOpartsArtifactData& OutArtifactData) const
+{
+	// 장착된 오파츠가 없거나, 이미 5개(최대치) 다 해금했으면 false
+	if (!RuntimeData.Definition || RuntimeData.UnlockedArtifactCount >= 5)
+	{
+		return false;
+	}
+
+	// Definition 안에 들어있는 Artifacts 배열에서 다음 번호의 데이터를 꺼내줍니다.
+	// 예: 0개 해금했으면 인덱스 0번(첫 번째) 아티팩트 정보를 줌
+	if (RuntimeData.Definition->Artifacts.IsValidIndex(RuntimeData.UnlockedArtifactCount))
+	{
+		OutArtifactData = RuntimeData.Definition->Artifacts[RuntimeData.UnlockedArtifactCount];
+		return true;
+	}
+
+	return false;
+}
+
+int32 UOpartsComponent::GetNextArtifactUnlockCost() const
+{
+	if (!RuntimeData.Definition || RuntimeData.UnlockedArtifactCount >= 5)
+	{
+		return -1; // 더 이상 해금 불가
+	}
+
+	// 기획서 기준: 1 -> 2 -> 3 -> 3 -> 4
+	int32 Costs[] = { 1, 2, 3, 3, 4 };
+	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount;
+
+	if (CurrentIndex >= 0 && CurrentIndex < 5)
+	{
+		return Costs[CurrentIndex];
+	}
+
+	return -1;
+}
+
 void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 {
 	if (!ASC || !RuntimeData.Definition) return;
@@ -688,6 +700,21 @@ void URelicComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
+bool URelicComponent::CanReroll() const
+{
+	return CurrentRerollCount > 0;
+}
+
+bool URelicComponent::UseReroll()
+{
+	if (CanReroll())
+	{
+		CurrentRerollCount--;
+		return true;
+	}
+	return false;
+}
+
 bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 {
 	// 빈 값이 들어오지 않도록 검사
@@ -756,6 +783,11 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 	}
 	// 5. 장착 목록에 최종 추가
 	EquippedRelics.Add(NewRelic);
+	//  [핵심 추가됨] 유물이 장착되었으니 UI를 갱신하라고 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
 	return true;
 }
 
@@ -790,6 +822,12 @@ bool URelicComponent::RemoveRelicAtIndex(int32 SlotIndex)
 	* 단 휙득 기록 에서는 지우지 않음 최초 휙득시 얻는 공격력 보너스는 유지 되어야 하기 때문
 	*/
 
+	//  [핵심 추가됨] 유물이 삭제(교체)되었으니 UI를 갱신하라고 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
+
 	return true;
 }
 
@@ -819,6 +857,9 @@ void URelicComponent::ResetAllRelics()
 	RelicEffectHandles.Empty();
 	EquippedRelics.Empty();
 	AcquiredHistory.Empty();
+
+	//  [추가] 런이 초기화될 때 리롤 횟수도 가득 채워줍니다!
+	CurrentRerollCount = MaxRerollCount;
 }
 
 TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
@@ -948,6 +989,12 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Relic] 세이브 로드 완료! (장착: %d개, 이력: %d개)"), EquippedRelics.Num(), AcquiredHistory.Num());
+	
+	//  [핵심 추가됨] 세이브 데이터를 불러온 직후에도 UI 갱신 방송을 쏩니다!
+	if (OnRelicUpdated.IsBound())
+	{
+		OnRelicUpdated.Broadcast();
+	}
 }
 // ==========================================
 // FILE: ShopComponent.cpp
@@ -1237,33 +1284,3 @@ void USPInteractionComponent::PerformTrace()
 	FHitResult HitResult;
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(Owner); 
-
-	FCollisionShape SphereShape = FCollisionShape::MakeSphere(InteractionRadius);
-
-	bool bHit = GetWorld()->SweepSingleByChannel(
-		HitResult, Start, End, FQuat::Identity,
-		ECC_Interaction, SphereShape, Params
-	);
-
-#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-	if (bShowDebug)
-	{
-		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
-		FVector Center = (Start + End) * 0.5f;
-		float HalfHeight = (TraceDistance * 0.5f) + InteractionRadius;
-		DrawDebugCapsule(GetWorld(), Center, HalfHeight, InteractionRadius,
-			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
-	}
-#endif
-
-	AActor* NewTarget = nullptr;
-	if (bHit)
-	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor && HitActor->Implements<UInteractableInterface>())
-		{
-			IInteractableInterface* Interface = Cast<IInteractableInterface>(HitActor);
-			if (Interface)
-			{
-				if (Interface->CanInteract(Cast<APawn>(GetOwner())))
-				{

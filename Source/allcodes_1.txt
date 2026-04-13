@@ -1267,3 +1267,20 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 			}
 		}
 
+		// 결정된 태그 부착
+		ASC->AddLooseGameplayTag(ModeTag);
+		UE_LOG(LogTemp, Log, TEXT("Input Mode Initialized: %s"), *ModeTag.ToString());
+	}
+
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->RestorePermDataToPlayer(this);
+		SaveSys->RestoreRunDataToPlayer(this);
+	}
+
+	SetCameraProfile(FieldCameraSetting);
+	ReportReadyToGameMode();
+
+	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
+	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
+}
