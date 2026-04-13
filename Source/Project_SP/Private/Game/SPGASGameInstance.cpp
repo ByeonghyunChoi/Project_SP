@@ -2,10 +2,32 @@
 
 
 #include "Game/SPGASGameInstance.h"
+#include "GameFramework/GameUserSettings.h"
 
 USPGASGameInstance::USPGASGameInstance()
 {
 	bIsReturnFromGame = false;
+}
+
+void USPGASGameInstance::Init()
+{
+    Super::Init();
+
+    if (GEngine != nullptr)
+    {
+        UGameUserSettings* UserSettings = GEngine->GetGameUserSettings();
+
+        if (UserSettings != nullptr)
+        {
+            // 전체 퀄리티 레벨을 '중간(Medium)'으로 고정합니다.
+            // (0 = Low, 1 = Medium, 2 = High, 3 = Epic, 4 = Cinematic)
+            UserSettings->SetOverallScalabilityLevel(1);
+
+            // 변경된 설정을 시스템에 적용하고 저장합니다.
+            // bCheckForCommandLineOverrides 파라미터를 true로 주면 명령줄 인수로 들어온 세팅을 무시하지 않습니다.
+            UserSettings->ApplySettings(true);
+        }
+    }
 }
 
 void USPGASGameInstance::SetbIsReturnFromGame(bool IsReturn)

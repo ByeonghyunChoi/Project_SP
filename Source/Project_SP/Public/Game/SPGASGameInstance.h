@@ -16,6 +16,7 @@ class PROJECT_SP_API USPGASGameInstance : public UGameInstance
 
 public:
 	USPGASGameInstance();
+	virtual void Init() override;
 
 private:
 	bool bIsReturnFromGame;
