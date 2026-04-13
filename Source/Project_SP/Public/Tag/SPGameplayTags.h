@@ -28,6 +28,7 @@ public:
 	FGameplayTag State_ParryWindow;
 	FGameplayTag State_CounterMode;
 	FGameplayTag State_AutoCounterReady;
+	FGameplayTag State_ActionExecuting;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;

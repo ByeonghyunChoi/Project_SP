@@ -11,6 +11,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRelicUpdatedDelegate);
 
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API URelicComponent : public UActorComponent
 {
@@ -82,4 +83,5 @@ public:
     //세이브 시스템에서 호출할 로드 전용 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
     void LoadRelicData(const FPlayerRelicData& SavedRelicData);
+
 };

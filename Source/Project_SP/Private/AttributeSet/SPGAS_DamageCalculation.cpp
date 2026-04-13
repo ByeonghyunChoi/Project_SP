@@ -140,7 +140,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 		// 방어력 계수
 		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
-		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 500.0f);
 		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		//레벨 계수
@@ -210,7 +210,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 		// 방어력 계수
 		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
-		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 500.0f);
 		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		// 약점 계수

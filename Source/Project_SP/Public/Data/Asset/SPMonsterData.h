@@ -38,6 +38,24 @@ struct FMonsterBaseStats
 	FScalableFloat Speed;
 };
 
+USTRUCT(BlueprintType)
+struct FMonsterSkillUIInfo
+{
+	GENERATED_BODY()
+
+	// 스킬 이름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillName;
+
+	// 스킬 종류 (텍스트로 바로 입력. 예: "일반 공격", "스킬", "필살기")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillType;
+
+	// 스킬 내용 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI", meta = (MultiLine = true))
+	FText SkillDescription;
+};
+
 UCLASS()
 class PROJECT_SP_API USPMonsterData : public UPrimaryDataAsset
 {
@@ -67,6 +85,10 @@ public:
 	// 몬스터 약점
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
 	FGameplayTagContainer WeaknessTags;
+
+	// 몬스터가 보유한 스킬 리스트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
+	TArray<FMonsterSkillUIInfo> SkillList;
 
 	/// <몬스터가 플레이어에게 줄 기본 보상>
 

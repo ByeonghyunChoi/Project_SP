@@ -13,6 +13,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChangedDelegate, AActor*, TargetActor);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -233,5 +234,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnActionStateChangedDelegate OnActionStateChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnTargetChangedDelegate OnTargetChanged;
 
 };

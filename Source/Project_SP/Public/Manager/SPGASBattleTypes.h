@@ -36,3 +36,45 @@ enum class ETargetingType : uint8
 	Random      UMETA(DisplayName = "랜덤")         // 랜덤 (화살표 1개)
 };
 
+
+// 순수 UI 정보
+USTRUCT(BlueprintType)
+struct FEffectUIData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	FText DisplayName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSoftObjectPtr<UTexture2D> Icon;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI", meta = (MultiLine = true))
+	FText Description;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	bool bIsBuff = false; // true면 버프(파란 테두리 등), false면 디버프(빨간 테두리)
+};
+
+// 최종적으로 전달될 UI 정보
+USTRUCT(BlueprintType)
+struct FUIStatusEffectData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	FText StatusDisplayName;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	TSoftObjectPtr<UTexture2D> StatusIcon;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (MultiLine = true))
+	FText StatusDescription;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	bool bIsBuff = false;
+
+	// ASC에서 실시간으로 빼온 남은 턴 수
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	int32 RemainingTurns = 0;
+};

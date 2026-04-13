@@ -196,6 +196,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 					DotSpec.Data->DynamicGrantedTags.AddTag(IncomingStatusTag);
 					InstigatorASC->ApplyGameplayEffectSpecToTarget(*DotSpec.Data.Get(), TargetASC);
 				}
+
 			}
 			else
 			{
@@ -355,16 +356,6 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 
 			// 스택(턴)을 1 깎습니다.
 			OwnerASC->RemoveActiveGameplayEffect(Handle, 1);
-
-			// 🌟 [로그 수정된 부분] 어떤 녀석이 지워지고 남았는지 StatusName을 함께 출력!
-			if (CurrentStack - 1 <= 0)
-			{
-				UE_LOG(LogTemp, Log, TEXT("[%s] %s 종료됨!"), *GetOwner()->GetName(), *StatusName);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("[%s] %s 남은 턴: %d"), *GetOwner()->GetName(), *StatusName, CurrentStack - 1);
-			}
 		}
 	}
 
