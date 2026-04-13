@@ -15,6 +15,7 @@ class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySys
 
 public:
     ASPGASCharacterBase();
+    virtual void BeginPlay() override;
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
     virtual void BroadcastDamageText(float DamageAmount, bool bIsCritical);
 
@@ -76,4 +77,8 @@ public:
     void CancelAbilitiesWithTag(FGameplayTagContainer WithTags);
 
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
+
+protected:
+    virtual void OnSpeedChanged(const struct FOnAttributeChangeData& Data);
+    virtual void OnActionGaugeChanged(const struct FOnAttributeChangeData& Data);
 };

@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMaterialLibrary.h"
 #include "Character/SPGASPlayerState.h"
 #include "Character/SPGASPlayerCharacter.h"  
 #include "Character/SPGASMonsterCharacter.h" 
@@ -120,12 +121,6 @@ void ASPGASPlayerController::SetupInputComponent()
 		{
 			EIC->BindAction(ParryAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnParryPressed);
 		}
-
-		// 반격 모드 토글 바인딩
-		if (ToggleCounterModeAction)
-		{
-			EIC->BindAction(ToggleCounterModeAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnToggleCounterModePressed);
-		}
 	}
 }
 
@@ -153,6 +148,7 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 	{
 		// 전투 태그
 		FGameplayTag BattleTag = FSPGameplayTags::Get().State_Mode_Battle;
+		FGameplayTag TimeInterferenceTag = FSPGameplayTags::Get().State_TimeInterference;
 
 		// 이벤트 등록 (앞으로의 변화를 감지하기 위해 등록)
 		CachedASC->RegisterGameplayTagEvent(BattleTag, EGameplayTagEventType::NewOrRemoved)
@@ -161,6 +157,8 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnBattlePointChanged);
 		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxBattlePointAttribute())
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
+		CachedASC->RegisterGameplayTagEvent(TimeInterferenceTag, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerController::OnTimeInterferenceTagChanged);
 		
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
@@ -628,10 +626,6 @@ void ASPGASPlayerController::RefreshBattlePointUI()
 	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
 }
 
-void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
-{
-	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
-}
 
 bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 {
@@ -930,25 +924,6 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
 }
 
-void ASPGASPlayerController::OnToggleCounterModePressed(const FInputActionValue& Value)
-{
-	if (!CachedASC) return;
-
-	// 아까 추가하신 태그 사전을 통해 반격 모드 태그를 가져옵니다.
-	FGameplayTag CounterModeTag = FSPGameplayTags::Get().State_CounterMode;
-
-	// 토글 로직: 태그가 있으면 빼고, 없으면 넣습니다!
-	if (CachedASC->HasMatchingGameplayTag(CounterModeTag))
-	{
-		CachedASC->RemoveLooseGameplayTag(CounterModeTag);
-		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [OFF]"));
-	}
-	else
-	{
-		CachedASC->AddLooseGameplayTag(CounterModeTag);
-		UE_LOG(LogTemp, Warning, TEXT("반격 모드 [ON]"));
-	}
-}
 
 void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
 {
@@ -967,6 +942,59 @@ void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAct
 		CurrentSelectedAction = NewAction;
 		OnActionStateChanged.Broadcast(CurrentSelectedAction);
 		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+	}
+}
+
+void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	if (NewCount > 0)
+	{
+		//  [시간 간섭 ON ]
+		TArray<AActor*> Enemies;
+		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
+
+		for (AActor* Enemy : Enemies)
+		{
+			if (IsValid(Enemy))
+			{
+				Enemy->CustomTimeDilation = 0.05f;
+			}
+		}
+
+		if (TimeMagicMPC)
+		{
+			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 0.05f);
+		}
+
+
+		ToggleTimeInterferenceUI(true);
+
+		UE_LOG(LogTemp, Warning, TEXT("적들의 시간이 느려집니다!"));
+	}
+	else
+	{
+		//  [시간 간섭 OFF ]
+
+		TArray<AActor*> Enemies;
+		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
+		for (AActor* Enemy : Enemies)
+		{
+			if (IsValid(Enemy))
+			{
+				Enemy->CustomTimeDilation = 1.0f;
+			}
+		}
+
+		if (TimeMagicMPC)
+		{
+			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 1.0f);
+		}
+
+		ToggleTimeInterferenceUI(false);
+
+		UE_LOG(LogTemp, Warning, TEXT("시간이 다시 정상적으로 흐릅니다."));
 	}
 }
 

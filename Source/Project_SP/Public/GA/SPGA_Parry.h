@@ -28,10 +28,6 @@ public:
 	void SendParriedEventToMonster(AActor* TargetMonster);
 
 protected:
-	// 반격 모드인지 확인하는 태그
-	UPROPERTY(EditDefaultsOnly, Category = "Parry")
-	FGameplayTag CounterModeTag;
-
 	// 실제로 나갈 반격 스킬(GA)의 태그 (쿨타임 검사용)
 	UPROPERTY(EditDefaultsOnly, Category = "Parry")
 	FGameplayTag CounterSkillTag;

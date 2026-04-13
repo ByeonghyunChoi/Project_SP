@@ -31,28 +31,34 @@ public:
 
 	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
 
-	//ÀüÅõ ½Â¸® ½Ã È£ÃâÇÒ ¿¬Ãâ ÇÔ¼ö
+	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
+	void RefreshTurnTimelineUI();
+
+	//ï¿½ï¿½ï¿½ï¿½ ï¿½Â¸ï¿½ ï¿½ï¿½ È£ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ô¼ï¿½
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
 
+	//getter
+	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
+
 protected:
-	// ºí·çÇÁ¸°Æ®¿¡¼­ BP_TurnManager¸¦ ÁöÁ¤ÇØ¾ß ÇÔ
+	// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ï¿½ï¿½ BP_TurnManagerï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ø¾ï¿½ ï¿½ï¿½
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
 
-	// ½ÇÁ¦ »ý¼ºµÈ ¸Å´ÏÀú
+	// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Å´ï¿½ï¿½ï¿½
 	UPROPERTY(BlueprintReadOnly, Category = "Battle")
-	TObjectPtr <class ASPCombatTurnManager> TurnManager;
+	TObjectPtr<class ASPCombatTurnManager> TurnManager;
 
-	// ÇöÀç ÅÏ ÁÖÀÎ
+	// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
 	TObjectPtr<AActor> CurrentTurnActor;
 
-	// ÀüÅõ Âü°¡ÀÚ ¸ñ·Ï
+	// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 	UPROPERTY()
 	TArray<AActor*> AllParticipants;
 
-	//ÀüÅõ ÁØºñ ¿Ï·áµÈ Âü°¡ÀÚ ¸ñ·Ï 
+	//ï¿½ï¿½ï¿½ï¿½ ï¿½Øºï¿½ ï¿½Ï·ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ 
 	UPROPERTY()
 	TSet<AActor*> ReadyParticipants;
 
@@ -61,17 +67,20 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
 	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
 
-	//ÀüÅõ ÀüÃ¼ Âü¿© ¼ö
+	//ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
 	int32 TotalExpectedParticipants = 0;
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
-	// ÀüÅõ º¸»ó µ¥ÀÌÅÍ Å×ÀÌºí (¿¡µðÅÍ¿¡¼­ ¿¬°á)
+	// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ìºï¿½ (ï¿½ï¿½ï¿½ï¿½ï¿½Í¿ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
 	UDataTable* CombatRewardDataTable;
 	
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnParry = false;
+
 protected:
 	void ProcessEndOfTurn();
 
@@ -84,7 +93,7 @@ private:
 
 	void CheckAndStartBattle();
 
-	//µ¥ÀÌÅÍ ¿¬µ¿ ÇÔ¼ö
+	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ô¼ï¿½
 	void ApplyPlayerSavedData();
 
 };

@@ -6,6 +6,7 @@
 #include "Tag/SPGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
+#include "Manager/SPCombatTurnManager.h"
 
 
 
@@ -14,6 +15,20 @@ ASPGASCharacterBase::ASPGASCharacterBase()
     ASC = nullptr;
     AttributeSet = nullptr;
 	StatusEffectComponent = CreateDefaultSubobject<USPStatusEffectComponent>(TEXT("StatusEffectComponent"));
+}
+
+void ASPGASCharacterBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (ASC)
+	{
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetSpeedAttribute())
+			.AddUObject(this, &ASPGASCharacterBase::OnSpeedChanged);
+
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetActionGaugeAttribute())
+			.AddUObject(this, &ASPGASCharacterBase::OnActionGaugeChanged);
+	}
 }
 
 UAbilitySystemComponent* ASPGASCharacterBase::GetAbilitySystemComponent() const
@@ -112,5 +127,27 @@ void ASPGASCharacterBase::CancelAbilitiesWithTag(FGameplayTagContainer WithTags)
 	if (ASC)
 	{
 		ASC->CancelAbilities(&WithTags, nullptr, nullptr);
+	}
+}
+
+void ASPGASCharacterBase::OnSpeedChanged(const FOnAttributeChangeData& Data)
+{
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		if (ASPCombatTurnManager* TM = GM->GetTurnManager())
+		{
+			TM->OnTurnOrderChanged.Broadcast();
+		}
+	}
+}
+
+void ASPGASCharacterBase::OnActionGaugeChanged(const FOnAttributeChangeData& Data)
+{
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		if (ASPCombatTurnManager* TM = GM->GetTurnManager())
+		{
+			TM->OnTurnOrderChanged.Broadcast();
+		}
 	}
 }

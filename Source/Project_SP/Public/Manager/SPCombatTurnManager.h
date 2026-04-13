@@ -9,6 +9,9 @@
 /**
  * 
  */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnOrderChangedDelegate);
+
+
 UCLASS(Blueprintable)
 class PROJECT_SP_API ASPCombatTurnManager : public AInfo
 {
@@ -37,7 +40,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
 	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
 
-	//패링 사용시 자동으로 발동할 턴(붕스 필살기 느낌)
+	// VIP 턴 요구 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
 	void RequestInterruptTurn(AActor* Interrupter);
 
@@ -46,6 +49,9 @@ public:
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
+
+	UFUNCTION(BlueprintPure, Category = "TurnManager | Interrupt")
+	FORCEINLINE TArray<AActor*> GetInterruptQueue() const { return InterruptQueue; }
 
 public:
 	static constexpr float MaxActionGauge = 100.0f;
@@ -62,6 +68,10 @@ private:
 	// 행동 게이지를 무시하고 우선적으로 턴을 받는 대기열
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager | Interrupt")
 	TArray<AActor*> InterruptQueue;
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "TurnManager | Event")
+	FOnTurnOrderChangedDelegate OnTurnOrderChanged;
 
 	
 };

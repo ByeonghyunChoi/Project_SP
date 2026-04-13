@@ -9,6 +9,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Manager/SPCombatTurnManager.h"
 
 USPGA_BattleActionBase::USPGA_BattleActionBase()
 {
@@ -102,45 +103,21 @@ bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (!ASC) return false;
 
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+	FGameplayTag TimeInterferenceTag = FSPGameplayTags::Get().State_TimeInterference;
 
-	// 우리가 에디터에서 만든 시간 간섭 태그
-	FGameplayTag TimeInterferenceTag = SPTags.State_TimeInterference;
-
-	// 1. 내 몸에 시간 간섭 태그가 있는지 확인!
 	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
 	{
-		// 2. 이 태그를 부여하고 있는 바구니(Active Effect)를 찾습니다.
 		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
 		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
 
 		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
 		{
-			// 현재 몇 스택이 남았는지 확인
-			int32 CurrentStacks = ASC->GetCurrentStackCount(Handle);
-			if (CurrentStacks > 0)
-			{
-				// 3. 스택을 1개만 깎습니다! (GAS 내장 함수)
-				ASC->RemoveActiveGameplayEffect(Handle, 1);
-
-				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 스택 소모! 남은 횟수: %d"), CurrentStacks - 1);
-
-				// 4. 스택을 깎았는데도 아직 남았다면? -> "턴 넘기지 마!"(true) 반환
-				if (CurrentStacks - 1 > 0)
-				{
-					return true;
-				}
-				else
-				{
-					// 스택을 다 썼다면? -> "이제 턴 넘겨!"(false) 반환
-					UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 모든 스택을 소모했습니다. 턴을 종료합니다."));
-					return false;
-				}
-			}
+			// 🌟 그냥 스택 1개 깎기만 하면 끝입니다! (0이 되면 알아서 태그가 떨어짐)
+			ASC->RemoveActiveGameplayEffect(Handle, 1);
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 스택 소모!"));
+			return true;
 		}
 	}
-
-	// 시간 간섭 태그가 아예 없다면 평범하게 턴 종료 (false)
 	return false;
 }
 
@@ -490,5 +467,22 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 		break;
 	}
 	}
+}
+
+void USPGA_BattleActionBase::ActivateTimeInterference(int32 ExtraTurns)
+{
+	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+	if (!GameMode) return;
+
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!Avatar) return;
+
+	// TurnManager의 VIP 대기열에 나 자신을 ExtraTurns(2번) 만큼 넣습니다!!
+	for (int32 i = 0; i < ExtraTurns; ++i)
+	{
+		GameMode->GetTurnManager()->RequestInterruptTurn(Avatar);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동! 현재 턴을 유지한 채 추가 턴 %d개를 예약합니다."), ExtraTurns);
 }
 

@@ -112,6 +112,10 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 	if (TurnManagerClass && !TurnManager)
 	{
 		TurnManager = GetWorld()->SpawnActor<ASPCombatTurnManager>(TurnManagerClass);
+		if (TurnManager)
+		{
+			TurnManager->OnTurnOrderChanged.AddDynamic(this, &AASPCombatGameMode::RefreshTurnTimelineUI);
+		}
 	}
 
 	if (!TurnManager)
@@ -189,6 +193,7 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 	// 턴 매니저에게 첫 턴을 물어보고 시작!
 	if (TurnManager)
 	{
+		RefreshTurnTimelineUI();
 		AActor* FirstActor = TurnManager->CalculateNextTurn();
 		StartTurn(FirstActor);
 	}
@@ -233,52 +238,42 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		{
 			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
 			{
+				bIsCurrentTurnParry = true;
 				UE_LOG(LogTemp, Warning, TEXT("VIP 반격 턴 시작! 자동으로 반격 스킬을 발사합니다!"));
-
-				// 딱지는 1회용이므로 떼어줍니다.
 				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
 
-				// 유저의 입력을 기다리지 않고, 즉시 '진짜 반격 스킬'을 발동시킵니다!
 				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
 				{
 					if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
 					{
 						FGameplayTag CurrentWeapon = PC->GetCurrentWeaponTag();
-
-						// 선생님이 만드신 'GetWeaponData' 함수 활용!
 						UWeaponAbilityData* WeaponData = PlayerChar->GetWeaponData(CurrentWeapon);
 
-						// 데이터 에셋 안에 '패링 스킬(ParrySkillAbility)'이 제대로 등록되어 있다면?
 						if (WeaponData && WeaponData->ParrySkillAbility)
 						{
-							// ASC가 들고 있는 스킬 목록을 쭉 뒤져서, DataAsset에 등록된 클래스와 똑같은 스킬을 찾아 발사합니다!
 							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 							{
 								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
 								{
 									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
-
 									if (bActivated)
 									{
-										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료: %s"), *WeaponData->ParrySkillAbility->GetName());
+										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료"));
 									}
 									else
 									{
-										UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패! (GAS 내부 로직에 의해 차단됨)"));
-
-										// 스킬 발동에 실패했으니, 빈 턴을 넘겨버리기 위해 EndTurn 호출
 										EndTurn(TurnActor);
 									}
 									break;
 								}
 							}
 						}
-						else
-						{
-							UE_LOG(LogTemp, Error, TEXT("데이터 에셋에 반격기(ParrySkillAbility)가 세팅되어 있지 않습니다!"));
-						}
 					}
 				}
+			}
+			else
+			{
+				bIsCurrentTurnParry = false;
 			}
 
 			if (StatusComp)
@@ -289,47 +284,29 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작과 동시에 상태이상 데미지로 사망했습니다! 턴을 취소합니다."), *TurnActor->GetName());
-
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 사망하여 턴을 취소합니다."), *TurnActor->GetName());
 				EndTurn(TurnActor);
 				return;
 			}
 
 			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴을 강제로 넘깁니다."), *TurnActor->GetName());
-
-				// 태그 지워주기 (1회용이므로)
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴 강제 종료."), *TurnActor->GetName());
 				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
-
-				// 바로 턴 종료시켜버리기
 				EndTurn(TurnActor);
 				return;
 			}
 
-			// 턴 활성화 태그 부여 (PlayerController가 입력을 받기 시작함)
 			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
-			// 턴 시작 이벤트 전송
 			FGameplayEventData Payload;
 			Payload.Instigator = TurnActor;
 			ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_TurnStart, &Payload);
 		}
 	}
 
-	if (TurnManager)
-	{
-		TArray<AActor*> PredictedOrder = TurnManager->PredictTurnOrder(6);
-
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-		if (PlayerPawn)
-		{
-			if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
-			{
-				PC->UpdateTurnTimelineUI(PredictedOrder);
-			}
-		}
-	}
+	// 턴이 확정된 후 UI를 갱신합니다.
+	RefreshTurnTimelineUI();
 
 	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
 	{
@@ -376,19 +353,27 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
-				if (bIsCurrentTurnInterrupt)
+				// VIP 턴이면서, 그게 '패링(반격)'일 때만 게이지를 보존합니다!
+				if (bIsCurrentTurnInterrupt && bIsCurrentTurnParry)
 				{
-					// VIP 턴이었다면 게이지를 깎지 않고, 다음을 위해 상태만 해제합니다.
-					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링/추가 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
-					bIsCurrentTurnInterrupt = false; // 리셋
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링 반격 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
 				}
 				else
 				{
-					// 정규 턴이었다면 평소처럼 게이지를 비웁니다.
+					// 정규 턴이거나, 시간 간섭으로 얻은 추가 턴이라면 평소처럼 게이지를 비웁니다!
 					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
 					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
 					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
+
+					if (bIsCurrentTurnInterrupt)
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[%s] 시간 간섭(추가) 턴 종료! 행동 게이지가 0으로 초기화됩니다."), *TurnActor->GetName());
+					}
 				}
+
+				// 🌟 턴 종료 시 특수 상태 플래그들은 깔끔하게 초기화
+				bIsCurrentTurnInterrupt = false;
+				bIsCurrentTurnParry = false;
 			}
 
 			// 턴 종료 이벤트 전송 (버프 지속시간 감소 등)
@@ -543,6 +528,30 @@ TArray<TObjectPtr<AActor>> AASPCombatGameMode::GetCurrentEnemies()
 		}
 	}
 	return AliveEnemies;
+}
+
+void AASPCombatGameMode::RefreshTurnTimelineUI()
+{
+	if (!TurnManager) return;
+
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6);
+	TArray<AActor*> VIPTurns = TurnManager->GetInterruptQueue();
+
+	// 🌟 [핵심 변경 2: UI 마법] 현재 행동 중인 턴이 VIP 턴이라면?
+	// 이미 큐에서 뽑혔지만, 타임라인 0번 자리를 차지해야 하므로 배열 맨 앞(0번)에 강제로 끼워 넣습니다!
+	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
+	{
+		VIPTurns.Insert(CurrentTurnActor, 0);
+	}
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (PlayerPawn)
+	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+		{
+			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns);
+		}
+	}
 }
 
 void AASPCombatGameMode::ProcessEndOfTurn()
