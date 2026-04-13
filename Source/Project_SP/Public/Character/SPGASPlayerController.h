@@ -110,7 +110,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<class UUserWidget> BattleHUDWidget;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combat | TimeMagic")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Combat | TimeMagic")
 	TObjectPtr<class UMaterialParameterCollection> TimeMagicMPC;
 
 protected:
