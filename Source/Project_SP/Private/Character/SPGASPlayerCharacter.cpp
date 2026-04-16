@@ -483,8 +483,13 @@ void ASPGASPlayerCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 				// 진짜 사망 (시간의 힘 부족)
 				UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 부족하여 사망했습니다."));
 
-				// TODO: 애니메이션 재생, 게임 오버 UI 호출 등
-				// Die(); 
+				if (UGameInstance* GI = GetGameInstance())
+				{
+					if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+					{
+						MapManager->GoToLobby();
+					}
+				}
 			}
 		}
 	}

@@ -288,7 +288,14 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		if (GetCurrentTimePower() < Cost)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간의 힘이 부족하여 발동할 수 없습니다!"));
-			return; // 실행 취소!
+			if (UGameInstance* GI = GetGameInstance())
+			{
+				if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+				{
+					MapManager->GoToLobby();
+				}
+			}
+			return;
 		}
 
 		// 시간 간섭 GA 실행 시도

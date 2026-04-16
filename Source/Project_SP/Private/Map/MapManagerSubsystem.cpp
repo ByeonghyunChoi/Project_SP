@@ -331,6 +331,9 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 void UMapManagerSubsystem::GoToLobby()
 {
 	bIsInLobby = true;
+	bIsBattleActive = false;
+	bIsReturningFromBattle = false;
+	CurrentRoomState = EMapState::None;
 	// 로비로 돌아오면 런 데이터 초기화
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
