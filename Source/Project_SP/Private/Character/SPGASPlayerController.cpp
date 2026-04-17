@@ -270,7 +270,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
 
 		// 이미 시간 간섭 상태인지 확인 (중복 발동 방지)
-		// [수정] 버프 태그는 "State.Buff..." 로 확인!
 		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 이미 시간 간섭이 발동 중입니다!"));
@@ -351,7 +350,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			}
 		}
 
-		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference))
+		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull))
 		{
 			// 선택한 행동이 '무기 스킬'이 아니라면? (일반 공격이나 패링이라면)
 			if (InputType != ESelectedActionType::WeaponSkill)
@@ -958,50 +957,11 @@ void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag
 
 	if (NewCount > 0)
 	{
-		//  [시간 간섭 ON ]
-		TArray<AActor*> Enemies;
-		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
-
-		for (AActor* Enemy : Enemies)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->CustomTimeDilation = 0.05f;
-			}
-		}
-
-		if (TimeMagicMPC)
-		{
-			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 0.05f);
-		}
-
-
 		ToggleTimeInterferenceUI(true);
-
-		UE_LOG(LogTemp, Warning, TEXT("적들의 시간이 느려집니다!"));
 	}
 	else
 	{
-		//  [시간 간섭 OFF ]
-
-		TArray<AActor*> Enemies;
-		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
-		for (AActor* Enemy : Enemies)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->CustomTimeDilation = 1.0f;
-			}
-		}
-
-		if (TimeMagicMPC)
-		{
-			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 1.0f);
-		}
-
 		ToggleTimeInterferenceUI(false);
-
-		UE_LOG(LogTemp, Warning, TEXT("시간이 다시 정상적으로 흐릅니다."));
 	}
 }
 

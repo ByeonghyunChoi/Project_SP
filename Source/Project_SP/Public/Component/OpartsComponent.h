@@ -41,6 +41,8 @@ public:
 	TArray<FGameplayAbilitySpecHandle> ArtifactAbilityHandles;
 	// 4. 아티팩트로 부여된 스탯들 핸들 목록
 	TArray<FActiveGameplayEffectHandle> ArtifactEffectHandles;
+	// 5. 시간 간섭 스킬 핸들
+	FGameplayAbilitySpecHandle TimeInterferenceHandle;
 
 	void Clear()
 	{
@@ -51,6 +53,7 @@ public:
 		StatEffectHandle = FActiveGameplayEffectHandle();
 		ArtifactAbilityHandles.Empty();
 		ArtifactEffectHandles.Empty();
+		TimeInterferenceHandle = FGameplayAbilitySpecHandle();
 	}
 };
 // [델리게이트] 오파츠 상태 변경 시 UI 알림 (장착, 레벨업, 아티팩트 해금 등)

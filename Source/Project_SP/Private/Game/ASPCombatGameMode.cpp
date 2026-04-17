@@ -276,10 +276,14 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				bIsCurrentTurnParry = false;
 			}
 
-			if (StatusComp)
+			if (StatusComp && !bIsCurrentTurnInterrupt)
 			{
 				StatusComp->ProcessTurnStartDoT();
 				StatusComp->ReduceStatusEffectTurns();
+			}
+			else if (StatusComp && bIsCurrentTurnInterrupt)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("시간이 멈춘 상태라 도트 딜 및 상태이상 턴 감소가 무시됩니다."));
 			}
 
 			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
@@ -310,7 +314,30 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
 	{
-		Character->ReduceCooldowns();
+		// 🌟 1. 이 캐릭터가 '시간 정지(수정해골 버프)' 상태인지 확인하기 위한 스위치
+		bool bIsTimeStopped = false;
+
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
+		{
+			if (UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent())
+			{
+				// 아까 우리가 만든 바로 그 버프 태그!
+				if (TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull))
+				{
+					bIsTimeStopped = true;
+				}
+			}
+		}
+
+		// 🌟 2. 시간이 멈추지 않았을 때만 기존처럼 쿨타임을 깎아줍니다!
+		if (!bIsCurrentTurnInterrupt && !bIsTimeStopped)
+		{
+			Character->ReduceCooldowns();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 시간 간섭 버프 활성화 중! 쿨타임이 줄어들지 않습니다."), *TurnActor->GetName());
+		}
 	}
 }
 
@@ -332,7 +359,7 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 
 			if (Cast<ASPGASPlayerCharacter>(TurnActor))
 			{
-				if (TurnEndTimeCostGE)
+				if (!bIsCurrentTurnInterrupt && TurnEndTimeCostGE)
 				{
 					FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
 					Context.AddSourceObject(this);
@@ -344,7 +371,11 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 						UE_LOG(LogTemp, Warning, TEXT("[턴 종료] 플레이어의 시간의 힘이 1 감소했습니다."));
 					}
 				}
-				else
+				else if (bIsCurrentTurnInterrupt)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[특수 턴 종료] 찰나의 순간이므로 시간의 힘이 소모되지 않습니다."));
+				}
+				else if (!TurnEndTimeCostGE)
 				{
 					UE_LOG(LogTemp, Error, TEXT("TurnEndTimeCostGE가 게임모드 블루프린트에 설정되지 않았습니다!"));
 				}
@@ -353,6 +384,8 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
+				TurnManager->ClearActorFromQueue(TurnActor);
+
 				// VIP 턴이면서, 그게 '패링(반격)'일 때만 게이지를 보존합니다!
 				if (bIsCurrentTurnInterrupt && bIsCurrentTurnParry)
 				{

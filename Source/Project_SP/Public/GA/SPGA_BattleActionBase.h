@@ -75,8 +75,17 @@ protected:
 	UFUNCTION()
 	void OnDamageEventReceived(FGameplayEventData Payload);
 
+	// ¼öÁ¤ÇØ°ñ ½Ã°£ °£¼· ÇÔ¼ö
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
-	void ActivateTimeInterference(int32 ExtraTurns = 2);
+	void GrantExtraTurns(int32 ExtraTurns = 2);
+
+	// ¿Á½Ã°è ½Ã°£ °£¼· ÇÔ¼ö
+	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
+	void ExecuteJadeClockInterference(TSubclassOf<class UGameplayEffect> JadeClockBuffClass);
+
+	// °ñµå ¹ö±× ½Ã°£ °£¼· ÇÔ¼ö
+	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
+	void ExecuteGoldBugInterference();
 
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
 	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;

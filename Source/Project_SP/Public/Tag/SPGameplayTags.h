@@ -29,6 +29,9 @@ public:
 	FGameplayTag State_CounterMode;
 	FGameplayTag State_AutoCounterReady;
 	FGameplayTag State_ActionExecuting;
+	FGameplayTag State_Buff_CrystalSkull;
+	FGameplayTag State_Buff_JadeClock;
+	FGameplayTag State_Buff_GoldBug;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;

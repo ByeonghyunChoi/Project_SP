@@ -53,7 +53,7 @@ AActor* ASPCombatTurnManager::CalculateNextTurn()
 		TurnQueue.RemoveAt(0);
 
 		// 유효성 검사 (죽었거나 사라졌으면 재귀 호출로 다음 타자 찾기)
-		if (IsValid(NextActor) && Participants.Contains(NextActor))
+		if (IsValid(NextActor) && Participants.Contains(NextActor) && GetActionGauge(NextActor) >= MaxActionGauge - 0.1f)
 		{
 			return NextActor;
 		}
@@ -312,4 +312,12 @@ AActor* ASPCombatTurnManager::PopInterruptActor()
 		return VIP;
 	}
 	return nullptr;
+}
+
+void ASPCombatTurnManager::ClearActorFromQueue(AActor* Target)
+{
+	if (TurnQueue.Contains(Target))
+	{
+		TurnQueue.Remove(Target);
+	}
 }

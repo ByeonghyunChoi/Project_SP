@@ -76,6 +76,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Base Ability")
 	TSubclassOf<UGameplayAbility> BasePassiveAbility;
 
+	// [GAS] 오파츠 고유 시간 간섭 능력 (장착 즉시 부여)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Base Ability")
+	TSubclassOf<UGameplayAbility> TimeInterferenceAbility;
+
 	// [GAS] 레벨별 기본 스탯 (HP, ATK, SPD 등)
 	// Infinite Duration GE를 사용하며, GE 내부의 CurveTable을 통해 레벨(1~5)별 수치를 정의
 	// 예: Lv1 -> HP+140, Lv5 -> HP+700

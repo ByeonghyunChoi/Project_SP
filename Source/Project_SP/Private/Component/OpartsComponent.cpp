@@ -127,6 +127,12 @@ void UOpartsComponent::UnequipCurrentOparts()
 		if (Handle.IsValid()) ASC->RemoveActiveGameplayEffect(Handle);
 	}
 
+	// 5. 시간 간섭 제거
+	if (RuntimeData.TimeInterferenceHandle.IsValid())
+	{
+		ASC->ClearAbility(RuntimeData.TimeInterferenceHandle);
+	}
+
 	// 데이터 초기화 및 UI 알림
 	RuntimeData.Clear();
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
@@ -235,6 +241,21 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	{
 		FGameplayAbilitySpec Spec(Def->BasePassiveAbility, 1, -1, this);
 		RuntimeData.PassiveAbilityHandle = ASC->GiveAbilityAndActivateOnce(Spec);
+	}
+
+	// 이미 장착된 게 있다면 뺏기 (레벨업 등으로 갱신될 때를 대비)
+	if (RuntimeData.TimeInterferenceHandle.IsValid())
+	{
+		ASC->ClearAbility(RuntimeData.TimeInterferenceHandle);
+		RuntimeData.TimeInterferenceHandle = FGameplayAbilitySpecHandle();
+	}
+
+	// 오파츠 데이터에 시간 간섭 스킬이 지정되어 있다면 플레이어에게 부여!
+	if (Def->TimeInterferenceAbility)
+	{
+		FGameplayAbilitySpec Spec(Def->TimeInterferenceAbility, 1, -1, this);
+		// ActivateOnce가 아니라 그냥 GiveAbility입니다. (플레이어가 직접 써야 하므로)
+		RuntimeData.TimeInterferenceHandle = ASC->GiveAbility(Spec);
 	}
 
 	// ====================================================

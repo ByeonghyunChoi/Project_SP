@@ -43,9 +43,19 @@ void ASPGASCharacterBase::BroadcastDamageText(float DamageAmount, bool bIsCritic
 
 void ASPGASCharacterBase::FinishTurn()
 {
+	// 1. 노드에 도달했는지 확인하는 로그
+	UE_LOG(LogTemp, Warning, TEXT("[%s] FinishTurn 노드 호출됨!"), *GetName());
+
+	// 2. GameMode 캐스팅 시도
 	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(UGameplayStatics::GetGameMode(this)))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GameMode 찾음! EndTurn을 실행합니다."));
 		GM->EndTurn(this);
+	}
+	else
+	{
+		// 3. 실패했다면 원인은 클라이언트이기 때문! (GameMode는 서버에만 존재합니다)
+		UE_LOG(LogTemp, Error, TEXT("GameMode를 찾을 수 없습니다! (클라이언트에서 실행되었을 가능성 높음)"));
 	}
 }
 

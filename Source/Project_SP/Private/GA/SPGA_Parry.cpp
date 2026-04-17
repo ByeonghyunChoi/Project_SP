@@ -59,8 +59,22 @@ bool USPGA_Parry::CheckCounterConditions()
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
 	if (!PlayerASC) return false;
 
-	// ❌ [삭제됨] 1. 반격 모드인지 확인하는 로직 완전 삭제! 
-	// 이제 패링에 성공하면 반격 모드와 상관없이 무조건 아래의 쿨타임 검사로 넘어갑니다.
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock))
+	{
+		// 버프가 있다면? 내 몸에서 옥시계 버프(GE)를 찾아서 스택을 1개 깎습니다.
+		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(SPTags.State_Buff_JadeClock));
+		TArray<FActiveGameplayEffectHandle> ActiveEffects = PlayerASC->GetActiveEffects(Query);
+
+		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+		{
+			PlayerASC->RemoveActiveGameplayEffect(Handle, 1); // 스택 1 차감
+
+			UE_LOG(LogTemp, Warning, TEXT("[옥시계 발동] 스택을 1 소모하여 쿨타임 없이 반격합니다!"));
+			return true;
+		}
+	}
 
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))
 	{

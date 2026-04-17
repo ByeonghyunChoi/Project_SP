@@ -26,7 +26,10 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_CounterMode = Manager.AddNativeGameplayTag(FName("State.CounterMode"), TEXT("반격 모드 상태"));
 	State_AutoCounterReady = Manager.AddNativeGameplayTag(FName("State.AutoCounterReady"), TEXT("반격 예약"));
 	State_ActionExecuting = Manager.AddNativeGameplayTag(FName("State.ActionExecuting"), TEXT("행동 진행 중"));
-	
+	State_Buff_CrystalSkull = Manager.AddNativeGameplayTag(FName("State.Buff.CrystalSkull"), TEXT("시간 간섭 수정해골"));
+	State_Buff_JadeClock = Manager.AddNativeGameplayTag(FName("State.Buff.JadeClock"), TEXT("시간 간섭 옥시계"));
+	State_Buff_GoldBug = Manager.AddNativeGameplayTag(FName("State.Buff.GoldBug"), TEXT("시간 간섭 골드버그"));
+
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
 

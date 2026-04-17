@@ -22,7 +22,7 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 {
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
 			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			return true; 
@@ -43,7 +43,7 @@ bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Hand
 	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
 
 	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
-	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
 		!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
@@ -70,7 +70,7 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 {
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_TimeInterference) &&
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
 			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
@@ -297,7 +297,7 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference) &&
+	if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
 		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
@@ -469,7 +469,7 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 	}
 }
 
-void USPGA_BattleActionBase::ActivateTimeInterference(int32 ExtraTurns)
+void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
 	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
 	if (!GameMode) return;
@@ -485,4 +485,94 @@ void USPGA_BattleActionBase::ActivateTimeInterference(int32 ExtraTurns)
 
 	UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동! 현재 턴을 유지한 채 추가 턴 %d개를 예약합니다."), ExtraTurns);
 }
+
+void USPGA_BattleActionBase::ExecuteJadeClockInterference(TSubclassOf<class UGameplayEffect> JadeClockBuffClass)
+{
+	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!GameMode || !Avatar) return;
+
+	// 1. 살아있는 모든 적을 가져와서 숫자를 셉니다.
+	TArray<AActor*> Enemies = GetAllEnemies();
+	int32 EnemyCount = Enemies.Num();
+
+	if (EnemyCount > 0 && JadeClockBuffClass)
+	{
+		UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+		if (ASC)
+		{
+			// 2. 나에게 적의 수만큼 '옥시계 버프 스택' 부여
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			Context.AddSourceObject(this);
+			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(JadeClockBuffClass, 1.0f, Context);
+
+			if (SpecHandle.IsValid())
+			{
+				// 🌟 스택 갯수를 적의 수로 세팅!
+				SpecHandle.Data->SetStackCount(EnemyCount);
+				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+			}
+		}
+
+		// 3. 모든 적의 행동 게이지를 100(Max)으로 꽉 채웁니다!
+		for (AActor* Enemy : Enemies)
+		{
+			GameMode->GetTurnManager()->SetActionGauge(Enemy, ASPCombatTurnManager::MaxActionGauge);
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[옥시계] 적 %d명의 게이지를 100으로 만들고 패링 프리패스 버프를 %d스택 획득했습니다!"), EnemyCount, EnemyCount);
+	}
+
+	// 4. 내 턴 강제 종료 (적들이 미친 듯이 달려들기 시작합니다)
+	GameMode->EndTurn(Avatar);
+}
+
+void USPGA_BattleActionBase::ExecuteGoldBugInterference()
+{
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!Avatar) return;
+
+	// 내 몸(플레이어)에 있는 상태이상 컴포넌트를 가져옵니다. 
+	USPStatusEffectComponent* StatusComp = Avatar->FindComponentByClass<USPStatusEffectComponent>();
+	if (!StatusComp) return;
+
+	TArray<AActor*> Enemies = GetAllEnemies();
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	for (AActor* Enemy : Enemies)
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Enemy);
+		if (!TargetASC) continue;
+
+		// 1. 현재 이 몬스터에게 '없는' 기본 상태이상을 조사합니다.
+		TArray<FGameplayTag> UnappliedTags;
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Burn);
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Weathering);
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Poison);
+
+		// 2. 모인 상태이상 후보들을 무작위로 섞습니다. (셔플)
+		for (int32 i = UnappliedTags.Num() - 1; i > 0; i--)
+		{
+			int32 j = FMath::RandRange(0, i);
+			UnappliedTags.Swap(i, j);
+		}
+
+		// 3. 앞에서부터 최대 2개를 뽑아서 대상에게 차례대로 주입합니다!
+		int32 ApplyCount = FMath::Min(2, UnappliedTags.Num());
+		for (int32 i = 0; i < ApplyCount; i++)
+		{
+			// ProcessStatusEffect를 호출하면 알아서 기존 상태이상과 믹스(Mix) 판정을 진행합니다.
+			StatusComp->ProcessStatusEffect(UnappliedTags[i], TargetASC, Avatar);
+
+			UE_LOG(LogTemp, Warning, TEXT("[골드 버그] %s 에게 %s 를 부여했습니다!"), *Enemy->GetName(), *UnappliedTags[i].ToString());
+		}
+	}
+}
+
 

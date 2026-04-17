@@ -46,6 +46,8 @@ public:
 
 	AActor* PopInterruptActor();
 
+	void ClearActorFromQueue(AActor* Target);
+
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
