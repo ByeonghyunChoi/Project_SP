@@ -50,7 +50,7 @@ public:
 
     UPROPERTY() float Level = 7.0f;
     UPROPERTY() float Experience = 0.0f;
-    UPROPERTY() float MaxExperience = 0.0f;
+    UPROPERTY() float MaxExperience = 3000.0f;
 
 };
 

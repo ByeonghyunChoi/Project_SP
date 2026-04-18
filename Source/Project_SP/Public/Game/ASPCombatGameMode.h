@@ -38,6 +38,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
 
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void OnCharacterDied(AActor* DeadActor);
+
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 

@@ -154,6 +154,16 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 
 			UE_LOG(LogTemp, Warning, TEXT("[StatusComponent] 상태이상 적용됨: %s (%d 턴)"), *IncomingStatusTag.ToString(), Config->DurationTurns);
 		}
+
+		if (Config->StatModifierClass)
+		{
+			FGameplayEffectSpecHandle StatSpec = InstigatorASC->MakeOutgoingSpec(Config->StatModifierClass, 1.0f, Context);
+			if (StatSpec.IsValid())
+			{
+				// SetStackCount를 부르지 않으므로 무조건 1스택(1회)만 적용됩니다!
+				InstigatorASC->ApplyGameplayEffectSpecToTarget(*StatSpec.Data.Get(), TargetASC);
+			}
+		}
 	}
 	else if (Config && Config->bIsInstantEffect)
 	{

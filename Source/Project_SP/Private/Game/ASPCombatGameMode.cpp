@@ -343,10 +343,10 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 {
-	if (!TurnActor) return;
+	if (!TurnActor || CurrentTurnActor != TurnActor) return;
 
-	// 안전장치: 현재 턴 주인이 아닌데 종료를 요청하면 무시
-	if (CurrentTurnActor != TurnActor) return;
+	// 중복 호출 방지!
+	CurrentTurnActor = nullptr;
 
 	UE_LOG(LogTemp, Log, TEXT("턴 종료: %s"), *TurnActor->GetName());
 
@@ -587,9 +587,59 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	}
 }
 
+void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
+{
+	if (!DeadActor) return;
+
+	bool bIsActionExecuting = false;
+
+	// 현재 턴 주인이 액션(스킬)을 진행 중인지 확인
+	if (CurrentTurnActor)
+	{
+		UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
+		if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting))
+		{
+			bIsActionExecuting = true;
+		}
+	}
+
+	if (bIsActionExecuting)
+	{
+		// 🟢 [플레이어 스킬 공격 중]
+		// 오버킬 연출을 위해 아무것도 하지 않고 대기합니다!
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망 연출 대기 (현재 액션 진행 중! 오버킬 허용)"), *DeadActor->GetName());
+	}
+	else
+	{
+		// [도트 딜, 골드 버그(프리 액션) 등]
+		// 진행 중인 애니메이션이 없으므로, 대기할 필요 없이 즉시 쓰러뜨립니다.
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 즉시 사망 연출 (진행 중인 액션 없음)"), *DeadActor->GetName());
+
+		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
+		{
+			Monster->ExecuteVisualDeath();
+		}
+
+		// 명단에서 즉시 삭제
+		AllParticipants.Remove(DeadActor);
+		if (TurnManager) TurnManager->RemoveParticipant(DeadActor);
+
+		// 적 전멸 체크
+		if (GetCurrentEnemies().Num() <= 0)
+		{
+			PlayVictorySequence();
+		}
+		else if (DeadActor == CurrentTurnActor)
+		{
+			// 턴 시작하자마자 도트 딜 맞고 죽었을 경우 턴 강제 스킵!
+			EndTurn(CurrentTurnActor);
+		}
+	}
+}
+
 void AASPCombatGameMode::ProcessEndOfTurn()
 {
-	// 사망(State.Death) 태그를 가진 액터 수집
+	// 1. 사망(State.Death) 태그를 가진 액터 수집
 	TArray<AActor*> DeadMonsters;
 	for (AActor* Participant : AllParticipants)
 	{
@@ -602,7 +652,7 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 		}
 	}
 
-	// 명단에서 지우고 삭제 예약
+	// 2. 명단에서 지우고, 참아왔던 사망 애니메이션 일제히 재생!
 	for (AActor* Corpse : DeadMonsters)
 	{
 		AllParticipants.Remove(Corpse);
@@ -610,27 +660,20 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Corpse))
 		{
-			if (Monster->DeathMontage)
-			{
-				Monster->PlayAnimMontage(Monster->DeathMontage);
-			}
-
-			float DeathDuration = Monster->GetDeathMontageDuration();
-			Corpse->SetLifeSpan(DeathDuration + 0.1f);
+			// 🌟 드디어 여기서 쓰러집니다!
+			Monster->ExecuteVisualDeath();
 		}
 	}
 
-	// 남은 적군 수 확인
+	// 3. 승리 판정
 	if (GetCurrentEnemies().Num() <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 승리 시퀀스로 진입합니다."));
-
-		// 즉시 EndBattle을 부르지 않고, 블루프린트 승리 연출로 넘깁니다.
 		PlayVictorySequence();
 		return;
 	}
 
-	// 아직 적이 남았다면 대기열에서 다음 타자 호출
+	// 4. 다음 타자 호출
 	if (TurnManager)
 	{
 		if (AActor* VIPActor = TurnManager->PopInterruptActor())

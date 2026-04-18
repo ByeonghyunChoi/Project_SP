@@ -22,7 +22,8 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 {
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
+		if ((ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) ||
+			ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_JadeClock)) &&
 			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 		{
 			return true; 
@@ -43,7 +44,8 @@ bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Hand
 	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
 
 	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
-	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
+	if ((ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) ||
+		ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_JadeClock)) &&
 		!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
@@ -297,7 +299,8 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
+	if ((ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) ||
+		ASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock)) &&
 		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));

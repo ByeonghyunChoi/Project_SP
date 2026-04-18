@@ -20,9 +20,13 @@ struct FStatusEffectConfig
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FName EffectName;
 
-	// 적용할 GE 클래스 
+	// 적용할 GE 클래스(턴 수 관리용) 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSubclassOf<UGameplayEffect> EffectClass;
+
+	// 적용할 보조 GE 클래스(스탯만 깎을 보조 GE)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
+	TSubclassOf<class UGameplayEffect> StatModifierClass;
 
 	// 지속 턴 수 (즉시 발동형은 0)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)

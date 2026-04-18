@@ -72,6 +72,23 @@ void ASPGASMonsterCharacter::OnBattleStarted()
 	OnMonsterWeaknessInitialized.Broadcast(GetCurrentWeaknessTags());
 }
 
+void ASPGASMonsterCharacter::Destroyed()
+{
+	Super::Destroyed();
+
+	if (UWorld* World = GetWorld())
+	{
+		if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(World->GetAuthGameMode()))
+		{
+			// 3. UI 갱신 지시! (이제 턴 타임라인에서 빈자리나 찌꺼기가 완벽하게 정리됩니다)
+			GM->RefreshTurnTimelineUI();
+
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 UI를 갱신합니다."), *GetName());
+		}
+	}
+}
+
+
 void ASPGASMonsterCharacter::ApplyMonsterData()
 {
 	if (!MonsterDataAsset || !ASC)
@@ -151,6 +168,11 @@ void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
 	{
 		Die(); // 몬스터 사망 함수 호출
+
+		if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->OnCharacterDied(this);
+		}
 	}
 }
 
@@ -210,6 +232,20 @@ void ASPGASMonsterCharacter::Die()
 		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
 		ASC->CancelAllAbilities();
 	}
+}
+
+void ASPGASMonsterCharacter::ExecuteVisualDeath()
+{
+	if (bDeathMontagePlayed) return;
+	bDeathMontagePlayed = true;
+
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+
+	float DeathDuration = DeathMontage ? DeathMontage->GetPlayLength() : 0.0f;
+	SetLifeSpan(DeathDuration + 0.5f);
 }
 
 float ASPGASMonsterCharacter::GetDeathMontageDuration() const

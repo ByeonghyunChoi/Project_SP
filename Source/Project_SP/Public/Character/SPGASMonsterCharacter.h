@@ -21,6 +21,7 @@ public:
     ASPGASMonsterCharacter();
     virtual void BeginPlay() override;
     virtual void OnBattleStarted() override;
+    virtual void Destroyed() override;
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
@@ -56,6 +57,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void Die();
+
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void ExecuteVisualDeath();
 
     UFUNCTION(BlueprintPure, Category = "Combat")
     float GetDeathMontageDuration() const;
@@ -102,6 +106,8 @@ protected:
 
     UPROPERTY(VisibleAnywhere)
     bool bIsDead = false;
+
+    bool bDeathMontagePlayed = false;
 
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS | Abilities")

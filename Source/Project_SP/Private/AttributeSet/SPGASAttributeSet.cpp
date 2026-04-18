@@ -84,6 +84,10 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	{
 		NewValue = FMath::Max(NewValue, 0.0f);
 	}
+	else if (Attribute == GetMaxExperienceAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 1.0f);
+	}
 }
 
 void USPGASAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
