@@ -39,7 +39,7 @@ ASPGASPlayerCharacter::ASPGASPlayerCharacter()
 	CameraBoom->bInheritYaw = false;
 	CameraBoom->bInheritRoll = false;
 
-	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
 	WeaponMesh->SetupAttachment(GetMesh(), FName("RightHandSocket"));
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -354,6 +354,45 @@ TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag
 		return *FoundData;
 	}
 	return nullptr;
+}
+
+void ASPGASPlayerCharacter::PlayWeaponSwapSequence(FGameplayTag NewTag)
+{
+	if (WeaponSwapMontage)
+	{
+		PendingWeaponTag = NewTag; // 바꿀 무기 예약
+		PlayAnimMontage(WeaponSwapMontage);
+	}
+	else
+	{
+		// 몽타주가 없으면 즉시 교체 (예외 처리)
+		HandleWeaponShow();
+	}
+}
+
+void ASPGASPlayerCharacter::HandleWeaponHide()
+{
+	if (WeaponMesh)
+	{
+		WeaponMesh->SetVisibility(false); // 기존 무기 숨기기
+	}
+}
+
+void ASPGASPlayerCharacter::HandleWeaponShow()
+{
+	if (!PendingWeaponTag.IsValid()) return;
+
+	UWeaponAbilityData* NewData = GetWeaponData(PendingWeaponTag);
+	if (NewData && NewData->WeaponMesh && WeaponMesh)
+	{
+		// 실제 메쉬 교체
+		WeaponMesh->SetStaticMesh(NewData->WeaponMesh);
+
+		// 무기 보이기
+		WeaponMesh->SetVisibility(true);
+
+		UE_LOG(LogTemp, Log, TEXT("[Visual] 무기 메쉬 교체 완료: %s"), *PendingWeaponTag.ToString());
+	}
 }
 
 void ASPGASPlayerCharacter::AddExperience(float ExpAmount)

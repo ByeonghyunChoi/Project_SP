@@ -237,6 +237,20 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 {
 	if (!CachedASC) return;
+
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(FName("Weapon"))))
+	{
+		if (CurrentWeaponTag == InputTag)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[필드] 이미 장착 중인 무기입니다."));
+			return;
+		}
+
+		// 필드에서도 무기 교체 함수를 동일하게 실행!
+		ProcessWeaponSwitch(InputTag);
+		return;
+	}
+
 	// 필드는 즉시 실행
 	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
 }
@@ -985,28 +999,46 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 	CurrentWeaponTag = NewWeaponTag;
 
-	if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
-		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-		{
-			CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
-		}
-		// 바뀐 타겟팅 규칙으로 불빛을 다시 켭니다! 
-		HighlightCurrentTarget(true);
-
-		// 타겟이 갱신 브로드캐스트
-		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-		{
-			OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
-		}
-	}
-	else
-	{
-		// 타겟팅 중이 아니었다면 (그냥 턴 시작하자마자 무기만 바꾼 경우) 행동 리셋
-		SetCurrentSelectedAction(ESelectedActionType::None);
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
+		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		{
+			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+			{
+				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
+			}
+
+			HighlightCurrentTarget(true);
+
+			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+			{
+				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+			}
+		}
+		else
+		{
+			SetCurrentSelectedAction(ESelectedActionType::None);
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때만 실행]
+		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
+
+		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+	}
 }
 
 bool ASPGASPlayerController::IsMyTurn() const

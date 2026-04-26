@@ -64,7 +64,6 @@ public:
 	class UDataTable* PlayerRewardTable;
 
 protected:
-	virtual void OnRep_PlayerState() override;
 
 	UPROPERTY(EditAnywhere, Category = "GAS | Field")
 	TMap<FGameplayTag, TSubclassOf<class UGameplayAbility>> FieldInputAbilities;
@@ -91,6 +90,16 @@ protected:
 	//전투용 카메라
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<class UCineCameraComponent> CombatCineCamera;
+
+	//무기 교체 시 재생할 몽타주
+	UPROPERTY(EditDefaultsOnly, Category = "GAS | Battle | Animation")
+	TObjectPtr<UAnimMontage> WeaponSwapMontage;
+
+	FGameplayTag PendingWeaponTag;
+
+protected:
+
+	virtual void OnRep_PlayerState() override;
 
 	void GiveAbilities();
 
@@ -128,7 +137,7 @@ protected:
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Weapon")
-	class USkeletalMeshComponent* WeaponMesh;
+	class UStaticMeshComponent* WeaponMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Target")
 	TObjectPtr<AActor> LastParriedTarget;
@@ -145,6 +154,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
+
+	// 컨트롤러가 호출할 함수
+	void PlayWeaponSwapSequence(FGameplayTag NewTag);
+
+	// 애니메이션 노티파이가 호출할 함수들 (BlueprintCallable 필수)
+	UFUNCTION(BlueprintCallable, Category = "Combat | Animation")
+	void HandleWeaponHide();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Animation")
+	void HandleWeaponShow();
 	
 public:
 	// 경험치 획득 함수

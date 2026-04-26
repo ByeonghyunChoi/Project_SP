@@ -22,6 +22,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	FGameplayTag WeaponTag;
 
+	// 무기 실제 외형
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	TObjectPtr<class UStaticMesh> WeaponMesh;
+
 	// 1. 일반 공격 GA 클래스
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
 	TSubclassOf<UGameplayAbility> NormalAttackAbility;
