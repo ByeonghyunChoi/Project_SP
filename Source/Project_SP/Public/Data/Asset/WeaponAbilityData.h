@@ -22,6 +22,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
 	FGameplayTag WeaponTag;
 
+	// 무기 실제 외형
+	UPROPERTY(EditDefaultsOnly, Category = "Visual")
+	TObjectPtr<class USkeletalMesh> WeaponMesh;
+
 	// 1. 일반 공격 GA 클래스
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities")
 	TSubclassOf<UGameplayAbility> NormalAttackAbility;
@@ -42,5 +46,11 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Targeting")
 	ETargetingType ParrySkillTargeting = ETargetingType::Single;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FText NormalAttackUIText; 
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FText WeaponSkillUIText; 
 
 };

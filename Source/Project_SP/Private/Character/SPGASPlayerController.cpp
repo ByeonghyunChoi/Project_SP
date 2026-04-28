@@ -22,6 +22,8 @@
 #include "Component/InventoryComponent.h" // 인벤토리 컴포넌트 추가
 #include <AbilitySystemBlueprintLibrary.h>
 #include "Data/ShopDataStructs.h"
+#include "Data/Asset/OpartsDefinition.h"
+#include "Component/OpartsComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -159,7 +161,15 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
 		CachedASC->RegisterGameplayTagEvent(TimeInterferenceTag, EGameplayTagEventType::NewOrRemoved)
 			.AddUObject(this, &ASPGASPlayerController::OnTimeInterferenceTagChanged);
-		
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetExperienceAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnExperienceAttributeChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetLevelAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnLevelAttributeChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetExperienceAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnExperienceAttributeChanged);
+		CachedASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Battle_TurnActive, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerController::OnTurnActiveTagChanged);
+
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
@@ -237,6 +247,20 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 {
 	if (!CachedASC) return;
+
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(FName("Weapon"))))
+	{
+		if (CurrentWeaponTag == InputTag)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[필드] 이미 장착 중인 무기입니다."));
+			return;
+		}
+
+		// 필드에서도 무기 교체 함수를 동일하게 실행!
+		ProcessWeaponSwitch(InputTag);
+		return;
+	}
+
 	// 필드는 즉시 실행
 	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
 }
@@ -577,6 +601,14 @@ float ASPGASPlayerController::GetTimePowerPercent() const
 	return 0.0f;
 }
 
+int32 ASPGASPlayerController::GetCurrentPlayerLevel() const
+{
+	if (!CachedASC) return 1; 
+
+	float CurrentLevel = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+	return FMath::FloorToInt(CurrentLevel);
+}
+
 void ASPGASPlayerController::SetupAndShowBattleUI()
 {
 	// 1. ASC 및 캐릭터 안전하게 쥐기
@@ -701,7 +733,31 @@ bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 	return true;
 }
 
+void ASPGASPlayerController::RefreshExpUI()
+{
+	if (!CachedASC) return;
 
+	float CurrentExp = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	float MaxExp = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+
+	// 0 나누기 에러 방지 및 퍼센트 계산 (0.0 ~ 1.0)
+	float Percent = (MaxExp > 0.0f) ? (CurrentExp / MaxExp) : 0.0f;
+
+	// UI로 방송!
+	OnPlayerExpChanged.Broadcast(CurrentExp, MaxExp, Percent);
+}
+
+const UOpartsDefinition* ASPGASPlayerController::GetCurrentOpartsDefinition() const
+{
+	if (APawn* PlayerPawn = GetPawn())
+	{
+		if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+		{
+			return OpartsComp->GetCurrentOpartsData().Definition;
+		}
+	}
+	return nullptr;
+}
 
 void ASPGASPlayerController::StartTargetSelection()
 {
@@ -954,14 +1010,35 @@ void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAct
 void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (!IsLocalController()) return;
+	bool bIsActive = (NewCount > 0);
 
+	ToggleTimeInterferenceUI(bIsActive);
+	OnTimeInterferenceChanged.Broadcast(bIsActive);
+}
+
+void ASPGASPlayerController::OnExperienceAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshExpUI();
+}
+
+void ASPGASPlayerController::OnLevelAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	if (CachedASC)
+	{
+		int32 CurrentLevel = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute()));
+		OnPlayerLevelChanged.Broadcast(CurrentLevel);
+	}
+}
+
+void ASPGASPlayerController::OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 내 몸에 TurnActive 태그가 1개 이상 붙었다면 = 내 턴 시작!
 	if (NewCount > 0)
 	{
-		ToggleTimeInterferenceUI(true);
-	}
-	else
-	{
-		ToggleTimeInterferenceUI(false);
+		// UI 쪽에 "내 턴 시작됐다! 쿨타임 숫자 다시 그려라!" 라고 방송 송출
+		OnPlayerTurnStarted.Broadcast();
 	}
 }
 
@@ -985,28 +1062,47 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 	CurrentWeaponTag = NewWeaponTag;
 
-	if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
-		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-		{
-			CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
-		}
-		// 바뀐 타겟팅 규칙으로 불빛을 다시 켭니다! 
-		HighlightCurrentTarget(true);
-
-		// 타겟이 갱신 브로드캐스트
-		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-		{
-			OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
-		}
-	}
-	else
-	{
-		// 타겟팅 중이 아니었다면 (그냥 턴 시작하자마자 무기만 바꾼 경우) 행동 리셋
-		SetCurrentSelectedAction(ESelectedActionType::None);
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
+		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		{
+			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+			{
+				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
+			}
+
+			HighlightCurrentTarget(true);
+
+			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+			{
+				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+			}
+		}
+		else
+		{
+			SetCurrentSelectedAction(ESelectedActionType::None);
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때만 실행]
+		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
+
+		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+	}
 }
 
 bool ASPGASPlayerController::IsMyTurn() const

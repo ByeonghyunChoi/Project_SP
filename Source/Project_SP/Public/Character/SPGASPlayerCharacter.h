@@ -64,7 +64,6 @@ public:
 	class UDataTable* PlayerRewardTable;
 
 protected:
-	virtual void OnRep_PlayerState() override;
 
 	UPROPERTY(EditAnywhere, Category = "GAS | Field")
 	TMap<FGameplayTag, TSubclassOf<class UGameplayAbility>> FieldInputAbilities;
@@ -92,6 +91,16 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<class UCineCameraComponent> CombatCineCamera;
 
+	//무기 교체 시 재생할 몽타주
+	UPROPERTY(EditDefaultsOnly, Category = "GAS | Battle | Animation")
+	TObjectPtr<UAnimMontage> WeaponSwapMontage;
+
+	FGameplayTag PendingWeaponTag;
+
+protected:
+
+	virtual void OnRep_PlayerState() override;
+
 	void GiveAbilities();
 
 	void GiveWeaponAbilities();
@@ -100,13 +109,14 @@ protected:
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
 
-	void CheckLevelUp();
-
 	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
 
 	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
 	void OnLevelUpEffect();
+
+	void OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
@@ -144,7 +154,21 @@ public:
 	TObjectPtr<class UWidgetComponent> GetBattlePointWidgetComponent() { return BattlePointWidgetComponent; }
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
-	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
+	
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	UWeaponAbilityData* GetWeaponData(FGameplayTag WeaponTag) const;
+
+	// 컨트롤러가 호출할 함수
+	void PlayWeaponSwapSequence(FGameplayTag NewTag);
+
+	// 애니메이션 노티파이가 호출할 함수들 (BlueprintCallable 필수)
+	UFUNCTION(BlueprintCallable, Category = "Combat | Animation")
+	void HandleWeaponHide();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Animation")
+	void HandleWeaponShow();
+
+	void CheckLevelUp();
 	
 public:
 	// 경험치 획득 함수

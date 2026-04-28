@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
+#include "Character/SPGASPlayerCharacter.h"
 
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -200,6 +201,11 @@ void UMapManagerSubsystem::SpawnMapActor(EMapType MapType)
 
 				// 2. 현재 체력 및 런 중에 먹은 유물 적용
 				SaveSys->RestoreRunDataToPlayer(Player);
+
+				if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(Player))
+				{
+					SPPlayer->CheckLevelUp();
+				}
 
 				// 3. 타이틀 화면에서 '이어하기'로 들어온 게 아니라면, 
 				// 방금 오파츠까지 싹 입은 완전체 상태를 1층 진입 데이터로 오토세이브!

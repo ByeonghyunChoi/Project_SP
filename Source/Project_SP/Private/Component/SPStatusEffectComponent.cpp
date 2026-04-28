@@ -259,6 +259,11 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
 				}
 
+				TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+
+				// 2. 블루프린트(PlayerController)로 방송 송출 (즉발 데미지이므로 bIsInstant = true)
+				OnStatusVisualTriggered.Broadcast(TargetASC->GetAvatarActor(), IncomingStatusTag, true);
+
 				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
 			}
 		}
@@ -338,6 +343,11 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 							SPTags.Data_Damage,
 							TargetCoefficient
 						);
+
+						OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+
+						// 2. 블루프린트(PlayerController)로 방송 송출 (DoT 데미지이므로 bIsInstant = false)
+						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
 
 						// 시전자가 나에게 데미지 GE를 쏩니다.
 						InstigatorASC->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), OwnerASC);

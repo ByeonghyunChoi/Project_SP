@@ -135,6 +135,8 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		SaveSys->RestoreRunDataToPlayer(this);
 	}
 
+	CheckLevelUp();
+
 	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
@@ -347,13 +349,60 @@ ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, E
 	return ETargetingType::Single;
 }
 
-TObjectPtr<UWeaponAbilityData> ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
+UWeaponAbilityData* ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
 {
 	if (const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag))
 	{
 		return *FoundData;
 	}
 	return nullptr;
+}
+
+void ASPGASPlayerCharacter::PlayWeaponSwapSequence(FGameplayTag NewTag)
+{
+	if (WeaponSwapMontage)
+	{
+		PendingWeaponTag = NewTag; // 바꿀 무기 예약
+		PlayAnimMontage(WeaponSwapMontage);
+
+		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+		{
+			FOnMontageEnded EndDelegate;
+			EndDelegate.BindUObject(this, &ASPGASPlayerCharacter::OnWeaponSwapMontageEnded);
+
+			// "이 몽타주가 끝나거나 끊기면 내 함수를 불러줘!" 라고 예약
+			AnimInstance->Montage_SetEndDelegate(EndDelegate, WeaponSwapMontage);
+		}
+	}
+	else
+	{
+		// 몽타주가 없으면 즉시 교체 (예외 처리)
+		HandleWeaponShow();
+	}
+}
+
+void ASPGASPlayerCharacter::HandleWeaponHide()
+{
+	if (WeaponMesh)
+	{
+		WeaponMesh->SetVisibility(false); // 기존 무기 숨기기
+	}
+}
+
+void ASPGASPlayerCharacter::HandleWeaponShow()
+{
+	if (!PendingWeaponTag.IsValid()) return;
+
+	UWeaponAbilityData* NewData = GetWeaponData(PendingWeaponTag);
+	if (NewData && NewData->WeaponMesh && WeaponMesh)
+	{
+		// 🌟 원상 복구: SetStaticMesh -> SetSkeletalMesh
+		WeaponMesh->SetSkeletalMesh(NewData->WeaponMesh);
+
+		WeaponMesh->SetVisibility(true);
+
+		UE_LOG(LogTemp, Log, TEXT("[Visual] 무기 스켈레탈 메쉬 교체 완료: %s"), *PendingWeaponTag.ToString());
+	}
 }
 
 void ASPGASPlayerCharacter::AddExperience(float ExpAmount)
@@ -370,9 +419,17 @@ void ASPGASPlayerCharacter::AddExperience(float ExpAmount)
 	float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp + ExpAmount);
 
-	UE_LOG(LogTemp, Log, TEXT("경험치 획득: +%.0f (현재 %.0f)"), ExpAmount, CurrentExp + ExpAmount);
+	UE_LOG(LogTemp, Warning, TEXT("경험치 획득: +%.0f (현재 %.0f)"), ExpAmount, CurrentExp + ExpAmount);
 
-	CheckLevelUp();
+	// 🌟 [핵심] 전투 중이 아닐 때(필드일 때)만 즉시 레벨업 검사를 실행합니다!
+	if (!ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Mode_Battle))
+	{
+		CheckLevelUp();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시스템] 전투 중이므로 레벨업 처리는 필드 복귀 후 진행됩니다."));
+	}
 }
 
 void ASPGASPlayerCharacter::OnBattleStarted()
@@ -583,5 +640,13 @@ void ASPGASPlayerCharacter::ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp)
 	if (PlayerRewardTable && bIsLevelUp)
 	{
 		// 지금은 비워 둠
+	}
+}
+
+void ASPGASPlayerCharacter::OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (bInterrupted)
+	{
+		HandleWeaponShow();
 	}
 }
