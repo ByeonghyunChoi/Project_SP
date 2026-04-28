@@ -34,7 +34,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
 	void RefreshTurnTimelineUI();
 
-	//���� �¸� �� ȣ���� ���� �Լ�
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
 
@@ -45,23 +44,18 @@ public:
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 
 protected:
-	// ��������Ʈ���� BP_TurnManager�� �����ؾ� ��
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
 
-	// ���� ������ �Ŵ���
 	UPROPERTY(BlueprintReadOnly, Category = "Battle")
 	TObjectPtr<class ASPCombatTurnManager> TurnManager;
 
-	// ���� �� ����
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
 	TObjectPtr<AActor> CurrentTurnActor;
 
-	// ���� ������ ���
 	UPROPERTY()
 	TArray<AActor*> AllParticipants;
 
-	//���� �غ� �Ϸ�� ������ ��� 
 	UPROPERTY()
 	TSet<AActor*> ReadyParticipants;
 
@@ -70,14 +64,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
 	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
 
-	//���� ��ü ���� ��
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
 	int32 TotalExpectedParticipants = 0;
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
-	// ���� ���� ������ ���̺� (�����Ϳ��� ����)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
 	UDataTable* CombatRewardDataTable;
 	
@@ -96,7 +88,6 @@ private:
 
 	void CheckAndStartBattle();
 
-	//������ ���� �Լ�
 	void ApplyPlayerSavedData();
 
 };

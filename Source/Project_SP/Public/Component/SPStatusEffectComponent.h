@@ -5,8 +5,11 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Tag/SPGameplayTags.h"
+#include "GameplayEffect.h" //FGameplayEffectSpecHandle을 사용하기 위해
 #include "SPStatusEffectComponent.generated.h"
 
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnStatusVisualDelegate, AActor*, TargetActor, FGameplayTag, StatusTag, bool, bIsInstant);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API USPStatusEffectComponent : public UActorComponent
@@ -44,7 +47,19 @@ public:
 	//상태이상 턴 감소 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
 	void ReduceStatusEffectTurns();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+	void ExecutePendingDamage(AActor* TargetActor);
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Combat | Visual")
+	FOnStatusVisualDelegate OnStatusVisualTriggered;
+
 private:
 	// 기존 상태이상 삭제 헬퍼
 	void RemoveStatusEffectByTag(class UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove);
+
+private:
+	//받아야 할 데미지
+	TMap<AActor*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap;
 };

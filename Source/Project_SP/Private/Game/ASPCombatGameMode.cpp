@@ -461,53 +461,87 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 
 		if (PlayerPawn)
 		{
-			UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
-			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+			int32 TotalExp = 0;
+			int32 TotalMonsterMoney = 0;
 
-			if (InventoryComp && MapManager && CombatRewardDataTable)
+			if (USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>())
 			{
-				// 1. Enum에서 앞에 붙는 'EMapType::'을 떼어내고 순수 이름(NormalBattle)만 가져오기
-				FString MapTypeStr = StaticEnum<EMapType>()->GetNameStringByValue((int64)MapManager->GetCurrentMapType());
-
-				// 2. 이제 "Stage1_NormalBattle" 형태로 깨끗하게 조합됩니다.
-				FString RowNameStr = FString::Printf(TEXT("Stage%d_%s"), MapManager->GetCurrentStage(), *MapTypeStr);
-
-				// 3. 테이블 검색 (이제 이름을 정확히 찾을 겁니다!)
-				FCombatRewardRow* RewardRow = CombatRewardDataTable->FindRow<FCombatRewardRow>(FName(*RowNameStr), TEXT(""));
-
-				if (RewardRow)
+				if (const UCombatEncounterData* Encounter = CombatSys->GetPendingEncounter())
 				{
-					for (const FCombatRewardInfo& Reward : RewardRow->GuaranteedRewards)
+					for (const FEnemySpawnInfo& Info : Encounter->EnemyGroup)
 					{
-						int32 FinalAmount = FMath::RandRange(Reward.MinAmount, Reward.MaxAmount);
-						switch (Reward.ResourceType)
+						if (Info.MonsterData)
 						{
-						case EResourceType::Gold:
-							InventoryComp->AddMoney(FinalAmount); 
-							break;
-						case EResourceType::Sand:
-							InventoryComp->AddSand(FinalAmount);
-							break;
-						case EResourceType::IncompleteEnergy:
-							InventoryComp->AddIncompleteEnergy(FinalAmount);
-							break;
-						case EResourceType::Fragment:
-							InventoryComp->AddFragment(FinalAmount);
-							break;
+							TotalExp += Info.MonsterData->ExpReward;
+							TotalMonsterMoney += Info.MonsterData->MoneyReward;
 						}
-						if (MapManager)
-						{
-							// 동일한 재화가 여러 번 들어오면 수량을 합쳐줍니다.
-							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Reward.ResourceType);
-							SavedAmount += FinalAmount;
-						}
-
-						UE_LOG(LogTemp, Warning, TEXT("[전투 보상] %d 획득 완료"), FinalAmount);
 					}
 				}
 			}
 
-			// 3. 인벤토리에 들어간 재화까지 포함해서 세이브 시스템에 덮어쓰기!
+			// 플레이어에게 경험치 지급 (내부에서 필드/전투 여부 판단하여 레벨업 홀딩)
+			if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
+			{
+				SPPlayer->AddExperience(TotalExp);
+			}
+
+			UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+
+			if (InventoryComp && MapManager)
+			{
+				
+				if (TotalMonsterMoney > 0)
+				{
+					InventoryComp->AddMoney(TotalMonsterMoney);
+					int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold);
+					SavedAmount += TotalMonsterMoney;
+					UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 몬스터 드랍 골드 %d 획득 완료"), TotalMonsterMoney);
+				}
+
+				if (CombatRewardDataTable)
+				{
+					// 1. Enum에서 앞에 붙는 'EMapType::'을 떼어내고 순수 이름(NormalBattle)만 가져오기
+					FString MapTypeStr = StaticEnum<EMapType>()->GetNameStringByValue((int64)MapManager->GetCurrentMapType());
+
+					// 2. 이제 "Stage1_NormalBattle" 형태로 깨끗하게 조합됩니다.
+					FString RowNameStr = FString::Printf(TEXT("Stage%d_%s"), MapManager->GetCurrentStage(), *MapTypeStr);
+
+					// 3. 테이블 검색 (이제 이름을 정확히 찾을 겁니다!)
+					FCombatRewardRow* RewardRow = CombatRewardDataTable->FindRow<FCombatRewardRow>(FName(*RowNameStr), TEXT(""));
+
+					if (RewardRow)
+					{
+						for (const FCombatRewardInfo& Reward : RewardRow->GuaranteedRewards)
+						{
+							int32 FinalAmount = FMath::RandRange(Reward.MinAmount, Reward.MaxAmount);
+							switch (Reward.ResourceType)
+							{
+							case EResourceType::Gold:
+								InventoryComp->AddMoney(FinalAmount);
+								break;
+							case EResourceType::Sand:
+								InventoryComp->AddSand(FinalAmount);
+								break;
+							case EResourceType::IncompleteEnergy:
+								InventoryComp->AddIncompleteEnergy(FinalAmount);
+								break;
+							case EResourceType::Fragment:
+								InventoryComp->AddFragment(FinalAmount);
+								break;
+							}
+
+							// 동일한 재화가 여러 번 들어오면 수량을 합쳐줍니다.
+							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Reward.ResourceType);
+							SavedAmount += FinalAmount;
+
+							UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 스테이지 클리어 보상 %d 획득 완료"), FinalAmount);
+						}
+					}
+				}
+			}
+
+			// 3. 인벤토리에 들어간 재화와 '새로 얻은 경험치'까지 포함해서 세이브 시스템에 덮어쓰기!
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
 				SaveSys->CacheRunDataFromPlayer(PlayerPawn);

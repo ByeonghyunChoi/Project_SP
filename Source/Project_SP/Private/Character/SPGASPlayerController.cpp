@@ -22,6 +22,8 @@
 #include "Component/InventoryComponent.h" // 인벤토리 컴포넌트 추가
 #include <AbilitySystemBlueprintLibrary.h>
 #include "Data/ShopDataStructs.h"
+#include "Data/Asset/OpartsDefinition.h"
+#include "Component/OpartsComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -159,7 +161,15 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
 		CachedASC->RegisterGameplayTagEvent(TimeInterferenceTag, EGameplayTagEventType::NewOrRemoved)
 			.AddUObject(this, &ASPGASPlayerController::OnTimeInterferenceTagChanged);
-		
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetExperienceAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnExperienceAttributeChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetLevelAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnLevelAttributeChanged);
+		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetExperienceAttribute())
+			.AddUObject(this, &ASPGASPlayerController::OnExperienceAttributeChanged);
+		CachedASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Battle_TurnActive, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerController::OnTurnActiveTagChanged);
+
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
 
@@ -591,6 +601,14 @@ float ASPGASPlayerController::GetTimePowerPercent() const
 	return 0.0f;
 }
 
+int32 ASPGASPlayerController::GetCurrentPlayerLevel() const
+{
+	if (!CachedASC) return 1; 
+
+	float CurrentLevel = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+	return FMath::FloorToInt(CurrentLevel);
+}
+
 void ASPGASPlayerController::SetupAndShowBattleUI()
 {
 	// 1. ASC 및 캐릭터 안전하게 쥐기
@@ -715,7 +733,31 @@ bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 	return true;
 }
 
+void ASPGASPlayerController::RefreshExpUI()
+{
+	if (!CachedASC) return;
 
+	float CurrentExp = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+	float MaxExp = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxExperienceAttribute());
+
+	// 0 나누기 에러 방지 및 퍼센트 계산 (0.0 ~ 1.0)
+	float Percent = (MaxExp > 0.0f) ? (CurrentExp / MaxExp) : 0.0f;
+
+	// UI로 방송!
+	OnPlayerExpChanged.Broadcast(CurrentExp, MaxExp, Percent);
+}
+
+const UOpartsDefinition* ASPGASPlayerController::GetCurrentOpartsDefinition() const
+{
+	if (APawn* PlayerPawn = GetPawn())
+	{
+		if (UOpartsComponent* OpartsComp = PlayerPawn->FindComponentByClass<UOpartsComponent>())
+		{
+			return OpartsComp->GetCurrentOpartsData().Definition;
+		}
+	}
+	return nullptr;
+}
 
 void ASPGASPlayerController::StartTargetSelection()
 {
@@ -968,14 +1010,35 @@ void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAct
 void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (!IsLocalController()) return;
+	bool bIsActive = (NewCount > 0);
 
+	ToggleTimeInterferenceUI(bIsActive);
+	OnTimeInterferenceChanged.Broadcast(bIsActive);
+}
+
+void ASPGASPlayerController::OnExperienceAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshExpUI();
+}
+
+void ASPGASPlayerController::OnLevelAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	if (CachedASC)
+	{
+		int32 CurrentLevel = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute()));
+		OnPlayerLevelChanged.Broadcast(CurrentLevel);
+	}
+}
+
+void ASPGASPlayerController::OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 내 몸에 TurnActive 태그가 1개 이상 붙었다면 = 내 턴 시작!
 	if (NewCount > 0)
 	{
-		ToggleTimeInterferenceUI(true);
-	}
-	else
-	{
-		ToggleTimeInterferenceUI(false);
+		// UI 쪽에 "내 턴 시작됐다! 쿨타임 숫자 다시 그려라!" 라고 방송 송출
+		OnPlayerTurnStarted.Broadcast();
 	}
 }
 
@@ -1002,6 +1065,7 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
 		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());

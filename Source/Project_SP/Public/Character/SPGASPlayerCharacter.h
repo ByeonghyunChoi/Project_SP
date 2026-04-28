@@ -109,13 +109,14 @@ protected:
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
 
-	void CheckLevelUp();
-
 	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
 
 	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
 	void OnLevelUpEffect();
+
+	void OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
@@ -137,7 +138,7 @@ protected:
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Weapon")
-	class UStaticMeshComponent* WeaponMesh;
+	class USkeletalMeshComponent* WeaponMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat | Target")
 	TObjectPtr<AActor> LastParriedTarget;
@@ -153,7 +154,9 @@ public:
 	TObjectPtr<class UWidgetComponent> GetBattlePointWidgetComponent() { return BattlePointWidgetComponent; }
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	ETargetingType GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
-	TObjectPtr<UWeaponAbilityData> GetWeaponData(FGameplayTag WeaponTag) const;
+	
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	UWeaponAbilityData* GetWeaponData(FGameplayTag WeaponTag) const;
 
 	// 컨트롤러가 호출할 함수
 	void PlayWeaponSwapSequence(FGameplayTag NewTag);
@@ -164,6 +167,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Combat | Animation")
 	void HandleWeaponShow();
+
+	void CheckLevelUp();
 	
 public:
 	// 경험치 획득 함수

@@ -13,7 +13,11 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChangedDelegate, AActor*, TargetActor);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnPlayerExpChangedDelegate, float, CurrentExp, float, MaxExp, float, ExpPercent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLevelChangedDelegate, int32, NewLevel);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChangedDelegate, FGameplayTag, NewWeaponTag);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimeInterferenceChangedDelegate, bool, bIsActive);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerTurnStartedDelegate);
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
 struct FSPInputConfig
@@ -162,6 +166,15 @@ protected:
 	// 시간 간섭 상태 변경 감지 함수
 	void OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount);
 
+	// 경험치 변경 감지 함수
+	void OnExperienceAttributeChanged(const FOnAttributeChangeData& Data);
+
+	// 레벨 변경 감지 함수
+	void OnLevelAttributeChanged(const FOnAttributeChangeData& Data);
+
+	//턴 시작 감지 함수
+	void OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount);
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -194,6 +207,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat | UI")
 	float GetTimePowerPercent() const;
 
+	//플레이어 현재 레벨 가져오기
+	UFUNCTION(BlueprintPure, Category = "Growth")
+	int32 GetCurrentPlayerLevel() const;
+
 	//전투 UI 활성화 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void SetupAndShowBattleUI();
@@ -218,6 +235,12 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
 	void ToggleTimeInterferenceUI(bool bIsActive);
 
+	UFUNCTION(BlueprintCallable, Category = "Growth | UI")
+	void RefreshExpUI();
+
+	UFUNCTION(BlueprintPure, Category = "Combat | Oparts")
+	const class UOpartsDefinition* GetCurrentOpartsDefinition() const;
+
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
 	class AMerchantNPC* CurrentMerchant;
@@ -235,5 +258,20 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnTargetChangedDelegate OnTargetChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Growth | UI")
+	FOnPlayerExpChangedDelegate OnPlayerExpChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Growth | UI")
+	FOnPlayerLevelChangedDelegate OnPlayerLevelChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnWeaponChangedDelegate OnWeaponChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnTimeInterferenceChangedDelegate OnTimeInterferenceChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnPlayerTurnStartedDelegate OnPlayerTurnStarted;
 
 };

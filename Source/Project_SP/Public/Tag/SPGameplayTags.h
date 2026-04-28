@@ -32,6 +32,7 @@ public:
 	FGameplayTag State_Buff_CrystalSkull;
 	FGameplayTag State_Buff_JadeClock;
 	FGameplayTag State_Buff_GoldBug;
+	FGameplayTag State_Status_VisualPlaying;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
