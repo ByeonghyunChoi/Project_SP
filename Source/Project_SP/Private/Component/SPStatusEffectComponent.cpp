@@ -404,6 +404,10 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 	}
 }
 
+void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor)
+{
+}
+
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
 {
 	if (!TargetASC) return;
