@@ -449,7 +449,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 		// 방어력 계수
 		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
-		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 500.0f);
 		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		//레벨 계수
@@ -519,7 +519,7 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 		// 방어력 계수
 		float EffectiveDefense = Defense * FMath::Clamp(1.0f - DefIgnore, 0.0f, 1.0f);
-		float DamageReduction = EffectiveDefense / (EffectiveDefense + 1000.0f);
+		float DamageReduction = EffectiveDefense / (EffectiveDefense + 500.0f);
 		float DefenseCoefficient = 1.0f - DamageReduction;
 
 		// 약점 계수
@@ -796,6 +796,7 @@ void ASPGASAIController::FinishTurnDelayed()
 #include "Tag/SPGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
+#include "Manager/SPCombatTurnManager.h"
 
 
 
@@ -804,6 +805,20 @@ ASPGASCharacterBase::ASPGASCharacterBase()
     ASC = nullptr;
     AttributeSet = nullptr;
 	StatusEffectComponent = CreateDefaultSubobject<USPStatusEffectComponent>(TEXT("StatusEffectComponent"));
+}
+
+void ASPGASCharacterBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (ASC)
+	{
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetSpeedAttribute())
+			.AddUObject(this, &ASPGASCharacterBase::OnSpeedChanged);
+
+		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetActionGaugeAttribute())
+			.AddUObject(this, &ASPGASCharacterBase::OnActionGaugeChanged);
+	}
 }
 
 UAbilitySystemComponent* ASPGASCharacterBase::GetAbilitySystemComponent() const
@@ -902,6 +917,28 @@ void ASPGASCharacterBase::CancelAbilitiesWithTag(FGameplayTagContainer WithTags)
 	if (ASC)
 	{
 		ASC->CancelAbilities(&WithTags, nullptr, nullptr);
+	}
+}
+
+void ASPGASCharacterBase::OnSpeedChanged(const FOnAttributeChangeData& Data)
+{
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		if (ASPCombatTurnManager* TM = GM->GetTurnManager())
+		{
+			TM->OnTurnOrderChanged.Broadcast();
+		}
+	}
+}
+
+void ASPGASCharacterBase::OnActionGaugeChanged(const FOnAttributeChangeData& Data)
+{
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		if (ASPCombatTurnManager* TM = GM->GetTurnManager())
+		{
+			TM->OnTurnOrderChanged.Broadcast();
+		}
 	}
 }
 // ==========================================
@@ -1224,6 +1261,13 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		ASC = SPGAS->GetAbilitySystemComponent();
 		AttributeSet = SPGAS->GetAttributeSet();
 		ASC->InitAbilityActorInfo(SPGAS, this);
+
+		ASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_ActionExecuting, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerCharacter::OnActionTagChanged);
+
+		ASC->RegisterGameplayTagEvent(FSPGameplayTags::Get().State_Battle_TurnActive, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerCharacter::OnActionTagChanged);
+
 		ASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetHealthAttribute())
 			.AddUObject(this, &ASPGASPlayerCharacter::OnHealthChanged);
 
@@ -1284,3 +1328,14 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
 	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
 }
+
+
+void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
+{
+	// 무기 데이터 확인
+	if (!WeaponConfigs.Contains(WeaponTag))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Character: 해당 무기 데이터가 없습니다 (%s)"), *WeaponTag.ToString());
+		return;
+	}
+

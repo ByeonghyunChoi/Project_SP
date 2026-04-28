@@ -1,15 +1,4 @@
-﻿
-
-void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
-{
-	// 무기 데이터 확인
-	if (!WeaponConfigs.Contains(WeaponTag))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Character: 해당 무기 데이터가 없습니다 (%s)"), *WeaponTag.ToString());
-		return;
-	}
-
-	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+﻿	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
 	TSubclassOf<UGameplayAbility> AbilityClassToActivate;
 
 	// 행동 타입에 맞는 클래스 선택 (Enum 활용)
@@ -261,25 +250,54 @@ void ASPGASPlayerCharacter::SwitchCameraMode(bool bIsBattle)
 {
 	if (bIsBattle)
 	{
-		// 1. 일반 카메라 끄고, 시네 카메라 켜기
+		// 일반 카메라 끄고, 전투 카메라 켜기
 		FollowCamera->Deactivate();
 		CombatCineCamera->Activate();
 
-		// 2. 선생님이 짜두신 전투용 거리/각도(Profile) 적용
 		SetCameraProfile(CombatCameraSetting);
 
 		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 전투용 CineCamera 활성화"));
 	}
 	else
 	{
-		// 1. 시네 카메라 끄고, 일반 카메라 켜기
+		// 전투 카메라 끄고, 일반 카메라 켜기
 		CombatCineCamera->Deactivate();
 		FollowCamera->Activate();
 
-		// 2. 필드용 거리/각도(Profile) 적용
 		SetCameraProfile(FieldCameraSetting);
 
 		UE_LOG(LogTemp, Log, TEXT("카메라 전환: 필드용 FollowCamera 활성화"));
+	}
+}
+
+void ASPGASPlayerCharacter::OnActionTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
+{
+	if (!ASC) return;
+
+	// 지금 내 턴인가?
+	bool bIsMyTurn = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+
+	// 지금 스킬을 실행 중인가?
+	bool bIsExecuting = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting);
+
+	// 내 턴이면서 행동 중이 아닐 때
+	bool bShouldShowUI = (bIsMyTurn && !bIsExecuting);
+
+	// 행동 중이 아닐 때
+	bool bShouldShowUIWeapon = !bIsExecuting;
+
+	// 위젯 켜고 끄기 적용
+	if (WeaponWidgetComponent)
+	{
+		WeaponWidgetComponent->SetVisibility(bShouldShowUIWeapon);
+	}
+	if (ActionWidgetComponent)
+	{
+		ActionWidgetComponent->SetVisibility(bShouldShowUI);
+	}
+	if (BattlePointWidgetComponent)
+	{
+		BattlePointWidgetComponent->SetVisibility(bShouldShowUI);
 	}
 }
 
@@ -419,6 +437,7 @@ void ASPGASPlayerCharacter::ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp)
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMaterialLibrary.h"
 #include "Character/SPGASPlayerState.h"
 #include "Character/SPGASPlayerCharacter.h"  
 #include "Character/SPGASMonsterCharacter.h" 
@@ -533,12 +552,6 @@ void ASPGASPlayerController::SetupInputComponent()
 		{
 			EIC->BindAction(ParryAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnParryPressed);
 		}
-
-		// 반격 모드 토글 바인딩
-		if (ToggleCounterModeAction)
-		{
-			EIC->BindAction(ToggleCounterModeAction, ETriggerEvent::Started, this, &ASPGASPlayerController::OnToggleCounterModePressed);
-		}
 	}
 }
 
@@ -566,6 +579,7 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 	{
 		// 전투 태그
 		FGameplayTag BattleTag = FSPGameplayTags::Get().State_Mode_Battle;
+		FGameplayTag TimeInterferenceTag = FSPGameplayTags::Get().State_TimeInterference;
 
 		// 이벤트 등록 (앞으로의 변화를 감지하기 위해 등록)
 		CachedASC->RegisterGameplayTagEvent(BattleTag, EGameplayTagEventType::NewOrRemoved)
@@ -574,6 +588,8 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 			.AddUObject(this, &ASPGASPlayerController::OnBattlePointChanged);
 		CachedASC->GetGameplayAttributeValueChangeDelegate(USPGASAttributeSet::GetMaxBattlePointAttribute())
 			.AddUObject(this, &ASPGASPlayerController::OnMaxBattlePointChanged);
+		CachedASC->RegisterGameplayTagEvent(TimeInterferenceTag, EGameplayTagEventType::NewOrRemoved)
+			.AddUObject(this, &ASPGASPlayerController::OnTimeInterferenceTagChanged);
 		
 		// 현재 상태를 확인해서, 강제로 콜백 함수 호출!
 		bool bIsBattle = CachedASC->HasMatchingGameplayTag(BattleTag);
@@ -640,6 +656,7 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 		// 3. 새 타겟 하이라이트 켜기
 		HighlightCurrentTarget(true);
 		UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
+		OnTargetChanged.Broadcast(SelectedTarget);
 	}
 	else
 	{
@@ -667,8 +684,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			UE_LOG(LogTemp, Log, TEXT("이미 장착 중인 무기입니다. 입력을 무시합니다."));
 			return;
 		}
-		// 타겟팅 중에 무기를 바꾸면 타겟팅 취소
-		if (bIsSelectingTarget) CancelTargetSelection();
 
 		ProcessWeaponSwitch(InputTag);
 		return;
@@ -792,13 +807,30 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		}
 		else
 		{
-			// B. 새로운 행동을 누름 -> 선택 및 타겟팅 시작!
-			if (bIsSelectingTarget) HighlightCurrentTarget(false); // 이전 타겟팅 끄기
+			if (bIsSelectingTarget)
+			{
+				// 🌟 1. 이미 타겟팅 중이었다면 타겟을 유지합니다!
+				HighlightCurrentTarget(false); // 잠시 기존 불빛 끄기
 
-			SetCurrentSelectedAction(InputType);
-			UE_LOG(LogTemp, Log, TEXT("행동 선택됨: %d -> 타겟을 선택하세요 (A/D)"), (int32)InputType);
+				SetCurrentSelectedAction(InputType); // 행동 상태 변경
 
-			StartTargetSelection();
+				// (주의: CurrentTargetingType은 이 코드 직전에 이미 새 행동에 맞춰 갱신되어 있습니다!)
+				HighlightCurrentTarget(true);  // 바뀐 규칙(단일/광역)으로 불빛 다시 켜기
+
+				// 🌟 행동이 바뀌면 UI에 뜨는 예상 수치나 설명이 달라질 수 있으므로 방송을 한 번 쏴줍니다!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("행동 변경됨: %d -> 기존 타겟[%d] 유지"), (int32)InputType, CurrentTargetIndex);
+			}
+			else
+			{
+				// 🌟 2. 타겟팅 중이 아니었다면 처음부터 시작합니다. (이때만 0번으로 리셋)
+				SetCurrentSelectedAction(InputType);
+				StartTargetSelection();
+			}
 		}
 	}
 }
@@ -1025,10 +1057,6 @@ void ASPGASPlayerController::RefreshBattlePointUI()
 	OnBattlePointUIUpdated.Broadcast(CurrentBP, MaxBP);
 }
 
-void ASPGASPlayerController::UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder)
-{
-	OnTurnOrderUIUpdated.Broadcast(PredictedTurnOrder);
-}
 
 bool ASPGASPlayerController::BuyShopItem(const FShopItemRow& ItemData)
 {
@@ -1131,6 +1159,11 @@ void ASPGASPlayerController::StartTargetSelection()
 
 	// 3. 하이라이트 ON
 	HighlightCurrentTarget(true);
+
+	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+	{
+		OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+	}
 }
 
 void ASPGASPlayerController::ConfirmTargetAndExecute()
@@ -1148,6 +1181,8 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 
 		// 행동 초기화 (다음 턴을 위해)
 		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		OnTargetChanged.Broadcast(nullptr);
 	}
 	else
 	{
@@ -1170,6 +1205,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 	SetCurrentSelectedAction(ESelectedActionType::None);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
+	OnTargetChanged.Broadcast(nullptr);
 }
 
 void ASPGASPlayerController::HighlightCurrentTarget(bool bHighlight)
@@ -1284,3 +1320,22 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 				{
 					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
 					ConfirmTargetAndExecute();
+				}
+			}
+			else
+			{
+				// 다른 녀석을 클릭했다면 -> 주 타겟을 그 녀석으로 변경!
+				HighlightCurrentTarget(false);
+				CurrentTargetIndex = FoundIndex;
+				HighlightCurrentTarget(true);
+
+				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+				OnTargetChanged.Broadcast(ClickedActor);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 마우스 아래에 아무것도 없음 (허공 클릭)"));
+	}
+}

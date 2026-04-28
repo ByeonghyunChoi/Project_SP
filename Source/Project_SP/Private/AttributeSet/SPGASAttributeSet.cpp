@@ -73,7 +73,16 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetCriticalRateAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 0.0f);
+		// 1. 내 몸에 골드버그 태그가 있다면 어떠한 변화가 와도 무조건 0으로 덮어씌움
+		if (GetOwningAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().Oparts_GoldBug))
+		{
+			NewValue = 0.0f;
+		}
+		else
+		{
+			// 2. 골드버그가 없다면 정상적으로 마이너스가 되지 않게만(0 이상) 보정
+			NewValue = FMath::Max(NewValue, 0.0f);
+		}
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{

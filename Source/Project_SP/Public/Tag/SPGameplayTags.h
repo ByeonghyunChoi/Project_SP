@@ -76,6 +76,9 @@ public:
 	FGameplayTag Event_Combat_SkillKill;
 	FGameplayTag Event_Combat_ParrySuccess;
 
+	// 오파츠 (아티팩트)
+	FGameplayTag Event_Combat_StatusFusion; // 상태이상 융합 이벤트
+
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;
 	FGameplayTag Weapon_Surtr;

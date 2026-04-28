@@ -52,18 +52,31 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
+	auto BroadcastFusionEvent = [&]() // 상태이상 융합 이벤트를 쏘기위한 로직
+	{
+		if (InstigatorActor)
+		{
+			FGameplayEventData Payload;
+			Payload.Instigator = InstigatorActor;
+			Payload.Target = TargetASC->GetAvatarActor();
+			UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(InstigatorActor, SPTags.Event_Combat_StatusFusion, Payload);
+		}
+	};
+
 	// 풍화(Weathering)
 	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
 	{
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
@@ -74,12 +87,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
@@ -90,12 +105,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
@@ -106,6 +123,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_Plague))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_Plague);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}
@@ -115,6 +133,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_HeatWind))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_HeatWind);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}

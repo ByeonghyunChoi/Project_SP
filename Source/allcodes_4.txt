@@ -1,25 +1,4 @@
-﻿
-	FCollisionShape SphereShape = FCollisionShape::MakeSphere(InteractionRadius);
-
-	bool bHit = GetWorld()->SweepSingleByChannel(
-		HitResult, Start, End, FQuat::Identity,
-		ECC_Interaction, SphereShape, Params
-	);
-
-#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-	if (bShowDebug)
-	{
-		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
-		FVector Center = (Start + End) * 0.5f;
-		float HalfHeight = (TraceDistance * 0.5f) + InteractionRadius;
-		DrawDebugCapsule(GetWorld(), Center, HalfHeight, InteractionRadius,
-			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
-	}
-#endif
-
-	AActor* NewTarget = nullptr;
-	if (bHit)
-	{
+﻿	{
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor && HitActor->Implements<UInteractableInterface>())
 		{
@@ -262,6 +241,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 					DotSpec.Data->DynamicGrantedTags.AddTag(IncomingStatusTag);
 					InstigatorASC->ApplyGameplayEffectSpecToTarget(*DotSpec.Data.Get(), TargetASC);
 				}
+
 			}
 			else
 			{
@@ -421,16 +401,6 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 
 			// 스택(턴)을 1 깎습니다.
 			OwnerASC->RemoveActiveGameplayEffect(Handle, 1);
-
-			// 🌟 [로그 수정된 부분] 어떤 녀석이 지워지고 남았는지 StatusName을 함께 출력!
-			if (CurrentStack - 1 <= 0)
-			{
-				UE_LOG(LogTemp, Log, TEXT("[%s] %s 종료됨!"), *GetOwner()->GetName(), *StatusName);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("[%s] %s 남은 턴: %d"), *GetOwner()->GetName(), *StatusName, CurrentStack - 1);
-			}
 		}
 	}
 
@@ -519,6 +489,14 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 
 
 #include "Data/ShopDataStructs.h"
+
+// ==========================================
+// FILE: SPActiveEffectUIDictionary.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Data/SPActiveEffectUIDictionary.h"
 
 // ==========================================
 // FILE: SPDataStructs.cpp
@@ -1284,3 +1262,80 @@ void UGA_Relic_MultiStatusCore::OnHitEventReceived(FGameplayEventData Payload)
             // [2] 몬스터 몸에서 '전광판 매니저'를 찾습니다.
             USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
 
+            if (TargetStatusComp)
+            {
+                // [3] 매니저에게 "방금 이 태그(TagToApply) 걸었어!" 라고 보고합니다.
+                // (이 함수가 호출되면 성민님이 짜두신 로직에 의해 UI 아이콘이 예쁘게 뜰 겁니다)
+                TargetStatusComp->ProcessStatusEffect(TagToApply, TargetASC, GetAvatarActorFromActorInfo());
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("오색 마력핵 발동! 적에게 [%s] 부여 및 매니저 등록 완료!"), *TagToApply.ToString());
+        }
+    }
+}
+// ==========================================
+// FILE: GA_Relic_OnHitStatusBase.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_OnHitStatusBase.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Component/SPStatusEffectComponent.h"
+
+UGA_Relic_OnHitStatusBase::UGA_Relic_OnHitStatusBase()
+{
+    // 패시브니까 인스턴싱 정책을 '기능별 하나'로 설정
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_OnHitStatusBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 타격 이벤트가 발생할 때까지 무한 대기
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Combat_AttackHit, // 우리가 등록한 타격 태그
+        nullptr,
+        false,
+        false
+    );
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_OnHitStatusBase::OnHitEventReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_OnHitStatusBase::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
+void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
+{
+    // 1. 일반 공격(Battle.Action.Attack)인지 확인 (방금 우리가 추가한 그 증명서!)
+    if (!Payload.InstigatorTags.HasTagExact(FSPGameplayTags::Get().Battle_Action_Attack))
+    {
+        return;
+    }
+
+    // 2. 확률 주사위 굴리기
+    float RandValue = FMath::FRandRange(0.0f, 100.0f);
+    if (RandValue <= TriggerChance)
+    {
+        AActor* TargetActor = const_cast<AActor*>(Payload.Target.Get());
+        UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+
+        if (TargetASC && TargetStatusGEClass)
+        {
+            FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
