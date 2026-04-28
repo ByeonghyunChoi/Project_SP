@@ -1,83 +1,4 @@
-﻿	USPGA_Interact();
-
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-
-};
-// ==========================================
-// FILE: SPGA_MonsterAttackBase.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
-#include "SPGA_MonsterAttackBase.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGA_MonsterAttackBase : public UGameplayAbility
-{
-	GENERATED_BODY()
-
-public:
-	USPGA_MonsterAttackBase();
-
-protected:
-	// ����Ƽ ���� �� �и� �̺�Ʈ ������(WaitGameplayEvent)�� �մϴ�.
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
-
-	// �÷��̾�� �и� ������ �� ȣ��Ǵ� �Լ�! (�������Ʈ���� ���� ����)
-	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
-	void OnParried();
-
-	UFUNCTION()
-	void OnParriedEventCallback(FGameplayEventData Payload);
-	
-};
-// ==========================================
-// FILE: SPGA_Parry.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
-#include "SPGA_Parry.generated.h"
-
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API USPGA_Parry : public UGameplayAbility
-{
-	GENERATED_BODY()
-	
-public:
-	// ����� ������ ��ġ�ϴ��� �˻�
-	UFUNCTION(BlueprintCallable, Category = "Parry")
-	bool CheckWeaponMatch(class ASPGASMonsterCharacter* TargetMonster);
-
-	// �ݰ� ������ ��� �����ϴ��� �˻�
-	UFUNCTION(BlueprintCallable, Category = "Parry")
-	bool CheckCounterConditions();
-
-	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
-	UFUNCTION(BlueprintCallable, Category = "Parry")
-	void SendParriedEventToMonster(AActor* TargetMonster);
-
-protected:
-	// �ݰ� ������� Ȯ���ϴ� �±�
-	UPROPERTY(EditDefaultsOnly, Category = "Parry")
-	FGameplayTag CounterModeTag;
-
-	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
-	UPROPERTY(EditDefaultsOnly, Category = "Parry")
-	FGameplayTag CounterSkillTag;
-};
+﻿};
 // ==========================================
 // FILE: ASPCombatGameMode.h
 // ==========================================
@@ -114,18 +35,24 @@ public:
 
 	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
 
+	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
+	void RefreshTurnTimelineUI();
+
 	//���� �¸� �� ȣ���� ���� �Լ�
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
 
+	//getter
+	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
+
 protected:
-	// �������Ʈ���� BP_TurnManager�� �����ؾ� ��
+	// ��������Ʈ���� BP_TurnManager�� �����ؾ� ��
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
 
 	// ���� ������ �Ŵ���
 	UPROPERTY(BlueprintReadOnly, Category = "Battle")
-	TObjectPtr <class ASPCombatTurnManager> TurnManager;
+	TObjectPtr<class ASPCombatTurnManager> TurnManager;
 
 	// ���� �� ����
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
@@ -155,6 +82,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
 	UDataTable* CombatRewardDataTable;
 	
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnParry = false;
+
 protected:
 	void ProcessEndOfTurn();
 
@@ -192,6 +122,7 @@ class PROJECT_SP_API USPGASGameInstance : public UGameInstance
 
 public:
 	USPGASGameInstance();
+	virtual void Init() override;
 
 private:
 	bool bIsReturnFromGame;
@@ -278,6 +209,9 @@ public:
 /**
  * 
  */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTurnOrderChangedDelegate);
+
+
 UCLASS(Blueprintable)
 class PROJECT_SP_API ASPCombatTurnManager : public AInfo
 {
@@ -306,7 +240,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
 	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
 
-	//�и� ���� �ڵ����� �ߵ��� ��(�ؽ� �ʻ�� ����)
+	// VIP �� �䱸 �Լ�
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
 	void RequestInterruptTurn(AActor* Interrupter);
 
@@ -315,6 +249,9 @@ public:
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
+
+	UFUNCTION(BlueprintPure, Category = "TurnManager | Interrupt")
+	FORCEINLINE TArray<AActor*> GetInterruptQueue() const { return InterruptQueue; }
 
 public:
 	static constexpr float MaxActionGauge = 100.0f;
@@ -331,6 +268,10 @@ private:
 	// �ൿ �������� �����ϰ� �켱������ ���� �޴� ��⿭
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager | Interrupt")
 	TArray<AActor*> InterruptQueue;
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "TurnManager | Event")
+	FOnTurnOrderChangedDelegate OnTurnOrderChanged;
 
 	
 };
@@ -375,6 +316,48 @@ enum class ETargetingType : uint8
 	Random      UMETA(DisplayName = "랜덤")         // 랜덤 (화살표 1개)
 };
 
+
+// 순수 UI 정보
+USTRUCT(BlueprintType)
+struct FEffectUIData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	FText DisplayName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSoftObjectPtr<UTexture2D> Icon;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI", meta = (MultiLine = true))
+	FText Description;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	bool bIsBuff = false; // true면 버프(파란 테두리 등), false면 디버프(빨간 테두리)
+};
+
+// 최종적으로 전달될 UI 정보
+USTRUCT(BlueprintType)
+struct FUIStatusEffectData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	FText StatusDisplayName;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	TSoftObjectPtr<UTexture2D> StatusIcon;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI", meta = (MultiLine = true))
+	FText StatusDescription;
+
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	bool bIsBuff = false;
+
+	// ASC에서 실시간으로 빼온 남은 턴 수
+	UPROPERTY(BlueprintReadWrite, Category = "UI")
+	int32 RemainingTurns = 0;
+};
 // ==========================================
 // FILE: EnterancePortal.h
 // ==========================================
@@ -658,6 +641,42 @@ private:
 	EMapGrade GetMapGradeByFloor(int32 Floor) const;
 	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
 
+};
+// ==========================================
+// FILE: OpartsAltar.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Interface/InteractableInterface.h"
+#include "Data/Asset/OpartsDefinition.h" // ��� Ȯ�� �ʿ�
+#include "OpartsAltar.generated.h"
+
+UCLASS()
+class PROJECT_SP_API AOpartsAltar : public AActor, public IInteractableInterface
+{
+	GENERATED_BODY()
+
+public:
+	AOpartsAltar();
+
+	// �� ������ �÷��̾�� �� ������ ������
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oparts|Setup")
+	TObjectPtr<const UOpartsDefinition> OpartsToEquip;
+
+	// UI�� ��� ��ȣ�ۿ� �ؽ�Ʈ (��: "�����ذ� ����")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oparts|Setup")
+	FText InteractText = FText::FromString(TEXT("������ ����"));
+
+protected:
+	// �������̽� �������̵�
+	virtual void ExecuteInteraction(class AActor* Interactor) override;
+	virtual FText GetInteractText() const override;
+
+	// [����] ���� ���� �� �������Ʈ���� ��ƼŬ�̳� ���带 ���� �� �ֵ��� ���۸� �վ��
+	UFUNCTION(BlueprintImplementableEvent, Category = "Oparts|Event")
+	void OnAltarInteracted();
 };
 // ==========================================
 // FILE: PortalActor.h
@@ -1042,6 +1061,39 @@ private:
 	const FString PermSlotName = TEXT("Slot_Perm");
 };
 // ==========================================
+// FILE: SPUIDataSubsystem.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Tag/SPGameplayTags.h"
+#include "Manager/SPGASBattleTypes.h"
+#include "SPUIDataSubsystem.generated.h"
+
+class USPActiveEffectUIDictionary;
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPUIDataSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+	
+public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "SP | UI Dictionary")
+	bool GetEffectUIData(FGameplayTag EffectTag, FEffectUIData& OutData);
+
+private:
+	UPROPERTY()
+	TObjectPtr<USPActiveEffectUIDictionary> GlobalUIDictionary;
+};
+// ==========================================
 // FILE: SPGameplayTags.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -1074,6 +1126,7 @@ public:
 	FGameplayTag State_ParryWindow;
 	FGameplayTag State_CounterMode;
 	FGameplayTag State_AutoCounterReady;
+	FGameplayTag State_ActionExecuting;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;

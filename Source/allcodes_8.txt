@@ -1,54 +1,4 @@
-﻿// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API ASPGASAIController : public AAIController
-{
-	GENERATED_BODY()
-
-public:
-	ASPGASAIController();
-
-protected:
-	virtual void OnPossess(APawn* InPawn) override;
-	virtual void OnUnPossess() override;
-	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
-
-	// �� ���� �̺�Ʈ ���� (�� ���ʰ� ��)
-	void OnTurnStartEvent(const FGameplayEventData* Payload);
-
-	// �� ���� ���� ó�� �Լ�
-	void FinishTurnDelayed();
-
-protected:
-	UPROPERTY(EditAnywhere, Category = "AI")
-	TObjectPtr<class UBehaviorTree> FieldBT;
-
-private:
-	UPROPERTY()
-	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-};
-// ==========================================
-// FILE: SPGASCharacterBase.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Character.h"
-#include "AbilitySystemInterface.h"
-#include "AttributeSet/SPGASAttributeSet.h"
+﻿#include "AttributeSet/SPGASAttributeSet.h"
 #include "SPGASCharacterBase.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCharacterDamageDelegate, float, DamageAmount, bool, bIsCritical);
@@ -60,6 +10,7 @@ class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySys
 
 public:
     ASPGASCharacterBase();
+    virtual void BeginPlay() override;
     virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
     virtual void BroadcastDamageText(float DamageAmount, bool bIsCritical);
 
@@ -121,6 +72,10 @@ public:
     void CancelAbilitiesWithTag(FGameplayTagContainer WithTags);
 
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
+
+protected:
+    virtual void OnSpeedChanged(const struct FOnAttributeChangeData& Data);
+    virtual void OnActionGaugeChanged(const struct FOnAttributeChangeData& Data);
 };
 // ==========================================
 // FILE: SPGASMonsterCharacter.h
@@ -295,6 +250,9 @@ public:
 	//카메라 모드(전투/ 필드) 변경 함수
 	void SwitchCameraMode(bool bIsBattle);
 
+	//행동을 태그로 감지할 콜백 함수
+	virtual void OnActionTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
+
 public:
 	// 스탯 상승용 커브 테이블 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
@@ -408,8 +366,8 @@ public:
 #include "SPGASPlayerController.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBattlePointUpdatedDelegate, int32, CurrentBP, int32, MaxBP);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTurnOrderUpdatedDelegate, const TArray<AActor*>&, PredictedTurnOrder);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionStateChangedDelegate, ESelectedActionType, NewActionState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTargetChangedDelegate, AActor*, TargetActor);
 
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
@@ -493,10 +451,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
 	TObjectPtr<class UInputAction> ParryAction;
 
-	// 반격 모드 토글 액션
-	UPROPERTY(EditAnywhere, Category = "Input | RealTime")
-	TObjectPtr<class UInputAction> ToggleCounterModeAction;
-
 	//필드 용 UI
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> FieldHUDClass;
@@ -508,8 +462,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> BattleHUDClass;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<class UUserWidget> BattleHUDWidget;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Combat | TimeMagic")
+	TObjectPtr<class UMaterialParameterCollection> TimeMagicMPC;
 
 protected:
 	// 필드 이동 처리
@@ -548,9 +505,6 @@ protected:
 	// 패링 키 클릭 시 실행 함수
 	void OnParryPressed(const FInputActionValue& Value);
 
-	// 반격 모드 토글 키 클릭 시 실행 함수
-	void OnToggleCounterModePressed(const FInputActionValue& Value);
-
 	//배틀 포인트 변경시 실행될 함수
 	void OnBattlePointChanged(const FOnAttributeChangeData& Data);
 
@@ -560,6 +514,8 @@ protected:
 	// 플레이어의 행동 상태 변경을 관리할 함수
 	void SetCurrentSelectedAction(ESelectedActionType NewAction);
 
+	// 시간 간섭 상태 변경 감지 함수
+	void OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount);
 
 public:
 	// 무기 교체 처리
@@ -606,12 +562,16 @@ public:
 	void RefreshBattlePointUI();
 
 	//턴 순서 UI를 업데이트 하는 함수
-	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
-	void UpdateTurnTimelineUI(const TArray<AActor*>& PredictedTurnOrder);
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns);
 
 	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")
 	bool BuyShopItem(const FShopItemRow& ItemData);
+
+	// 블루프린트에서 UI 필터를 켜고 끄는 이벤트
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void ToggleTimeInterferenceUI(bool bIsActive);
 
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
@@ -626,10 +586,10 @@ public:
 	FOnBattlePointUpdatedDelegate OnBattlePointUIUpdated;
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
-	FOnTurnOrderUpdatedDelegate OnTurnOrderUIUpdated;
+	FOnActionStateChangedDelegate OnActionStateChanged;
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
-	FOnActionStateChangedDelegate OnActionStateChanged;
+	FOnTargetChangedDelegate OnTargetChanged;
 
 };
 // ==========================================
@@ -925,6 +885,7 @@ private:
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRelicUpdatedDelegate);
 
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_SP_API URelicComponent : public UActorComponent
 {
@@ -996,6 +957,7 @@ public:
     //세이브 시스템에서 호출할 로드 전용 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
     void LoadRelicData(const FPlayerRelicData& SavedRelicData);
+
 };
 // ==========================================
 // FILE: ShopComponent.h
@@ -1284,3 +1246,96 @@ class PROJECT_SP_API URelicDefinition : public UDataAsset
 	GENERATED_BODY()
 	
 public:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	FText RelicName; // 유물 이름
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display")
+	UTexture2D* Icon; // 유물 아이콘
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "1. Display", meta = (MultiLine = true))
+	FText Description; // 유물 설명
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "2. Info")
+	ERelicRarity Rarity; // 유물 희귀도
+
+    //장착 시 플레이어에게 부여할 패시브 스탯/능력 이펙트
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Ability")
+    TSubclassOf<UGameplayEffect> RelicEffectClass;
+};
+// ==========================================
+// FILE: SPMonsterData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Tag/SPGameplayTags.h"
+#include "ScalableFloat.h"
+#include "SPMonsterData.generated.h"
+
+UENUM(BlueprintType)
+enum class EMonsterRank : uint8
+{
+	Normal  UMETA(DisplayName = "일반"),
+	Epic    UMETA(DisplayName = "에픽"),
+	Boss    UMETA(DisplayName = "보스")
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterBaseStats
+{
+	GENERATED_BODY()
+
+	// 레벨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Level = 1.f;
+	// 체력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat MaxHealth;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Attack;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Defense;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Speed;
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterSkillUIInfo
+{
+	GENERATED_BODY()
+
+	// 스킬 이름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillName;
+
+	// 스킬 종류 (텍스트로 바로 입력. 예: "일반 공격", "스킬", "필살기")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillType;
+
+	// 스킬 내용 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI", meta = (MultiLine = true))
+	FText SkillDescription;
+};
+
+UCLASS()
+class PROJECT_SP_API USPMonsterData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	//몬스터 이름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	FText MonsterName;
+	
+	//몬스터 등급
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	EMonsterRank MonsterRank = EMonsterRank::Normal;
+
+	//몬스터 이미지
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")

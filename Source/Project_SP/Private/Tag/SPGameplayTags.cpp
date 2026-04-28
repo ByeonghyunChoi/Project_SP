@@ -69,6 +69,8 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Combat_SkillKill = Manager.AddNativeGameplayTag(FName("Event.Combat.SkillKill"), TEXT("무기 스킬로 적 처치 시 이벤트"));
 	Event_Combat_ParrySuccess = Manager.AddNativeGameplayTag(FName("Event.Combat.ParrySuccess"), TEXT("패링 성공 시 발생하는 이벤트"));
 
+	Event_Combat_StatusFusion = Manager.AddNativeGameplayTag(FName("Event.Combat.StatusFusion"), TEXT("상태이상 융합 성공 시 이벤트"));
+
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
 	Weapon_Jormungandr = Manager.AddNativeGameplayTag(FName("Weapon.Jormungandr"), TEXT("요르문간드 무기 장착"));
