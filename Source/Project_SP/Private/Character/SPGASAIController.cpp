@@ -79,17 +79,9 @@ void ASPGASAIController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCou
 void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
 {
 	// 1. 로그 출력
-	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! (1초 뒤 종료) <<<"));
+	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! <<<"));
 
-	if (CachedASC)
-	{
-		// 🌟 몬스터의 기본 공격 스킬 태그를 찾아서 실행하라고 지시합니다.
-		// (프로젝트 태그에 맞게 수정하세요. 예: Ability.Monster.BasicAttack)
-		FGameplayTag AttackTag = FSPGameplayTags::Get().Battle_Monster_BasicAttack;
-		FGameplayTagContainer TagContainer(AttackTag);
-
-		bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
-	}
+	TryExecuteAITurn();
 }
 
 // [추가] 실제로 턴을 넘기는 함수
@@ -100,4 +92,27 @@ void ASPGASAIController::FinishTurnDelayed()
 		// GameMode에게 턴 종료 알림
 		GASCharacter->FinishTurn();
 	}
+}
+
+void ASPGASAIController::TryExecuteAITurn()
+{
+	if (!CachedASC) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 1. 몬스터(나 자신)에게 '연출 중(VisualPlaying)' 태그가 있는지 확인합니다.
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Status_VisualPlaying))
+	{
+		// 태그가 있다면? 아직 연출이 안 끝났으므로 0.1초 뒤에 이 함수를 다시 부릅니다!
+		GetWorld()->GetTimerManager().SetTimer(TurnWaitTimerHandle, this, &ASPGASAIController::TryExecuteAITurn, 0.1f, false);
+		return;
+	}
+
+	// 2. 태그가 없다면? 연출이 끝났거나 애초에 없었던 것이므로 진짜 공격을 시작합니다!
+	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 연출 종료 확인, 진짜 턴 행동 시작! <<<"));
+
+	FGameplayTag AttackTag = SPTags.Battle_Monster_BasicAttack;
+	FGameplayTagContainer TagContainer(AttackTag);
+
+	bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
 }

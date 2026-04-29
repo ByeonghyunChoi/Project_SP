@@ -259,12 +259,16 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
 				}
 
+				AActor* TargetAvatar = TargetASC->GetAvatarActor();
+
+				// 1. 탄약고에 보관
+				PendingDamageMap.FindOrAdd(TargetAvatar).Add(SpecHandle);
+
+				// 2. 몬스터에게 연출 중 태그 부착
 				TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
 
-				// 2. 블루프린트(PlayerController)로 방송 송출 (즉발 데미지이므로 bIsInstant = true)
-				OnStatusVisualTriggered.Broadcast(TargetASC->GetAvatarActor(), IncomingStatusTag, true);
-
-				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
+				// 3. 블루프린트에게 "즉발 연출 시작!" 방송 송출 (bIsInstant = true)
+				OnStatusVisualTriggered.Broadcast(TargetAvatar, IncomingStatusTag, true);
 			}
 		}
 	}
@@ -344,15 +348,15 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 							TargetCoefficient
 						);
 
+						PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
+
+						// 2. 몬스터(Owner)에게 '지금 연출 중임!' 이라는 이름표(태그) 부착 (AI 행동 정지용)
 						OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
 
-						// 2. 블루프린트(PlayerController)로 방송 송출 (DoT 데미지이므로 bIsInstant = false)
+						// 3. 블루프린트에게 "도트 연출 시작!" 방송 송출 (bIsInstant = false)
 						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
 
-						// 시전자가 나에게 데미지 GE를 쏩니다.
-						InstigatorASC->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), OwnerASC);
-
-						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 발동! (전달된 계수: %f)"),
+						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 장전 완료! (계수: %f) - 연출 대기 중"),
 							*Owner->GetName(), *StatusTag.ToString(), TargetCoefficient);
 					}
 				}
@@ -406,6 +410,30 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 
 void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor)
 {
+	if (!TargetActor) return;
+
+	// 1. 탄약고에 이 몬스터를 위해 장전된 데미지가 있는지 확인합니다.
+	if (TArray<FGameplayEffectSpecHandle>* PendingSpecs = PendingDamageMap.Find(TargetActor))
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		if (TargetASC)
+		{
+			// 2. 장전된 모든 데미지(독, 화상 등 여러 개일 수 있음)를 일제히 폭발시킵니다!
+			for (FGameplayEffectSpecHandle& Spec : *PendingSpecs)
+			{
+				if (Spec.IsValid())
+				{
+					// 이미 Spec 안에 '누가 쐈는지(Instigator)' 정보가 있으므로, 타겟 스스로 데미지를 받게 합니다.
+					TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+				}
+			}
+		}
+
+		// 3. 데미지를 모두 줬으니 탄약고에서 이 몬스터의 목록을 비워줍니다.
+		PendingDamageMap.Remove(TargetActor);
+
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 장전된 상태이상 데미지 격발 완료!"), *TargetActor->GetName());
+	}
 }
 
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
