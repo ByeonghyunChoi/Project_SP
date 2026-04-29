@@ -12,13 +12,18 @@ struct FCombatRewardInfo
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EResourceType ResourceType; // 아까 만든 Enum (Energy, Sand, Fragment, Gold)
+	EResourceType ResourceType; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MinAmount = 10;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxAmount = 20;
+
+	FCombatRewardInfo()
+	{
+		ResourceType = EResourceType::Gold;
+	}
 };
 
 USTRUCT(BlueprintType)

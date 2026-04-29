@@ -39,6 +39,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Price = 100; // 가격 (골드)
+
+	FCurrencyShopRow()
+	{
+		Type = ECurrencyType::Energy;
+	}
 };
 
  // 유물 풀 전용 구조체 (기존 상점 구조체를 건드리지 않음!)
