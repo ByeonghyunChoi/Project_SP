@@ -4,8 +4,6 @@
 #include "Components/WidgetComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Game/ASPCombatGameMode.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "Camera/CameraComponent.h"
 
 
 
@@ -27,21 +25,6 @@ ASPGASMonsterCharacter::ASPGASMonsterCharacter()
 	StatusWidgetComponent->SetupAttachment(GetRootComponent());
 	StatusWidgetComponent->SetWidgetSpace(EWidgetSpace::Screen);
 	StatusWidgetComponent->SetVisibility(false);
-
-	FocusSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("FocusSpringArm"));
-	FocusSpringArm->SetupAttachment(GetRootComponent());
-	FocusSpringArm->TargetArmLength = 400.0f; // 카메라 기본 거리 (에디터에서 수정 가능)
-	FocusSpringArm->bDoCollisionTest = false; // 카메라가 벽에 부딪혀서 앞으로 당겨지는 현상 방지
-	// 몬스터를 살짝 올려다보거나 내려다보는 각도 기본값 (원하는 대로 수정 가능)
-	FocusSpringArm->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
-	FocusSpringArm->SetRelativeLocation(FVector(-100.0f, 0.0f, 120.0f));
-
-	FocusCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FocusCamera"));
-	FocusCamera->SetupAttachment(FocusSpringArm, USpringArmComponent::SocketName);
-
-	// 이 카메라는 평소에는 꺼져있다가(비활성화), SetViewTargetWithBlend가 호출될 때만 사용됩니다.
-	// 활성화 상태를 false로 두어 평소 게임 플레이 카메라와 충돌하지 않게 합니다.
-	FocusCamera->bAutoActivate = false;
 }
 
 void ASPGASMonsterCharacter::BeginPlay()
