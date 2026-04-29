@@ -109,6 +109,12 @@ protected:
 
     bool bDeathMontagePlayed = false;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components | Camera")
+    TObjectPtr<class USpringArmComponent> FocusSpringArm;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components | Camera")
+    TObjectPtr<class UCameraComponent> FocusCamera;
+
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS | Abilities")
     TArray<TSubclassOf<class UGameplayAbility>> DefaultAbilities;
