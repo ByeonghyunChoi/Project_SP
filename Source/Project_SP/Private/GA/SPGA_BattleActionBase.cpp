@@ -547,6 +547,9 @@ void USPGA_BattleActionBase::ExecuteGoldBugInterference()
 		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Enemy);
 		if (!TargetASC) continue;
 
+		USPStatusEffectComponent* TargetStatusComp = Enemy->FindComponentByClass<USPStatusEffectComponent>();
+		if (!TargetStatusComp) continue;
+
 		// 1. 현재 이 몬스터에게 '없는' 기본 상태이상을 조사합니다.
 		TArray<FGameplayTag> UnappliedTags;
 
@@ -570,8 +573,8 @@ void USPGA_BattleActionBase::ExecuteGoldBugInterference()
 		int32 ApplyCount = FMath::Min(2, UnappliedTags.Num());
 		for (int32 i = 0; i < ApplyCount; i++)
 		{
-			// ProcessStatusEffect를 호출하면 알아서 기존 상태이상과 믹스(Mix) 판정을 진행합니다.
-			StatusComp->ProcessStatusEffect(UnappliedTags[i], TargetASC, Avatar);
+			// 🌟 타겟의 컴포넌트에서 ProcessStatusEffect를 실행합니다!
+			TargetStatusComp->ProcessStatusEffect(UnappliedTags[i], TargetASC, Avatar);
 
 			UE_LOG(LogTemp, Warning, TEXT("[골드 버그] %s 에게 %s 를 부여했습니다!"), *Enemy->GetName(), *UnappliedTags[i].ToString());
 		}

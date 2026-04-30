@@ -73,6 +73,9 @@ public:
         OverriddenWeaknessTags = NewWeaknesses;
     }
 
+    UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+    void RemoveVisualPlayingTag();
+
 public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
     FOnMonsterHPChangedDelegate OnMonsterHPChanged;

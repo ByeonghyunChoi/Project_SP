@@ -6,6 +6,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "ASPCombatGameMode.generated.h"
 
+class ASPBattleCameraActor;
+class ASPBattleDirector;
+
 /**
  * 
  */
@@ -75,6 +78,20 @@ protected:
 	
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnParry = false;
+
+	// 클래스 할당용 (에디터에서 지정)
+	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
+	TSubclassOf<class ASPBattleCameraActor> CameraManagerClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
+	TSubclassOf<class ASPBattleDirector> BattleDirectorClass;
+
+	// 생성된 인스턴스 저장용
+	UPROPERTY(BlueprintReadOnly, Category = "Battle | Visual")
+	TObjectPtr<class ASPBattleCameraActor> ActiveCameraManager;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Battle | Visual")
+	TObjectPtr<class ASPBattleDirector> ActiveBattleDirector;
 
 protected:
 	void ProcessEndOfTurn();

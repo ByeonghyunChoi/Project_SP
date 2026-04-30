@@ -49,7 +49,7 @@ public:
 	void ReduceStatusEffectTurns();
 
 	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
-	void ExecutePendingDamage(AActor* TargetActor);
+	void ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag);
 
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | Visual")
