@@ -304,6 +304,7 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
+		ConsumeTimeInterferenceStack();
 		return;
 	}
 	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
