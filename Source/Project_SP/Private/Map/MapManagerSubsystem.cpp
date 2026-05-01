@@ -240,19 +240,27 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
-	if (CurrentFloor >= 11 && CurrentStage < 3)
+	// 한 스테이지의 끝은 4층(보스)입니다!
+	if (CurrentFloor >= 4 && CurrentStage < 3)
 	{
-		// 다음 스테이지로
+		// 다음 스테이지 1층으로
 		CurrentStage++;
 		CurrentFloor = 1;
 		bIsReturningFromBattle = false;
 		LoadStageLevel();
 	}
-	else if (CurrentFloor < 11)
+	else if (CurrentFloor < 4)
 	{
-		// 같은 스테이지 다음 층
+		// 같은 스테이지의 다음 층으로 (1->2, 2->3, 3->4)
 		CurrentFloor++;
 		SpawnMapActor(SelectedType);
+	}
+	else if (CurrentFloor >= 4 && CurrentStage >= 3)
+	{
+		// 🌟 3스테이지 보스까지 모두 클리어했을 때의 처리!
+		UE_LOG(LogTemp, Warning, TEXT("🎉 모든 스테이지 클리어! 데모 종료 및 로비로 귀환합니다."));
+		GoToLobby(); // 나중에 엔딩 씬 이동 함수로 바꾸셔도 좋습니다.
+		return;
 	}
 
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
@@ -262,10 +270,10 @@ EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
 {
 	switch (Floor)
 	{
-	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
-	case 3: case 6: case 9: return EMapGrade::Epic;
-	case 10: return EMapGrade::Prepare;
-	case 11: return EMapGrade::Boss;
+	case 1: return EMapGrade::Normal;  // 1층: 일반
+	case 2: return EMapGrade::Normal;  // 2층: 일반 
+	case 3: return EMapGrade::Prepare; // 3층: 준비
+	case 4: return EMapGrade::Boss;    // 4층: 보스
 	default: return EMapGrade::Normal;
 	}
 }
@@ -289,15 +297,18 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 		return CurrentPortalOptions;
 	}
 
-	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
 	int32 NextFloor = CurrentFloor + 1;
-	if (NextFloor > 11)
+
+	// 스테이지의 끝(4층)을 넘어가면, 다음 스테이지 1층의 옵션을 줘야 합니다.
+	if (NextFloor > 4)
 	{
-		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
+		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
 		return CurrentPortalOptions;
 	}
 
 	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+
 	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
 	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
 

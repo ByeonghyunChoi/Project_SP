@@ -2,6 +2,8 @@
 
 
 #include "Game/ASPCombatGameMode.h"
+#include "Game/SPBattleCameraActor.h"
+#include "Game/SPBattleDirector.h"
 #include "Manager/SPCombatTurnManager.h"
 #include "SubSystem/SPCombatSubsystem.h"
 #include "Data/CombatEncounterData.h"
@@ -122,6 +124,31 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 	{
 		UE_LOG(LogTemp, Error, TEXT("TurnManager 생성 실패! BP_CombatGameMode에 클래스가 할당되었는지 확인하세요."));
 		return;
+	}
+
+	if (CameraManagerClass && !ActiveCameraManager)
+	{
+		ActiveCameraManager = GetWorld()->SpawnActor<ASPBattleCameraActor>(CameraManagerClass);
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		ActiveCameraManager->InitCameraManager(PC);
+	}
+
+	// 🌟 2. 배틀 디렉터 스폰 및 초기화
+	if (BattleDirectorClass && !ActiveBattleDirector)
+	{
+		ActiveBattleDirector = GetWorld()->SpawnActor<ASPBattleDirector>(BattleDirectorClass);
+
+		// 디렉터에게 카메라 리모컨 넘겨주기
+		ActiveBattleDirector->InitDirector(ActiveCameraManager);
+	}
+
+	// 🌟 3. 적들을 배틀 디렉터에 등록 (안테나 꽂기)
+	if (ActiveBattleDirector)
+	{
+		for (AActor* Enemy : Enemies)
+		{
+			ActiveBattleDirector->RegisterMonster(Enemy);
+		}
 	}
 
 	// 참가자 등록

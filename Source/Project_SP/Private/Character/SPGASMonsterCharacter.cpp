@@ -271,4 +271,13 @@ FGameplayTagContainer ASPGASMonsterCharacter::GetCurrentWeaknessTags() const
 	return FGameplayTagContainer();
 }
 
+void ASPGASMonsterCharacter::RemoveVisualPlayingTag()
+{
+	if (ASC)
+	{
+		ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 종료! AI 족쇄 완벽 해제 완료!"), *GetName());
+	}
+}
+
 
