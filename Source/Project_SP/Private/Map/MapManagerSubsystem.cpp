@@ -232,7 +232,21 @@ void UMapManagerSubsystem::LoadStageLevel()
 	bIsInLobby = false;
 	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
 	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
-	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+
+	if (Data)
+	{
+		// 🌟 4층(보스)이면 보스 레벨을, 아니면 일반 레벨을 선택합니다!
+		TSoftObjectPtr<UWorld> LevelToLoad = (CurrentFloor >= 4) ? Data->BossLevelReference : Data->NormalLevelReference;
+
+		// (안전장치) 만약 데이터 테이블에 보스 레벨을 안 채워뒀다면 오류 방지를 위해 일반 레벨을 엽니다.
+		if (CurrentFloor >= 4 && LevelToLoad.IsNull())
+		{
+			LevelToLoad = Data->NormalLevelReference;
+			UE_LOG(LogTemp, Warning, TEXT("보스 레벨이 비어있어 일반 레벨로 대체합니다!"));
+		}
+
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LevelToLoad);
+	}
 }
 
 void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
@@ -240,26 +254,36 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
-	// 한 스테이지의 끝은 4층(보스)입니다!
 	if (CurrentFloor >= 4 && CurrentStage < 3)
 	{
-		// 다음 스테이지 1층으로
+		// 보스 클리어 후 -> 다음 스테이지 1층으로!
 		CurrentStage++;
 		CurrentFloor = 1;
+		CurrentMapType = SelectedType; // 🌟 새로 들어갈 맵 타입 저장
 		bIsReturningFromBattle = false;
-		LoadStageLevel();
+		LoadStageLevel(); // 1층이므로 NormalLevelReference가 열립니다.
 	}
 	else if (CurrentFloor < 4)
 	{
-		// 같은 스테이지의 다음 층으로 (1->2, 2->3, 3->4)
 		CurrentFloor++;
-		SpawnMapActor(SelectedType);
+		CurrentMapType = SelectedType; // 🌟 맵 타입 미리 저장
+
+		// 🌟 방금 올라간 층이 4층(보스)이라면? 맵 액터만 바꾸지 말고 아예 보스 맵(.umap)을 새로 로드!
+		if (CurrentFloor == 4)
+		{
+			bIsReturningFromBattle = false;
+			LoadStageLevel(); // 4층이므로 BossLevelReference가 열립니다.
+		}
+		else
+		{
+			// 2층, 3층은 물리적인 레벨(.umap) 이동 없이, 같은 레벨 안에서 맵 액터만 갈아 끼웁니다.
+			SpawnMapActor(SelectedType);
+		}
 	}
 	else if (CurrentFloor >= 4 && CurrentStage >= 3)
 	{
-		// 🌟 3스테이지 보스까지 모두 클리어했을 때의 처리!
 		UE_LOG(LogTemp, Warning, TEXT("🎉 모든 스테이지 클리어! 데모 종료 및 로비로 귀환합니다."));
-		GoToLobby(); // 나중에 엔딩 씬 이동 함수로 바꾸셔도 좋습니다.
+		GoToLobby();
 		return;
 	}
 

@@ -17,8 +17,13 @@ struct FMapLevelData : public FTableRowBase
 {
 	GENERATED_BODY()
 
+	// 1~3층(일반, 준비)에서 공통으로 사용할 물리적 레벨 (.umap)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSoftObjectPtr<UWorld> LevelReference;
+	TSoftObjectPtr<UWorld> NormalLevelReference;
+
+	// 4층(보스)에서만 사용할 물리적 레벨 (.umap)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TSoftObjectPtr<UWorld> BossLevelReference;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TMap<EMapType, TSubclassOf<class AMapBase>> MapClasses;
