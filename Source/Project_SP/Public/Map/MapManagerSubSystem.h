@@ -80,6 +80,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
+	int32 GetMaxFloors() const { return 4; }
+
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
+	EMapGrade GetMapGradeForUI(int32 Floor) const { return GetMapGradeByFloor(Floor); }
+
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
 
