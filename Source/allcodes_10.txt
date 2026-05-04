@@ -1,4 +1,37 @@
-﻿};
+﻿// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "SPGA_Parry.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGA_Parry : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+	// ����� ������ ��ġ�ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckWeaponMatch(class ASPGASMonsterCharacter* TargetMonster);
+
+	// �ݰ� ������ ��� �����ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckCounterConditions();
+
+	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	void SendParriedEventToMonster(AActor* TargetMonster);
+
+protected:
+	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterSkillTag;
+};
 // ==========================================
 // FILE: ASPCombatGameMode.h
 // ==========================================
@@ -38,31 +71,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
 	void RefreshTurnTimelineUI();
 
-	//���� �¸� �� ȣ���� ���� �Լ�
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
 	void PlayVictorySequence();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void OnCharacterDied(AActor* DeadActor);
 
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 
 protected:
-	// ��������Ʈ���� BP_TurnManager�� �����ؾ� ��
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
 
-	// ���� ������ �Ŵ���
 	UPROPERTY(BlueprintReadOnly, Category = "Battle")
 	TObjectPtr<class ASPCombatTurnManager> TurnManager;
 
-	// ���� �� ����
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
 	TObjectPtr<AActor> CurrentTurnActor;
 
-	// ���� ������ ���
 	UPROPERTY()
 	TArray<AActor*> AllParticipants;
 
-	//���� �غ� �Ϸ�� ������ ��� 
 	UPROPERTY()
 	TSet<AActor*> ReadyParticipants;
 
@@ -71,14 +101,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
 	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
 
-	//���� ��ü ���� ��
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
 	int32 TotalExpectedParticipants = 0;
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
-	// ���� ���� ������ ���̺� (�����Ϳ��� ����)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
 	UDataTable* CombatRewardDataTable;
 	
@@ -97,7 +125,6 @@ private:
 
 	void CheckAndStartBattle();
 
-	//������ ���� �Լ�
 	void ApplyPlayerSavedData();
 
 };
@@ -245,6 +272,8 @@ public:
 	void RequestInterruptTurn(AActor* Interrupter);
 
 	AActor* PopInterruptActor();
+
+	void ClearActorFromQueue(AActor* Target);
 
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
@@ -820,6 +849,36 @@ protected:
 #endif
 };
 // ==========================================
+// FILE: SPHealingObject.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Interface/InteractableInterface.h"
+#include "SPHealingObject.generated.h"
+
+UCLASS()
+class PROJECT_SP_API ASPHealingObject : public AActor, public IInteractableInterface
+{
+	GENERATED_BODY()
+	
+public:
+	ASPHealingObject();
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<class UStaticMeshComponent> MeshComponent;
+
+public:
+	virtual void ExecuteInteraction(AActor* Interactor) override;
+	virtual FText GetInteractText() const override;
+	virtual bool CanInteract(AActor* Interactor) const override { return true; }
+
+};
+// ==========================================
 // FILE: SPPermSaveGame.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -1127,6 +1186,10 @@ public:
 	FGameplayTag State_CounterMode;
 	FGameplayTag State_AutoCounterReady;
 	FGameplayTag State_ActionExecuting;
+	FGameplayTag State_Buff_CrystalSkull;
+	FGameplayTag State_Buff_JadeClock;
+	FGameplayTag State_Buff_GoldBug;
+	FGameplayTag State_Status_VisualPlaying;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
@@ -1173,6 +1236,9 @@ public:
 	FGameplayTag Event_Combat_AttackKill;
 	FGameplayTag Event_Combat_SkillKill;
 	FGameplayTag Event_Combat_ParrySuccess;
+
+	// 오파츠 (아티팩트)
+	FGameplayTag Event_Combat_StatusFusion; // 상태이상 융합 이벤트
 
 	// 무기(Weapon)
 	FGameplayTag Weapon_Fenrir;

@@ -1,4 +1,71 @@
-﻿	int32 NextFloor = CurrentFloor + 1;
+﻿		CurrentMapActor->InitializeMap(MapType, CurrentRoomState);
+	}
+}
+
+void UMapManagerSubsystem::LoadStageLevel()
+{
+	bIsInLobby = false;
+	FString RowName = FString::Printf(TEXT("Stage%d"), CurrentStage);
+	FMapLevelData* Data = MapDataTable->FindRow<FMapLevelData>(FName(*RowName), TEXT("StageLoad"));
+	if (Data) UGameplayStatics::OpenLevelBySoftObjectPtr(this, Data->LevelReference);
+}
+
+void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
+{
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+
+	if (CurrentFloor >= 11 && CurrentStage < 3)
+	{
+		// 다음 스테이지로
+		CurrentStage++;
+		CurrentFloor = 1;
+		bIsReturningFromBattle = false;
+		LoadStageLevel();
+	}
+	else if (CurrentFloor < 11)
+	{
+		// 같은 스테이지 다음 층
+		CurrentFloor++;
+		SpawnMapActor(SelectedType);
+	}
+
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: case 2: case 4: case 5: case 7: case 8: return EMapGrade::Normal;
+	case 3: case 6: case 9: return EMapGrade::Epic;
+	case 10: return EMapGrade::Prepare;
+	case 11: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
+}
+
+EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
+{
+	switch (Grade)
+	{
+	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
+	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
+	case EMapGrade::Prepare: return EMapType::Prepare;
+	case EMapGrade::Boss: return EMapType::BossBattle;
+	default: return EMapType::NormalBattle;
+	}
+}
+
+TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
+{
+	if (CurrentPortalOptions.Num() > 0)
+	{
+		return CurrentPortalOptions;
+	}
+
+	// 없다면 새로 생성 (방금 새 층에 도착했을 때)
+	int32 NextFloor = CurrentFloor + 1;
 	if (NextFloor > 11)
 	{
 		CurrentPortalOptions.Add(EMapType::NormalBattle);
@@ -45,6 +112,9 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 void UMapManagerSubsystem::GoToLobby()
 {
 	bIsInLobby = true;
+	bIsBattleActive = false;
+	bIsReturningFromBattle = false;
+	CurrentRoomState = EMapState::None;
 	// 로비로 돌아오면 런 데이터 초기화
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
@@ -274,6 +344,57 @@ ASPGASSpawnPoint::ASPGASSpawnPoint()
 	ArrowComponent->ArrowSize = 1.0f;
 	ArrowComponent->SetHiddenInGame(true); // ���� �߿��� ����
 #endif
+}
+
+// ==========================================
+// FILE: SPHealingObject.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Map/SPHealingObject.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Map/MapBase.h"
+
+ASPHealingObject::ASPHealingObject()
+{
+	PrimaryActorTick.bCanEverTick = false;
+	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
+	RootComponent = MeshComponent;
+}
+
+void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
+{
+	if (!Interactor) return;
+
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Interactor);
+	if (ASC)
+	{
+		float MaxHealth = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), MaxHealth);
+
+		UE_LOG(LogTemp, Log, TEXT("[회복]"));
+	}
+
+	AActor* FoundMap = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
+	AMapBase* CurrentMap = Cast<AMapBase>(FoundMap);
+
+	if (CurrentMap)
+	{
+		CurrentMap->SetMapState(EMapState::Cleared);
+		UE_LOG(LogTemp, Warning, TEXT("[회복 맵] 상호작용 완료! 포탈이 활성화됩니다."));
+	}
+
+	Destroy();
+}
+
+FText ASPHealingObject::GetInteractText() const
+{
+	return FText::FromString(TEXT("회복 하기[F]"));
 }
 
 // ==========================================
@@ -732,7 +853,11 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_CounterMode = Manager.AddNativeGameplayTag(FName("State.CounterMode"), TEXT("반격 모드 상태"));
 	State_AutoCounterReady = Manager.AddNativeGameplayTag(FName("State.AutoCounterReady"), TEXT("반격 예약"));
 	State_ActionExecuting = Manager.AddNativeGameplayTag(FName("State.ActionExecuting"), TEXT("행동 진행 중"));
-	
+	State_Buff_CrystalSkull = Manager.AddNativeGameplayTag(FName("State.Buff.CrystalSkull"), TEXT("시간 간섭 수정해골"));
+	State_Buff_JadeClock = Manager.AddNativeGameplayTag(FName("State.Buff.JadeClock"), TEXT("시간 간섭 옥시계"));
+	State_Buff_GoldBug = Manager.AddNativeGameplayTag(FName("State.Buff.GoldBug"), TEXT("시간 간섭 골드버그"));
+	State_Status_VisualPlaying = Manager.AddNativeGameplayTag(FName("State.Status.VisualPlaying"), TEXT("상태 이상 연출 재생 중"));
+
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
 
@@ -771,6 +896,8 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Combat_AttackKill = Manager.AddNativeGameplayTag(FName("Event.Combat.AttackKill"), TEXT("일반 공격으로 적 처치 시 이벤트"));
 	Event_Combat_SkillKill = Manager.AddNativeGameplayTag(FName("Event.Combat.SkillKill"), TEXT("무기 스킬로 적 처치 시 이벤트"));
 	Event_Combat_ParrySuccess = Manager.AddNativeGameplayTag(FName("Event.Combat.ParrySuccess"), TEXT("패링 성공 시 발생하는 이벤트"));
+
+	Event_Combat_StatusFusion = Manager.AddNativeGameplayTag(FName("Event.Combat.StatusFusion"), TEXT("상태이상 융합 성공 시 이벤트"));
 
 	Weapon_Fenrir = Manager.AddNativeGameplayTag(FName("Weapon.Fenrir"), TEXT("펜리르 무기 장착"));
 	Weapon_Surtr = Manager.AddNativeGameplayTag(FName("Weapon.Surtr"), TEXT("수르트 무기 장착"));
@@ -1282,60 +1409,3 @@ public:
 #include "MonsterInfo.generated.h"
 
 UENUM(BlueprintType)
-enum class EEnemyRank :uint8
-{
-    Normal,
-    Epic,
-    Boss
-};
-// ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API ASPGASAIController : public AAIController
-{
-	GENERATED_BODY()
-
-public:
-	ASPGASAIController();
-
-protected:
-	virtual void OnPossess(APawn* InPawn) override;
-	virtual void OnUnPossess() override;
-	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
-
-	// �� ���� �̺�Ʈ ���� (�� ���ʰ� ��)
-	void OnTurnStartEvent(const FGameplayEventData* Payload);
-
-	// �� ���� ���� ó�� �Լ�
-	void FinishTurnDelayed();
-
-protected:
-	UPROPERTY(EditAnywhere, Category = "AI")
-	TObjectPtr<class UBehaviorTree> FieldBT;
-
-private:
-	UPROPERTY()
-	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-};
-// ==========================================
-// FILE: SPGASCharacterBase.h
-// ==========================================
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Character.h"
-#include "AbilitySystemInterface.h"

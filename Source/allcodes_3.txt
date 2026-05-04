@@ -1,4 +1,55 @@
-﻿
+﻿		}
+		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
+
+		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+
+		// 찾았다면? (적을 클릭한 게 맞다면)
+		if (FoundIndex != INDEX_NONE)
+		{
+			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
+			if (CurrentTargetingType == ETargetingType::All)
+			{
+				ConfirmTargetAndExecute();
+				return;
+			}
+
+			// [광역(Area) / 단일 / 랜덤] 이라면
+			if (FoundIndex == CurrentTargetIndex)
+			{
+				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+					ConfirmTargetAndExecute();
+				}
+			}
+			else
+			{
+				// 다른 녀석을 클릭했다면 -> 주 타겟을 그 녀석으로 변경!
+				HighlightCurrentTarget(false);
+				CurrentTargetIndex = FoundIndex;
+				HighlightCurrentTarget(true);
+
+				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+				OnTargetChanged.Broadcast(ClickedActor);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 마우스 아래에 아무것도 없음 (허공 클릭)"));
+	}
+}
+
 void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 {
 	if (!CachedASC) return;
@@ -38,53 +89,35 @@ void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAct
 void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (!IsLocalController()) return;
+	bool bIsActive = (NewCount > 0);
 
+	ToggleTimeInterferenceUI(bIsActive);
+	OnTimeInterferenceChanged.Broadcast(bIsActive);
+}
+
+void ASPGASPlayerController::OnExperienceAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshExpUI();
+}
+
+void ASPGASPlayerController::OnLevelAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	if (CachedASC)
+	{
+		int32 CurrentLevel = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute()));
+		OnPlayerLevelChanged.Broadcast(CurrentLevel);
+	}
+}
+
+void ASPGASPlayerController::OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 내 몸에 TurnActive 태그가 1개 이상 붙었다면 = 내 턴 시작!
 	if (NewCount > 0)
 	{
-		//  [시간 간섭 ON ]
-		TArray<AActor*> Enemies;
-		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
-
-		for (AActor* Enemy : Enemies)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->CustomTimeDilation = 0.05f;
-			}
-		}
-
-		if (TimeMagicMPC)
-		{
-			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 0.05f);
-		}
-
-
-		ToggleTimeInterferenceUI(true);
-
-		UE_LOG(LogTemp, Warning, TEXT("적들의 시간이 느려집니다!"));
-	}
-	else
-	{
-		//  [시간 간섭 OFF ]
-
-		TArray<AActor*> Enemies;
-		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), Enemies);
-		for (AActor* Enemy : Enemies)
-		{
-			if (IsValid(Enemy))
-			{
-				Enemy->CustomTimeDilation = 1.0f;
-			}
-		}
-
-		if (TimeMagicMPC)
-		{
-			UKismetMaterialLibrary::SetScalarParameterValue(GetWorld(), TimeMagicMPC, FName("GlobalTimeSpeed"), 1.0f);
-		}
-
-		ToggleTimeInterferenceUI(false);
-
-		UE_LOG(LogTemp, Warning, TEXT("시간이 다시 정상적으로 흐릅니다."));
+		// UI 쪽에 "내 턴 시작됐다! 쿨타임 숫자 다시 그려라!" 라고 방송 송출
+		OnPlayerTurnStarted.Broadcast();
 	}
 }
 
@@ -108,28 +141,47 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	CachedASC->AddLooseGameplayTag(NewWeaponTag);
 	CurrentWeaponTag = NewWeaponTag;
 
-	if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
-		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-		{
-			CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
-		}
-		// 바뀐 타겟팅 규칙으로 불빛을 다시 켭니다! 
-		HighlightCurrentTarget(true);
-
-		// 타겟이 갱신 브로드캐스트
-		if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-		{
-			OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
-		}
-	}
-	else
-	{
-		// 타겟팅 중이 아니었다면 (그냥 턴 시작하자마자 무기만 바꾼 경우) 행동 리셋
-		SetCurrentSelectedAction(ESelectedActionType::None);
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
+		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		{
+			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+			{
+				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
+			}
+
+			HighlightCurrentTarget(true);
+
+			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+			{
+				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+			}
+		}
+		else
+		{
+			SetCurrentSelectedAction(ESelectedActionType::None);
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때만 실행]
+		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
+
+		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+	}
 }
 
 bool ASPGASPlayerController::IsMyTurn() const
@@ -469,6 +521,12 @@ void UOpartsComponent::UnequipCurrentOparts()
 		if (Handle.IsValid()) ASC->RemoveActiveGameplayEffect(Handle);
 	}
 
+	// 5. 시간 간섭 제거
+	if (RuntimeData.TimeInterferenceHandle.IsValid())
+	{
+		ASC->ClearAbility(RuntimeData.TimeInterferenceHandle);
+	}
+
 	// 데이터 초기화 및 UI 알림
 	RuntimeData.Clear();
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
@@ -577,6 +635,21 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	{
 		FGameplayAbilitySpec Spec(Def->BasePassiveAbility, 1, -1, this);
 		RuntimeData.PassiveAbilityHandle = ASC->GiveAbilityAndActivateOnce(Spec);
+	}
+
+	// 이미 장착된 게 있다면 뺏기 (레벨업 등으로 갱신될 때를 대비)
+	if (RuntimeData.TimeInterferenceHandle.IsValid())
+	{
+		ASC->ClearAbility(RuntimeData.TimeInterferenceHandle);
+		RuntimeData.TimeInterferenceHandle = FGameplayAbilitySpecHandle();
+	}
+
+	// 오파츠 데이터에 시간 간섭 스킬이 지정되어 있다면 플레이어에게 부여!
+	if (Def->TimeInterferenceAbility)
+	{
+		FGameplayAbilitySpec Spec(Def->TimeInterferenceAbility, 1, -1, this);
+		// ActivateOnce가 아니라 그냥 GiveAbility입니다. (플레이어가 직접 써야 하므로)
+		RuntimeData.TimeInterferenceHandle = ASC->GiveAbility(Spec);
 	}
 
 	// ====================================================
@@ -1336,6 +1409,3 @@ void USPInteractionComponent::PerformTrace()
 			FRotationMatrix::MakeFromZ(Forward).ToQuat(), DebugColor, false, -1.0f);
 	}
 #endif
-
-	AActor* NewTarget = nullptr;
-	if (bHit)

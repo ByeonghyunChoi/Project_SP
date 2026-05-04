@@ -253,7 +253,16 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetCriticalRateAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 0.0f);
+		// 1. 내 몸에 골드버그 태그가 있다면 어떠한 변화가 와도 무조건 0으로 덮어씌움
+		if (GetOwningAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().Oparts_GoldBug))
+		{
+			NewValue = 0.0f;
+		}
+		else
+		{
+			// 2. 골드버그가 없다면 정상적으로 마이너스가 되지 않게만(0 이상) 보정
+			NewValue = FMath::Max(NewValue, 0.0f);
+		}
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{
@@ -263,6 +272,10 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 		Attribute == GetIncomingDamageMultiplierAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 0.0f);
+	}
+	else if (Attribute == GetMaxExperienceAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 1.0f);
 	}
 }
 
@@ -833,9 +846,19 @@ void ASPGASCharacterBase::BroadcastDamageText(float DamageAmount, bool bIsCritic
 
 void ASPGASCharacterBase::FinishTurn()
 {
+	// 1. 노드에 도달했는지 확인하는 로그
+	UE_LOG(LogTemp, Warning, TEXT("[%s] FinishTurn 노드 호출됨!"), *GetName());
+
+	// 2. GameMode 캐스팅 시도
 	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(UGameplayStatics::GetGameMode(this)))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GameMode 찾음! EndTurn을 실행합니다."));
 		GM->EndTurn(this);
+	}
+	else
+	{
+		// 3. 실패했다면 원인은 클라이언트이기 때문! (GameMode는 서버에만 존재합니다)
+		UE_LOG(LogTemp, Error, TEXT("GameMode를 찾을 수 없습니다! (클라이언트에서 실행되었을 가능성 높음)"));
 	}
 }
 
@@ -1018,6 +1041,23 @@ void ASPGASMonsterCharacter::OnBattleStarted()
 	OnMonsterWeaknessInitialized.Broadcast(GetCurrentWeaknessTags());
 }
 
+void ASPGASMonsterCharacter::Destroyed()
+{
+	Super::Destroyed();
+
+	if (UWorld* World = GetWorld())
+	{
+		if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(World->GetAuthGameMode()))
+		{
+			// 3. UI 갱신 지시! (이제 턴 타임라인에서 빈자리나 찌꺼기가 완벽하게 정리됩니다)
+			GM->RefreshTurnTimelineUI();
+
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 UI를 갱신합니다."), *GetName());
+		}
+	}
+}
+
+
 void ASPGASMonsterCharacter::ApplyMonsterData()
 {
 	if (!MonsterDataAsset || !ASC)
@@ -1097,6 +1137,11 @@ void ASPGASMonsterCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 	if(Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
 	{
 		Die(); // 몬스터 사망 함수 호출
+
+		if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			GM->OnCharacterDied(this);
+		}
 	}
 }
 
@@ -1156,6 +1201,20 @@ void ASPGASMonsterCharacter::Die()
 		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
 		ASC->CancelAllAbilities();
 	}
+}
+
+void ASPGASMonsterCharacter::ExecuteVisualDeath()
+{
+	if (bDeathMontagePlayed) return;
+	bDeathMontagePlayed = true;
+
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+
+	float DeathDuration = DeathMontage ? DeathMontage->GetPlayLength() : 0.0f;
+	SetLifeSpan(DeathDuration + 0.5f);
 }
 
 float ASPGASMonsterCharacter::GetDeathMontageDuration() const
@@ -1322,11 +1381,13 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 		SaveSys->RestoreRunDataToPlayer(this);
 	}
 
+	CheckLevelUp();
+
 	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
-	/*APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
-	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));*/
+	APlayerController* PlayerController = CastChecked<ASPGASPlayerController>(NewController);
+	PlayerController->ConsoleCommand(TEXT("showdebug abilitysystem"));
 }
 
 
@@ -1339,3 +1400,12 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 		return;
 	}
 
+	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+	TSubclassOf<UGameplayAbility> AbilityClassToActivate;
+
+	// 행동 타입에 맞는 클래스 선택 (Enum 활용)
+	switch (ActionType)
+	{
+	case ESelectedActionType::NormalAttack:
+		AbilityClassToActivate = Data->NormalAttackAbility;
+		break;
