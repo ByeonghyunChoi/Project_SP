@@ -19,9 +19,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog", meta = (MultiLine = true))
     FText DialogText;
 
-    // 화자의 스탠딩 일러스트 (UI에 표시될 이미지)
+    // 화면 왼쪽(NPC)에 띄울 일러스트
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
-    TSoftObjectPtr<UTexture2D> SpeakerImage;
+    TSoftObjectPtr<UTexture2D> LeftImage;
+
+    // 화면 오른쪽(주인공)에 띄울 일러스트
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    TSoftObjectPtr<UTexture2D> RightImage;
 
     // 타자기 효과와 함께 출력될 사운드
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
