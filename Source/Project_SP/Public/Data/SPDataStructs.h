@@ -48,7 +48,7 @@ public:
     UPROPERTY() float OutgoingDamageMultiplier = 0.0f;
     UPROPERTY() float IncomingDamageMultiplier = 0.0f;
 
-    UPROPERTY() float Level = 7.0f;
+    UPROPERTY() float Level = 1.0f;
     UPROPERTY() float Experience = 0.0f;
     UPROPERTY() float MaxExperience = 3000.0f;
 
@@ -153,6 +153,25 @@ struct FPlayerMapProgressData
 };
 
 USTRUCT(BlueprintType)
+struct FSoundSettingsData
+{
+    GENERATED_BODY()
+
+    // UI 슬라이더 값 기준 (0.0 ~ 10.0) 기본값은 10으로 세팅
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float MasterVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float BGMVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float SFXVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float UIVolume = 10.0f;
+};
+
+USTRUCT(BlueprintType)
 struct FPlayerMetaProgressionData //영구 데이터
 {
     GENERATED_BODY()
@@ -162,6 +181,9 @@ struct FPlayerMetaProgressionData //영구 데이터
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
+    FSoundSettingsData SoundSettings;
 
     void Reset()
     {

@@ -235,6 +235,20 @@ bool USPSaveGameSubsystem::HasValidRunSave() const
 	return UGameplayStatics::DoesSaveGameExist(RunSlotName, 0);
 }
 
+void USPSaveGameSubsystem::SaveSoundSettings(float Master, float BGM, float SFX, float UI)
+{
+	// 1. 메모리의 영구 데이터에 덮어쓰기
+	PermData.SoundSettings.MasterVolume = Master;
+	PermData.SoundSettings.BGMVolume = BGM;
+	PermData.SoundSettings.SFXVolume = SFX;
+	PermData.SoundSettings.UIVolume = UI;
+
+	// 2. 변경된 영구 데이터를 즉시 디스크에 저장!
+	SavePermToDisk();
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 사운드 설정 영구 데이터에 저장 완료! (Master: %f)"), Master);
+}
+
 void USPSaveGameSubsystem::SavePermToDisk()
 {
 	USPPermSaveGame* SaveInst = Cast<USPPermSaveGame>(UGameplayStatics::CreateSaveGameObject(USPPermSaveGame::StaticClass()));
