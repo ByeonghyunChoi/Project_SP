@@ -69,6 +69,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
 
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Sound")
+	void SaveSoundSettings(float Master, float BGM, float SFX, float UI);
+
 private:
 	UPROPERTY()
 	FPlayerRunData RunData;
