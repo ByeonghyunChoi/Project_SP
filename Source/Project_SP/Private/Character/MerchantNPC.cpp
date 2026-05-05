@@ -22,7 +22,7 @@ void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 {
 	if (APawn* PlayerPawn = Cast<APawn>(Interactor))
 	{
-		
+
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
 			// "컨트롤러야, 너 지금 나(상인)랑 거래하는 거야" 라고 쥐여줍니다.
@@ -34,14 +34,14 @@ void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 
 FText AMerchantNPC::GetInteractText() const
 {
-	return FText::FromString(TEXT("상점 열기"));
+	return InteractText;
 }
 
 // Called when the game starts or when spawned
 void AMerchantNPC::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void AMerchantNPC::OpenShop(APlayerController* PlayerController)
