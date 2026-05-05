@@ -21,6 +21,9 @@ public:
 	//UI에 표시할 상호작용 텍스트 반환
 	virtual FText GetInteractText() const override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oparts|Setup")
+	FText InteractText = FText::FromString(TEXT("상호작용"));
+
 protected:
 	// 상점 기능을 담당할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
