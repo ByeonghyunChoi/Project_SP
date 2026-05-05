@@ -23,7 +23,7 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UMapManagerSubsystem::OnPostLoadMapWithWorld);
 
 	// 로비 레벨 경로
-	LobbyLevelReference = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Script/Engine.World'/Game/Field/GameLevel/TestMap01_Field.TestMap01_Field'")));
+	LobbyLevelReference = TSoftObjectPtr<UWorld>(FSoftObjectPath(TEXT("/Script/Engine.World'/Game/Field/GameLevel/ReadyMap01.ReadyMap01'")));
 }
 
 void UMapManagerSubsystem::Deinitialize()
