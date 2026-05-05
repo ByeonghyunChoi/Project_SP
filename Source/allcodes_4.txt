@@ -1,4 +1,7 @@
-﻿	{
+﻿
+	AActor* NewTarget = nullptr;
+	if (bHit)
+	{
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor && HitActor->Implements<UInteractableInterface>())
 		{
@@ -97,18 +100,31 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
+	auto BroadcastFusionEvent = [&]() // 상태이상 융합 이벤트를 쏘기위한 로직
+	{
+		if (InstigatorActor)
+		{
+			FGameplayEventData Payload;
+			Payload.Instigator = InstigatorActor;
+			Payload.Target = TargetASC->GetAvatarActor();
+			UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(InstigatorActor, SPTags.Event_Combat_StatusFusion, Payload);
+		}
+	};
+
 	// 풍화(Weathering)
 	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
 	{
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
@@ -119,12 +135,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
@@ -135,12 +153,14 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
 			return;
 		}
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
 			return;
 		}
@@ -151,6 +171,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_Plague))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_Plague);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}
@@ -160,6 +181,7 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_HeatWind))
 		{
 			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_HeatWind);
+			BroadcastFusionEvent(); // 융합 이벤트 전송
 			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
 			return;
 		}
@@ -198,6 +220,16 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 			InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
 
 			UE_LOG(LogTemp, Warning, TEXT("[StatusComponent] 상태이상 적용됨: %s (%d 턴)"), *IncomingStatusTag.ToString(), Config->DurationTurns);
+		}
+
+		if (Config->StatModifierClass)
+		{
+			FGameplayEffectSpecHandle StatSpec = InstigatorASC->MakeOutgoingSpec(Config->StatModifierClass, 1.0f, Context);
+			if (StatSpec.IsValid())
+			{
+				// SetStackCount를 부르지 않으므로 무조건 1스택(1회)만 적용됩니다!
+				InstigatorASC->ApplyGameplayEffectSpecToTarget(*StatSpec.Data.Get(), TargetASC);
+			}
 		}
 	}
 	else if (Config && Config->bIsInstantEffect)
@@ -274,6 +306,11 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 				{
 					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
 				}
+
+				TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+
+				// 2. 블루프린트(PlayerController)로 방송 송출 (즉발 데미지이므로 bIsInstant = true)
+				OnStatusVisualTriggered.Broadcast(TargetASC->GetAvatarActor(), IncomingStatusTag, true);
 
 				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
 			}
@@ -355,6 +392,11 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 							TargetCoefficient
 						);
 
+						OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+
+						// 2. 블루프린트(PlayerController)로 방송 송출 (DoT 데미지이므로 bIsInstant = false)
+						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
+
 						// 시전자가 나에게 데미지 GE를 쏩니다.
 						InstigatorASC->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), OwnerASC);
 
@@ -408,6 +450,10 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 	{
 		Monster->BroadcastStatusUI();
 	}
+}
+
+void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor)
+{
 }
 
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
@@ -1339,3 +1385,27 @@ void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
         if (TargetASC && TargetStatusGEClass)
         {
             FGameplayEffectContextHandle EffectContext = GetAbilitySystemComponentFromActorInfo()->MakeEffectContext();
+            EffectContext.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
+
+            FGameplayEffectSpecHandle SpecHandle = GetAbilitySystemComponentFromActorInfo()->MakeOutgoingSpec(TargetStatusGEClass, GetAbilityLevel(), EffectContext);
+
+            if (SpecHandle.IsValid())
+            {
+                // [1] 엔진(혈관)에 직접 GE 부여
+                TargetASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+                // [2] 몬스터 몸에서 '전광판 매니저' 찾기
+                USPStatusEffectComponent* TargetStatusComp = TargetActor->FindComponentByClass<USPStatusEffectComponent>();
+
+                // [3] 매니저가 있고, 에디터에서 태그를 제대로 세팅해 뒀다면 보고!
+                if (TargetStatusComp && TargetStatusTag.IsValid())
+                {
+                    TargetStatusComp->ProcessStatusEffect(TargetStatusTag, TargetASC, GetAvatarActorFromActorInfo());
+                }
+
+                UE_LOG(LogTemp, Log, TEXT("기초 유물 효과 발동: [%s] 부여 및 매니저 등록 완료!"), *TargetStatusTag.ToString());
+            }
+        }
+    }
+}
+// ==========================================
