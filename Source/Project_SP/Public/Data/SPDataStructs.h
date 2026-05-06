@@ -28,12 +28,12 @@ struct FPlayerStatsData
 public:
     UPROPERTY() float CurrentHealth = 163.0f;
     UPROPERTY() float CurrentBattlePoint = 2.0f;
-    UPROPERTY() float CurrentTimePower = 200.0f;    
+    UPROPERTY() float CurrentTimePower = 100.0f;    
     UPROPERTY() float CurrentActionGauge = 0.0f;
 
     UPROPERTY() float MaxHealth = 163.0f;
     UPROPERTY() float MaxBattlePoint = 5.0f;
-    UPROPERTY() float MaxTimePower = 200.0f;       
+    UPROPERTY() float MaxTimePower = 100.0f;       
 
     UPROPERTY() float Attack = 84.0f;
     UPROPERTY() float Defense = 52.0f;
