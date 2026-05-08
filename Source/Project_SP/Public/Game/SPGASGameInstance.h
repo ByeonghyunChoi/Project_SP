@@ -18,6 +18,8 @@ public:
 	USPGASGameInstance();
 	virtual void Init() override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+	TObjectPtr<class UDataTable> DefaultDialogAssetTable;
 private:
 	bool bIsReturnFromGame;
 

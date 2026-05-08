@@ -6,11 +6,14 @@
 #include "SPDialogData.generated.h"
 
 USTRUCT(BlueprintType)
-struct FDialogRow : public FTableRowBase
+struct FDialogLineData : public FTableRowBase
 {
     GENERATED_BODY()
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+	FName SpeakerID; //
+
     // 화자 이름
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
     FText SpeakerName;
@@ -18,14 +21,18 @@ public:
     // 대사 내용
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog", meta = (MultiLine = true))
     FText DialogText;
+};
 
-    // 화면 왼쪽(NPC)에 띄울 일러스트
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
-    TSoftObjectPtr<UTexture2D> LeftImage;
+USTRUCT(BlueprintType)
+struct FDialogAssetData : public FTableRowBase
+{
+	GENERATED_BODY()
 
-    // 화면 오른쪽(주인공)에 띄울 일러스트
+public:
+
+    // 말하는 화자 일러스트
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
-    TSoftObjectPtr<UTexture2D> RightImage;
+    TSoftObjectPtr<UTexture2D> StandinIllustration;
 
     // 타자기 효과와 함께 출력될 사운드
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")

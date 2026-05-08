@@ -3,6 +3,7 @@
 
 #include "Game/SPGASGameInstance.h"
 #include "GameFramework/GameUserSettings.h"
+#include "SubSystem/SPDialogSubsystem.h"
 
 USPGASGameInstance::USPGASGameInstance()
 {
@@ -12,6 +13,15 @@ USPGASGameInstance::USPGASGameInstance()
 void USPGASGameInstance::Init()
 {
     Super::Init();
+
+    // 1. 대화 서브시스템을 찾아 기본 에셋 테이블을 설정합니다.
+    if (USPDialogSubsystem* DialogSubsystem = GetSubsystem<USPDialogSubsystem>())
+    {
+        if (DefaultDialogAssetTable)
+        {
+            DialogSubsystem->DefaultAssetTable = DefaultDialogAssetTable;
+        }
+    }
 
     if (GEngine != nullptr)
     {

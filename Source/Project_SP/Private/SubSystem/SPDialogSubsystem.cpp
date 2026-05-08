@@ -4,20 +4,27 @@
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 
-void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, APlayerController* PC, TSubclassOf<UUserWidget> DialogWidgetClass)
+void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetTable, APlayerController* PC, TSubclassOf<UUserWidget> DialogWidgetClass)
 {
-	// 방어 코드: 꼭 필요한 재료(테이블, 컨트롤러, UI클래스)가 없으면 종료 - 괜히 재료 없이 대화 시작 X - 점수를 잘 받아야 하는것이지 아무래도
-	if (!DialogTable || !PC || !DialogWidgetClass) return;
+	// 1. 사용할 에셋 테이블 결정 (입력값이 있으면 그것을, 없으면 기본값을 사용)
+	CurrentAssetTable = AssetTable ? AssetTable : DefaultAssetTable.Get();
 
-	// 1. 기존 데이터 청소.
+	// 필수 재료 확인
+	if (!DialogTable || !CurrentAssetTable || !PC || !DialogWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartDialog: Missing required data (Table, PC, or WidgetClass)"));
+		return;
+	}
+
+	// 2. 기존 데이터 초기화
 	CurrentDialogRows.Empty();
 	CurrentRowIndex = 0;
 
-	// 2. 데이터 테이블의 모든 내용을 배열(CurrentDialogRows) 받아오기
-	TArray<FDialogRow*> AllRows;
-	DialogTable->GetAllRows<FDialogRow>(TEXT("DialogContext"), AllRows);
+	// 3. 데이터 테이블의 모든 대사 데이터를 배열로 복사
+	TArray<FDialogLineData*> AllRows;
+	DialogTable->GetAllRows<FDialogLineData>(TEXT("DialogContext"), AllRows);
 
-	for (FDialogRow* Row : AllRows)
+	for (FDialogLineData* Row : AllRows)
 	{
 		if (Row)
 		{
@@ -25,7 +32,7 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, APlayerController*
 		}
 	}
 
-	// 3. UI(위젯) 생성 및 띄우기
+	// 4. UI 위젯 생성 및 출력
 	if (!ActiveDialogWidget)
 	{
 		ActiveDialogWidget = CreateWidget<UUserWidget>(PC, DialogWidgetClass);
@@ -33,32 +40,69 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, APlayerController*
 
 	if (ActiveDialogWidget && !ActiveDialogWidget->IsInViewport())
 	{
-		ActiveDialogWidget->AddToViewport(100); // ZOrder 100을 줘서 다른 UI(체력바 등)보다 항상 맨 위에 뜨게
+		ActiveDialogWidget->AddToViewport(100);
 
+		// 입력 모드를 UI 전용으로 변경
 		FInputModeUIOnly InputMode;
 		InputMode.SetWidgetToFocus(ActiveDialogWidget->GetCachedWidget());
 		PC->SetInputMode(InputMode);
 		PC->SetShowMouseCursor(true);
 	}
 
-	// 4. 모든 준비가 끝났으니 첫 번째 대사를 출력하라고 지시합니다.
+	//NPC 이미지 선행 로드
+	if (CurrentAssetTable)
+	{
+		for (const FDialogLineData& Row : CurrentDialogRows)
+		{
+			// 주인공이 아닌 캐릭터를 발견했다면?
+			if (Row.SpeakerID != FName("SI_kardin"))
+			{
+				FString ContextString = TEXT("FindNPCAsset");
+				FDialogAssetData* NPCAsset = CurrentAssetTable->FindRow<FDialogAssetData>(Row.SpeakerID, ContextString);
+
+				// 해당 NPC의 에셋을 찾아서 UI에 "미리 띄워!" 하고 방송합니다.
+				if (NPCAsset)
+				{
+					OnDialogStandingSetup.Broadcast(*NPCAsset);
+				}
+				break; // 찾았으니 반복문 즉시 종료!
+			}
+		}
+	}
+
+	// 5. 첫 번째 대사 즉시 실행
 	PlayNextDialog();
 }
 
 void USPDialogSubsystem::PlayNextDialog()
 {
-	// 다음 대사가 남아있는지 확인
 	if (CurrentDialogRows.IsValidIndex(CurrentRowIndex))
 	{
-		// 1. UI에게 "이게 전체 텍스트야!" 라고 방송
-		OnDialogRowUpdated.Broadcast(CurrentDialogRows[CurrentRowIndex]);
+		// 1. 현재 출력할 대사 데이터 가져오기
+		const FDialogLineData& LineData = CurrentDialogRows[CurrentRowIndex];
 
-		// 2. 책갈피 다음 장으로 넘기기
+		// 2. 에셋 테이블에서 SpeakerID(FName)를 키값으로 에셋 정보를 찾음
+		FDialogAssetData AssetData;
+		if (CurrentAssetTable)
+		{
+			FString ContextString = TEXT("FindDialogAsset");
+			FDialogAssetData* FoundRow = CurrentAssetTable->FindRow<FDialogAssetData>(LineData.SpeakerID, ContextString);
+
+			if (FoundRow)
+			{
+				AssetData = *FoundRow;
+			}
+		}
+
+		// 3. UI로 데이터 방송 (텍스트 + 에셋)
+		OnDialogRowUpdated.Broadcast(LineData, AssetData);
+
+		// 4. 다음 인덱스로 이동
 		CurrentRowIndex++;
 	}
 	else
 	{
-		// 대사가 다 끝났다면 대화 종료!
+		// 더 이상 대사가 없으면 종료
 		EndDialog();
 	}
 }
