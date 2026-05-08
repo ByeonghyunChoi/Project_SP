@@ -655,7 +655,7 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	bool bIsActionExecuting = false;
 
 	// 현재 턴 주인이 액션(스킬)을 진행 중인지 확인
-	if (CurrentTurnActor)
+	if (CurrentTurnActor && CurrentTurnActor != DeadActor)
 	{
 		UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
 		if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting))

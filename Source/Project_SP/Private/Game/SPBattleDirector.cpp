@@ -54,9 +54,15 @@ void ASPBattleDirector::FinishStatusSequence()
 			UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentPlayingActor);
 			if (ASC)
 			{
-				// 몬스터의 AI를 멈추게 했던 VisualPlaying 태그를 카운트 0으로 날려버립니다. (AI 재개!)
-				ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 모든 상태이상 연출 종료! AI 족쇄 해제."), *CurrentPlayingActor->GetName());
+				if (!ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
+					UE_LOG(LogTemp, Warning, TEXT("[%s] AI 족쇄 해제."), *CurrentPlayingActor->GetName());
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 타겟이 사망하여 AI 족쇄를 유지합니다."), *CurrentPlayingActor->GetName());
+				}
 			}
 		}
 
