@@ -21,7 +21,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitBattlePoint(0.0f);
 	InitMaxBattlePoint(5.0f);
 	InitTimePower(0.0f);
-	InitMaxTimePower(200.0f);
+	InitMaxTimePower(100.0f);
 	InitActionGauge(0.0f);
 	InitExperience(0.0f);
 
