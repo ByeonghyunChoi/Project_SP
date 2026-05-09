@@ -20,13 +20,18 @@ USPGA_BattleActionBase::USPGA_BattleActionBase()
 
 bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
 {
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if ((ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) ||
-			ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_JadeClock)) &&
-			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		// 해골 수정 + 무기 스킬
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) && GetAssetTags().HasTag(SPTags.Battle_Action_Skill))
 		{
-			return true; 
+			return true;
+		}
+		// 옥시계 + 반격
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) && GetAssetTags().HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			return true;
 		}
 	}
 	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
@@ -42,41 +47,43 @@ bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, 
 bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
 {
 	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	// 🌟 1. 시간 간섭 발동 중이면 쿨타임 무시 (프리패스!)
-	if ((ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) ||
-		ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_JadeClock)) &&
-		!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+	// 수정 해골: '무기 스킬(Skill)' 한정 쿨타임 프리패스
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 쿨타임 무시 로직 작동! 강제 발동!"));
-		return true;
+		if (GetAssetTags().HasTag(SPTags.Battle_Action_Skill)) return true;
 	}
 
-	// 🌟 2. 수동 쿨타임 검사 (기존에 블루프린트 Blocked Tag로 막던 것을 여기서 처리)
+	// 옥시계: '반격(CounterAttack)' 한정 쿨타임 프리패스
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock))
+	{
+		if (GetAssetTags().HasTag(SPTags.Battle_Action_CounterAttack)) return true;
+	}
+
+	// 쿨타임 체크 로직
 	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
 	{
-		// 쿨타임 태그가 내 몸에 있다면? 스킬 발동 차단!
-		if (OptionalRelevantTags)
-		{
-			OptionalRelevantTags->AddTag(CooldownTag);
-		}
-		UE_LOG(LogTemp, Warning, TEXT("GAS 시스템: 쿨타임 중이라 발동 불가 (%s)"), *CooldownTag.ToString());
+		if (OptionalRelevantTags) OptionalRelevantTags->AddTag(CooldownTag);
 		return false;
 	}
-
-	// 3. 기본 쿨타임 체크
 	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
 }
 
 void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
 {
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
 	{
-		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull) &&
-			!GetAssetTags().HasTag(FSPGameplayTags::Get().Battle_Action_TimeInterference))
+		// 해골 수정 + 무기 스킬
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) && GetAssetTags().HasTag(SPTags.Battle_Action_Skill))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] BP 소모를 무시합니다."));
-			return; 
+			return;
+		}
+		// 옥시계 + 반격
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) && GetAssetTags().HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			return;
 		}
 	}
 	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
@@ -299,13 +306,28 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	if ((ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) ||
-		ASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock)) &&
-		!GetAssetTags().HasTag(SPTags.Battle_Action_TimeInterference))
+	// 1. 해골 수정 (모든 스킬 쿨타임 무시)
+	if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
+		!GetAssetTags().HasTag(SPTags.Battle_Action_Skill))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 수동 쿨타임(TurnBased)을 적용하지 않고 무시합니다."));
+		UE_LOG(LogTemp, Warning, TEXT("[해골 수정] 수동 쿨타임을 무시합니다."));
 		ConsumeTimeInterferenceStack();
 		return;
+	}
+
+	// 🌟 2. 옥시계: '반격(CounterAttack)' 스킬일 때만 쿨타임 무시!
+	if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) &&
+		GetAssetTags().HasTag(SPTags.Battle_Action_CounterAttack))
+	{
+		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(SPTags.State_Buff_JadeClock));
+		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+		{
+			ASC->RemoveActiveGameplayEffect(Handle, 1); // 스택 1 차감
+			UE_LOG(LogTemp, Warning, TEXT("[옥시계] 반격 발동! 쿨타임 없이 스택을 1 소모합니다."));
+			return; // 쿨타임 GE(디버프)를 바르지 않고 함수 즉시 종료
+		}
 	}
 	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
 	if (AbilityTags.HasTag(SPTags.Battle_Action_Skill)) // 일반 공격이 아니라 '스킬'일 때만!
@@ -334,15 +356,7 @@ void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
 
 	if (SpecHandle.IsValid())
 	{
-		// [핵심] 쿨타임 태그를 "동적으로" 부여
-		// GE_TurnBasedCooldown 자체는 껍데기일 뿐이고, 
-		// 실제로는 "Cooldown.Weapon.Fenrir.Skill" 같은 태그를 붙여야 스킬이 막힙니다.
-		SpecHandle.Data->DynamicGrantedTags.AddTag(CooldownTag);
-
-		// 스택 개수 = 턴 수
-		SpecHandle.Data->SetStackCount(CooldownTurns);
-
-		// 적용 (나 자신에게)
+		SpecHandle.Data->SetStackCount(CooldownTurns); // 턴 수(스택) 지정
 		ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 
 		UE_LOG(LogTemp, Log, TEXT("쿨타임 시작: %s (%d 턴)"), *CooldownTag.ToString(), CooldownTurns);

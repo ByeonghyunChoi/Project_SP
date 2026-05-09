@@ -1,27 +1,27 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Map/MapInfo.h"       // EMapType, EMapGrade µî Á¤ÀÇ
+#include "Map/MapInfo.h"       // EMapType, EMapGrade ë“± ì •ì˜
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
-#include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage Á¤ÀÇ
+#include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage ì •ì˜
 #include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMapLocationChanged, int32, NewStage, int32, NewFloor);
 
-// µ¥ÀÌÅÍ Å×ÀÌºí ±¸Á¶Ã¼
+// ë°ì´í„° í…Œì´ë¸” êµ¬ì¡°ì²´
 USTRUCT(BlueprintType)
 struct FMapLevelData : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	// 1~3Ãş(ÀÏ¹İ, ÁØºñ)¿¡¼­ °øÅëÀ¸·Î »ç¿ëÇÒ ¹°¸®Àû ·¹º§ (.umap)
+	// 1~3ì¸µ(ì¼ë°˜, ì¤€ë¹„)ì—ì„œ ê³µí†µìœ¼ë¡œ ì‚¬ìš©í•  ë¬¼ë¦¬ì  ë ˆë²¨ (.umap)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UWorld> NormalLevelReference;
 
-	// 4Ãş(º¸½º)¿¡¼­¸¸ »ç¿ëÇÒ ¹°¸®Àû ·¹º§ (.umap)
+	// 4ì¸µ(ë³´ìŠ¤)ì—ì„œë§Œ ì‚¬ìš©í•  ë¬¼ë¦¬ì  ë ˆë²¨ (.umap)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UWorld> BossLevelReference;
 
@@ -38,36 +38,36 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	// »õ °ÔÀÓ ½ÃÀÛ 
+	// ìƒˆ ê²Œì„ ì‹œì‘ 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartNewRun();
 
-	// ÀüÅõ ¸Ê ÁøÀÔ (ÇÊµå -> ÀüÅõ)
+	// ì „íˆ¬ ë§µ ì§„ì… (í•„ë“œ -> ì „íˆ¬)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage);
 
-	// ÀüÅõ Á¾·á ÈÄ ÇÊµå º¹±Í (ÀüÅõ -> ÇÊµå)
+	// ì „íˆ¬ ì¢…ë£Œ í›„ í•„ë“œ ë³µê·€ (ì „íˆ¬ -> í•„ë“œ)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ReturnToField(bool bIsVictory);
 
-	// ·Îºñ·Î ÀÌµ¿
+	// ë¡œë¹„ë¡œ ì´ë™
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void GoToLobby();
 
-	// ÇöÀç ¸Ê Á¤º¸ ÃÊ±âÈ­ (MapBase°¡ È£Ãâ)
+	// í˜„ì¬ ë§µ ì •ë³´ ì´ˆê¸°í™” (MapBaseê°€ í˜¸ì¶œ)
 	void InitializeCurrentMap(class AMapBase* InMapActor);
 
-	// Ãş ÀÌµ¿ ·ÎÁ÷
+	// ì¸µ ì´ë™ ë¡œì§
 	void MoveToNextFloor(EMapType SelectedType);
 	TArray<EMapType> GenerateNextFloorOptions();
 
-	// ¸Ê ¹Ù²ï°Å ¾Ë¸²¿ë
+	// ë§µ ë°”ë€ê±° ì•Œë¦¼ìš©
 	UPROPERTY(BlueprintAssignable, Category = "Map")
 	FOnMapLocationChanged OnMapLocationChanged;
 
 	bool IsInBattleMap() { return bIsBattleActive; }
 	
-	//·Îºñ ¸Ê ÆÇµ¶¿ë
+	//ë¡œë¹„ ë§µ íŒë…ìš©
 	bool GetIsInLobby() const { return bIsInLobby; }
 
 	//Getter
@@ -87,7 +87,23 @@ public:
 	TArray<EMapType> GetCurrentPortalOptions() const { return CurrentPortalOptions; }
 
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
-	int32 GetMaxFloors() const { return 4; }
+	int32 GetMaxFloors() const { return 5; }
+
+	// ë ˆë²¨ ê³„ì‚°ê¸°
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
+	int32 CalculateMonsterLevel() const;
+
+	// ì•½ì  ìƒì„±ê¸°
+	UFUNCTION(BlueprintPure, Category = "MapProgress")
+	FGameplayTagContainer GenerateRandomWeaknesses(int32 Count);
+
+	// ì¸ì¹´ìš´í„° ìƒì„± í•¨ìˆ˜
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	UCombatEncounterData* GenerateFieldEncounter();
+
+	//ì¼ë°˜ ëª¬ìŠ¤í„° ìŠ¤í° í•¨ìˆ˜
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	FTransform GetFieldSpawnTransform(int32 Index);
 
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	EMapGrade GetMapGradeForUI(int32 Floor) const { return GetMapGradeByFloor(Floor); }
@@ -95,69 +111,72 @@ public:
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
 
-	// ·Îµå ½Ã½ºÅÛ
+	// ë¡œë“œ ì‹œìŠ¤í…œ
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
 
-	// ÇÊµå º¹±Í ½Ã È­¸é¿¡ ¶ç¿öÁÙ º¸»ó ´ë±â¿­ (ÀçÈ­ Á¾·ù, ¼ö·®)
+	// í•„ë“œ ë³µê·€ ì‹œ í™”ë©´ì— ë„ì›Œì¤„ ë³´ìƒ ëŒ€ê¸°ì—´ (ì¬í™” ì¢…ë¥˜, ìˆ˜ëŸ‰)
 	UPROPERTY(BlueprintReadWrite, Category = "Reward")
 	TMap<EResourceType, int32> PendingToastRewards;
 
 protected:
-	// ·Îºñ ·¹º§ ·¹ÆÛ·±½º (¿¡µğÅÍ¿¡¼­ °æ·Î È®ÀÎ ÇÊ¿ä)
+	// ë¡œë¹„ ë ˆë²¨ ë ˆí¼ëŸ°ìŠ¤ (ì—ë””í„°ì—ì„œ ê²½ë¡œ í™•ì¸ í•„ìš”)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TSoftObjectPtr<UWorld> LobbyLevelReference;
 
-	// ¸Ê µ¥ÀÌÅÍ Å×ÀÌºí
+	// ë§µ ë°ì´í„° í…Œì´ë¸”
 	UPROPERTY()
 	TObjectPtr<UDataTable> MapDataTable;
 
+	UPROPERTY()
+	TObjectPtr<class USPStageMonsterPoolData> StagePoolDataAsset;
+
 private:
-	// ÇöÀç ½ºÅ×ÀÌÁö ¹× Ãş Á¤º¸
+	// í˜„ì¬ ìŠ¤í…Œì´ì§€ ë° ì¸µ ì •ë³´
 	int32 CurrentStage = 1;
 	int32 CurrentFloor = 1;
 
-	// ÇöÀç ¸Ê Å¸ÀÔ (ÀüÅõ º¹±Í ½Ã º¹±¸¿ë)
+	// í˜„ì¬ ë§µ íƒ€ì… (ì „íˆ¬ ë³µê·€ ì‹œ ë³µêµ¬ìš©)
 	UPROPERTY(VisibleAnywhere, Category = "Debug")
 	EMapType CurrentMapType = EMapType::NormalBattle;
 
-	// ÇöÀç »ı¼ºµÈ ¸Ê ¾×ÅÍ
+	// í˜„ì¬ ìƒì„±ëœ ë§µ ì•¡í„°
 	TWeakObjectPtr<class AMapBase> CurrentMapActor;
 
-	// [ÀúÀå¿ë] ÇÊµå À§Ä¡ ÀúÀå
+	// [ì €ì¥ìš©] í•„ë“œ ìœ„ì¹˜ ì €ì¥
 	UPROPERTY()
 	FTransform SavedFieldTransform;
 
-	// [ÀúÀå¿ë] ÇöÀç Æ÷Å» ¿¬°á ¸ñ·Ï
+	// [ì €ì¥ìš©] í˜„ì¬ í¬íƒˆ ì—°ê²° ëª©ë¡
 	UPROPERTY()
 	TArray<EMapType> CurrentPortalOptions;
 
-	// [ÇÃ·¡±×] ÀüÅõ¿¡¼­ µ¹¾Æ¿À´Â ÁßÀÎ°¡?
+	// [í”Œë˜ê·¸] ì „íˆ¬ì—ì„œ ëŒì•„ì˜¤ëŠ” ì¤‘ì¸ê°€?
 	bool bIsReturningFromBattle = false;
 
-	// [ÇÃ·¡±×] ÇöÀç ÀüÅõ ÁßÀÎ°¡?
+	// [í”Œë˜ê·¸] í˜„ì¬ ì „íˆ¬ ì¤‘ì¸ê°€?
 	bool bIsBattleActive = false;
 
-	// [ÇÃ·¡±×] ÇöÀç ¹æÀÌ Å¬¸®¾îµÈ »óÅÂÀÎ°¡?
+	// [í”Œë˜ê·¸] í˜„ì¬ ë°©ì´ í´ë¦¬ì–´ëœ ìƒíƒœì¸ê°€?
 	EMapState CurrentRoomState = EMapState::InProgress;
 
-	// [ÇÃ·¡±×] ¼¼ÀÌºê ÆÄÀÏ¿¡¼­ ·ÎµåÇÏ¿© ¸Ê¿¡ ÁøÀÔÇÏ´Â ÁßÀÎ°¡?
+	// [í”Œë˜ê·¸] ì„¸ì´ë¸Œ íŒŒì¼ì—ì„œ ë¡œë“œí•˜ì—¬ ë§µì— ì§„ì…í•˜ëŠ” ì¤‘ì¸ê°€?
 	bool bIsLoadingSave = false;
 
-	// [ÇÃ·¡±×] ÇÃ·¹ÀÌ¾î°¡ ·Îºñ ¸Ê¿¡ ÀÖ´Â°¡?
+	// [í”Œë˜ê·¸] í”Œë ˆì´ì–´ê°€ ë¡œë¹„ ë§µì— ìˆëŠ”ê°€?
 	bool bIsInLobby = true;
 
 private:
-	// ¸Ê »ı¼º ¹× ÇÃ·¹ÀÌ¾î ÀÌµ¿ Ã³¸®
+	// ë§µ ìƒì„± ë° í”Œë ˆì´ì–´ ì´ë™ ì²˜ë¦¬
 	void SpawnMapActor(EMapType MapType);
 
-	// ·¹º§ ·Îµå ¿Ï·á ½Ã È£ÃâµÇ´Â Äİ¹é (À§Ä¡ º¹±¸ ÇÙ½É)
+	// ë ˆë²¨ ë¡œë“œ ì™„ë£Œ ì‹œ í˜¸ì¶œë˜ëŠ” ì½œë°± (ìœ„ì¹˜ ë³µêµ¬ í•µì‹¬)
 	void OnPostLoadMapWithWorld(UWorld* LoadedWorld);
 
-	// ½ºÅ×ÀÌÁö ·¹º§ ·Îµå ÇïÆÛ
+	// ìŠ¤í…Œì´ì§€ ë ˆë²¨ ë¡œë“œ í—¬í¼
 	void LoadStageLevel();
 
-	// ³­ÀÌµµ/Å¸ÀÔ °áÁ¤ ÇïÆÛ
+	// ë‚œì´ë„/íƒ€ì… ê²°ì • í—¬í¼
 	EMapGrade GetMapGradeByFloor(int32 Floor) const;
 	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
 

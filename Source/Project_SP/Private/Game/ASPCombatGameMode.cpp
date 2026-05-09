@@ -667,13 +667,10 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	if (bIsActionExecuting)
 	{
 		// 🟢 [플레이어 스킬 공격 중]
-		// 오버킬 연출을 위해 아무것도 하지 않고 대기합니다!
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망 연출 대기 (현재 액션 진행 중! 오버킬 허용)"), *DeadActor->GetName());
 	}
 	else
 	{
-		// [도트 딜, 골드 버그(프리 액션) 등]
-		// 진행 중인 애니메이션이 없으므로, 대기할 필요 없이 즉시 쓰러뜨립니다.
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 즉시 사망 연출 (진행 중인 액션 없음)"), *DeadActor->GetName());
 
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
@@ -681,19 +678,26 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 			Monster->ExecuteVisualDeath();
 		}
 
-		// 명단에서 즉시 삭제
 		AllParticipants.Remove(DeadActor);
 		if (TurnManager) TurnManager->RemoveParticipant(DeadActor);
 
-		// 적 전멸 체크
 		if (GetCurrentEnemies().Num() <= 0)
 		{
 			PlayVictorySequence();
 		}
 		else if (DeadActor == CurrentTurnActor)
 		{
-			// 턴 시작하자마자 도트 딜 맞고 죽었을 경우 턴 강제 스킵!
-			EndTurn(CurrentTurnActor);
+			// 🌟 [수정된 핵심 파트] 상태이상 연출이 진행 중이라면 턴 종료를 잠시 보류(대기)합니다!
+			UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
+			if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 도중 사망! 배틀 디렉터가 연출을 마칠 때까지 턴을 대기합니다."), *DeadActor->GetName());
+			}
+			else
+			{
+				// 연출 중이 아니면 원래대로 즉시 턴 강제 스킵!
+				EndTurn(CurrentTurnActor);
+			}
 		}
 	}
 }

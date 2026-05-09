@@ -300,7 +300,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			return;
 		}
 
-		// 쿨타임 검사 (선생님이 추가하신 태그 아주 좋습니다!)
+		// 쿨타임 검사 
 		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.Cooldown_Skill_TimeInterference))
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간 간섭 스킬이 쿨타임 중입니다! (남은 턴 대기)"));
@@ -354,10 +354,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
+			// '해골 수정(CrystalSkull)' 고유 태그를 검사합니다!
+			bool bIsCrystalSkull = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull);
 
-			// 1. 쿨타임 검사 (수정됨: 시간 간섭 상태가 '아닐 때만' 쿨타임을 막습니다!)
-			if (!bIsTimeInterference && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			// 1. 쿨타임 검사
+			if (!bIsCrystalSkull && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
 				return; // 타겟팅 진입 차단!
@@ -366,8 +367,8 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// 2. BP 및 프리패스(시간 간섭) 검사
 			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
 
-			// 시간 간섭 버프가 없는데, BP마저 부족하다면?
-			if (!bIsTimeInterference && GetCurrentBP() < Cost)
+			// 해골 수정 버프가 없는데, BP마저 부족하다면?
+			if (!bIsCrystalSkull && GetCurrentBP() < Cost)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족합니다!"));
 				return; // 타겟팅 진입 차단!

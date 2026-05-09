@@ -63,17 +63,8 @@ bool USPGA_Parry::CheckCounterConditions()
 
 	if (PlayerASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock))
 	{
-		// 버프가 있다면? 내 몸에서 옥시계 버프(GE)를 찾아서 스택을 1개 깎습니다.
-		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(SPTags.State_Buff_JadeClock));
-		TArray<FActiveGameplayEffectHandle> ActiveEffects = PlayerASC->GetActiveEffects(Query);
-
-		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-		{
-			PlayerASC->RemoveActiveGameplayEffect(Handle, 1); // 스택 1 차감
-
-			UE_LOG(LogTemp, Warning, TEXT("[옥시계 발동] 스택을 1 소모하여 쿨타임 없이 반격합니다!"));
-			return true;
-		}
+		UE_LOG(LogTemp, Warning, TEXT("[옥시계] 버프가 존재하여 쿨타임 검사를 패스합니다!"));
+		return true;
 	}
 
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetAvatarActorFromActorInfo()))

@@ -4,6 +4,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "Data/Asset/SPStageMonsterPoolData.h"
 
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -17,6 +18,15 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	if (!MapDataTable)
 	{
 		UE_LOG(LogTemp, Error, TEXT("FATAL: MapDataTable Load Failed! Path: %s"), *DTPath);
+	}
+
+	FString PoolPath = TEXT("/Script/Project_SP.SPStageMonsterPoolData'/Game/DataTable/DataAsset/MonsterPoolData.MonsterPoolData'");
+
+	StagePoolDataAsset = Cast<USPStageMonsterPoolData>(StaticLoadObject(USPStageMonsterPoolData::StaticClass(), nullptr, *PoolPath));
+
+	if (!StagePoolDataAsset)
+	{
+		UE_LOG(LogTemp, Error, TEXT("FATAL: StagePoolDataAsset Load Failed! Path: %s"), *PoolPath);
 	}
 
 	// 레벨 로드 완료 델리게이트 등록
@@ -254,29 +264,26 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
-	if (CurrentFloor >= 4 && CurrentStage < 3)
+	if (CurrentFloor >= 5 && CurrentStage < 3) // 5층(보스) 클리어 시
 	{
-		// 보스 클리어 후 -> 다음 스테이지 1층으로!
 		CurrentStage++;
 		CurrentFloor = 1;
-		CurrentMapType = SelectedType; // 🌟 새로 들어갈 맵 타입 저장
+		CurrentMapType = SelectedType;
 		bIsReturningFromBattle = false;
-		LoadStageLevel(); // 1층이므로 NormalLevelReference가 열립니다.
+		LoadStageLevel();
 	}
-	else if (CurrentFloor < 4)
+	else if (CurrentFloor < 5)
 	{
 		CurrentFloor++;
-		CurrentMapType = SelectedType; // 🌟 맵 타입 미리 저장
+		CurrentMapType = SelectedType;
 
-		// 🌟 방금 올라간 층이 4층(보스)이라면? 맵 액터만 바꾸지 말고 아예 보스 맵(.umap)을 새로 로드!
-		if (CurrentFloor == 4)
+		if (CurrentFloor == 5) // 방금 올라간 층이 5층이라면 보스맵 로드
 		{
 			bIsReturningFromBattle = false;
-			LoadStageLevel(); // 4층이므로 BossLevelReference가 열립니다.
+			LoadStageLevel();
 		}
 		else
 		{
-			// 2층, 3층은 물리적인 레벨(.umap) 이동 없이, 같은 레벨 안에서 맵 액터만 갈아 끼웁니다.
 			SpawnMapActor(SelectedType);
 		}
 	}
@@ -294,10 +301,11 @@ EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
 {
 	switch (Floor)
 	{
-	case 1: return EMapGrade::Normal;  // 1층: 일반
-	case 2: return EMapGrade::Normal;  // 2층: 일반 
-	case 3: return EMapGrade::Prepare; // 3층: 준비
-	case 4: return EMapGrade::Boss;    // 4층: 보스
+	case 1: return EMapGrade::Normal;
+	case 2: return EMapGrade::Normal;
+	case 3: return EMapGrade::Normal;
+	case 4: return EMapGrade::Prepare;
+	case 5: return EMapGrade::Boss;
 	default: return EMapGrade::Normal;
 	}
 }
@@ -310,6 +318,7 @@ EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
 	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
 	case EMapGrade::Prepare: return EMapType::Prepare;
 	case EMapGrade::Boss: return EMapType::BossBattle;
+
 	default: return EMapType::NormalBattle;
 	}
 }
@@ -324,7 +333,7 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	int32 NextFloor = CurrentFloor + 1;
 
 	// 스테이지의 끝(4층)을 넘어가면, 다음 스테이지 1층의 옵션을 줘야 합니다.
-	if (NextFloor > 4)
+	if (NextFloor > 5)
 	{
 		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
 		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
@@ -338,6 +347,73 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 
 	return CurrentPortalOptions;
 }
+
+int32 UMapManagerSubsystem::CalculateMonsterLevel() const
+{
+	return ((CurrentStage - 1) * 10) + ((CurrentFloor - 1) * 3) + 1;
+}
+
+FGameplayTagContainer UMapManagerSubsystem::GenerateRandomWeaknesses(int32 Count)
+{
+	FGameplayTagContainer RandomTags;
+	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
+	TArray<FGameplayTag> ElementPool = { Tags.Weakness_Surtr, Tags.Weakness_Jormungandr, Tags.Weakness_Fenrir };
+
+	// 중복 없이 Count만큼 랜덤 추출
+	while (RandomTags.Num() < Count && ElementPool.Num() > 0)
+	{
+		int32 Idx = FMath::RandRange(0, ElementPool.Num() - 1);
+		RandomTags.AddTag(ElementPool[Idx]);
+		ElementPool.RemoveAt(Idx);
+	}
+	return RandomTags;
+}
+
+UCombatEncounterData* UMapManagerSubsystem::GenerateFieldEncounter()
+{
+	UCombatEncounterData* NewEncounter = NewObject<UCombatEncounterData>(this);
+
+	if (!StagePoolDataAsset || !StagePoolDataAsset->StagePools.Contains(CurrentStage)) return nullptr;
+
+	const FStageMonsterPool& Pool = StagePoolDataAsset->StagePools[CurrentStage];
+	NewEncounter->CombatLevelName = Pool.CombatLevelName;
+
+	int32 MonsterLevel = CalculateMonsterLevel();
+
+	for (int32 i = 0; i < 3; ++i)
+	{
+		FEnemySpawnInfo Slot;
+		int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+
+		Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+		Slot.SpawnLevel = MonsterLevel;
+		Slot.SpawnPositionIndex = i; // 0=중앙, 1=좌측, 2=우측
+
+		// 🌟 약점 랜덤 오버라이드 설정
+		Slot.bOverrideWeakness = true;
+		Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2)); // 1~2개 약점
+
+		NewEncounter->EnemyGroup.Add(Slot);
+	}
+
+	return NewEncounter;
+}
+
+FTransform UMapManagerSubsystem::GetFieldSpawnTransform(int32 Index)
+{
+	TArray<AActor*> FoundActors;
+	// FieldSpawn_숫자 태그를 가진 액터 찾기
+	FName TargetTag = FName(*FString::Printf(TEXT("FieldSpawn_%d"), Index));
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), TargetTag, FoundActors);
+
+	if (FoundActors.Num() > 0)
+	{
+		return FoundActors[0]->GetActorTransform();
+	}
+
+	return FTransform::Identity;
+}
+
 
 void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions)
 {

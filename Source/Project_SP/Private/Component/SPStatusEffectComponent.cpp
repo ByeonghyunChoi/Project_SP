@@ -431,22 +431,29 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGamepl
 		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 		if (TargetASC)
 		{
-			// 🌟 역순(for 루프 거꾸로) 순회하며 요청한 태그와 일치하는 데미지만 폭발!
 			for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
 			{
 				FGameplayEffectSpecHandle& Spec = (*PendingSpecs)[i];
 				if (Spec.IsValid())
 				{
-					// 🌟 [수정됨] GrantedTags가 아니라 AssetTags(데미지 총알 자체의 이름표)를 검사합니다!
 					if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
 					{
+						// 1. 데미지 폭발! (여기서 체력이 0이 되면 State.Death 태그가 붙고 사망 모션이 시작됨)
 						TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-						PendingSpecs->RemoveAt(i); // 터뜨렸으니 탄약고에서 제거
+						PendingSpecs->RemoveAt(i);
 
 						if (ASPGASCharacterBase* GASChar = Cast<ASPGASCharacterBase>(TargetActor))
 						{
-							// 상태이상은 날아오는 방향이 없으므로, 몬스터 자신의 현재 위치를 ImpactPoint로 줍니다.
-							GASChar->PlayHitReact(GASChar->GetActorLocation());
+							// 🌟 [핵심 방어막] 데미지를 받은 직후, 타겟이 죽었는지 확인합니다!
+							// 살아있을 때(!State_Death)만 피격 모션(HitReact)을 재생합니다.
+							if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+							{
+								GASChar->PlayHitReact(GASChar->GetActorLocation());
+							}
+							else
+							{
+								UE_LOG(LogTemp, Warning, TEXT("[%s] 상태이상 데미지로 사망! 피격 모션을 생략하고 사망 모션을 방해하지 않습니다."), *TargetActor->GetName());
+							}
 						}
 					}
 				}

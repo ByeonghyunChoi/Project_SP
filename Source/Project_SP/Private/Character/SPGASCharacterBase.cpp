@@ -63,17 +63,12 @@ void ASPGASCharacterBase::ReduceCooldowns()
 {
 	if (!ASC) return;
 
-	// 1. 쿨타임 태그 세팅
 	FGameplayTagContainer CooldownTagContainer;
 	CooldownTagContainer.AddTag(FSPGameplayTags::Get().State_Cooldown);
 
-	// 🌟 [수정됨] Static 함수의 반환값을 직접 받아서 Query를 생성합니다!
 	FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(CooldownTagContainer);
-
-	// 이제 쿨타임 태그를 가진 GE들만 정확하게 가져옵니다.
 	TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
 
-	// 2. 반복문으로 검사 (이제 장비 스탯은 여기 들어오지도 못합니다!)
 	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
 	{
 		const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(Handle);
@@ -81,12 +76,14 @@ void ASPGASCharacterBase::ReduceCooldowns()
 
 		int32 CurrentStack = ASC->GetCurrentStackCount(Handle);
 
-		// 쿨타임 1턴(1스택) 깎기!
+		// 쿨타임 1턴(1스택) 깎기! (GE의 Stacking Type이 켜져 있어야 이게 정상 작동합니다!)
 		ASC->RemoveActiveGameplayEffect(Handle, 1);
 
-		// 로그 출력용 태그 추출
+		// 🌟 로그 출력용: C++에서 동적으로 주입한 태그(Cooldown.Weapon.Surtr.Skill 등) 확인
 		FGameplayTagContainer GrantedTags;
 		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+		// 공용 Asset Tag (State.Cooldown) 확인
+		ActiveGE->Spec.GetAllAssetTags(GrantedTags);
 
 		UE_LOG(LogTemp, Log, TEXT("[%s] 쿨타임 1턴 감소! (%d -> %d) | 태그: %s"),
 			*GetName(), CurrentStack, CurrentStack - 1, *GrantedTags.ToString());
