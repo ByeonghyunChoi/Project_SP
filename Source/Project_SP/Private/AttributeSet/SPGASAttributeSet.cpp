@@ -13,7 +13,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitMaxHealth(1.0f);
 	InitLevel(1.0f);
 	InitSpeed(1.0f);
-	InitMaxActionGauge(100.0f); 
+	InitMaxActionGauge(10000.0f); 
 	InitMaxExperience(3000.0f);  
 
 	InitAttack(0.0f);

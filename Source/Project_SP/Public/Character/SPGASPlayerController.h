@@ -225,7 +225,7 @@ public:
 
 	//턴 순서 UI를 업데이트 하는 함수
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
-	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns);
+	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns, int32 CycleEndIndex);
 
 	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")

@@ -628,11 +628,14 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 {
 	if (!TurnManager) return;
 
-	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6);
+	// 🌟 1. 결과를 받아올 빈 변수를 하나 만듭니다.
+	int32 CycleEndIndex = -1;
+
+	// 🌟 2. 인자를 2개(예측 개수, 결과 담을 변수) 전달합니다!
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, CycleEndIndex);
+
 	TArray<AActor*> VIPTurns = TurnManager->GetInterruptQueue();
 
-	// 🌟 [핵심 변경 2: UI 마법] 현재 행동 중인 턴이 VIP 턴이라면?
-	// 이미 큐에서 뽑혔지만, 타임라인 0번 자리를 차지해야 하므로 배열 맨 앞(0번)에 강제로 끼워 넣습니다!
 	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
 	{
 		VIPTurns.Insert(CurrentTurnActor, 0);
@@ -643,7 +646,8 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	{
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
-			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns);
+			// 🌟 3. 컨트롤러의 UI 업데이트 이벤트에도 이 인덱스를 같이 넘겨줍니다!
+			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns, CycleEndIndex);
 		}
 	}
 }
@@ -702,6 +706,29 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	}
 }
 
+void AASPCombatGameMode::AdvanceBattleTime(float TimePassed)
+{
+	if (TimePassed <= 0.0f) return;
+
+	// 흐른 시간(행동 수치)을 누적시킵니다.
+	PassedTimeInCurrentRound += TimePassed;
+
+	// 누적된 시간이 100(TimePerRound)을 넘어설 때마다 라운드를 올립니다.
+	while (PassedTimeInCurrentRound >= TimePerRound)
+	{
+		PassedTimeInCurrentRound -= TimePerRound; // 100을 빼고 남은 짜투리 시간은 다음 라운드로 이월
+		CurrentRound++;
+
+		UE_LOG(LogTemp, Warning, TEXT("⏳ [라운드 진행] %d 라운드가 시작되었습니다!"), CurrentRound);
+
+		// 🚨 최대 제한 라운드(예: 3)를 초과했는지 검사!
+		if (CurrentRound > MaxRoundsPerCycle)
+		{
+			ApplyRoundPenalty();
+		}
+	}
+}
+
 void AASPCombatGameMode::ProcessEndOfTurn()
 {
 	// 1. 사망(State.Death) 태그를 가진 액터 수집
@@ -754,6 +781,28 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 			bIsCurrentTurnInterrupt = true;
 		}
 		StartTurn(NextActor);
+	}
+}
+
+void AASPCombatGameMode::ApplyRoundPenalty()
+{
+	UE_LOG(LogTemp, Error, TEXT("제한 라운드(%d) 초과! 시간의 힘을 %f 소모합니다."), MaxRoundsPerCycle, PenaltyTPCost);
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			float CurrentTP = ASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+			float NewTP = FMath::Max(0.0f, CurrentTP - PenaltyTPCost);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), NewTP);
+
+			// 사이클 초기화
+			CurrentRound = 1;
+			PassedTimeInCurrentRound = 0.0f;
+			UE_LOG(LogTemp, Error, TEXT("🚨 사이클 종료! 시간의 힘 %f 소모. 신규 사이클 시작."), PenaltyTPCost);
+		}
 	}
 }
 

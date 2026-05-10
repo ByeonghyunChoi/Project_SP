@@ -43,8 +43,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
 	void OnCharacterDied(AActor* DeadActor);
 
+	UFUNCTION(BlueprintCallable, Category = "Battle | Round")
+	void AdvanceBattleTime(float TimePassed);
+
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE float GetRemainingRoundLimit() const { return FMath::Max(0.0f, TimePerRound - PassedTimeInCurrentRound); }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE int32 GetRemainingRounds() const { return FMath::Max(0, MaxRoundsPerCycle - CurrentRound); }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE float GetAVToCycleEnd() const
+	{
+		// 현재 라운드의 남은 시간 + (앞으로 남은 온전한 라운드 수 * 라운드당 시간)
+		float FutureRoundsAV = FMath::Max(0, GetRemainingRounds()) * TimePerRound;
+		return GetRemainingRoundLimit() + FutureRoundsAV;
+	}
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
@@ -93,8 +110,32 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Battle | Visual")
 	TObjectPtr<class ASPBattleDirector> ActiveBattleDirector;
 
+	// 라운드 설정용 변수
+	// 현재 라운드
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Round")
+	int32 CurrentRound = 1;
+
+	// 현재 라운드에서 누적된 행동 수치 (0 ~ 100)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Round")
+	float PassedTimeInCurrentRound = 0.0f;
+
+	// 한 라운드를 꽉 채우는 행동 수치(시간) (기본 100)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	float TimePerRound = 150.0f;
+
+	// 전투 사이클당 허용되는 최대 라운드 수 (기본 3)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	int32 MaxRoundsPerCycle = 3;
+
+	// 라운드 오버 시 지불해야 할 시간의 힘(TP)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	float PenaltyTPCost = 30.0f;
+
+
 protected:
 	void ProcessEndOfTurn();
+
+	void ApplyRoundPenalty();
 
 private:
 	FTransform GetSpawnTransformByIndex(int32 Index);
