@@ -73,7 +73,7 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 	// 5. 첫 번째 대사 즉시 실행
 	PlayNextDialog();
 
-	UGameplayStatics::SetGamePaused(GetWorld(), true);
+	//UGameplayStatics::SetGamePaused(GetWorld(), true);
 }
 
 void USPDialogSubsystem::PlayNextDialog()
@@ -111,7 +111,7 @@ void USPDialogSubsystem::PlayNextDialog()
 
 void USPDialogSubsystem::EndDialog()
 {
-	UGameplayStatics::SetGamePaused(GetWorld(), false);
+	//UGameplayStatics::SetGamePaused(GetWorld(), false);
 
 	if (ActiveDialogWidget)
 	{
