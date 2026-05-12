@@ -29,7 +29,7 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 		if (Row)
 		{
 			CurrentDialogRows.Add(*Row);
-		}
+		}	
 	}
 
 	// 4. UI 위젯 생성 및 출력
@@ -72,6 +72,8 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 
 	// 5. 첫 번째 대사 즉시 실행
 	PlayNextDialog();
+
+	UGameplayStatics::SetGamePaused(GetWorld(), true);
 }
 
 void USPDialogSubsystem::PlayNextDialog()
@@ -109,6 +111,8 @@ void USPDialogSubsystem::PlayNextDialog()
 
 void USPDialogSubsystem::EndDialog()
 {
+	UGameplayStatics::SetGamePaused(GetWorld(), false);
+
 	if (ActiveDialogWidget)
 	{
 		ActiveDialogWidget->RemoveFromParent();
