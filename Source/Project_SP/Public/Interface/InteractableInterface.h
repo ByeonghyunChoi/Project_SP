@@ -28,4 +28,8 @@ public:
 	virtual FText GetInteractText() const = 0;
 	//현재 상호작용이 가능한 상태인지 확인
 	virtual bool CanInteract(AActor* Interactor) const { return true; }
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction|Sound")
+	void PlayInteractSound();
+	virtual void PlayInteractSound_Implementation();
 };

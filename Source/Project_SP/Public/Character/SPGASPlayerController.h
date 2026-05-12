@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLevelChangedDelegate, int32
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChangedDelegate, FGameplayTag, NewWeaponTag);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimeInterferenceChangedDelegate, bool, bIsActive);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerTurnStartedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInputProcessedDelegate, FGameplayTag, InputTag, bool, bIsSuccess);
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
 struct FSPInputConfig
@@ -29,6 +30,12 @@ struct FSPInputConfig
 
 	UPROPERTY(EditAnywhere)
 	FGameplayTag InputTag;
+
+	UPROPERTY(EditAnywhere, Category = "Sound")
+	TObjectPtr<class USoundBase> ValidSound;
+
+	UPROPERTY(EditAnywhere, Category = "Sound")
+	TObjectPtr<class USoundBase> InvalidSound;
 };
 
 UCLASS()
@@ -175,6 +182,12 @@ protected:
 	//턴 시작 감지 함수
 	void OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount);
 
+	// 키보드 입력을 감지해 소리를 재생하는 함수
+	void PlayActionSound(FGameplayTag InputTag, bool bIsSuccess);
+
+	// 전투 중 입력에 따라 UI 상태를 바로 갱신하는 함수
+	void HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess);
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -273,5 +286,8 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnPlayerTurnStartedDelegate OnPlayerTurnStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnInputProcessedDelegate OnInputProcessed;
 
 };

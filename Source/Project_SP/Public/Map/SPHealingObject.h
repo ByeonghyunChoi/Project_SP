@@ -23,5 +23,6 @@ public:
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	virtual FText GetInteractText() const override;
 	virtual bool CanInteract(AActor* Interactor) const override { return true; }
+	virtual void PlayInteractSound_Implementation() override;
 
 };

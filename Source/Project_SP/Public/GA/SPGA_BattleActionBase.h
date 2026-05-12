@@ -51,6 +51,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | VFX")
 	FGameplayTag HitVFXTag;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
+	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Audio")
+	TObjectPtr<class USoundBase> HitSound;
+
 public:
 	FGameplayTag GetCooldownTag() const;
 
@@ -88,6 +94,5 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	void ExecuteGoldBugInterference();
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
-	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+	
 };

@@ -9,6 +9,8 @@
 #include "Character/SPGASPlayerController.h"
 #include "GA/SPGA_BattleActionBase.h"
 #include "Tag/SPGameplayTags.h"
+#include "Sound/SoundBase.h"     
+#include "Kismet/GameplayStatics.h"
 
 
 bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
@@ -99,6 +101,12 @@ bool USPGA_Parry::CheckCounterConditions()
 
 void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 {
+	if (ParrySuccessSounds.Num() > 0)
+	{
+		int index = FMath::RandRange(0, ParrySuccessSounds.Num() - 1);
+		UGameplayStatics::PlaySound2D(this, ParrySuccessSounds[index]);
+	}
+
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TargetMonster))
 	{
 		// 몬스터에게 "너 패링당했어!" (Event.Combat.Parried) 무전을 날립니다.

@@ -313,13 +313,13 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 	if (OnOpartsUpdated.IsBound()) OnOpartsUpdated.Broadcast(RuntimeData);
 }
 
-void UOpartsComponent::TryUpgradeLevel()
+bool UOpartsComponent::TryUpgradeLevel()
 {
-	if (!RuntimeData.Definition) return;
+	if (!RuntimeData.Definition) return false;
 	if (RuntimeData.CurrentLevel >= 5)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("이미 최대 레벨입니다."));
-		return;
+		return false;
 	}
 
 	// 2. 인벤토리 컴포넌트 찾기
@@ -327,7 +327,7 @@ void UOpartsComponent::TryUpgradeLevel()
 	if (!Inventory)
 	{
 		UE_LOG(LogTemp, Error, TEXT("인벤토리 컴포넌트를 찾을 수 없습니다!"));
-		return;
+		return false;
 	}
 	int32 Cost = RuntimeData.CurrentLevel * 100;
 
@@ -342,27 +342,29 @@ void UOpartsComponent::TryUpgradeLevel()
 		ApplyOpartsStatsAndAbilities();
 
 		UE_LOG(LogTemp, Log, TEXT("오파츠 레벨업 성공! (Lv.%d -> Lv.%d)"), RuntimeData.CurrentLevel - 1, RuntimeData.CurrentLevel);
+		return true;
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("레벨업 실패: 모래가 부족합니다."));
+		return false;
 	}
 }
 
-void UOpartsComponent::TryUnlockNextArtifact()
+bool UOpartsComponent::TryUnlockNextArtifact()
 {
-	if (!RuntimeData.Definition) return;
+	if (!RuntimeData.Definition) return false;
 
 	// 1. 최대 해금 체크 (5개)
 	if (RuntimeData.UnlockedArtifactCount >= 5)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("모든 아티팩트가 해금되었습니다."));
-		return;
+		return false;
 	}
 
 	// 2. 인벤토리 찾기
 	UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
-	if (!Inventory) return;
+	if (!Inventory) return false;
 
 	// 3. 비용 계산 (기획서: 1 -> 2 -> 3 -> 3 -> 4)
 	// 배열 인덱스: 0(첫해금), 1, 2, 3, 4
@@ -370,7 +372,7 @@ void UOpartsComponent::TryUnlockNextArtifact()
 	int32 CurrentIndex = RuntimeData.UnlockedArtifactCount; // 현재 0개면 0번 인덱스 비용(1) 필요
 
 	// 안전장치
-	if (!Costs[CurrentIndex]) return;
+	if (!Costs[CurrentIndex]) return false;
 	int32 Cost = Costs[CurrentIndex];
 
 	// 4. 자원 소모 시도
@@ -384,9 +386,11 @@ void UOpartsComponent::TryUnlockNextArtifact()
 		ApplyOpartsStatsAndAbilities();
 
 		UE_LOG(LogTemp, Log, TEXT("아티팩트 해금 성공! (현재 개수: %d)"), RuntimeData.UnlockedArtifactCount);
+		return true;
 	}
 	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("해금 실패: 불완전한 기운이 부족합니다."));
+		return false;
 	}
 }

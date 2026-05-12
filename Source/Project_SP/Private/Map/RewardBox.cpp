@@ -54,12 +54,17 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 		PC->bShowMouseCursor = true;
 	}
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	IInteractableInterface::Execute_PlayInteractSound(this);
 	Destroy();
 }
 
 FText ARewardBox::GetInteractText() const
 {
 	return FText::FromString(TEXT("보상 열기"));
+}
+
+void ARewardBox::PlayInteractSound_Implementation()
+{
 }
 
 void ARewardBox::SetupParticleByMapType(EMapType InMapType)

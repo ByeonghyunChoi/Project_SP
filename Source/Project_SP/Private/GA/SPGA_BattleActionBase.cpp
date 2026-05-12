@@ -10,6 +10,7 @@
 #include "Component/SPStatusEffectComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Manager/SPCombatTurnManager.h"
+#include "Sound/SoundBase.h"
 
 USPGA_BattleActionBase::USPGA_BattleActionBase()
 {
@@ -196,6 +197,11 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			SpecHandle,
 			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetActor)
 		);
+
+		if (HitSound && GetWorld())
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, HitSound, TargetActor->GetActorLocation());
+		}
 
 		if (HitCameraShakeClass && GetWorld())
 		{

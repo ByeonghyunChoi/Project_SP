@@ -23,6 +23,8 @@ public:
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	//UI에 표시할 상호작용 텍스트 반환
 	virtual FText GetInteractText() const override;
+	// 사운드 재생 함수
+	virtual void PlayInteractSound_Implementation() override;
 	// 보상 상자 파티클 키는 함수
 	void SetupParticleByMapType(EMapType InMapType);
 
