@@ -17,6 +17,11 @@ public:
 
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	virtual FText GetInteractText() const override;
+	virtual void PlayInteractSound_Implementation() override;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Portal")
+	void ExecutePortalTransition();
 
 protected:
 	UPROPERTY(VisibleAnywhere)

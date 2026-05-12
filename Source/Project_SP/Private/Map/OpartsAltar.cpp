@@ -20,6 +20,9 @@ void AOpartsAltar::ExecuteInteraction(AActor* Interactor)
 		// 시각적 피드백(파티클 등)을 위해 BP 이벤트 호출
 		OnAltarInteracted();
 
+		//오파츠 장착 사운드
+		IInteractableInterface::Execute_PlayInteractSound(this);
+
 		UE_LOG(LogTemp, Log, TEXT("제단 작동: %s 장착 완료"), *OpartsToEquip->GetName());
 	}
 }
@@ -27,4 +30,8 @@ void AOpartsAltar::ExecuteInteraction(AActor* Interactor)
 FText AOpartsAltar::GetInteractText() const
 {
 	return InteractText;
+}
+
+void AOpartsAltar::PlayInteractSound_Implementation()
+{
 }

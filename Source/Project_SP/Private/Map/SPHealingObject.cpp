@@ -25,6 +25,7 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 	{
 		float MaxHealth = ASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
 		ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), MaxHealth);
+		IInteractableInterface::Execute_PlayInteractSound(this);
 
 		UE_LOG(LogTemp, Log, TEXT("[회복]"));
 	}
@@ -44,5 +45,9 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 FText ASPHealingObject::GetInteractText() const
 {
 	return FText::FromString(TEXT("회복 하기[F]"));
+}
+
+void ASPHealingObject::PlayInteractSound_Implementation()
+{
 }
 

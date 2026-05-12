@@ -43,6 +43,10 @@ struct FStatusEffectConfig
 	// 이 상태이상이 즉시 발동인지 여부
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsInstantEffect = false;
+
+	// 이 상태이상이 터질 때 사운드
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status Data | Sound")
+	TObjectPtr<class USoundBase> StatusDamageSound;
 };
 
 UCLASS()

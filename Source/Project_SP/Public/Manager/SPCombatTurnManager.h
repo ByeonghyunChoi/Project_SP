@@ -38,7 +38,7 @@ public:
 
 	//턴 순서 시뮬레이션 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
-	TArray<AActor*> PredictTurnOrder(int32 PredictionCount);
+	TArray<AActor*> PredictTurnOrder(int32 PredictionCount, int32& OutCycleEndIndex);
 
 	// VIP 턴 요구 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
@@ -56,7 +56,7 @@ public:
 	FORCEINLINE TArray<AActor*> GetInterruptQueue() const { return InterruptQueue; }
 
 public:
-	static constexpr float MaxActionGauge = 100.0f;
+	static constexpr float MaxActionGauge = 10000.0f;
 
 private:
 	// 전체 참가자 목록

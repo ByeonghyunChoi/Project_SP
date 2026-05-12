@@ -252,11 +252,13 @@ void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 	{
 		if (CurrentWeaponTag == InputTag)
 		{
+			PlayActionSound(InputTag, false);
 			UE_LOG(LogTemp, Log, TEXT("[필드] 이미 장착 중인 무기입니다."));
 			return;
 		}
 
 		// 필드에서도 무기 교체 함수를 동일하게 실행!
+		PlayActionSound(InputTag, true);
 		ProcessWeaponSwitch(InputTag);
 		return;
 	}
@@ -274,10 +276,14 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	{
 		if (CurrentWeaponTag == InputTag)
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Log, TEXT("이미 장착 중인 무기입니다. 입력을 무시합니다."));
 			return;
 		}
 
+		PlayActionSound(InputTag, true);
+		HandleInputFeedback(InputTag, true);
 		ProcessWeaponSwitch(InputTag);
 		return;
 	}
@@ -300,9 +306,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			return;
 		}
 
-		// 쿨타임 검사 (선생님이 추가하신 태그 아주 좋습니다!)
+		// 쿨타임 검사 
 		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.Cooldown_Skill_TimeInterference))
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간 간섭 스킬이 쿨타임 중입니다! (남은 턴 대기)"));
 			return;
 		}
@@ -310,14 +318,9 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		int32 Cost = GetSkillCost(InputTag);
 		if (GetCurrentTimePower() < Cost)
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간의 힘이 부족하여 발동할 수 없습니다!"));
-			if (UGameInstance* GI = GetGameInstance())
-			{
-				if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-				{
-					MapManager->GoToLobby();
-				}
-			}
 			return;
 		}
 
@@ -327,6 +330,8 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			bool bSuccess = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
 			if (bSuccess)
 			{
+				PlayActionSound(InputTag, true);
+				HandleInputFeedback(InputTag, true);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
 			}
 			else
@@ -348,17 +353,22 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		// 무기 미착용 체크
 		if (!CurrentWeaponTag.IsValid())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("무기를 먼저 선택하세요! (키: 1, 2, 3)"));
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
+			UE_LOG(LogTemp, Warning, TEXT("무기를 먼저 선택하세요!"));
 			return;
 		}
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
+			// '해골 수정(CrystalSkull)' 고유 태그를 검사합니다!
+			bool bIsCrystalSkull = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull);
 
-			// 1. 쿨타임 검사 (수정됨: 시간 간섭 상태가 '아닐 때만' 쿨타임을 막습니다!)
-			if (!bIsTimeInterference && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			// 1. 쿨타임 검사
+			if (!bIsCrystalSkull && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
 				return; // 타겟팅 진입 차단!
 			}
@@ -366,9 +376,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// 2. BP 및 프리패스(시간 간섭) 검사
 			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
 
-			// 시간 간섭 버프가 없는데, BP마저 부족하다면?
-			if (!bIsTimeInterference && GetCurrentBP() < Cost)
+			// 해골 수정 버프가 없는데, BP마저 부족하다면?
+			if (!bIsCrystalSkull && GetCurrentBP() < Cost)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족합니다!"));
 				return; // 타겟팅 진입 차단!
 			}
@@ -379,11 +391,16 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// 선택한 행동이 '무기 스킬'이 아니라면? (일반 공격이나 패링이라면)
 			if (InputType != ESelectedActionType::WeaponSkill)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭 발동 중!] 무기 스킬과 무기 교체만 사용할 수 있습니다."));
 				// 행동을 무시하고 함수 종료 (타겟팅으로 안 넘어감)
 				return;
 			}
 		}
+
+		PlayActionSound(InputTag, true);
+		HandleInputFeedback(InputTag, true);
 
 		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 		{
@@ -1040,6 +1057,30 @@ void ASPGASPlayerController::OnTurnActiveTagChanged(const FGameplayTag Tag, int3
 		// UI 쪽에 "내 턴 시작됐다! 쿨타임 숫자 다시 그려라!" 라고 방송 송출
 		OnPlayerTurnStarted.Broadcast();
 	}
+}
+
+void ASPGASPlayerController::PlayActionSound(FGameplayTag InputTag, bool bIsSuccess)
+{
+	for (const FSPInputConfig& Config : BattleInputConfigs)
+	{
+		// 입력된 태그와 일치하는 세팅을 찾았다면?
+		if (Config.InputTag == InputTag)
+		{
+			// 성공 여부에 따라 재생할 소리를 결정
+			USoundBase* SoundToPlay = bIsSuccess ? Config.ValidSound : Config.InvalidSound;
+
+			if (SoundToPlay)
+			{
+				UGameplayStatics::PlaySound2D(this, SoundToPlay);
+			}
+			return; // 소리를 틀었으니 종료
+		}
+	}
+}
+
+void ASPGASPlayerController::HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess)
+{
+	OnInputProcessed.Broadcast(InputTag, bIsSuccess);
 }
 
 

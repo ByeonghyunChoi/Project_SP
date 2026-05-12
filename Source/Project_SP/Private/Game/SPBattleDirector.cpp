@@ -6,6 +6,7 @@
 #include "Component/SPStatusEffectComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Game/ASPCombatGameMode.h"
 
 ASPBattleDirector::ASPBattleDirector()
 {
@@ -38,41 +39,64 @@ void ASPBattleDirector::FinishStatusSequence()
 {
 	bIsPlayingVisual = false;
 
-	// 대기열에 다음 연출이 있고, 그게 방금 연출한 애랑 '같은 몬스터'라면?
 	bool bNextIsSameActor = (VisualQueue.Num() > 0 && VisualQueue[0].TargetActor == CurrentPlayingActor);
 
 	if (bNextIsSameActor)
 	{
-		// 족쇄 풀지 말고, 카메라도 움직이지 말고 바로 다음 연출(독 -> 화상 등) 재생!
 		TryPlayNextVisual();
 	}
 	else
 	{
-		// 🌟 [핵심] 이 몬스터의 모든 연출이 끝났습니다! AI 족쇄를 여기서 확실하게 풉니다!
+		// 🌟 1. 턴을 넘겨줄 죽은 몬스터를 잠시 기억해둘 변수
+		AActor* DeadActorToPassTurn = nullptr;
+
 		if (CurrentPlayingActor)
 		{
 			UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentPlayingActor);
 			if (ASC)
 			{
-				// 몬스터의 AI를 멈추게 했던 VisualPlaying 태그를 카운트 0으로 날려버립니다. (AI 재개!)
-				ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 모든 상태이상 연출 종료! AI 족쇄 해제."), *CurrentPlayingActor->GetName());
+				if (!ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
+					UE_LOG(LogTemp, Warning, TEXT("[%s] AI 족쇄 해제."), *CurrentPlayingActor->GetName());
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 타겟이 사망하여 AI 족쇄를 유지합니다."), *CurrentPlayingActor->GetName());
+
+					// 🌟 2. 여기서 당장 EndTurn을 부르지 않고, 녀석을 기억만 해둡니다!
+					DeadActorToPassTurn = CurrentPlayingActor;
+				}
 			}
 		}
 
-		// 만약 카메라가 이 녀석을 찍고 있었다면 줌아웃을 지시합니다.
+		// 카메라 줌아웃 지시
 		if (CurrentFocusedActor && CurrentFocusedActor == CurrentPlayingActor)
 		{
 			OnTargetFocusEnd(CurrentFocusedActor);
 			CurrentFocusedActor = nullptr;
 		}
 
-		CurrentPlayingActor = nullptr; // 초기화
+		// 🌟 3. 배틀 디렉터의 메모리(상태)를 완벽하게 초기화합니다.
+		CurrentPlayingActor = nullptr;
 
-		// 대기열에 다른 몬스터의 연출이 남아있다면 이어서 진행
+		// 대기열에 다른 연출이 남아있다면 이어서 진행
 		if (VisualQueue.Num() > 0)
 		{
 			TryPlayNextVisual();
+		}
+
+		// 🌟 4. [핵심] 내 집 청소가 모두 끝난 가장 마지막에, 비로소 다음 턴을 시작하라고 통보합니다!
+		if (DeadActorToPassTurn)
+		{
+			if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+			{
+				if (GM->GetCurrentEnemies().Num() > 0)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("연출 완전 종료. 게임 모드에 턴 종료를 요청합니다."));
+					GM->EndTurn(DeadActorToPassTurn);
+				}
+			}
 		}
 	}
 }

@@ -628,11 +628,14 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 {
 	if (!TurnManager) return;
 
-	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6);
+	// 🌟 1. 결과를 받아올 빈 변수를 하나 만듭니다.
+	int32 CycleEndIndex = -1;
+
+	// 🌟 2. 인자를 2개(예측 개수, 결과 담을 변수) 전달합니다!
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, CycleEndIndex);
+
 	TArray<AActor*> VIPTurns = TurnManager->GetInterruptQueue();
 
-	// 🌟 [핵심 변경 2: UI 마법] 현재 행동 중인 턴이 VIP 턴이라면?
-	// 이미 큐에서 뽑혔지만, 타임라인 0번 자리를 차지해야 하므로 배열 맨 앞(0번)에 강제로 끼워 넣습니다!
 	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
 	{
 		VIPTurns.Insert(CurrentTurnActor, 0);
@@ -643,7 +646,8 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	{
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
-			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns);
+			// 🌟 3. 컨트롤러의 UI 업데이트 이벤트에도 이 인덱스를 같이 넘겨줍니다!
+			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns, CycleEndIndex);
 		}
 	}
 }
@@ -655,7 +659,7 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	bool bIsActionExecuting = false;
 
 	// 현재 턴 주인이 액션(스킬)을 진행 중인지 확인
-	if (CurrentTurnActor)
+	if (CurrentTurnActor && CurrentTurnActor != DeadActor)
 	{
 		UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
 		if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting))
@@ -667,13 +671,10 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	if (bIsActionExecuting)
 	{
 		// 🟢 [플레이어 스킬 공격 중]
-		// 오버킬 연출을 위해 아무것도 하지 않고 대기합니다!
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망 연출 대기 (현재 액션 진행 중! 오버킬 허용)"), *DeadActor->GetName());
 	}
 	else
 	{
-		// [도트 딜, 골드 버그(프리 액션) 등]
-		// 진행 중인 애니메이션이 없으므로, 대기할 필요 없이 즉시 쓰러뜨립니다.
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 즉시 사망 연출 (진행 중인 액션 없음)"), *DeadActor->GetName());
 
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
@@ -681,19 +682,49 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 			Monster->ExecuteVisualDeath();
 		}
 
-		// 명단에서 즉시 삭제
 		AllParticipants.Remove(DeadActor);
 		if (TurnManager) TurnManager->RemoveParticipant(DeadActor);
 
-		// 적 전멸 체크
 		if (GetCurrentEnemies().Num() <= 0)
 		{
 			PlayVictorySequence();
 		}
 		else if (DeadActor == CurrentTurnActor)
 		{
-			// 턴 시작하자마자 도트 딜 맞고 죽었을 경우 턴 강제 스킵!
-			EndTurn(CurrentTurnActor);
+			// 🌟 [수정된 핵심 파트] 상태이상 연출이 진행 중이라면 턴 종료를 잠시 보류(대기)합니다!
+			UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
+			if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 도중 사망! 배틀 디렉터가 연출을 마칠 때까지 턴을 대기합니다."), *DeadActor->GetName());
+			}
+			else
+			{
+				// 연출 중이 아니면 원래대로 즉시 턴 강제 스킵!
+				EndTurn(CurrentTurnActor);
+			}
+		}
+	}
+}
+
+void AASPCombatGameMode::AdvanceBattleTime(float TimePassed)
+{
+	if (TimePassed <= 0.0f) return;
+
+	// 흐른 시간(행동 수치)을 누적시킵니다.
+	PassedTimeInCurrentRound += TimePassed;
+
+	// 누적된 시간이 100(TimePerRound)을 넘어설 때마다 라운드를 올립니다.
+	while (PassedTimeInCurrentRound >= TimePerRound)
+	{
+		PassedTimeInCurrentRound -= TimePerRound; // 100을 빼고 남은 짜투리 시간은 다음 라운드로 이월
+		CurrentRound++;
+
+		UE_LOG(LogTemp, Warning, TEXT("⏳ [라운드 진행] %d 라운드가 시작되었습니다!"), CurrentRound);
+
+		// 🚨 최대 제한 라운드(예: 3)를 초과했는지 검사!
+		if (CurrentRound > MaxRoundsPerCycle)
+		{
+			ApplyRoundPenalty();
 		}
 	}
 }
@@ -750,6 +781,28 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 			bIsCurrentTurnInterrupt = true;
 		}
 		StartTurn(NextActor);
+	}
+}
+
+void AASPCombatGameMode::ApplyRoundPenalty()
+{
+	UE_LOG(LogTemp, Error, TEXT("제한 라운드(%d) 초과! 시간의 힘을 %f 소모합니다."), MaxRoundsPerCycle, PenaltyTPCost);
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			float CurrentTP = ASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+			float NewTP = FMath::Max(0.0f, CurrentTP - PenaltyTPCost);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), NewTP);
+
+			// 사이클 초기화
+			CurrentRound = 1;
+			PassedTimeInCurrentRound = 0.0f;
+			UE_LOG(LogTemp, Error, TEXT("🚨 사이클 종료! 시간의 힘 %f 소모. 신규 사이클 시작."), PenaltyTPCost);
+		}
 	}
 }
 

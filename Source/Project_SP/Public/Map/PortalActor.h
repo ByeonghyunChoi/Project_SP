@@ -18,12 +18,17 @@ public:
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	virtual FText GetInteractText() const override;
 	virtual bool CanInteract(AActor* Interactor) const override;
+	virtual void PlayInteractSound_Implementation() override;
 
 	//매니저가 포탈을 생성한 후 목적지 타입을 설정해주는 함수
 	void SetPortalTargetType(EMapType InType);
 
 	//포탈을 활성화 하는 함수
 	void ActivatePortal(bool bActive);
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Portal")
+	void ExecutePortalTransition();
 
 
 protected:
@@ -36,6 +41,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Portal")
 	bool bIsActive = false; // 기본은 비활성화
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Portal | Components")
+	TObjectPtr<class UChildActorComponent> PortalVisualComponent;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Portal | Visuals")
+	TMap<EMapType, TSubclassOf<AActor>> PortalVisualClasses;
 
 protected:
 	// 활성화/비활성화 시 시각적 변화를 주기 위한 이벤트

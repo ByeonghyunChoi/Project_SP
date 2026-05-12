@@ -7,6 +7,8 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Character/SPGASMonsterCharacter.h"
+#include "Sound/SoundBase.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties
 USPStatusEffectComponent::USPStatusEffectComponent()
@@ -431,22 +433,45 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGamepl
 		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
 		if (TargetASC)
 		{
-			// 🌟 역순(for 루프 거꾸로) 순회하며 요청한 태그와 일치하는 데미지만 폭발!
 			for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
 			{
 				FGameplayEffectSpecHandle& Spec = (*PendingSpecs)[i];
 				if (Spec.IsValid())
 				{
-					// 🌟 [수정됨] GrantedTags가 아니라 AssetTags(데미지 총알 자체의 이름표)를 검사합니다!
 					if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
 					{
+						// 1. 데미지 폭발!
 						TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-						PendingSpecs->RemoveAt(i); // 터뜨렸으니 탄약고에서 제거
+						PendingSpecs->RemoveAt(i);
 
+						// 🌟 [추가된 핵심 로직] 데미지가 들어갔으니 사운드 재생!
+						if (StatusEffectDataAsset)
+						{
+							// 데이터 에셋에서 이 상태이상(StatusTag)의 설정값을 가져옵니다.
+							const FStatusEffectConfig* Config = StatusEffectDataAsset->GetConfig(StatusTag);
+
+							// 설정값에 사운드가 지정되어 있다면 타겟 위치에서 재생!
+							if (Config && Config->StatusDamageSound)
+							{
+								UGameplayStatics::PlaySoundAtLocation(
+									this,
+									Config->StatusDamageSound,
+									TargetActor->GetActorLocation()
+								);
+							}
+						}
+
+						// 2. 피격 애니메이션 및 사망 처리
 						if (ASPGASCharacterBase* GASChar = Cast<ASPGASCharacterBase>(TargetActor))
 						{
-							// 상태이상은 날아오는 방향이 없으므로, 몬스터 자신의 현재 위치를 ImpactPoint로 줍니다.
-							GASChar->PlayHitReact(GASChar->GetActorLocation());
+							if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+							{
+								GASChar->PlayHitReact(GASChar->GetActorLocation());
+							}
+							else
+							{
+								UE_LOG(LogTemp, Warning, TEXT("[%s] 상태이상 데미지로 사망! 피격 모션을 생략합니다."), *TargetActor->GetName());
+							}
 						}
 					}
 				}
