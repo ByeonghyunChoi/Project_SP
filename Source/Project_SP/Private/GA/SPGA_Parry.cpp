@@ -32,23 +32,19 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 
 	// 2. 무기와 약점 상성 확인 (선생님의 태그 이름에 맞춰 수정하세요!)
 	// [펜리르]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir))
-	{
-		return true;
-	}
+	bool bIsMatch = false;
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir)) bIsMatch = true;
+	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr)) bIsMatch = true;
+	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr)) bIsMatch = true;
 
-	// [수르트]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr))
+	// 상성이 맞다면, 그 즉시 몬스터의 패링 창을 닫아버립니다!
+	if (bIsMatch)
 	{
-		return true;
-	}
+		// 이 코드를 통과하는 첫 번째 패링만 정상 작동하며, 
+		// 0.001초 뒤에 발동된 두 번째 패링은 위 1번 검사에서 무조건 튕겨 나갑니다!
+		TargetASC->RemoveLooseGameplayTag(SPTags.State_ParryWindow);
+		TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
 
-	// [요르문간드]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr))
-	{
 		return true;
 	}
 
@@ -116,7 +112,7 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		UE_LOG(LogTemp, Warning, TEXT("몬스터에게 패링 이벤트를 성공적으로 전송했습니다."));
 	}
 
-	//  [추가할 코드] 내 몸의 유물들에게 패링 성공했다고 알림
+	// 내 몸의 유물들에게 패링 성공했다고 알림
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (ASC)
 	{

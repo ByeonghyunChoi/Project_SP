@@ -5,6 +5,7 @@
 #include "Map/MapInfo.h"       // EMapType, EMapGrade 등 정의
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
+#include "Data/SPDataStructs.h"
 #include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage 정의
 #include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
@@ -70,6 +71,9 @@ public:
 	//로비 맵 판독용
 	bool GetIsInLobby() const { return bIsInLobby; }
 
+	// 일반 전투 몬스터 생성 함수
+	void PreGenerateAllNormalEncounters();
+
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -89,6 +93,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetMaxFloors() const { return 5; }
 
+	TMap<int32, FSavedEncounterData> GetPreGeneratedEncounters() const { return PreGeneratedEncounters; }
+
 	// 레벨 계산기
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 CalculateMonsterLevel() const;
@@ -106,7 +112,7 @@ public:
 	FTransform GetFieldSpawnTransform(int32 Index);
 
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
-	EMapGrade GetMapGradeForUI(int32 Floor) const { return GetMapGradeByFloor(Floor); }
+	EMapGrade GetMapGradeForUI(int32 Floor) const;
 
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
@@ -166,6 +172,10 @@ private:
 	// [플래그] 플레이어가 로비 맵에 있는가?
 	bool bIsInLobby = true;
 
+	// 몬스터 명부
+	UPROPERTY()
+	TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
+
 private:
 	// 맵 생성 및 플레이어 이동 처리
 	void SpawnMapActor(EMapType MapType);
@@ -176,8 +186,7 @@ private:
 	// 스테이지 레벨 로드 헬퍼
 	void LoadStageLevel();
 
-	// 난이도/타입 결정 헬퍼
-	EMapGrade GetMapGradeByFloor(int32 Floor) const;
-	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
+	// 가중치 기반으로 맵을 정하는 함수
+	EMapType PickAndRemoveWeightedMap(TMap<EMapType, int32>& InOutWeightPool);
 
 };
