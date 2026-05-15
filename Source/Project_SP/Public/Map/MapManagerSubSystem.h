@@ -6,6 +6,7 @@
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
 #include "Data/SPDataStructs.h"
+#include "Data/RewardDataStructs.h"
 #include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage 정의
 #include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
@@ -73,6 +74,14 @@ public:
 
 	// 일반 전투 몬스터 생성 함수
 	void PreGenerateAllNormalEncounters();
+
+	// 전투 종료 시 확정 보상 계산
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	FRewardResult CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedMonsters, int32 Stage, EMapType MapType);
+
+	// 상호작용 (상자/회복) 시 가중치 랜덤 보상 계산
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
 
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")

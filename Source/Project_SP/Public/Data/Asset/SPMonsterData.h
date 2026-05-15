@@ -98,8 +98,15 @@ public:
 	// 돈 보상
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
 	int32 MoneyReward = 100;
-
-	/// <기획에 따라 추후 추가>
+	// 모래 보상
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
+	int32 SandReward = 10;
+	// 불완전한 기운 보상
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
+	int32 IncompleteEnergyReward = 2;
+	// 파편 보상
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
+	int32 FragmentReward = 0;
 
 	// 고유 ID 설정
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override

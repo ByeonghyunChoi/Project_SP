@@ -488,95 +488,89 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 
 		if (PlayerPawn)
 		{
+			// ==========================================
+			// 🌟 2. 장부(DefeatedMonsterData)를 펼쳐서 보상 싹쓸이!
+			// ==========================================
 			int32 TotalExp = 0;
-			int32 TotalMonsterMoney = 0;
+			int32 TotalGold = 0;
+			int32 TotalSand = 0;
+			int32 TotalEnergy = 0;
+			int32 TotalFragment = 0;
 
-			if (USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>())
+			for (USPMonsterData* MonsterData : DefeatedMonsterData)
 			{
-				if (const UCombatEncounterData* Encounter = CombatSys->GetPendingEncounter())
+				if (MonsterData)
 				{
-					for (const FEnemySpawnInfo& Info : Encounter->EnemyGroup)
-					{
-						if (Info.MonsterData)
-						{
-							TotalExp += Info.MonsterData->ExpReward;
-							TotalMonsterMoney += Info.MonsterData->MoneyReward;
-						}
-					}
+					TotalExp += MonsterData->ExpReward;
+					TotalGold += MonsterData->MoneyReward;
+					TotalSand += MonsterData->SandReward;
+					TotalEnergy += MonsterData->IncompleteEnergyReward;
+					TotalFragment += MonsterData->FragmentReward;
 				}
 			}
 
-			// 플레이어에게 경험치 지급 (내부에서 필드/전투 여부 판단하여 레벨업 홀딩)
+			// ==========================================
+			// 🌟 3. 경험치 지급
+			// ==========================================
 			if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
 			{
-				SPPlayer->AddExperience(TotalExp);
+				if (TotalExp > 0)
+				{
+					SPPlayer->AddExperience(TotalExp);
+					UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 총 경험치 %d 획득"), TotalExp);
+				}
 			}
 
+			// ==========================================
+			// 🌟 4. 인벤토리 즉시 지급 및 Toast UI 대기열 등록
+			// ==========================================
 			UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
 			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
 
 			if (InventoryComp && MapManager)
 			{
-				
-				if (TotalMonsterMoney > 0)
-				{
-					InventoryComp->AddMoney(TotalMonsterMoney);
-					int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold);
-					SavedAmount += TotalMonsterMoney;
-					UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 몬스터 드랍 골드 %d 획득 완료"), TotalMonsterMoney);
-				}
-
-				if (CombatRewardDataTable)
-				{
-					// 1. Enum에서 앞에 붙는 'EMapType::'을 떼어내고 순수 이름(NormalBattle)만 가져오기
-					FString MapTypeStr = StaticEnum<EMapType>()->GetNameStringByValue((int64)MapManager->GetCurrentMapType());
-
-					// 2. 이제 "Stage1_NormalBattle" 형태로 깨끗하게 조합됩니다.
-					FString RowNameStr = FString::Printf(TEXT("Stage%d_%s"), MapManager->GetCurrentStage(), *MapTypeStr);
-
-					// 3. 테이블 검색 (이제 이름을 정확히 찾을 겁니다!)
-					FCombatRewardRow* RewardRow = CombatRewardDataTable->FindRow<FCombatRewardRow>(FName(*RowNameStr), TEXT(""));
-
-					if (RewardRow)
+				// 반복되는 지급 로직을 깔끔하게 묶어주는 람다(Lambda) 함수
+				auto GiveReward = [&](EResourceType Type, int32 Amount)
 					{
-						for (const FCombatRewardInfo& Reward : RewardRow->GuaranteedRewards)
+						if (Amount > 0)
 						{
-							int32 FinalAmount = FMath::RandRange(Reward.MinAmount, Reward.MaxAmount);
-							switch (Reward.ResourceType)
+							// 1) 인벤토리에 실제 재화 꽂아주기
+							switch (Type)
 							{
-							case EResourceType::Gold:
-								InventoryComp->AddMoney(FinalAmount);
-								break;
-							case EResourceType::Sand:
-								InventoryComp->AddSand(FinalAmount);
-								break;
-							case EResourceType::IncompleteEnergy:
-								InventoryComp->AddIncompleteEnergy(FinalAmount);
-								break;
-							case EResourceType::Fragment:
-								InventoryComp->AddFragment(FinalAmount);
-								break;
+							case EResourceType::Gold: InventoryComp->AddMoney(Amount); break;
+							case EResourceType::Sand: InventoryComp->AddSand(Amount); break;
+							case EResourceType::IncompleteEnergy: InventoryComp->AddIncompleteEnergy(Amount); break;
+							case EResourceType::Fragment: InventoryComp->AddFragment(Amount); break;
 							}
 
-							// 동일한 재화가 여러 번 들어오면 수량을 합쳐줍니다.
-							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Reward.ResourceType);
-							SavedAmount += FinalAmount;
-
-							UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 스테이지 클리어 보상 %d 획득 완료"), FinalAmount);
+							// 2) 필드 복귀 시 우측 상단 팝업(Toast)을 위해 대기열에 누적 기록!
+							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Type);
+							SavedAmount += Amount;
 						}
-					}
-				}
+					};
+
+				GiveReward(EResourceType::Gold, TotalGold);
+				GiveReward(EResourceType::Sand, TotalSand);
+				GiveReward(EResourceType::IncompleteEnergy, TotalEnergy);
+				GiveReward(EResourceType::Fragment, TotalFragment);
+
+				UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 골드:%d, 모래:%d, 기운:%d, 파편:%d"), TotalGold, TotalSand, TotalEnergy, TotalFragment);
 			}
 
-			// 3. 인벤토리에 들어간 재화와 '새로 얻은 경험치'까지 포함해서 세이브 시스템에 덮어쓰기!
+			// ==========================================
+			// 🌟 5. 세이브 파일 덮어쓰기
+			// ==========================================
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
 				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 				SaveSys->SaveRunToDisk();
+				UE_LOG(LogTemp, Log, TEXT("[AutoSave] 전투 보상을 획득하고 게임을 저장했습니다."));
 			}
 		}
 
-		// 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
+		// ==========================================
+		// 🌟 6. 맵 매니저에게 필드 복귀 명령!
+		// ==========================================
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->ReturnToField(true);
@@ -586,13 +580,11 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	{
 		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
 
-		// [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
 		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 		{
 			SaveSys->ResetRunData();
 		}
 
-		// 맵 매니저를 통해 로비 맵으로 강제 이동
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->GoToLobby();
@@ -655,6 +647,16 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 {
 	if (!DeadActor) return;
+
+	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
+	{
+		if (Monster->MonsterDataAsset)
+		{
+			DefeatedMonsterData.Add(Monster->MonsterDataAsset);
+			UE_LOG(LogTemp, Log, TEXT("[전투 정산] %s 처치 기록. (누적: %d마리)"),
+				*Monster->MonsterDataAsset->MonsterName.ToString(), DefeatedMonsterData.Num());
+		}
+	}
 
 	bool bIsActionExecuting = false;
 

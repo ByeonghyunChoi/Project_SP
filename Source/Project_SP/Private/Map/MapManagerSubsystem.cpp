@@ -417,6 +417,110 @@ void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
 	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 일반 몬스터 인카운터 명부가 고정되었습니다!"));
 }
 
+FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedMonsters, int32 Stage, EMapType MapType)
+{
+	FRewardResult TotalReward;
+
+	for (EMonsterRank Rank : DefeatedMonsters)
+	{
+		if (Stage == 1)
+		{
+			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 250;
+			else TotalReward.Exp += 60;
+
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 70; TotalReward.Sand += 10; TotalReward.IncompleteEnergy += 2; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 83; TotalReward.Sand += 13; TotalReward.IncompleteEnergy += 3; }
+		}
+		else if (Stage == 2)
+		{
+			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 1300;
+			else TotalReward.Exp += 330;
+
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 80; TotalReward.Sand += 12; TotalReward.IncompleteEnergy += 2; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 96; TotalReward.Sand += 15; TotalReward.IncompleteEnergy += 4; }
+		}
+		else if (Stage >= 3)
+		{
+			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 2500;
+			else TotalReward.Exp += 600;
+
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 90; TotalReward.Sand += 14; TotalReward.IncompleteEnergy += 3; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 100; TotalReward.Sand += 17; TotalReward.IncompleteEnergy += 5; }
+		}
+	}
+	return TotalReward;
+}
+
+FRewardResult UMapManagerSubsystem::GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType)
+{
+	FRewardResult Result;
+
+	// 1. 배율 설정 (소수점 반올림을 위해 float 사용)
+	float Multiplier = 1.0f;
+	if (Stage == 2) Multiplier = 1.15f;
+	else if (Stage >= 3) Multiplier = 1.3f;
+
+	// 2. 보스 맵 상자 하드코딩 (고정 보상)
+	if (MapType == EMapType::BossBattle)
+	{
+		if (Stage == 1) { Result.Gold = 800; Result.Sand = 150; Result.IncompleteEnergy = 30; Result.Fragment = 1; Result.Exp = 150; }
+		else if (Stage == 2) { Result.Gold = 2000; Result.Sand = 600; Result.IncompleteEnergy = 100; Result.Fragment = 1; Result.Exp = 820; }
+		else { Result.Gold = 3000; Result.Sand = 1500; Result.IncompleteEnergy = 250; Result.Fragment = 1; Result.Exp = 1536; }
+
+		Result.RelicRewardCount = 1;
+		Result.bIsBossReward = true; 
+		return Result;
+	}
+
+	// 3. 내부 가중치 랜덤 함수 람다 정의
+	auto GetWeightedRandom = [](const TArray<int32>& Weights) -> int32 {
+		int32 Total = 0;
+		for (int32 W : Weights) Total += W;
+		int32 RandNum = FMath::RandRange(1, Total);
+		for (int32 i = 0; i < Weights.Num(); ++i) {
+			RandNum -= Weights[i];
+			if (RandNum <= 0) return i;
+		}
+		return 0;
+		};
+
+	// 4. 상호작용 타입별 가중치 추첨
+	if (bIsHealingObject)
+	{
+		// 0: Gold, 1: Sand, 2: Energy, 3: Relic
+		int32 Pick = GetWeightedRandom({ 30, 40, 20, 10 });
+		if (Pick == 0) Result.Gold = FMath::RoundToInt(FMath::RandRange(75, 100) * Multiplier);
+		else if (Pick == 1) Result.Sand = FMath::RoundToInt(FMath::RandRange(20, 30) * Multiplier);
+		else if (Pick == 2) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(5, 7) * Multiplier);
+		else if (Pick == 3) Result.RelicRewardCount = 1;
+	}
+	else if (MapType == EMapType::StrongEnemyBattle) // 에픽(강적) 맵 상자
+	{
+		Result.RelicRewardCount = 1; // 🌟 확정 유물 1개 지급
+
+		// 추가 보상 추첨
+		// 0: Relic(20), 1: Gold(40), 2: Sand(30), 3: Energy(10), 4: Frag(10)
+		int32 Pick = GetWeightedRandom({ 20, 40, 30, 10, 10 });
+		if (Pick == 0) Result.RelicRewardCount += 1; // 추가 유물 당첨 (총 2개)
+		else if (Pick == 1) Result.Gold = FMath::RoundToInt(FMath::RandRange(350, 450) * Multiplier);
+		else if (Pick == 2) Result.Sand = FMath::RoundToInt(FMath::RandRange(100, 150) * Multiplier);
+		else if (Pick == 3) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(25, 40) * Multiplier);
+		else if (Pick == 4) Result.Fragment = FMath::RoundToInt(2 * Multiplier); // 파편도 배율을 타나요? 아니라면 배율 제거
+	}
+	else // 일반 맵 상자
+	{
+		// 0: Relic(30), 1: Gold(30), 2: Sand(25), 3: Energy(10), 4: Frag(5)
+		int32 Pick = GetWeightedRandom({ 30, 30, 25, 10, 5 });
+		if (Pick == 0) Result.RelicRewardCount = 1;
+		else if (Pick == 1) Result.Gold = FMath::RoundToInt(FMath::RandRange(150, 200) * Multiplier);
+		else if (Pick == 2) Result.Sand = FMath::RoundToInt(FMath::RandRange(40, 60) * Multiplier);
+		else if (Pick == 3) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(10, 15) * Multiplier);
+		else if (Pick == 4) Result.Fragment = FMath::RoundToInt(1 * Multiplier);
+	}
+
+	return Result;
+}
+
 int32 UMapManagerSubsystem::CalculateMonsterLevel() const
 {
 	return ((CurrentStage - 1) * 10) + ((CurrentFloor - 1) * 3) + 1;

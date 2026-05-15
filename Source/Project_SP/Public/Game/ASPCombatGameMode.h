@@ -131,6 +131,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
 	float PenaltyTPCost = 30.0f;
 
+	// 몬스터 보상 정보를 모아두는 장부
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
+	TArray<class USPMonsterData*> DefeatedMonsterData;
+
 
 protected:
 	void ProcessEndOfTurn();
