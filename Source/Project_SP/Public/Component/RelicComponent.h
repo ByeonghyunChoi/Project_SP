@@ -78,7 +78,7 @@ public:
 
     // 4. 스테이지와 전체 유물 목록을 받아, 3개의 유물을 뽑아주는 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
-    TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool);
+    TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool, bool bIsBossReward = false);
 
     //세이브 시스템에서 호출할 로드 전용 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")

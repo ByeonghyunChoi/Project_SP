@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "GA/SPGA_FieldAttack.h"
@@ -18,7 +18,7 @@ void USPGA_FieldAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	// 1. ÀÚ¿ø È®ÀÎ ¹× Ä¿¹Ô (ÄğÅ¸ÀÓ, ÄÚ½ºÆ® µî)
+	// 1. ìì› í™•ì¸ ë° ì»¤ë°‹ (ì¿¨íƒ€ì„, ì½”ìŠ¤íŠ¸ ë“±)
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -35,27 +35,27 @@ void USPGA_FieldAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 
 	if (!MontageToPlay)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("FieldAttackMontage°¡ ¼³Á¤µÇÁö ¾Ê¾Ò½À´Ï´Ù."));
+		UE_LOG(LogTemp, Warning, TEXT("FieldAttackMontageê°€ ì„¤ì •ë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤."));
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
 
-	// 2. ¸ùÅ¸ÁÖ Àç»ı ÅÂ½ºÅ© »ı¼º
+	// 2. ëª½íƒ€ì£¼ ì¬ìƒ íƒœìŠ¤í¬ ìƒì„±
 	UAbilityTask_PlayMontageAndWait* MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
 		this,
 		NAME_None,
 		MontageToPlay
 	);
 
-	// ¸ùÅ¸ÁÖ Á¾·á/Ãë¼Ò ½Ã Ã³¸® ¿¬°á
+	// ëª½íƒ€ì£¼ ì¢…ë£Œ/ì·¨ì†Œ ì‹œ ì²˜ë¦¬ ì—°ê²°
 	MontageTask->OnCompleted.AddDynamic(this, &USPGA_FieldAttack::OnMontageEnded);
 	MontageTask->OnInterrupted.AddDynamic(this, &USPGA_FieldAttack::OnMontageEnded);
 	MontageTask->OnBlendOut.AddDynamic(this, &USPGA_FieldAttack::OnMontageEnded);
 	MontageTask->OnCancelled.AddDynamic(this, &USPGA_FieldAttack::OnMontageEnded);
 	MontageTask->ReadyForActivation();
 
-	// 3. Å¸°İ ÀÌº¥Æ® ´ë±â ÅÂ½ºÅ© »ı¼º ("Event.Field.Hit")
-	// * Áß¿ä: ¾Ö´Ï¸ŞÀÌ¼Ç ¸ùÅ¸ÁÖ¿¡ AnimNotify_SendGameplayEvent¸¦ ½É¾î¼­ ÀÌ ÅÂ±×¸¦ º¸³»Áà¾ß ÇÔ
+	// 3. íƒ€ê²© ì´ë²¤íŠ¸ ëŒ€ê¸° íƒœìŠ¤í¬ ìƒì„± ("Event.Field.Hit")
+	// * ì¤‘ìš”: ì• ë‹ˆë©”ì´ì…˜ ëª½íƒ€ì£¼ì— AnimNotify_SendGameplayEventë¥¼ ì‹¬ì–´ì„œ ì´ íƒœê·¸ë¥¼ ë³´ë‚´ì¤˜ì•¼ í•¨
 	UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
 		this,
 		FSPGameplayTags::Get().Event_Field_Hit
@@ -67,7 +67,7 @@ void USPGA_FieldAttack::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 
 void USPGA_FieldAttack::OnEventReceived(FGameplayEventData Payload)
 {
-	// Payload ¾È¿¡ Instigator¿Í TargetÀÌ µé¾îÀÖ½À´Ï´Ù.
+	// Payload ì•ˆì— Instigatorì™€ Targetì´ ë“¤ì–´ìˆìŠµë‹ˆë‹¤.
 	AActor* Attacker = const_cast<AActor*>(Payload.Instigator.Get());
 	AActor* Victim = const_cast<AActor*>(Payload.Target.Get());
 
@@ -75,7 +75,7 @@ void USPGA_FieldAttack::OnEventReceived(FGameplayEventData Payload)
 	{
 		if (HitTargets.Contains(Victim))
 		{
-			return; // Áßº¹ Å¸°İ ¹æÁö
+			return; // ì¤‘ë³µ íƒ€ê²© ë°©ì§€
 		}
 
 		HitTargets.Add(Victim);
@@ -85,7 +85,7 @@ void USPGA_FieldAttack::OnEventReceived(FGameplayEventData Payload)
 
 void USPGA_FieldAttack::OnMontageEnded()
 {
-	// ¸ùÅ¸ÁÖ ³¡³ª¸é ´É·Â Á¾·á
+	// ëª½íƒ€ì£¼ ëë‚˜ë©´ ëŠ¥ë ¥ ì¢…ë£Œ
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 }
 
@@ -95,7 +95,7 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 	ECombatAdvantage Advantage = ECombatAdvantage::PlayerAdvantage;
 	APawn* PlayerPawn = nullptr;
 
-	// --- Case A: ÇÃ·¹ÀÌ¾î -> ¸ó½ºÅÍ (¼±°ø) ---
+	// --- Case A: í”Œë ˆì´ì–´ -> ëª¬ìŠ¤í„° (ì„ ê³µ) ---
 	if (ASPGASPlayerCharacter* PlayerAttacker = Cast<ASPGASPlayerCharacter>(Attacker))
 	{
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Victim))
@@ -105,10 +105,10 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 		}
 		PlayerPawn = PlayerAttacker;
 	}
-	// --- Case B: ¸ó½ºÅÍ -> ÇÃ·¹ÀÌ¾î (±â½À) ---
+	// --- Case B: ëª¬ìŠ¤í„° -> í”Œë ˆì´ì–´ (ê¸°ìŠµ) ---
 	else if (ASPGASMonsterCharacter* MonsterAttacker = Cast<ASPGASMonsterCharacter>(Attacker))
 	{
-		if (Victim->IsA(ASPGASPlayerCharacter::StaticClass())) 
+		if (Victim->IsA(ASPGASPlayerCharacter::StaticClass()))
 		{
 			Advantage = ECombatAdvantage::EnemyAdvantage;
 			EncounterData = MonsterAttacker->EncounterData;
@@ -116,7 +116,7 @@ void USPGA_FieldAttack::ResolveBattleEncounter(AActor* Attacker, AActor* Victim)
 		PlayerPawn = Cast<APawn>(Victim);
 	}
 
-	// --- ÀüÅõ ÁøÀÔ ---
+	// --- ì „íˆ¬ ì§„ì… ---
 	if (EncounterData && PlayerPawn)
 	{
 		UGameInstance* GI = GetWorld()->GetGameInstance();

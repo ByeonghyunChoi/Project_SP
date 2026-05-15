@@ -7,6 +7,7 @@
 #include "Data/Asset/OpartsDefinition.h"
 #include "Map/MapInfo.h"
 #include "Engine/DataTable.h"
+#include "Data/CombatEncounterData.h"
 #include "SPDataStructs.generated.h"
 
 /**
@@ -21,6 +22,18 @@ struct FPlayerLevelRewardRow : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
+struct FSavedEncounterData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName CombatLevelName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FEnemySpawnInfo> EnemyGroup;
+};
+
+USTRUCT(BlueprintType)
 struct FPlayerStatsData
 {
 	GENERATED_BODY()
@@ -28,12 +41,12 @@ struct FPlayerStatsData
 public:
     UPROPERTY() float CurrentHealth = 163.0f;
     UPROPERTY() float CurrentBattlePoint = 2.0f;
-    UPROPERTY() float CurrentTimePower = 200.0f;    
+    UPROPERTY() float CurrentTimePower = 100.0f;    
     UPROPERTY() float CurrentActionGauge = 0.0f;
 
     UPROPERTY() float MaxHealth = 163.0f;
     UPROPERTY() float MaxBattlePoint = 5.0f;
-    UPROPERTY() float MaxTimePower = 200.0f;       
+    UPROPERTY() float MaxTimePower = 100.0f;       
 
     UPROPERTY() float Attack = 84.0f;
     UPROPERTY() float Defense = 52.0f;
@@ -150,6 +163,10 @@ struct FPlayerMapProgressData
     //포탈 목적지 목록
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<EMapType> SavedPortalOptions;
+
+    //몬스터 명부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
 };
 
 USTRUCT(BlueprintType)

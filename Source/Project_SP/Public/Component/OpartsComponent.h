@@ -111,11 +111,11 @@ public:
 	
 	// 오파츠 레벨업 시도 (모래 소모 로직 포함 예정)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
-	void TryUpgradeLevel();
+	bool TryUpgradeLevel();
 
 	// 아티팩트 해금 시도 (불완전한 기운 소모 로직 포함 예정)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
-	void TryUnlockNextArtifact();
+	bool TryUnlockNextArtifact();
 
 	
 	UFUNCTION(BlueprintPure, Category = "Oparts")

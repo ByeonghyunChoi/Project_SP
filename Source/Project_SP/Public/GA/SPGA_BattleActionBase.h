@@ -16,6 +16,7 @@ public:
 	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	bool ConsumeTimeInterferenceStack();
@@ -49,6 +50,12 @@ protected:
 	// 해당 스킬이 터트릴 이펙트 태그
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | VFX")
 	FGameplayTag HitVFXTag;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
+	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Audio")
+	TObjectPtr<class USoundBase> HitSound;
 
 public:
 	FGameplayTag GetCooldownTag() const;
@@ -87,6 +94,5 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	void ExecuteGoldBugInterference();
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
-	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+	
 };

@@ -180,7 +180,7 @@ void URelicComponent::ResetAllRelics()
 	CurrentRerollCount = MaxRerollCount;
 }
 
-TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool)
+TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool, bool bIsBossReward)
 {
 	TArray<URelicDefinition*> FinalRewards;
 
@@ -188,7 +188,12 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 	float RandomValue = FMath::RandRange(0.0f, 100.0f);
 	ERelicRarity SelectedRarity = ERelicRarity::Normal; // 기본값
 
-	if (CurrentStage <= 1) // 스테이지 1
+	if (bIsBossReward)
+	{
+		if (RandomValue <= 60.0f) SelectedRarity = ERelicRarity::Rare;
+		else SelectedRarity = ERelicRarity::Unique;
+	}
+	else if (CurrentStage <= 1) // 스테이지 1
 	{
 		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
 		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)

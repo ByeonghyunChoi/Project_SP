@@ -26,6 +26,7 @@ protected:
 	// 인터페이스 오버라이드
 	virtual void ExecuteInteraction(class AActor* Interactor) override;
 	virtual FText GetInteractText() const override;
+	virtual void PlayInteractSound_Implementation() override;
 
 	// [선택] 장착 성공 시 블루프린트에서 파티클이나 사운드를 넣을 수 있도록 구멍만 뚫어둠
 	UFUNCTION(BlueprintImplementableEvent, Category = "Oparts|Event")

@@ -107,6 +107,21 @@ void ASPGASMonsterCharacter::ApplyMonsterData()
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), MonsterDataAsset->BaseStats.Defense.GetValueAtLevel(CurrentLevel));
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), MonsterDataAsset->BaseStats.Speed.GetValueAtLevel(CurrentLevel));
 
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	switch (MonsterDataAsset->MonsterRank)
+	{
+	case EMonsterRank::Normal:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Normal);
+		break;
+	case EMonsterRank::Epic:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Epic);
+		break;
+	case EMonsterRank::Boss:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Boss);
+		break;
+	}
+
 	FGameplayTagContainer FinalWeaknessTags = GetCurrentWeaknessTags();
 
 	if (FinalWeaknessTags.Num() > 0)
@@ -275,6 +290,13 @@ void ASPGASMonsterCharacter::RemoveVisualPlayingTag()
 {
 	if (ASC)
 	{
+		// 🌟 이미 죽은 상태라면 족쇄를 풀지 않고 무시합니다!
+		if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 이미 사망한 상태이므로 AI 족쇄를 강제로 풀지 않습니다."), *GetName());
+			return;
+		}
+
 		ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 종료! AI 족쇄 완벽 해제 완료!"), *GetName());
 	}

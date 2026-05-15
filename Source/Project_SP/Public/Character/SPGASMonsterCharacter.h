@@ -24,11 +24,11 @@ public:
     virtual void Destroyed() override;
 
 public:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     TObjectPtr<UCombatEncounterData> EncounterData;
 
     //몬스터 데이터
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     class USPMonsterData* MonsterDataAsset;
 
     //해당 몬스터의 현재 레벨
@@ -67,6 +67,7 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat | Data")
     FGameplayTagContainer GetCurrentWeaknessTags() const;
 
+    UFUNCTION(BlueprintCallable, Category = "Combat")
     void SetWeaknessOverride(const FGameplayTagContainer& NewWeaknesses)
     {
         bHasWeaknessOverride = true;

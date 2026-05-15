@@ -4,3 +4,7 @@
 #include "Interface/InteractableInterface.h"
 
 // Add default functionality here for any IInteractableInterface functions that are not pure virtual.
+
+void IInteractableInterface::PlayInteractSound_Implementation()
+{
+}

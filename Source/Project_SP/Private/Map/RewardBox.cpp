@@ -5,6 +5,11 @@
 #include "Blueprint/UserWidget.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
+#include "Map/MapManagerSubSystem.h"
+#include "Data/RewardDataStructs.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 ARewardBox::ARewardBox()
 {
@@ -21,45 +26,109 @@ ARewardBox::ARewardBox()
 
 void ARewardBox::ExecuteInteraction(AActor* Interactor)
 {
-	if (bIsOpened) return;
+	// ==========================================
+	// 1. 방어 코드 및 중복 실행 방지
+	// ==========================================
+	if (bIsOpened || !Interactor) return;
 
-	// 상호작용한 Actor가 플레이어인지 확인
 	APlayerController* PC = Cast<APlayerController>(Cast<ACharacter>(Interactor)->GetController());
 	if (!PC) return;
 
-	bIsOpened = true;
+	bIsOpened = true; // 열림 상태 확정 (광클 방지)
 
-	//보상 지급 코드를 여기서 구현
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// 1. 유물 보상 위젯 생성
-	UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
-	if (RewardUI)
+	// ==========================================
+	// 2. 매니저 및 컴포넌트 가져오기
+	// ==========================================
+	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
+	UInventoryComponent* InventoryComp = Interactor->FindComponentByClass<UInventoryComponent>();
+
+	if (!MapManager || !InventoryComp) return;
+
+	// ==========================================
+	// 3. 보상 추첨기 돌리기! (가중치 룰 적용)
+	// ==========================================
+	int32 CurrentStage = MapManager->GetCurrentStage();
+	EMapType CurrentMapType = MapManager->GetCurrentMapType();
+
+	// 상자(false) 보상 추첨!
+	FRewardResult Reward = MapManager->GenerateInteractableReward(false, CurrentStage, CurrentMapType);
+
+	// ==========================================
+	// 4. 일반 재화 즉시 지급 (인벤토리)
+	// ==========================================
+	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
+	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
+	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
+	if (Reward.Fragment > 0) InventoryComp->AddFragment(Reward.Fragment);
+
+	// (경험치 보상이 있다면 ASC를 통해 지급)
+	if (Reward.Exp > 0)
 	{
-		// 2. 위젯에 현재 스테이지 값 전달 (WBP_RelicReward의 CurrentStage 변수 이름과 일치해야 함)
-		FProperty* StageProp = RewardUI->GetClass()->FindPropertyByName(FName("CurrentStage"));
-		if (StageProp)
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Interactor);
+		if (ASC)
 		{
-			if (FIntProperty* IntProp = CastField<FIntProperty>(StageProp))
-			{
-				IntProp->SetPropertyValue_InContainer(RewardUI, StageLevel);
-			}
+			float CurrentExp = ASC->GetNumericAttribute(USPGASAttributeSet::GetExperienceAttribute());
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), CurrentExp + Reward.Exp);
 		}
-
-		// 3. 화면에 표시 및 입력 모드 설정
-		RewardUI->AddToViewport();
-
-		FInputModeUIOnly InputMode;
-		InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
-		PC->SetInputMode(InputMode);
-		PC->bShowMouseCursor = true;
 	}
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	// ==========================================
+	// 5. 유물이 당첨되었다면? (UI 띄우기) / 아니라면 즉시 클리어!
+	// ==========================================
+	if (Reward.RelicRewardCount > 0 && RelicRewardWidgetClass)
+	{
+		UUserWidget* RewardUI = CreateWidget<UUserWidget>(PC, RelicRewardWidgetClass);
+		if (RewardUI)
+		{
+			if (FProperty* CountProp = RewardUI->GetClass()->FindPropertyByName(FName("RelicRewardCount")))
+			{
+				if (FIntProperty* IntProp = CastField<FIntProperty>(CountProp))
+				{
+					IntProp->SetPropertyValue_InContainer(RewardUI, Reward.RelicRewardCount);
+				}
+			}
+
+			if (FProperty* BossProp = RewardUI->GetClass()->FindPropertyByName(FName("bIsBossReward")))
+			{
+				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(BossProp))
+				{
+					BoolProp->SetPropertyValue_InContainer(RewardUI, Reward.bIsBossReward);
+				}
+			}
+
+			RewardUI->AddToViewport();
+
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
+			PC->SetInputMode(InputMode);
+			PC->bShowMouseCursor = true;
+		}
+	}
+	else
+	{
+		// 🌟 [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리합니다!
+		AActor* FoundMap = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
+		if (AMapBase* CurrentMap = Cast<AMapBase>(FoundMap))
+		{
+			CurrentMap->SetMapState(EMapState::Cleared);
+			UE_LOG(LogTemp, Warning, TEXT("[보상 상자] 유물이 당첨되지 않아 즉시 맵을 클리어 처리합니다. 포탈 활성화!"));
+		}
+	}
+
+	// ==========================================
+	// 6. 상호작용 완료 (사운드 및 상자 파괴)
+	// ==========================================
+	IInteractableInterface::Execute_PlayInteractSound(this);
 	Destroy();
 }
 
 FText ARewardBox::GetInteractText() const
 {
 	return FText::FromString(TEXT("보상 열기"));
+}
+
+void ARewardBox::PlayInteractSound_Implementation()
+{
 }
 
 void ARewardBox::SetupParticleByMapType(EMapType InMapType)

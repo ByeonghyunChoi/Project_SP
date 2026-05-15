@@ -488,95 +488,89 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 
 		if (PlayerPawn)
 		{
+			// ==========================================
+			// 🌟 2. 장부(DefeatedMonsterData)를 펼쳐서 보상 싹쓸이!
+			// ==========================================
 			int32 TotalExp = 0;
-			int32 TotalMonsterMoney = 0;
+			int32 TotalGold = 0;
+			int32 TotalSand = 0;
+			int32 TotalEnergy = 0;
+			int32 TotalFragment = 0;
 
-			if (USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>())
+			for (USPMonsterData* MonsterData : DefeatedMonsterData)
 			{
-				if (const UCombatEncounterData* Encounter = CombatSys->GetPendingEncounter())
+				if (MonsterData)
 				{
-					for (const FEnemySpawnInfo& Info : Encounter->EnemyGroup)
-					{
-						if (Info.MonsterData)
-						{
-							TotalExp += Info.MonsterData->ExpReward;
-							TotalMonsterMoney += Info.MonsterData->MoneyReward;
-						}
-					}
+					TotalExp += MonsterData->ExpReward;
+					TotalGold += MonsterData->MoneyReward;
+					TotalSand += MonsterData->SandReward;
+					TotalEnergy += MonsterData->IncompleteEnergyReward;
+					TotalFragment += MonsterData->FragmentReward;
 				}
 			}
 
-			// 플레이어에게 경험치 지급 (내부에서 필드/전투 여부 판단하여 레벨업 홀딩)
+			// ==========================================
+			// 🌟 3. 경험치 지급
+			// ==========================================
 			if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
 			{
-				SPPlayer->AddExperience(TotalExp);
+				if (TotalExp > 0)
+				{
+					SPPlayer->AddExperience(TotalExp);
+					UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 총 경험치 %d 획득"), TotalExp);
+				}
 			}
 
+			// ==========================================
+			// 🌟 4. 인벤토리 즉시 지급 및 Toast UI 대기열 등록
+			// ==========================================
 			UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>();
 			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
 
 			if (InventoryComp && MapManager)
 			{
-				
-				if (TotalMonsterMoney > 0)
-				{
-					InventoryComp->AddMoney(TotalMonsterMoney);
-					int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold);
-					SavedAmount += TotalMonsterMoney;
-					UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 몬스터 드랍 골드 %d 획득 완료"), TotalMonsterMoney);
-				}
-
-				if (CombatRewardDataTable)
-				{
-					// 1. Enum에서 앞에 붙는 'EMapType::'을 떼어내고 순수 이름(NormalBattle)만 가져오기
-					FString MapTypeStr = StaticEnum<EMapType>()->GetNameStringByValue((int64)MapManager->GetCurrentMapType());
-
-					// 2. 이제 "Stage1_NormalBattle" 형태로 깨끗하게 조합됩니다.
-					FString RowNameStr = FString::Printf(TEXT("Stage%d_%s"), MapManager->GetCurrentStage(), *MapTypeStr);
-
-					// 3. 테이블 검색 (이제 이름을 정확히 찾을 겁니다!)
-					FCombatRewardRow* RewardRow = CombatRewardDataTable->FindRow<FCombatRewardRow>(FName(*RowNameStr), TEXT(""));
-
-					if (RewardRow)
+				// 반복되는 지급 로직을 깔끔하게 묶어주는 람다(Lambda) 함수
+				auto GiveReward = [&](EResourceType Type, int32 Amount)
 					{
-						for (const FCombatRewardInfo& Reward : RewardRow->GuaranteedRewards)
+						if (Amount > 0)
 						{
-							int32 FinalAmount = FMath::RandRange(Reward.MinAmount, Reward.MaxAmount);
-							switch (Reward.ResourceType)
+							// 1) 인벤토리에 실제 재화 꽂아주기
+							switch (Type)
 							{
-							case EResourceType::Gold:
-								InventoryComp->AddMoney(FinalAmount);
-								break;
-							case EResourceType::Sand:
-								InventoryComp->AddSand(FinalAmount);
-								break;
-							case EResourceType::IncompleteEnergy:
-								InventoryComp->AddIncompleteEnergy(FinalAmount);
-								break;
-							case EResourceType::Fragment:
-								InventoryComp->AddFragment(FinalAmount);
-								break;
+							case EResourceType::Gold: InventoryComp->AddMoney(Amount); break;
+							case EResourceType::Sand: InventoryComp->AddSand(Amount); break;
+							case EResourceType::IncompleteEnergy: InventoryComp->AddIncompleteEnergy(Amount); break;
+							case EResourceType::Fragment: InventoryComp->AddFragment(Amount); break;
 							}
 
-							// 동일한 재화가 여러 번 들어오면 수량을 합쳐줍니다.
-							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Reward.ResourceType);
-							SavedAmount += FinalAmount;
-
-							UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 스테이지 클리어 보상 %d 획득 완료"), FinalAmount);
+							// 2) 필드 복귀 시 우측 상단 팝업(Toast)을 위해 대기열에 누적 기록!
+							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Type);
+							SavedAmount += Amount;
 						}
-					}
-				}
+					};
+
+				GiveReward(EResourceType::Gold, TotalGold);
+				GiveReward(EResourceType::Sand, TotalSand);
+				GiveReward(EResourceType::IncompleteEnergy, TotalEnergy);
+				GiveReward(EResourceType::Fragment, TotalFragment);
+
+				UE_LOG(LogTemp, Warning, TEXT("[전투 보상] 골드:%d, 모래:%d, 기운:%d, 파편:%d"), TotalGold, TotalSand, TotalEnergy, TotalFragment);
 			}
 
-			// 3. 인벤토리에 들어간 재화와 '새로 얻은 경험치'까지 포함해서 세이브 시스템에 덮어쓰기!
+			// ==========================================
+			// 🌟 5. 세이브 파일 덮어쓰기
+			// ==========================================
 			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 			{
 				SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 				SaveSys->SaveRunToDisk();
+				UE_LOG(LogTemp, Log, TEXT("[AutoSave] 전투 보상을 획득하고 게임을 저장했습니다."));
 			}
 		}
 
-		// 맵 매니저에게 필드 복귀 명령! (보상 상자 상태로 맵을 염)
+		// ==========================================
+		// 🌟 6. 맵 매니저에게 필드 복귀 명령!
+		// ==========================================
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->ReturnToField(true);
@@ -586,13 +580,11 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	{
 		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
 
-		// [패배 처리] 런 데이터(유물, 진행도 등)를 싹 날려버립니다.
 		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 		{
 			SaveSys->ResetRunData();
 		}
 
-		// 맵 매니저를 통해 로비 맵으로 강제 이동
 		if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
 		{
 			MapManager->GoToLobby();
@@ -628,11 +620,14 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 {
 	if (!TurnManager) return;
 
-	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6);
+	// 🌟 1. 결과를 받아올 빈 변수를 하나 만듭니다.
+	int32 CycleEndIndex = -1;
+
+	// 🌟 2. 인자를 2개(예측 개수, 결과 담을 변수) 전달합니다!
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, CycleEndIndex);
+
 	TArray<AActor*> VIPTurns = TurnManager->GetInterruptQueue();
 
-	// 🌟 [핵심 변경 2: UI 마법] 현재 행동 중인 턴이 VIP 턴이라면?
-	// 이미 큐에서 뽑혔지만, 타임라인 0번 자리를 차지해야 하므로 배열 맨 앞(0번)에 강제로 끼워 넣습니다!
 	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
 	{
 		VIPTurns.Insert(CurrentTurnActor, 0);
@@ -643,7 +638,8 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	{
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
-			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns);
+			// 🌟 3. 컨트롤러의 UI 업데이트 이벤트에도 이 인덱스를 같이 넘겨줍니다!
+			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns, CycleEndIndex);
 		}
 	}
 }
@@ -652,10 +648,20 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 {
 	if (!DeadActor) return;
 
+	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
+	{
+		if (Monster->MonsterDataAsset)
+		{
+			DefeatedMonsterData.Add(Monster->MonsterDataAsset);
+			UE_LOG(LogTemp, Log, TEXT("[전투 정산] %s 처치 기록. (누적: %d마리)"),
+				*Monster->MonsterDataAsset->MonsterName.ToString(), DefeatedMonsterData.Num());
+		}
+	}
+
 	bool bIsActionExecuting = false;
 
 	// 현재 턴 주인이 액션(스킬)을 진행 중인지 확인
-	if (CurrentTurnActor)
+	if (CurrentTurnActor && CurrentTurnActor != DeadActor)
 	{
 		UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
 		if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting))
@@ -667,13 +673,10 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 	if (bIsActionExecuting)
 	{
 		// 🟢 [플레이어 스킬 공격 중]
-		// 오버킬 연출을 위해 아무것도 하지 않고 대기합니다!
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망 연출 대기 (현재 액션 진행 중! 오버킬 허용)"), *DeadActor->GetName());
 	}
 	else
 	{
-		// [도트 딜, 골드 버그(프리 액션) 등]
-		// 진행 중인 애니메이션이 없으므로, 대기할 필요 없이 즉시 쓰러뜨립니다.
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 즉시 사망 연출 (진행 중인 액션 없음)"), *DeadActor->GetName());
 
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
@@ -681,19 +684,49 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 			Monster->ExecuteVisualDeath();
 		}
 
-		// 명단에서 즉시 삭제
 		AllParticipants.Remove(DeadActor);
 		if (TurnManager) TurnManager->RemoveParticipant(DeadActor);
 
-		// 적 전멸 체크
 		if (GetCurrentEnemies().Num() <= 0)
 		{
 			PlayVictorySequence();
 		}
 		else if (DeadActor == CurrentTurnActor)
 		{
-			// 턴 시작하자마자 도트 딜 맞고 죽었을 경우 턴 강제 스킵!
-			EndTurn(CurrentTurnActor);
+			// 🌟 [수정된 핵심 파트] 상태이상 연출이 진행 중이라면 턴 종료를 잠시 보류(대기)합니다!
+			UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
+			if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 도중 사망! 배틀 디렉터가 연출을 마칠 때까지 턴을 대기합니다."), *DeadActor->GetName());
+			}
+			else
+			{
+				// 연출 중이 아니면 원래대로 즉시 턴 강제 스킵!
+				EndTurn(CurrentTurnActor);
+			}
+		}
+	}
+}
+
+void AASPCombatGameMode::AdvanceBattleTime(float TimePassed)
+{
+	if (TimePassed <= 0.0f) return;
+
+	// 흐른 시간(행동 수치)을 누적시킵니다.
+	PassedTimeInCurrentRound += TimePassed;
+
+	// 누적된 시간이 100(TimePerRound)을 넘어설 때마다 라운드를 올립니다.
+	while (PassedTimeInCurrentRound >= TimePerRound)
+	{
+		PassedTimeInCurrentRound -= TimePerRound; // 100을 빼고 남은 짜투리 시간은 다음 라운드로 이월
+		CurrentRound++;
+
+		UE_LOG(LogTemp, Warning, TEXT("⏳ [라운드 진행] %d 라운드가 시작되었습니다!"), CurrentRound);
+
+		// 🚨 최대 제한 라운드(예: 3)를 초과했는지 검사!
+		if (CurrentRound > MaxRoundsPerCycle)
+		{
+			ApplyRoundPenalty();
 		}
 	}
 }
@@ -750,6 +783,28 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 			bIsCurrentTurnInterrupt = true;
 		}
 		StartTurn(NextActor);
+	}
+}
+
+void AASPCombatGameMode::ApplyRoundPenalty()
+{
+	UE_LOG(LogTemp, Error, TEXT("제한 라운드(%d) 초과! 시간의 힘을 %f 소모합니다."), MaxRoundsPerCycle, PenaltyTPCost);
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			float CurrentTP = ASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+			float NewTP = FMath::Max(0.0f, CurrentTP - PenaltyTPCost);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), NewTP);
+
+			// 사이클 초기화
+			CurrentRound = 1;
+			PassedTimeInCurrentRound = 0.0f;
+			UE_LOG(LogTemp, Error, TEXT("🚨 사이클 종료! 시간의 힘 %f 소모. 신규 사이클 시작."), PenaltyTPCost);
+		}
 	}
 }
 
