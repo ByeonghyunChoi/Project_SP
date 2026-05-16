@@ -77,7 +77,7 @@ public:
 
 	// 전투 종료 시 확정 보상 계산
 	UFUNCTION(BlueprintCallable, Category = "Reward")
-	FRewardResult CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedMonsters, int32 Stage, EMapType MapType);
+	FRewardResult CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType);
 
 	// 상호작용 (상자/회복) 시 가중치 랜덤 보상 계산
 	UFUNCTION(BlueprintCallable, Category = "Reward")

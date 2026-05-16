@@ -417,33 +417,28 @@ void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
 	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 일반 몬스터 인카운터 명부가 고정되었습니다!"));
 }
 
-FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedMonsters, int32 Stage, EMapType MapType)
+FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType)
 {
 	FRewardResult TotalReward;
 
-	for (EMonsterRank Rank : DefeatedMonsters)
+	// 죽은 몬스터 수만큼 반복하면서 스테이지/맵 타입에 따라 보상을 누적!
+	for (EMonsterRank Rank : DefeatedRanks)
 	{
 		if (Stage == 1)
 		{
-			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 250;
-			else TotalReward.Exp += 60;
-
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 250 : 60;
 			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 70; TotalReward.Sand += 10; TotalReward.IncompleteEnergy += 2; }
 			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 83; TotalReward.Sand += 13; TotalReward.IncompleteEnergy += 3; }
 		}
 		else if (Stage == 2)
 		{
-			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 1300;
-			else TotalReward.Exp += 330;
-
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 1300 : 330;
 			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 80; TotalReward.Sand += 12; TotalReward.IncompleteEnergy += 2; }
 			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 96; TotalReward.Sand += 15; TotalReward.IncompleteEnergy += 4; }
 		}
 		else if (Stage >= 3)
 		{
-			if (Rank == EMonsterRank::Boss) TotalReward.Exp += 2500;
-			else TotalReward.Exp += 600;
-
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 2500 : 600;
 			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 90; TotalReward.Sand += 14; TotalReward.IncompleteEnergy += 3; }
 			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 100; TotalReward.Sand += 17; TotalReward.IncompleteEnergy += 5; }
 		}
