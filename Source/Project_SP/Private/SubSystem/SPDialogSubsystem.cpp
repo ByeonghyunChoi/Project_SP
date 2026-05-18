@@ -47,6 +47,15 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 		InputMode.SetWidgetToFocus(ActiveDialogWidget->GetCachedWidget());
 		PC->SetInputMode(InputMode);
 		PC->SetShowMouseCursor(true);
+
+		// 유령 입력 방지
+		PC->FlushPressedKeys();
+
+		// 캐릭터의 이동 명령까지 확실히 정지
+		if (APawn* PlayerPawn = PC->GetPawn())
+		{
+			PlayerPawn->ConsumeMovementInputVector();
+		}
 	}
 
 	//NPC 이미지 선행 로드

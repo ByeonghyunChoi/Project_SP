@@ -1,55 +1,4 @@
-﻿	case ESelectedActionType::WeaponSkill:
-		AbilityClassToActivate = Data->WeaponSkillAbility;
-		break;
-	case ESelectedActionType::ParrySkill:
-		AbilityClassToActivate = Data->ParrySkillAbility;
-		break;
-	}
-
-	// 어빌리티 실행
-	if (AbilityClassToActivate && ASC)
-	{
-		FGameplayEventData Payload;
-		Payload.Instigator = this;       // 공격자 
-		Payload.Target = TargetActor;    // 타겟
-
-		FGameplayTag TriggerTag = FSPGameplayTags::Get().Event_Battle_ExecuteAction;
-		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
-		{
-			// 클래스가 일치하는 바로 그 어빌리티를 찾았다면
-			if (Spec.Ability && Spec.Ability->GetClass() == AbilityClassToActivate)
-			{
-				// 이 특정 스펙(Spec)에만 이벤트(Payload)를 전달하여 단독 실행시킵니다.
-				ASC->TriggerAbilityFromGameplayEvent(
-					Spec.Handle,
-					ASC->AbilityActorInfo.Get(),
-					TriggerTag,
-					&Payload,
-					*ASC
-				);
-				break; // 목표를 찾아 실행했으니 반복문 종료
-			}
-		}
-	}
-}
-
-
-void ASPGASPlayerCharacter::OnRep_PlayerState()
-{
-	Super::OnRep_PlayerState();
-
-	// [클라이언트] 초기화 진입
-	ASPGASPlayerState* SPGAS = GetPlayerState<ASPGASPlayerState>();
-	if (SPGAS)
-	{
-		ASC = SPGAS->GetAbilitySystemComponent();
-		AttributeSet = SPGAS->GetAttributeSet();
-		ASC->InitAbilityActorInfo(SPGAS, this);
-
-		float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
-		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), false);
-
-		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
+﻿		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
 	}
 }
 
@@ -742,11 +691,13 @@ void ASPGASPlayerController::OnFieldInputPressed(FGameplayTag InputTag)
 	{
 		if (CurrentWeaponTag == InputTag)
 		{
+			PlayActionSound(InputTag, false);
 			UE_LOG(LogTemp, Log, TEXT("[필드] 이미 장착 중인 무기입니다."));
 			return;
 		}
 
 		// 필드에서도 무기 교체 함수를 동일하게 실행!
+		PlayActionSound(InputTag, true);
 		ProcessWeaponSwitch(InputTag);
 		return;
 	}
@@ -764,10 +715,14 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	{
 		if (CurrentWeaponTag == InputTag)
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Log, TEXT("이미 장착 중인 무기입니다. 입력을 무시합니다."));
 			return;
 		}
 
+		PlayActionSound(InputTag, true);
+		HandleInputFeedback(InputTag, true);
 		ProcessWeaponSwitch(InputTag);
 		return;
 	}
@@ -790,9 +745,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			return;
 		}
 
-		// 쿨타임 검사 (선생님이 추가하신 태그 아주 좋습니다!)
+		// 쿨타임 검사 
 		if (CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.Cooldown_Skill_TimeInterference))
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간 간섭 스킬이 쿨타임 중입니다! (남은 턴 대기)"));
 			return;
 		}
@@ -800,14 +757,9 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		int32 Cost = GetSkillCost(InputTag);
 		if (GetCurrentTimePower() < Cost)
 		{
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
 			UE_LOG(LogTemp, Warning, TEXT("[시스템] 시간의 힘이 부족하여 발동할 수 없습니다!"));
-			if (UGameInstance* GI = GetGameInstance())
-			{
-				if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-				{
-					MapManager->GoToLobby();
-				}
-			}
 			return;
 		}
 
@@ -817,6 +769,8 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			bool bSuccess = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(InputTag));
 			if (bSuccess)
 			{
+				PlayActionSound(InputTag, true);
+				HandleInputFeedback(InputTag, true);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
 			}
 			else
@@ -838,17 +792,22 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		// 무기 미착용 체크
 		if (!CurrentWeaponTag.IsValid())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("무기를 먼저 선택하세요! (키: 1, 2, 3)"));
+			PlayActionSound(InputTag, false);
+			HandleInputFeedback(InputTag, false);
+			UE_LOG(LogTemp, Warning, TEXT("무기를 먼저 선택하세요!"));
 			return;
 		}
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			bool bIsTimeInterference = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_TimeInterference);
+			// '해골 수정(CrystalSkull)' 고유 태그를 검사합니다!
+			bool bIsCrystalSkull = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull);
 
-			// 1. 쿨타임 검사 (수정됨: 시간 간섭 상태가 '아닐 때만' 쿨타임을 막습니다!)
-			if (!bIsTimeInterference && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			// 1. 쿨타임 검사
+			if (!bIsCrystalSkull && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
 				return; // 타겟팅 진입 차단!
 			}
@@ -856,9 +815,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// 2. BP 및 프리패스(시간 간섭) 검사
 			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
 
-			// 시간 간섭 버프가 없는데, BP마저 부족하다면?
-			if (!bIsTimeInterference && GetCurrentBP() < Cost)
+			// 해골 수정 버프가 없는데, BP마저 부족하다면?
+			if (!bIsCrystalSkull && GetCurrentBP() < Cost)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족합니다!"));
 				return; // 타겟팅 진입 차단!
 			}
@@ -869,11 +830,16 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			// 선택한 행동이 '무기 스킬'이 아니라면? (일반 공격이나 패링이라면)
 			if (InputType != ESelectedActionType::WeaponSkill)
 			{
+				PlayActionSound(InputTag, false);
+				HandleInputFeedback(InputTag, false);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭 발동 중!] 무기 스킬과 무기 교체만 사용할 수 있습니다."));
 				// 행동을 무시하고 함수 종료 (타겟팅으로 안 넘어감)
 				return;
 			}
 		}
+
+		PlayActionSound(InputTag, true);
+		HandleInputFeedback(InputTag, true);
 
 		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 		{
@@ -1409,3 +1375,221 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 		if (!IsValid(ClickedActor))
 		{
 			return;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("=== 4. 마우스에 맞은 물체: %s ==="), *ClickedActor->GetName());
+
+		// 클릭한 액터가 '현재 공격 가능한 적 목록'에 있는지 인덱스를 찾습니다.
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AvailableTargets.Num(); ++i)
+		{
+			if (AvailableTargets[i].IsValid() && AvailableTargets[i].Get() == ClickedActor)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+
+		// 찾았다면? (적을 클릭한 게 맞다면)
+		if (FoundIndex != INDEX_NONE)
+		{
+			// [전체 공격(All)] 이라면 -> 누굴 클릭하든 묻지도 따지지도 않고 발동!
+			if (CurrentTargetingType == ETargetingType::All)
+			{
+				ConfirmTargetAndExecute();
+				return;
+			}
+
+			// [광역(Area) / 단일 / 랜덤] 이라면
+			if (FoundIndex == CurrentTargetIndex)
+			{
+				// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+				if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+				{
+					// 이미 주 타겟인 녀석을 또 클릭했다면 -> 스킬 발동 확정!
+					ConfirmTargetAndExecute();
+				}
+			}
+			else
+			{
+				// 다른 녀석을 클릭했다면 -> 주 타겟을 그 녀석으로 변경!
+				HighlightCurrentTarget(false);
+				CurrentTargetIndex = FoundIndex;
+				HighlightCurrentTarget(true);
+
+				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
+				OnTargetChanged.Broadcast(ClickedActor);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("X. 마우스 아래에 아무것도 없음 (허공 클릭)"));
+	}
+}
+
+void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
+{
+	if (!CachedASC) return;
+
+	if (IsMyTurn())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("지금은 내 턴입니다. 패링을 사용할 수 없습니다."));
+		return;
+	}
+
+	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
+
+	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+}
+
+
+void ASPGASPlayerController::OnBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
+void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshBattlePointUI();
+}
+
+void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction)
+{
+	if(CurrentSelectedAction != NewAction)
+	{
+		CurrentSelectedAction = NewAction;
+		OnActionStateChanged.Broadcast(CurrentSelectedAction);
+		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+	}
+}
+
+void ASPGASPlayerController::OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+	bool bIsActive = (NewCount > 0);
+
+	ToggleTimeInterferenceUI(bIsActive);
+	OnTimeInterferenceChanged.Broadcast(bIsActive);
+}
+
+void ASPGASPlayerController::OnExperienceAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	RefreshExpUI();
+}
+
+void ASPGASPlayerController::OnLevelAttributeChanged(const FOnAttributeChangeData& Data)
+{
+	if (CachedASC)
+	{
+		int32 CurrentLevel = FMath::FloorToInt(CachedASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute()));
+		OnPlayerLevelChanged.Broadcast(CurrentLevel);
+	}
+}
+
+void ASPGASPlayerController::OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 내 몸에 TurnActive 태그가 1개 이상 붙었다면 = 내 턴 시작!
+	if (NewCount > 0)
+	{
+		// UI 쪽에 "내 턴 시작됐다! 쿨타임 숫자 다시 그려라!" 라고 방송 송출
+		OnPlayerTurnStarted.Broadcast();
+	}
+}
+
+void ASPGASPlayerController::PlayActionSound(FGameplayTag InputTag, bool bIsSuccess)
+{
+	for (const FSPInputConfig& Config : BattleInputConfigs)
+	{
+		// 입력된 태그와 일치하는 세팅을 찾았다면?
+		if (Config.InputTag == InputTag)
+		{
+			// 성공 여부에 따라 재생할 소리를 결정
+			USoundBase* SoundToPlay = bIsSuccess ? Config.ValidSound : Config.InvalidSound;
+
+			if (SoundToPlay)
+			{
+				UGameplayStatics::PlaySound2D(this, SoundToPlay);
+			}
+			return; // 소리를 틀었으니 종료
+		}
+	}
+}
+
+void ASPGASPlayerController::HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess)
+{
+	OnInputProcessed.Broadcast(InputTag, bIsSuccess);
+}
+
+
+void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (CurrentWeaponTag == NewWeaponTag) return;
+	if (!CachedASC) return;
+
+	if (bIsSelectingTarget)
+	{
+		HighlightCurrentTarget(false);
+	}
+
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
+
+	CachedASC->AddLooseGameplayTag(NewWeaponTag);
+	CurrentWeaponTag = NewWeaponTag;
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
+		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		{
+			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+			{
+				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
+			}
+
+			HighlightCurrentTarget(true);
+
+			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
+			{
+				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
+			}
+		}
+		else
+		{
+			SetCurrentSelectedAction(ESelectedActionType::None);
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때만 실행]
+		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
+
+		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+	}
+}
+
+bool ASPGASPlayerController::IsMyTurn() const
+{
+	if (CachedASC)
+	{
+		return CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+	}
+	return false;
+}
