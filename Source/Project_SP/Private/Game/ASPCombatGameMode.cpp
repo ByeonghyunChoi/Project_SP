@@ -24,6 +24,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Component/InventoryComponent.h"
 #include "Data/RewardDataStructs.h"
+#include "GA/SPGA_BattleActionBase.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -189,6 +190,8 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 
 void AASPCombatGameMode::FinalizeBattleSetup()
 {
+	bIsBattleRunning = true;
+
 	UE_LOG(LogTemp, Warning, TEXT("[GameMode] 전원 세팅 완료! 전투 UI를 띄우고 즉시 전투를 시작합니다."));
 
 	// 플레이어 컨트롤러에게 명령!
@@ -228,7 +231,7 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 
 void AASPCombatGameMode::CheckAndStartBattle()
 {
-	if (bIsBattleInitialized && ReadyParticipants.Num() >= TotalExpectedParticipants)
+	if (bIsBattleInitialized && !bIsBattleRunning && ReadyParticipants.Num() >= TotalExpectedParticipants)
 	{
 		FinalizeBattleSetup();
 	}
@@ -257,12 +260,20 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 	CurrentTurnActor = TurnActor;
 	UE_LOG(LogTemp, Log, TEXT("턴 시작: %s"), *TurnActor->GetName());
 
+	if (TurnManager)
+	{
+		TurnManager->SetRoundIterating(true);
+	}
+
 	USPStatusEffectComponent* StatusComp = TurnActor->FindComponentByClass<USPStatusEffectComponent>();
 
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
 	{
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
+			// ==============================================================
+			// VIP 반격 턴 (패링 성공 시)
+			// ==============================================================
 			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
 			{
 				bIsCurrentTurnParry = true;
@@ -278,21 +289,28 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 						if (WeaponData && WeaponData->ParrySkillAbility)
 						{
+							bool bActivated = false;
+
+							// 1. 스킬 발동 시도 (쿨타임이 남아있다면 GAS가 스스로 막고 false를 반환합니다)
 							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 							{
 								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
 								{
-									bool bActivated = ASC->TryActivateAbility(Spec.Handle);
-									if (bActivated)
-									{
-										UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료"));
-									}
-									else
-									{
-										EndTurn(TurnActor);
-									}
-									break;
+									bActivated = ASC->TryActivateAbility(Spec.Handle);
+									break; // 찾았으니 루프 종료
 								}
+							}
+
+							// 2. 결과 판정 및 강력한 return
+							if (bActivated)
+							{
+								UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료"));
+							}
+							else
+							{
+								UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패(쿨타임 등)! 턴을 강제 종료하고 빠져나갑니다."));
+								EndTurn(TurnActor);
+								return; // 🚨 [핵심] 여기서 함수를 즉시 탈출하여 '내 턴' 팻말이 억지로 붙는 버그를 차단합니다!
 							}
 						}
 					}
@@ -303,6 +321,9 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				bIsCurrentTurnParry = false;
 			}
 
+			// ==============================================================
+			// 상태이상(DoT) 및 사망/혼절 체크
+			// ==============================================================
 			if (StatusComp && !bIsCurrentTurnInterrupt)
 			{
 				StatusComp->ProcessTurnStartDoT();
@@ -328,6 +349,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				return;
 			}
 
+			// 위쪽에서 return 당하지 않고 무사히 살아남은 녀석만 드디어 '내 턴' 팻말을 얻습니다.
 			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
 			FGameplayEventData Payload;
@@ -348,7 +370,6 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		{
 			if (UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent())
 			{
-				// 아까 우리가 만든 바로 그 버프 태그!
 				if (TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull))
 				{
 					bIsTimeStopped = true;
@@ -624,10 +645,17 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 
 	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
 	{
-		// 🌟 데이터 에셋을 통째로 저장하지 않고, 랭크(일반/에픽/보스)만 저장!
-		DefeatedMonsterRanks.Add(Monster->GetEnemyRank());
-		UE_LOG(LogTemp, Log, TEXT("[전투 정산] %d 등급 몬스터 처치 기록. (누적: %d마리)"),
-			(int32)Monster->GetEnemyRank(), DefeatedMonsterRanks.Num());
+		if (!Monster->bIsSummonedMinion)
+		{
+			DefeatedMonsterRanks.Add(Monster->GetEnemyRank());
+			UE_LOG(LogTemp, Log, TEXT("[전투 정산] %d 등급 원본 몬스터 처치 기록. (누적: %d마리)"),
+				(int32)Monster->GetEnemyRank(), DefeatedMonsterRanks.Num());
+		}
+		else
+		{
+			// 소환수라면 장부에 적지 않고 로그만 남깁니다.
+			UE_LOG(LogTemp, Warning, TEXT("[전투 정산] 소환된 몬스터(%s) 처치. 보상 장부에서 제외됩니다."), *Monster->GetName());
+		}
 	}
 
 	bool bIsActionExecuting = false;
@@ -703,6 +731,106 @@ void AASPCombatGameMode::AdvanceBattleTime(float TimePassed)
 	}
 }
 
+ASPGASMonsterCharacter* AASPCombatGameMode::SummonMonsterMidBattle(USPMonsterData* MinionData)
+{
+	if (!MinionData || !MinionData->MonsterClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Summon] 실패: 몬스터 데이터 에셋이 비어있거나, MonsterClass가 할당되지 않았습니다!"));
+		return nullptr;
+	}
+
+	int32 EmptyIndex = -1;
+	TArray<AActor*> AliveEnemies = GetCurrentEnemies();
+
+	for (int32 i = 0; i < 3; ++i)
+	{
+		FTransform SpawnTransform = GetSpawnTransformByIndex(i);
+		bool bIsOccupied = false;
+
+		// 현재 살아있는 적들의 위치와 스폰 포인트의 거리를 비교해서 자리가 찼는지 확인!
+		for (AActor* Enemy : AliveEnemies)
+		{
+			if (FVector::Dist(Enemy->GetActorLocation(), SpawnTransform.GetLocation()) < 150.0f)
+			{
+				bIsOccupied = true;
+				break;
+			}
+		}
+
+		// 아무도 안 서 있다면 이 자리가 내 자리!
+		if (!bIsOccupied)
+		{
+			EmptyIndex = i;
+			break;
+		}
+	}
+
+	// 3자리가 꽉 찼다면 소환 실패 (nullptr 반환)
+	if (EmptyIndex == -1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Summon] 빈 자리가 없어 소환이 취소되었습니다."));
+		return nullptr;
+	}
+
+	// ==========================================
+	// 2. 현재 층수에 맞는 레벨 계산하기
+	// ==========================================
+	int32 SpawnLevel = 1;
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		SpawnLevel = MapManager->CalculateMonsterLevel(); // 맵 매니저의 만능 계산기 호출!
+	}
+
+	// ==========================================
+	// 3. 지연 스폰 및 데이터 주입 (BeginPlay 전에 세팅)
+	// ==========================================
+	FTransform FinalTransform = GetSpawnTransformByIndex(EmptyIndex);
+
+	ASPGASMonsterCharacter* SpawnedMinion = GetWorld()->SpawnActorDeferred<ASPGASMonsterCharacter>(
+		MinionData->MonsterClass,
+		FinalTransform,
+		nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn
+	);
+
+	if (SpawnedMinion)
+	{
+		SpawnedMinion->MonsterDataAsset = MinionData;
+		SpawnedMinion->CurrentLevel = SpawnLevel;
+		SpawnedMinion->bIsSummonedMinion = true;
+
+		UGameplayStatics::FinishSpawningActor(SpawnedMinion, FinalTransform);
+
+		// ==========================================
+		// 4. 전투 명단에 정식 등록!
+		// ==========================================
+		AllParticipants.Add(SpawnedMinion);
+
+		if (TurnManager)
+		{
+			// 턴 매니저의 대기열에도 넣어줍니다 
+			TurnManager->AddParticipant(SpawnedMinion); 
+		}
+
+		if (ActiveBattleDirector)
+		{
+			ActiveBattleDirector->RegisterMonster(SpawnedMinion); // 배틀 카메라/디렉터에 연결
+		}
+
+		// 체력바 UI 등을 띄우기 위해 전투 시작 이벤트를 강제로 불어넣음!
+		SpawnedMinion->OnBattleStarted();
+
+		UE_LOG(LogTemp, Warning, TEXT("[Summon] %s (Lv.%d) 소환 완료! (위치: %d번)"),
+			*MinionData->MonsterName.ToString(), SpawnLevel, EmptyIndex);
+
+		// 타임라인 UI 즉시 새로고침!
+		RefreshTurnTimelineUI();
+
+		return SpawnedMinion;
+	}
+
+	return nullptr;
+}
+
 void AASPCombatGameMode::ProcessEndOfTurn()
 {
 	// 1. 사망(State.Death) 태그를 가진 액터 수집
@@ -737,6 +865,11 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 		UE_LOG(LogTemp, Warning, TEXT("모든 적 처치! 승리 시퀀스로 진입합니다."));
 		PlayVictorySequence();
 		return;
+	}
+
+	if (TurnManager)
+	{
+		TurnManager->SetRoundIterating(false);
 	}
 
 	// 4. 다음 타자 호출

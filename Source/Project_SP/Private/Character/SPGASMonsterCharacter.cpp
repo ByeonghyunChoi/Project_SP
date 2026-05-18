@@ -4,6 +4,7 @@
 #include "Components/WidgetComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Game/ASPCombatGameMode.h"
+#include "Character/SPGASPlayerController.h"
 
 
 
@@ -62,9 +63,31 @@ void ASPGASMonsterCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();
 
-	if (StatusWidgetComponent)
+	// 🌟 1. 몬스터 등급에 따라 UI 표시 방식을 나눕니다!
+	if (GetEnemyRank() == EMonsterRank::Boss)
 	{
-		StatusWidgetComponent->SetVisibility(true);
+		// 보스라면 옹졸하게 머리 위에 뜨는 위젯은 꺼버립니다.
+		if (StatusWidgetComponent)
+		{
+			StatusWidgetComponent->SetVisibility(false);
+		}
+
+		// 플레이어 컨트롤러에게 "나 보스인데, 화면 상단에 내 전용 UI 좀 띄워라!" 라고 명령합니다.
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
+			{
+				SPPC->ShowBossUI(this);
+			}
+		}
+	}
+	else
+	{
+		// 일반/에픽 몬스터는 기존처럼 머리 위 위젯을 켭니다.
+		if (StatusWidgetComponent)
+		{
+			StatusWidgetComponent->SetVisibility(true);
+		}
 	}
 
 	// 전투 시작 시 현재 체력과 약점 정보를 방송해줍니다!
@@ -231,6 +254,17 @@ void ASPGASMonsterCharacter::Die()
 	bIsDead = true;
 
 	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
+
+	if (GetEnemyRank() == EMonsterRank::Boss)
+	{
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
+			{
+				SPPC->HideBossUI(); // 플레이어 컨트롤러의 UI 해제 이벤트 호출
+			}
+		}
+	}
 
 	// UI 끄기
 	if (StatusWidgetComponent) StatusWidgetComponent->SetVisibility(false);

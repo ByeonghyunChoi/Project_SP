@@ -47,6 +47,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | Round")
 	void AdvanceBattleTime(float TimePassed);
 
+	// 전투 도중 몬스터 소환하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Battle | Summon")
+	class ASPGASMonsterCharacter* SummonMonsterMidBattle(class USPMonsterData* MinionData);
+
+	// 전투 메시지 함수
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Battle | UI")
+	void ShowBattleWarningMessage(const FString& WarningText, float Duration = 1.5f);
+
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 
@@ -93,6 +101,9 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnParry = false;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsBattleRunning = false;
 
 	// 클래스 할당용 (에디터에서 지정)
 	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")

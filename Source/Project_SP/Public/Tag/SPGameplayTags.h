@@ -33,6 +33,10 @@ public:
 	FGameplayTag State_Buff_JadeClock;
 	FGameplayTag State_Buff_GoldBug;
 	FGameplayTag State_Status_VisualPlaying;
+	FGameplayTag State_Monster_HowlingComboReady;
+	FGameplayTag State_Monster_CastingHowling;
+	FGameplayTag State_Monster_DoingCombo;
+	FGameplayTag State_Status_DamageDisabled;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
@@ -70,6 +74,7 @@ public:
 	FGameplayTag Event_Hit_AoE;
 	FGameplayTag Event_Jormungandr_Fire;
 	FGameplayTag Event_Jourmungandr_Hit;
+	FGameplayTag Event_Battle_ForceCounter;
 
 	//유물 전용 이벤트들
 	FGameplayTag Event_Combat_CriticalHit;

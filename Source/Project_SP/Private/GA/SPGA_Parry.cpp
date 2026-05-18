@@ -11,6 +11,7 @@
 #include "Tag/SPGameplayTags.h"
 #include "Sound/SoundBase.h"     
 #include "Kismet/GameplayStatics.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 
 bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
@@ -121,5 +122,10 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		ParryPayload.Target = TargetMonster;
 
 		ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_ParrySuccess, &ParryPayload);
+	}
+
+	if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetMonster))
+	{
+		TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
 	}
 }
