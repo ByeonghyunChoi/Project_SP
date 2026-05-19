@@ -193,7 +193,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitMaxHealth(1.0f);
 	InitLevel(1.0f);
 	InitSpeed(1.0f);
-	InitMaxActionGauge(100.0f); 
+	InitMaxActionGauge(10000.0f); 
 	InitMaxExperience(3000.0f);  
 
 	InitAttack(0.0f);
@@ -201,7 +201,7 @@ USPGASAttributeSet::USPGASAttributeSet()
 	InitBattlePoint(0.0f);
 	InitMaxBattlePoint(5.0f);
 	InitTimePower(0.0f);
-	InitMaxTimePower(200.0f);
+	InitMaxTimePower(100.0f);
 	InitActionGauge(0.0f);
 	InitExperience(0.0f);
 
@@ -622,7 +622,7 @@ void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 {
 	if (APawn* PlayerPawn = Cast<APawn>(Interactor))
 	{
-		
+
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
 			// "컨트롤러야, 너 지금 나(상인)랑 거래하는 거야" 라고 쥐여줍니다.
@@ -634,14 +634,14 @@ void AMerchantNPC::ExecuteInteraction(AActor* Interactor)
 
 FText AMerchantNPC::GetInteractText() const
 {
-	return FText::FromString(TEXT("상점 열기"));
+	return InteractText;
 }
 
 // Called when the game starts or when spawned
 void AMerchantNPC::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void AMerchantNPC::OpenShop(APlayerController* PlayerController)
@@ -706,6 +706,8 @@ void AMerchantNPC::OpenShop(APlayerController* PlayerController)
 #include "Character/SPGASCharacterBase.h"
 #include "Tag/SPGameplayTags.h"
 #include "TimerManager.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Game/ASPCombatGameMode.h"
 
 
 ASPGASAIController::ASPGASAIController()
@@ -776,17 +778,9 @@ void ASPGASAIController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCou
 void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
 {
 	// 1. 로그 출력
-	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! (1초 뒤 종료) <<<"));
+	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 몬스터 턴 시작! <<<"));
 
-	if (CachedASC)
-	{
-		// 🌟 몬스터의 기본 공격 스킬 태그를 찾아서 실행하라고 지시합니다.
-		// (프로젝트 태그에 맞게 수정하세요. 예: Ability.Monster.BasicAttack)
-		FGameplayTag AttackTag = FSPGameplayTags::Get().Battle_Monster_BasicAttack;
-		FGameplayTagContainer TagContainer(AttackTag);
-
-		bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
-	}
+	TryExecuteAITurn();
 }
 
 // [추가] 실제로 턴을 넘기는 함수
@@ -797,6 +791,114 @@ void ASPGASAIController::FinishTurnDelayed()
 		// GameMode에게 턴 종료 알림
 		GASCharacter->FinishTurn();
 	}
+}
+
+void ASPGASAIController::TryExecuteAITurn()
+{
+	if (!CachedASC) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Status_VisualPlaying))
+	{
+		GetWorld()->GetTimerManager().SetTimer(TurnWaitTimerHandle, this, &ASPGASAIController::TryExecuteAITurn, 0.1f, false);
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 연출 종료 확인, 진짜 턴 행동 시작! <<<"));
+
+	ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetPawn());
+	if (!Monster || !Monster->MonsterDataAsset)
+	{
+		FGameplayTagContainer TagContainer(SPTags.Battle_Monster_BasicAttack);
+		CachedASC->TryActivateAbilitiesByTag(TagContainer);
+		return;
+	}
+
+	Monster->CurrentTurnCount++;
+
+	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	float HPPercent = (MaxHP > 0.0f) ? (CurrentHP / MaxHP) * 100.0f : 100.0f;
+
+	TSubclassOf<UGameplayAbility> BestAbility = nullptr;
+	int32 HighestPriority = -1;
+
+	for (const FMonsterAIPattern& Pattern : Monster->MonsterDataAsset->AIPatterns)
+	{
+		bool bConditionMet = false;
+
+		switch (Pattern.Condition)
+		{
+		case EMonsterAICondition::Always:
+			bConditionMet = true;
+			break;
+
+		case EMonsterAICondition::TurnCount:
+			if (Pattern.ConditionValue > 0 && Monster->CurrentTurnCount % FMath::RoundToInt(Pattern.ConditionValue) == 0)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::HP_Below:
+			if (HPPercent <= Pattern.ConditionValue)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::WasAttacked:
+			if (Monster->bWasAttackedLastTurn)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::AllyCount_Below:
+			if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+			{
+				if (GM->GetCurrentEnemies().Num() <= FMath::RoundToInt(Pattern.ConditionValue))
+				{
+					bConditionMet = true;
+				}
+			}
+			break;
+
+		case EMonsterAICondition::HasGameplayTag:
+			if (CachedASC->HasMatchingGameplayTag(Pattern.RequiredTag))
+			{
+				bConditionMet = true;
+			}
+			break;
+		}
+
+		// 조건이 맞았고, 지금까지 찾은 스킬보다 우선순위가 더 높다면 교체!
+		if (bConditionMet && Pattern.Priority > HighestPriority)
+		{
+			if (Pattern.AbilityToExecute)
+			{
+				HighestPriority = Pattern.Priority;
+				BestAbility = Pattern.AbilityToExecute;
+			}
+		}
+	}
+
+	// 5. 찾아낸 최고의 스킬(BestAbility) 발동!
+	if (BestAbility)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AI] 패턴 조건 달성! 스킬 실행: %s"), *BestAbility->GetName());
+		CachedASC->TryActivateAbilityByClass(BestAbility);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AI] 만족하는 패턴이 없어 기본 공격을 실행합니다."));
+		FGameplayTagContainer TagContainer(SPTags.Battle_Monster_BasicAttack);
+		CachedASC->TryActivateAbilitiesByTag(TagContainer);
+	}
+
+	// 6. 다음 턴을 위해 "저번 턴에 맞았음" 기억 리셋!
+	Monster->SetAttackedLastTurn(false);
 }
 // ==========================================
 // FILE: SPGASCharacterBase.cpp
@@ -866,33 +968,33 @@ void ASPGASCharacterBase::ReduceCooldowns()
 {
 	if (!ASC) return;
 
-	// 1. 쿨타임 태그 세팅
-	FGameplayTagContainer CooldownTagContainer;
-	CooldownTagContainer.AddTag(FSPGameplayTags::Get().State_Cooldown);
+	// 1. Cooldown 최상위 부모 태그 준비
+	FGameplayTag CooldownParentTag = FGameplayTag::RequestGameplayTag(FName("Cooldown"));
 
-	// 🌟 [수정됨] Static 함수의 반환값을 직접 받아서 Query를 생성합니다!
-	FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(CooldownTagContainer);
-
-	// 이제 쿨타임 태그를 가진 GE들만 정확하게 가져옵니다.
+	// 2. [핵심 수정] 조건 없이 내 몸에 있는 '모든' GE를 다 가져옵니다!
+	FGameplayEffectQuery Query;
 	TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
 
-	// 2. 반복문으로 검사 (이제 장비 스탯은 여기 들어오지도 못합니다!)
 	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
 	{
 		const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(Handle);
 		if (!ActiveGE) continue;
 
-		int32 CurrentStack = ASC->GetCurrentStackCount(Handle);
-
-		// 쿨타임 1턴(1스택) 깎기!
-		ASC->RemoveActiveGameplayEffect(Handle, 1);
-
-		// 로그 출력용 태그 추출
 		FGameplayTagContainer GrantedTags;
 		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+		ActiveGE->Spec.GetAllAssetTags(GrantedTags);
 
-		UE_LOG(LogTemp, Log, TEXT("[%s] 쿨타임 1턴 감소! (%d -> %d) | 태그: %s"),
-			*GetName(), CurrentStack, CurrentStack - 1, *GrantedTags.ToString());
+		// 3. HasTag를 쓰면 "Cooldown.xxx.xxx" 등 자식 태그를 100% 완벽하게 찾아냅니다!
+		if (GrantedTags.HasTag(CooldownParentTag))
+		{
+			int32 CurrentStack = ASC->GetCurrentStackCount(Handle);
+
+			// 쿨타임 1턴(1스택) 깎기
+			ASC->RemoveActiveGameplayEffect(Handle, 1);
+
+			UE_LOG(LogTemp, Log, TEXT("[%s] 쿨타임 1턴 감소! (%d -> %d) | 태그: %s"),
+				*GetName(), CurrentStack, CurrentStack - 1, *GrantedTags.ToString());
+		}
 	}
 }
 
@@ -1076,6 +1178,21 @@ void ASPGASMonsterCharacter::ApplyMonsterData()
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), MonsterDataAsset->BaseStats.Defense.GetValueAtLevel(CurrentLevel));
 	ASC->SetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute(), MonsterDataAsset->BaseStats.Speed.GetValueAtLevel(CurrentLevel));
 
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	switch (MonsterDataAsset->MonsterRank)
+	{
+	case EMonsterRank::Normal:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Normal);
+		break;
+	case EMonsterRank::Epic:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Epic);
+		break;
+	case EMonsterRank::Boss:
+		ASC->AddLooseGameplayTag(SPTags.Enemy_Rank_Boss);
+		break;
+	}
+
 	FGameplayTagContainer FinalWeaknessTags = GetCurrentWeaknessTags();
 
 	if (FinalWeaknessTags.Num() > 0)
@@ -1238,6 +1355,22 @@ FGameplayTagContainer ASPGASMonsterCharacter::GetCurrentWeaknessTags() const
 	}
 
 	return FGameplayTagContainer();
+}
+
+void ASPGASMonsterCharacter::RemoveVisualPlayingTag()
+{
+	if (ASC)
+	{
+		// 🌟 이미 죽은 상태라면 족쇄를 풀지 않고 무시합니다!
+		if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 이미 사망한 상태이므로 AI 족쇄를 강제로 풀지 않습니다."), *GetName());
+			return;
+		}
+
+		ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
+		UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 종료! AI 족쇄 완벽 해제 완료!"), *GetName());
+	}
 }
 
 
@@ -1409,3 +1542,54 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 	case ESelectedActionType::NormalAttack:
 		AbilityClassToActivate = Data->NormalAttackAbility;
 		break;
+	case ESelectedActionType::WeaponSkill:
+		AbilityClassToActivate = Data->WeaponSkillAbility;
+		break;
+	case ESelectedActionType::ParrySkill:
+		AbilityClassToActivate = Data->ParrySkillAbility;
+		break;
+	}
+
+	// 어빌리티 실행
+	if (AbilityClassToActivate && ASC)
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = this;       // 공격자 
+		Payload.Target = TargetActor;    // 타겟
+
+		FGameplayTag TriggerTag = FSPGameplayTags::Get().Event_Battle_ExecuteAction;
+		for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+		{
+			// 클래스가 일치하는 바로 그 어빌리티를 찾았다면
+			if (Spec.Ability && Spec.Ability->GetClass() == AbilityClassToActivate)
+			{
+				// 이 특정 스펙(Spec)에만 이벤트(Payload)를 전달하여 단독 실행시킵니다.
+				ASC->TriggerAbilityFromGameplayEvent(
+					Spec.Handle,
+					ASC->AbilityActorInfo.Get(),
+					TriggerTag,
+					&Payload,
+					*ASC
+				);
+				break; // 목표를 찾아 실행했으니 반복문 종료
+			}
+		}
+	}
+}
+
+
+void ASPGASPlayerCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	// [클라이언트] 초기화 진입
+	ASPGASPlayerState* SPGAS = GetPlayerState<ASPGASPlayerState>();
+	if (SPGAS)
+	{
+		ASC = SPGAS->GetAbilitySystemComponent();
+		AttributeSet = SPGAS->GetAttributeSet();
+		ASC->InitAbilityActorInfo(SPGAS, this);
+
+		float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
+		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), false);
+

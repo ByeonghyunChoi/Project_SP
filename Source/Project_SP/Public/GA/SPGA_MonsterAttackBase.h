@@ -28,13 +28,17 @@ protected:
 	UFUNCTION()
 	void OnParriedEventCallback(FGameplayEventData Payload);
 
-	// ?? 몬스터가 데미지를 줄 때 사용할 Gameplay Effect (블루프린트에서 할당)
+	// 몬스터가 데미지를 줄 때 사용할 Gameplay Effect (블루프린트에서 할당)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage")
 	TSubclassOf<class UGameplayEffect> DamageEffectClass;
 
-	// ?? 충돌한 타겟(플레이어)에게 데미지 이펙트를 적용하는 함수
+	// 데미지 배율
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage")
+	float DamageMultiplier = 1.0f;
+
+	// 충돌한 타겟(플레이어)에게 데미지 이펙트를 적용하는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
-	void ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier);
+	void ApplyDamageToTarget(AActor* TargetActor, float Damage);
 
 	UFUNCTION()
 	void OnDamageEventReceived(FGameplayEventData Payload);

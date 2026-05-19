@@ -1,131 +1,4 @@
-﻿    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Ability")
-    TSubclassOf<UGameplayEffect> RelicEffectClass;
-};
-// ==========================================
-// FILE: SPMonsterData.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "Tag/SPGameplayTags.h"
-#include "ScalableFloat.h"
-#include "SPMonsterData.generated.h"
-
-UENUM(BlueprintType)
-enum class EMonsterRank : uint8
-{
-	Normal  UMETA(DisplayName = "일반"),
-	Epic    UMETA(DisplayName = "에픽"),
-	Boss    UMETA(DisplayName = "보스")
-};
-
-USTRUCT(BlueprintType)
-struct FMonsterBaseStats
-{
-	GENERATED_BODY()
-
-	// 레벨
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Level = 1.f;
-	// 체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FScalableFloat MaxHealth;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FScalableFloat Attack;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FScalableFloat Defense;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FScalableFloat Speed;
-};
-
-USTRUCT(BlueprintType)
-struct FMonsterSkillUIInfo
-{
-	GENERATED_BODY()
-
-	// 스킬 이름
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
-	FText SkillName;
-
-	// 스킬 종류 (텍스트로 바로 입력. 예: "일반 공격", "스킬", "필살기")
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
-	FText SkillType;
-
-	// 스킬 내용 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI", meta = (MultiLine = true))
-	FText SkillDescription;
-};
-
-UCLASS()
-class PROJECT_SP_API USPMonsterData : public UPrimaryDataAsset
-{
-	GENERATED_BODY()
-
-public:
-	//몬스터 이름
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
-	FText MonsterName;
-	
-	//몬스터 등급
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
-	EMonsterRank MonsterRank = EMonsterRank::Normal;
-
-	//몬스터 이미지
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
-	TSoftObjectPtr<UTexture2D> MonsterIcon;
-
-	//해당 몬스터 클래스
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
-	TSubclassOf<class ASPGASMonsterCharacter> MonsterClass;
-
-	// 몬스터 스텟
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
-	FMonsterBaseStats BaseStats;
-
-	// 몬스터 약점
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
-	FGameplayTagContainer WeaknessTags;
-
-	// 몬스터가 보유한 스킬 리스트
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
-	TArray<FMonsterSkillUIInfo> SkillList;
-
-	/// <몬스터가 플레이어에게 줄 기본 보상>
-
-	// 경험지 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 ExpReward = 50;
-	// 돈 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 MoneyReward = 100;
-
-	/// <기획에 따라 추후 추가>
-
-	// 고유 ID 설정
-	virtual FPrimaryAssetId GetPrimaryAssetId() const override
-	{
-		return FPrimaryAssetId("MonsterData", GetFName());
-	}
-};
-// ==========================================
-// FILE: StatusEffectData.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "GameplayEffect.h"
-#include "Tag/SPGameplayTags.h"
-#include "StatusEffectData.generated.h"
-
+﻿
 /**
  * 
  */
@@ -161,6 +34,10 @@ struct FStatusEffectConfig
 	// �� �����̻��� ��� �ߵ����� ����
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	bool bIsInstantEffect = false;
+
+	// �� �����̻��� ���� �� ����
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Status Data | Sound")
+	TObjectPtr<class USoundBase> StatusDamageSound;
 };
 
 UCLASS()
@@ -313,13 +190,49 @@ struct FCombatRewardInfo
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EResourceType ResourceType; // 아까 만든 Enum (Energy, Sand, Fragment, Gold)
+	EResourceType ResourceType; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MinAmount = 10;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxAmount = 20;
+
+	FCombatRewardInfo()
+	{
+		ResourceType = EResourceType::Gold;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FRewardResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Gold = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Sand = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 IncompleteEnergy = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Fragment = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Exp = 0;
+
+	// 유물을 몇 번 뽑을 수 있는지 (강적 맵에서 최대 2가 될 수 있음)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 RelicRewardCount = 0;
+
+	// 보스 보상인가? (60% 에픽, 40% 유니크 판별용)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite) bool bIsBossReward = false;
+
+	// 구조체 더하기 연산자 오버로딩 (보상 누적을 편하게 하기 위함)
+	FRewardResult& operator+=(const FRewardResult& Other)
+	{
+		Gold += Other.Gold;
+		Sand += Other.Sand;
+		IncompleteEnergy += Other.IncompleteEnergy;
+		Fragment += Other.Fragment;
+		Exp += Other.Exp;
+		RelicRewardCount += Other.RelicRewardCount;
+		// bIsBossReward는 직접 제어하므로 합치지 않음
+		return *this;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -376,6 +289,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 Price = 100; // 가격 (골드)
+
+	FCurrencyShopRow()
+	{
+		Type = ECurrencyType::Energy;
+	}
 };
 
  // 유물 풀 전용 구조체 (기존 상점 구조체를 건드리지 않음!)
@@ -485,6 +403,7 @@ public:
 #include "Data/Asset/OpartsDefinition.h"
 #include "Map/MapInfo.h"
 #include "Engine/DataTable.h"
+#include "Data/CombatEncounterData.h"
 #include "SPDataStructs.generated.h"
 
 /**
@@ -499,6 +418,18 @@ struct FPlayerLevelRewardRow : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
+struct FSavedEncounterData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName CombatLevelName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FEnemySpawnInfo> EnemyGroup;
+};
+
+USTRUCT(BlueprintType)
 struct FPlayerStatsData
 {
 	GENERATED_BODY()
@@ -506,12 +437,12 @@ struct FPlayerStatsData
 public:
     UPROPERTY() float CurrentHealth = 163.0f;
     UPROPERTY() float CurrentBattlePoint = 2.0f;
-    UPROPERTY() float CurrentTimePower = 200.0f;    
+    UPROPERTY() float CurrentTimePower = 100.0f;    
     UPROPERTY() float CurrentActionGauge = 0.0f;
 
     UPROPERTY() float MaxHealth = 163.0f;
     UPROPERTY() float MaxBattlePoint = 5.0f;
-    UPROPERTY() float MaxTimePower = 200.0f;       
+    UPROPERTY() float MaxTimePower = 100.0f;       
 
     UPROPERTY() float Attack = 84.0f;
     UPROPERTY() float Defense = 52.0f;
@@ -526,7 +457,7 @@ public:
     UPROPERTY() float OutgoingDamageMultiplier = 0.0f;
     UPROPERTY() float IncomingDamageMultiplier = 0.0f;
 
-    UPROPERTY() float Level = 7.0f;
+    UPROPERTY() float Level = 1.0f;
     UPROPERTY() float Experience = 0.0f;
     UPROPERTY() float MaxExperience = 3000.0f;
 
@@ -628,6 +559,29 @@ struct FPlayerMapProgressData
     //포탈 목적지 목록
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<EMapType> SavedPortalOptions;
+
+    //몬스터 명부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
+};
+
+USTRUCT(BlueprintType)
+struct FSoundSettingsData
+{
+    GENERATED_BODY()
+
+    // UI 슬라이더 값 기준 (0.0 ~ 10.0) 기본값은 10으로 세팅
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float MasterVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float BGMVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float SFXVolume = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+    float UIVolume = 10.0f;
 };
 
 USTRUCT(BlueprintType)
@@ -640,6 +594,9 @@ struct FPlayerMetaProgressionData //영구 데이터
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
+    FSoundSettingsData SoundSettings;
 
     void Reset()
     {
@@ -678,6 +635,53 @@ struct FPlayerRunData // 런 데이터
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();
     }
+};
+// ==========================================
+// FILE: SPDialogData.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataTable.h"
+#include "GameplayTagContainer.h"
+#include "SPDialogData.generated.h"
+
+USTRUCT(BlueprintType)
+struct FDialogLineData : public FTableRowBase
+{
+    GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+	FName SpeakerID; //
+
+    // 화자 이름
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    FText SpeakerName;
+
+    // 대사 내용
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog", meta = (MultiLine = true))
+    FText DialogText;
+};
+
+USTRUCT(BlueprintType)
+struct FDialogAssetData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+public:
+
+    // 말하는 화자 일러스트
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    TSoftObjectPtr<UTexture2D> StandinIllustration;
+
+    // 타자기 효과와 함께 출력될 사운드
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    TSoftObjectPtr<class USoundBase> TypingSound;
+
+    // 나중에 특정 대사에서 이벤트를 발생시키고 싶을 때를 대비한 태그 - 안들어 갈 수도 있음
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    FGameplayTag OptionalEventTag;
 };
 // ==========================================
 // FILE: SPAT_LerpCamera.h
@@ -1222,6 +1226,7 @@ public:
 	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	bool ConsumeTimeInterferenceStack();
@@ -1255,6 +1260,12 @@ protected:
 	// �ش� ��ų�� ��Ʈ�� ����Ʈ �±�
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | VFX")
 	FGameplayTag HitVFXTag;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
+	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat | Audio")
+	TObjectPtr<class USoundBase> HitSound;
 
 public:
 	FGameplayTag GetCooldownTag() const;
@@ -1293,8 +1304,7 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	void ExecuteGoldBugInterference();
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combat | Camera")
-	TSubclassOf<class UCameraShakeBase> HitCameraShakeClass;
+	
 };
 // ==========================================
 // FILE: SPGA_FieldAttack.h
@@ -1409,3 +1419,177 @@ protected:
 // ==========================================
 // FILE: SPGA_Parry.h
 // ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbility.h"
+#include "SPGA_Parry.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGA_Parry : public UGameplayAbility
+{
+	GENERATED_BODY()
+	
+public:
+	// ����� ������ ��ġ�ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckWeaponMatch(class ASPGASMonsterCharacter* TargetMonster);
+
+	// �ݰ� ������ ��� �����ϴ��� �˻�
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	bool CheckCounterConditions();
+
+	// �и� ���� �� ���Ϳ��� "�� �и����߾�!" ��� �̺�Ʈ ���
+	UFUNCTION(BlueprintCallable, Category = "Parry")
+	void SendParriedEventToMonster(AActor* TargetMonster);
+
+protected:
+	// ������ ���� �ݰ� ��ų(GA)�� �±� (��Ÿ�� �˻��)
+	UPROPERTY(EditDefaultsOnly, Category = "Parry")
+	FGameplayTag CounterSkillTag;
+
+	// �и� ���� �� ����� ����
+	UPROPERTY(EditDefaultsOnly, Category = "Parry | Sound")
+	TArray<TObjectPtr<class USoundBase>> ParrySuccessSounds;
+};
+// ==========================================
+// FILE: ASPCombatGameMode.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/GameModeBase.h"
+#include "Data/Asset/SPMonsterData.h"
+#include "ASPCombatGameMode.generated.h"
+
+class ASPBattleCameraActor;
+class ASPBattleDirector;
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API AASPCombatGameMode : public AGameModeBase
+{
+	GENERATED_BODY()
+	
+public:
+	AASPCombatGameMode();
+	virtual void BeginPlay() override;
+
+	void StartTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle")
+	void EndTurn(AActor* TurnActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
+	void ReportCharacterReady(AActor* Character);
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void EndBattle(bool bPlayerWon);
+
+	TArray<TObjectPtr<AActor>> GetCurrentEnemies();
+
+	UFUNCTION(BlueprintCallable, Category = "Battle | UI")
+	void RefreshTurnTimelineUI();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | Flow")
+	void PlayVictorySequence();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void OnCharacterDied(AActor* DeadActor);
+
+	UFUNCTION(BlueprintCallable, Category = "Battle | Round")
+	void AdvanceBattleTime(float TimePassed);
+
+	//getter
+	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE float GetRemainingRoundLimit() const { return FMath::Max(0.0f, TimePerRound - PassedTimeInCurrentRound); }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE int32 GetRemainingRounds() const { return FMath::Max(0, MaxRoundsPerCycle - CurrentRound); }
+
+	UFUNCTION(BlueprintPure, Category = "Battle | Round")
+	FORCEINLINE float GetAVToCycleEnd() const
+	{
+		// ���� ������ ���� �ð� + (������ ���� ������ ���� �� * ����� �ð�)
+		float FutureRoundsAV = FMath::Max(0, GetRemainingRounds()) * TimePerRound;
+		return GetRemainingRoundLimit() + FutureRoundsAV;
+	}
+
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = "Battle")
+	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Battle")
+	TObjectPtr<class ASPCombatTurnManager> TurnManager;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Battle")
+	TObjectPtr<AActor> CurrentTurnActor;
+
+	UPROPERTY()
+	TArray<AActor*> AllParticipants;
+
+	UPROPERTY()
+	TSet<AActor*> ReadyParticipants;
+
+	bool bIsBattleInitialized = false;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle|TimePower")
+	TSubclassOf<class UGameplayEffect> TurnEndTimeCostGE;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | ReadyCheck")
+	int32 TotalExpectedParticipants = 0;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnInterrupt = false;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsCurrentTurnParry = false;
+
+	// Ŭ���� �Ҵ�� (�����Ϳ��� ����)
+	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
+	TSubclassOf<class ASPBattleCameraActor> CameraManagerClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
+	TSubclassOf<class ASPBattleDirector> BattleDirectorClass;
+
+	// ������ �ν��Ͻ� �����
+	UPROPERTY(BlueprintReadOnly, Category = "Battle | Visual")
+	TObjectPtr<class ASPBattleCameraActor> ActiveCameraManager;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Battle | Visual")
+	TObjectPtr<class ASPBattleDirector> ActiveBattleDirector;
+
+	// ���� ������ ����
+	// ���� ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Round")
+	int32 CurrentRound = 1;
+
+	// ���� ���忡�� ������ �ൿ ��ġ (0 ~ 100)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Round")
+	float PassedTimeInCurrentRound = 0.0f;
+
+	// �� ���带 �� ä��� �ൿ ��ġ(�ð�) (�⺻ 100)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	float TimePerRound = 150.0f;
+
+	// ���� ����Ŭ�� ���Ǵ� �ִ� ���� �� (�⺻ 3)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	int32 MaxRoundsPerCycle = 3;
+
+	// ���� ���� �� �����ؾ� �� �ð��� ��(TP)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
+	float PenaltyTPCost = 30.0f;
+
+	// óġ�� ���� ���� ������ ��Ƶδ� ���
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")

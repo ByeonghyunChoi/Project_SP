@@ -167,6 +167,23 @@ void ASPCombatTurnManager::RemoveParticipant(AActor* DeadActor)
 	}
 }
 
+void ASPCombatTurnManager::AddParticipant(AActor* NewActor)
+{
+	if (!NewActor) return;
+
+	// 🌟 현재 라운드가 진행 중(루프 내부)이라면 메인 배열을 건드리지 않고 대기열로 보낸다!
+	if (bIsRoundIterating)
+	{
+		PendingParticipants.Add(NewActor);
+		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] 전투 진행 중 소환 발생! 임시 대기열에 예약됨: %s"), *NewActor->GetName());
+	}
+	else
+	{
+		// 전투 시작 전이거나 라운드 정비 타임일 때는 즉시 추가
+		Participants.Add(NewActor);
+	}
+}
+
 float ASPCombatTurnManager::GetSpeed(const AActor* Target) const
 {
 	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
@@ -329,5 +346,39 @@ void ASPCombatTurnManager::ClearActorFromQueue(AActor* Target)
 	if (TurnQueue.Contains(Target))
 	{
 		TurnQueue.Remove(Target);
+	}
+}
+
+void ASPCombatTurnManager::SetRoundIterating(bool bIsIterating)
+{
+	bIsRoundIterating = bIsIterating;
+
+	// 만약 누군가의 행동이 끝나서 라운드가 멈췄다면(false), 이때 대기열을 병합합니다!
+	if (!bIsRoundIterating)
+	{
+		MergePendingParticipants();
+	}
+}
+
+void ASPCombatTurnManager::MergePendingParticipants()
+{
+	if (PendingParticipants.Num() > 0)
+	{
+		for (AActor* PendingMinion : PendingParticipants)
+		{
+			if (IsValid(PendingMinion))
+			{
+				Participants.Add(PendingMinion);
+
+				// 🌟 중요: 갓 태어난 소환수는 이번 턴 사이클에 새치기하지 못하게 게이지를 0으로 맞춥니다!
+				SetActionGauge(PendingMinion, 0.0f);
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %d 마리의 소환수가 정식 명단에 합류했습니다!"), PendingParticipants.Num());
+		PendingParticipants.Empty();
+
+		// 턴 UI 업데이트 방송
+		OnTurnOrderChanged.Broadcast();
 	}
 }

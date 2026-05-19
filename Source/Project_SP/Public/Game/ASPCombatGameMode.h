@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Data/Asset/SPMonsterData.h"
 #include "ASPCombatGameMode.generated.h"
 
 class ASPBattleCameraActor;
@@ -45,6 +46,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Battle | Round")
 	void AdvanceBattleTime(float TimePassed);
+
+	// 전투 도중 몬스터 소환하는 함수
+	UFUNCTION(BlueprintCallable, Category = "Battle | Summon")
+	class ASPGASMonsterCharacter* SummonMonsterMidBattle(class USPMonsterData* MinionData);
+
+	// 전투 메시지 함수
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Battle | UI")
+	void ShowBattleWarningMessage(const FString& WarningText, float Duration = 1.5f);
 
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
@@ -90,11 +99,11 @@ protected:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnInterrupt = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reward")
-	UDataTable* CombatRewardDataTable;
-	
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnParry = false;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsBattleRunning = false;
 
 	// 클래스 할당용 (에디터에서 지정)
 	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
@@ -131,9 +140,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
 	float PenaltyTPCost = 30.0f;
 
-	// 몬스터 보상 정보를 모아두는 장부
+	// 처치한 몬스터 보상 정보를 모아두는 장부
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
-	TArray<class USPMonsterData*> DefeatedMonsterData;
+	TArray<EMonsterRank> DefeatedMonsterRanks;
 
 
 protected:

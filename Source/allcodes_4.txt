@@ -1,358 +1,4 @@
-﻿
-	AActor* NewTarget = nullptr;
-	if (bHit)
-	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor && HitActor->Implements<UInteractableInterface>())
-		{
-			IInteractableInterface* Interface = Cast<IInteractableInterface>(HitActor);
-			if (Interface)
-			{
-				if (Interface->CanInteract(Cast<APawn>(GetOwner())))
-				{
-					NewTarget = HitActor;
-				}
-				
-			}
-		}
-	}
-
-	// ���� ���� �� ó��
-	if (CurrentInteractable.Get() != NewTarget)
-	{
-		CurrentInteractable = NewTarget;
-
-		if (InteractionWidgetInstance)
-		{
-			if (NewTarget && NewTarget->Implements<UInteractableInterface>())
-			{
-				IInteractableInterface* Interface = Cast<IInteractableInterface>(NewTarget);
-				if (Interface)
-				{
-					FText ActionText = Interface->GetInteractText();
-					InteractionWidgetInstance->UpdateInteractionText(ActionText);
-				}
-
-				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Visible);
-			}
-			else
-			{
-				InteractionWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-			}
-		}
-	}
-}
-
-// ==========================================
-// FILE: SPStatusEffectComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPStatusEffectComponent.h"
-#include "Data/Asset/StatusEffectData.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-#include "Character/SPGASMonsterCharacter.h"
-
-// Sets default values for this component's properties
-USPStatusEffectComponent::USPStatusEffectComponent()
-{
-}
-
-void USPStatusEffectComponent::ApplyWeaponStatusEffectToTarget(FGameplayTag WeaponTag, AActor* TargetActor)
-{
-	if (!TargetActor || !StatusEffectDataAsset) return;
-
-	// 타겟의 ASC 가져오기 (인터페이스 활용)
-	UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-	if (!TargetASC) return;
-
-	// 확률 체크(추후 효과 명중과 연동)
-	/*if (FMath::RandRange(0.0f, 1.0f) > 0.6f)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 부여 실패"));
-		return;
-	}*/
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-	FGameplayTag StatusToApply;
-
-	// 무기 태그 -> 상태이상 태그 변환
-	if (WeaponTag.MatchesTag(SPTags.Weapon_Fenrir))
-		StatusToApply = SPTags.Debuff_Basic_Weathering;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Surtr))
-		StatusToApply = SPTags.Debuff_Basic_Burn;
-	else if (WeaponTag.MatchesTag(SPTags.Weapon_Jormungandr))
-		StatusToApply = SPTags.Debuff_Basic_Poison;
-
-	if (StatusToApply.IsValid())
-	{
-		// 이 컴포넌트의 주인이 시전자(Instigator)가 됨
-		ProcessStatusEffect(StatusToApply, TargetASC, GetOwner());
-	}
-}
-
-void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTag, UAbilitySystemComponent* TargetASC, AActor* InstigatorActor)
-{
-	if (!TargetASC || !StatusEffectDataAsset) return;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	auto BroadcastFusionEvent = [&]() // 상태이상 융합 이벤트를 쏘기위한 로직
-	{
-		if (InstigatorActor)
-		{
-			FGameplayEventData Payload;
-			Payload.Instigator = InstigatorActor;
-			Payload.Target = TargetASC->GetAvatarActor();
-			UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(InstigatorActor, SPTags.Event_Combat_StatusFusion, Payload);
-		}
-	};
-
-	// 풍화(Weathering)
-	if (IncomingStatusTag == SPTags.Debuff_Basic_Weathering)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
-			return;
-		}
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	// 화상(Burn)
-	else if (IncomingStatusTag == SPTags.Debuff_Basic_Burn)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_HeatWind, TargetASC, InstigatorActor);
-			return;
-		}
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Poison);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	// 중독(Poison)
-	else if (IncomingStatusTag == SPTags.Debuff_Basic_Poison)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Weathering);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_Faint, TargetASC, InstigatorActor);
-			return;
-		}
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Basic_Burn);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Mix_Plague, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	// 열풍(HeatWind) / 역병(Plague) -> 최종 진화 (치명상)
-	else if (IncomingStatusTag == SPTags.Debuff_Mix_HeatWind)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_Plague))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_Plague);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-	else if (IncomingStatusTag == SPTags.Debuff_Mix_Plague)
-	{
-		if (TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Mix_HeatWind))
-		{
-			RemoveStatusEffectByTag(TargetASC, SPTags.Debuff_Mix_HeatWind);
-			BroadcastFusionEvent(); // 융합 이벤트 전송
-			ProcessStatusEffect(SPTags.Debuff_Fatal_FatalWound, TargetASC, InstigatorActor);
-			return;
-		}
-	}
-
-
-	// === 최종 적용 ===
-	const FStatusEffectConfig* Config = StatusEffectDataAsset->GetConfig(IncomingStatusTag);
-	if (Config && !Config->bIsInstantEffect && Config->EffectClass)
-	{
-		// 시전자(Instigator)의 ASC를 가져와서 Effect Context를 만듭니다.
-		UAbilitySystemComponent* InstigatorASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InstigatorActor);
-		if (!InstigatorASC) return;
-
-		if (TargetASC->HasMatchingGameplayTag(IncomingStatusTag))
-		{
-			// 기존 상태이상을 싹 지워버립니다! (턴 수 누적 방지)
-			RemoveStatusEffectByTag(TargetASC, IncomingStatusTag);
-			AActor* AvatarActor = TargetASC->GetAvatarActor();
-			if (AvatarActor)
-			{
-				UE_LOG(LogTemp, Log, TEXT("[%s] 기존 상태이상(%s) 지속 턴 수 갱신!"), *AvatarActor->GetName(), *IncomingStatusTag.ToString());
-			}
-		}
-
-		FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
-		Context.AddSourceObject(InstigatorActor);
-
-		FGameplayEffectSpecHandle SpecHandle = InstigatorASC->MakeOutgoingSpec(Config->EffectClass, 1.0f, Context);
-		if (SpecHandle.IsValid())
-		{
-			SpecHandle.Data->SetStackCount(Config->DurationTurns);
-			SpecHandle.Data->DynamicGrantedTags.AddTag(IncomingStatusTag);
-
-			// 시전자 -> 타겟에게 적용
-			InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-
-			UE_LOG(LogTemp, Warning, TEXT("[StatusComponent] 상태이상 적용됨: %s (%d 턴)"), *IncomingStatusTag.ToString(), Config->DurationTurns);
-		}
-
-		if (Config->StatModifierClass)
-		{
-			FGameplayEffectSpecHandle StatSpec = InstigatorASC->MakeOutgoingSpec(Config->StatModifierClass, 1.0f, Context);
-			if (StatSpec.IsValid())
-			{
-				// SetStackCount를 부르지 않으므로 무조건 1스택(1회)만 적용됩니다!
-				InstigatorASC->ApplyGameplayEffectSpecToTarget(*StatSpec.Data.Get(), TargetASC);
-			}
-		}
-	}
-	else if (Config && Config->bIsInstantEffect)
-	{
-		UAbilitySystemComponent* InstigatorASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InstigatorActor);
-		if (!InstigatorASC) return;
-
-		float FinalDamage = 0.0f;
-		TSubclassOf<UGameplayEffect> DamageClassToApply = nullptr; // 어떤 총알을 쏠지 결정
-		bool bIsExecute = false; // 처형(즉사) 여부
-
-		float TargetMaxHP = TargetASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
-
-		// 2. 상태이상 별 처리
-		// [혼절] 일반 상태이상 공식을 타야 하므로 StatusDamage 사용!
-		if (IncomingStatusTag == SPTags.Debuff_Mix_Faint)
-		{
-			FinalDamage = Config->InstantDamageCoefficient; // 계수만 넘김 (예: 1.2)
-			DamageClassToApply = StatusDamageEffectClass;   // 🌟 혼절은 StatusDamage 총알 장전!
-
-			TargetASC->AddLooseGameplayTag(SPTags.State_Status_SkipTurn);
-			UE_LOG(LogTemp, Warning, TEXT("[혼절] %s 가 행동 불능에 빠집니다!"), *TargetASC->GetAvatarActor()->GetName());
-		}
-		// [치명상] 일반 몹: 즉사 / 보스 몹: 2턴 DoT
-		else if (IncomingStatusTag == SPTags.Debuff_Fatal_FatalWound)
-		{
-			bool bIsBossOrEpic = TargetASC->HasMatchingGameplayTag(SPTags.Enemy_Rank_Boss) ||
-				TargetASC->HasMatchingGameplayTag(SPTags.Enemy_Rank_Epic);
-
-			if (bIsBossOrEpic)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[치명상] 보스, 에픽 몬스터는 치명적인 지속 피해로 적용됩니다!"));
-				FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
-				Context.AddSourceObject(InstigatorActor);
-
-				// 보스는 데미지 총알을 쏘지 않고 바구니(GE)만 달아줍니다. (DoT는 턴 시작 시 발동)
-				FGameplayEffectSpecHandle DotSpec = InstigatorASC->MakeOutgoingSpec(Config->EffectClass, 1.0f, Context);
-				if (DotSpec.IsValid())
-				{
-					DotSpec.Data->SetStackCount(2);
-					DotSpec.Data->DynamicGrantedTags.AddTag(IncomingStatusTag);
-					InstigatorASC->ApplyGameplayEffectSpecToTarget(*DotSpec.Data.Get(), TargetASC);
-				}
-
-			}
-			else
-			{
-				// 일반 몬스터: 최대 체력만큼 절대 데미지
-				FinalDamage = TargetMaxHP * Config->InstantDamageCoefficient;
-				DamageClassToApply = FixedDamageEffectClass; // 🌟 치명상은 FixedDamage 총알 장전!
-				bIsExecute = true; // 처형 프리패스 예약
-				UE_LOG(LogTemp, Warning, TEXT("[치명상] 일반 몬스터 즉사 판정!"));
-			}
-		}
-
-		// 3. 결정된 총알(GE) 발사!
-		if (DamageClassToApply)
-		{
-			FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
-			Context.AddSourceObject(InstigatorActor);
-
-			FGameplayEffectSpecHandle SpecHandle = InstigatorASC->MakeOutgoingSpec(DamageClassToApply, 1.0f, Context);
-
-			if (SpecHandle.IsValid())
-			{
-				UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
-					SpecHandle,
-					SPTags.Data_Damage,
-					FinalDamage
-				);
-
-				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
-				if (bIsExecute)
-				{
-					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
-				}
-
-				TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
-
-				// 2. 블루프린트(PlayerController)로 방송 송출 (즉발 데미지이므로 bIsInstant = true)
-				OnStatusVisualTriggered.Broadcast(TargetASC->GetAvatarActor(), IncomingStatusTag, true);
-
-				InstigatorASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-			}
-		}
-	}
-
-	if (TargetASC)
-	{
-		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetASC->GetAvatarActor()))
-		{
-			Monster->BroadcastStatusUI();
-		}
-	}
-}
-
-void USPStatusEffectComponent::ProcessTurnStartDoT()
-{
-	AActor* Owner = GetOwner();
-	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Owner);
-
-	if (!OwnerASC || !StatusEffectDataAsset || !StatusDamageEffectClass) return;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 1. 내 몸(Owner)에 붙어있는 모든 활성화된 이펙트를 가져옵니다.
-	FGameplayEffectQuery Query;
-	TArray<FActiveGameplayEffectHandle> ActiveEffects = OwnerASC->GetActiveEffects(Query);
-
-	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-	{
-		const FActiveGameplayEffect* ActiveGE = OwnerASC->GetActiveGameplayEffect(Handle);
-		if (!ActiveGE) continue;
-
-		// 2. 이 이펙트가 무슨 태그를 부여하고 있는지 확인합니다.
-		FGameplayTagContainer GrantedTags;
-		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
-
-		// 3. 우리 데이터 에셋을 순회하며 비교합니다.
-		for (const auto& Pair : StatusEffectDataAsset->StatusConfigs)
-		{
-			FGameplayTag StatusTag = Pair.Key;
-			const FStatusEffectConfig& Config = Pair.Value;
+﻿			const FStatusEffectConfig& Config = Pair.Value;
 
 			// DoT 계수가 존재하고 & 내 몸에 그 상태이상 태그가 붙어있다면!
 			if (Config.DotDamageCoefficient > 0.0f && GrantedTags.HasTag(StatusTag))
@@ -392,15 +38,20 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 							TargetCoefficient
 						);
 
-						OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+						DamageSpec.Data->AddDynamicAssetTag(StatusTag);
 
-						// 2. 블루프린트(PlayerController)로 방송 송출 (DoT 데미지이므로 bIsInstant = false)
+						PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
+
+						// 2. 몬스터(Owner)에게 '지금 연출 중임!' 이라는 이름표(태그) 부착 (AI 행동 정지용)
+						if (!OwnerASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+						{
+							OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+						}
+
+						// 3. 블루프린트에게 "도트 연출 시작!" 방송 송출 (bIsInstant = false)
 						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
 
-						// 시전자가 나에게 데미지 GE를 쏩니다.
-						InstigatorASC->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data.Get(), OwnerASC);
-
-						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 발동! (전달된 계수: %f)"),
+						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 장전 완료! (계수: %f) - 연출 대기 중"),
 							*Owner->GetName(), *StatusTag.ToString(), TargetCoefficient);
 					}
 				}
@@ -452,8 +103,60 @@ void USPStatusEffectComponent::ReduceStatusEffectTurns()
 	}
 }
 
-void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor)
+void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag)
 {
+	if (!TargetActor) return;
+
+	if (TArray<FGameplayEffectSpecHandle>* PendingSpecs = PendingDamageMap.Find(TargetActor))
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		if (TargetASC)
+		{
+			for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
+			{
+				FGameplayEffectSpecHandle& Spec = (*PendingSpecs)[i];
+				if (Spec.IsValid())
+				{
+					if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
+					{
+						// 1. 데미지 폭발!
+						TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
+						PendingSpecs->RemoveAt(i);
+
+						// 🌟 [추가된 핵심 로직] 데미지가 들어갔으니 사운드 재생!
+						if (StatusEffectDataAsset)
+						{
+							// 데이터 에셋에서 이 상태이상(StatusTag)의 설정값을 가져옵니다.
+							const FStatusEffectConfig* Config = StatusEffectDataAsset->GetConfig(StatusTag);
+
+							// 설정값에 사운드가 지정되어 있다면 타겟 위치에서 재생!
+							if (Config && Config->StatusDamageSound)
+							{
+								UGameplayStatics::PlaySoundAtLocation(
+									this,
+									Config->StatusDamageSound,
+									TargetActor->GetActorLocation()
+								);
+							}
+						}
+
+						// 2. 피격 애니메이션 및 사망 처리
+						if (ASPGASCharacterBase* GASChar = Cast<ASPGASCharacterBase>(TargetActor))
+						{
+							if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+							{
+								GASChar->PlayHitReact(GASChar->GetActorLocation());
+							}
+							else
+							{
+								UE_LOG(LogTemp, Warning, TEXT("[%s] 상태이상 데미지로 사망! 피격 모션을 생략합니다."), *TargetActor->GetName());
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
@@ -496,6 +199,14 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 
 
 #include "Data/Asset/SPMonsterData.h"
+
+// ==========================================
+// FILE: SPStageMonsterPoolData.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Data/Asset/SPStageMonsterPoolData.h"
 
 // ==========================================
 // FILE: StatusEffectData.cpp
@@ -553,6 +264,12 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 #include "Data/SPDataStructs.h"
 
 
+// ==========================================
+// FILE: SPDialogData.cpp
+// ==========================================
+
+
+#include "Data/SPDialogData.h"
 // ==========================================
 // FILE: SPAT_LerpCamera.cpp
 // ==========================================
@@ -1409,3 +1126,470 @@ void UGA_Relic_OnHitStatusBase::OnHitEventReceived(FGameplayEventData Payload)
     }
 }
 // ==========================================
+// FILE: GA_Relic_SeedOfDisaster.cpp
+// ==========================================
+#include "GA/Relic/GA_Relic_SeedOfDisaster.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_SeedOfDisaster::UGA_Relic_SeedOfDisaster()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_SeedOfDisaster::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+    }
+}
+
+void UGA_Relic_SeedOfDisaster::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FGameplayTag::RequestGameplayTag(FName("Event.Combat.AttackHit")),
+        nullptr, false, false);
+
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_SeedOfDisaster::OnNormalAttackHitReceived);
+    WaitEventTask->ReadyForActivation();
+
+    UAbilityTask_WaitGameplayEvent* WaitEndTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this, 
+        FSPGameplayTags::Get().Event_Battle_End, 
+        nullptr, false, false);
+
+    WaitEndTask->EventReceived.AddDynamic(this, &UGA_Relic_SeedOfDisaster::OnBattleEndReceived);
+    WaitEndTask->ReadyForActivation();
+}
+
+void UGA_Relic_SeedOfDisaster::OnNormalAttackHitReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && SeedStackGEClass)
+    {
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(SeedStackGEClass, 1.0f, Context);
+
+        if (SpecHandle.IsValid())
+        {
+            // 몸에 버프 씌우기 (엔진이 5스택까지만 알아서 컷해줍니다)
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+            int32 CurrentStack = ASC->GetGameplayEffectCount(SeedStackGEClass, ASC);
+            UE_LOG(LogTemp, Warning, TEXT("🌱 [재앙의 씨앗] 평타 적중! 효과 명중률 버프 (현재 스택: %d / 5)"), CurrentStack);
+        }
+    }
+}
+
+void UGA_Relic_SeedOfDisaster::OnBattleEndReceived(FGameplayEventData Payload)
+{
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && SeedStackGEClass)
+    {
+        // 🌟 핵심: 내가 부여했던 '이 클래스(SeedStackGEClass)'의 GE를 몸에서 전부 제거합니다.
+        // GE가 제거되는 순간 엔진이 알아서 EffectHitRate를 원래대로 깎아버립니다!
+        ASC->RemoveActiveGameplayEffectBySourceEffect(SeedStackGEClass, ASC);
+
+        UE_LOG(LogTemp, Warning, TEXT("🌱 [재앙의 씨앗] 전투 종료! 명중률 스택이 0으로 초기화되었습니다."));
+    }
+}
+// ==========================================
+// FILE: GA_Relic_VibrationStone.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/Relic/GA_Relic_VibrationStone.h"
+#include "AbilitySystemComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Tag/SPGameplayTags.h"
+
+UGA_Relic_VibrationStone::UGA_Relic_VibrationStone()
+{
+    InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+}
+
+void UGA_Relic_VibrationStone::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+    Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+
+    // 이번에는 타격이 아니라 "전투 시작(Event.Battle.Start)" 이벤트를 기다립니다!
+  
+    UAbilityTask_WaitGameplayEvent* WaitEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+        this,
+        FSPGameplayTags::Get().Event_Battle_Start,
+        nullptr,
+        false,
+        false
+    );
+    UE_LOG(LogTemp, Log, TEXT("이벤트를 받음(GA_Relic_VibrationStone)"));
+    WaitEventTask->EventReceived.AddDynamic(this, &UGA_Relic_VibrationStone::OnBattleStartReceived);
+    WaitEventTask->ReadyForActivation();
+}
+
+void UGA_Relic_VibrationStone::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec)
+{
+    Super::OnAvatarSet(ActorInfo, Spec);
+
+    // 부여받은 즉시, 자신의 ASC에게 "나를 활성화해줘!" 라고 요청합니다.
+    if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+    {
+        ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+        UE_LOG(LogTemp, Log, TEXT("유물 자동 활성화 완료: 대기 모드 진입"));
+    }
+}
+
+void UGA_Relic_VibrationStone::OnBattleStartReceived(FGameplayEventData Payload)
+{
+    // 나 자신의 ASC(능력 시스템 컴포넌트)를 가져옵니다.
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (ASC && AddBPGEClass)
+    {
+        // 나에게 BP 회복 GE를 적용합니다.
+        FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+        FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(AddBPGEClass, GetAbilityLevel(), Context);
+
+        if (SpecHandle.IsValid())
+        {
+            ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+            UE_LOG(LogTemp, Log, TEXT("불안정한 진동석 발동! BP 1 획득"));
+        }
+    }
+}
+// ==========================================
+// FILE: SPGA_BattleActionBase.cpp
+// ==========================================
+#include "GA/SPGA_BattleActionBase.h"
+#include "Character/SPGASPlayerCharacter.h"
+#include "Character/SPGASCharacterBase.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "Game/ASPCombatGameMode.h"
+#include "Kismet/GameplayStatics.h"
+#include "Component/SPStatusEffectComponent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Manager/SPCombatTurnManager.h"
+#include "Sound/SoundBase.h"
+
+USPGA_BattleActionBase::USPGA_BattleActionBase()
+{
+	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+	CooldownGameplayEffectClass = nullptr;
+	CostGameplayEffectClass = nullptr;
+}
+
+bool USPGA_BattleActionBase::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		// 해골 수정 + 무기 스킬
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) && AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+		{
+			return true;
+		}
+		// 옥시계 + 반격
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) && AbilityTags.HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			return true;
+		}
+	}
+	bool bCanAfford = Super::CheckCost(Handle, ActorInfo, OptionalRelevantTags);
+
+	if (!bCanAfford)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족하여 스킬을 사용할 수 없습니다!"));
+	}
+
+	return bCanAfford;
+}
+
+bool USPGA_BattleActionBase::CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
+{
+	if (!ActorInfo || !ActorInfo->AbilitySystemComponent.IsValid()) return false;
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 수정 해골: '무기 스킬(Skill)' 한정 쿨타임 프리패스
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull))
+	{
+		if (AbilityTags.HasTag(SPTags.Battle_Action_Skill)) return true;
+	}
+
+	// 옥시계: '반격(CounterAttack)' 한정 쿨타임 프리패스
+	if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock))
+	{
+		if (AbilityTags.HasTag(SPTags.Battle_Action_CounterAttack)) return true;
+	}
+
+	// 쿨타임 체크 로직
+	if (CooldownTag.IsValid() && ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(CooldownTag))
+	{
+		if (OptionalRelevantTags) OptionalRelevantTags->AddTag(CooldownTag);
+		return false;
+	}
+	return Super::CheckCooldown(Handle, ActorInfo, OptionalRelevantTags);
+}
+
+void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+	if (ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		// 해골 수정 + 무기 스킬
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) && GetAssetTags().HasTag(SPTags.Battle_Action_Skill))
+		{
+			return;
+		}
+		// 옥시계 + 반격
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) && GetAssetTags().HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			return;
+		}
+	}
+	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
+}
+
+void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	if (TriggerEventData) CachedEventData = *TriggerEventData;
+
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this,
+		FSPGameplayTags::Get().Event_Battle_ApplyDamage
+	);
+
+	if (WaitDamageEventTask)
+	{
+		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
+		WaitDamageEventTask->ReadyForActivation();
+	}
+
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+}
+
+void USPGA_BattleActionBase::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+	// 스킬이 취소되지 않고 정상적으로 끝날 때 스택 소모 검사를 합니다.
+	if (!bWasCancelled && ActorInfo && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+		// 내 몸에 해골 수정 버프가 있고, 방금 쓴 스킬이 무기 스킬일 때만!
+		if (ActorInfo->AbilitySystemComponent->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
+			AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+		{
+			ConsumeTimeInterferenceStack(); // 🌟 여기서 마지막으로 스택을 깎습니다!
+		}
+	}
+
+	// 원래 EndAbility가 해야 할 일(종료 처리)을 마저 수행합니다.
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return false;
+
+	FGameplayTag TimeInterferenceTag = FSPGameplayTags::Get().State_TimeInterference;
+
+	if (ASC->HasMatchingGameplayTag(TimeInterferenceTag))
+	{
+		FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(TimeInterferenceTag));
+		TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+		for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+		{
+			// 🌟 현재 스택이 몇 개인지 가져옵니다.
+			int32 CurrentStack = ASC->GetCurrentStackCount(Handle);
+
+			ASC->RemoveActiveGameplayEffect(Handle, 1);
+
+			// 🌟 깎인 후의 남은 스택을 로그로 예쁘게 출력합니다!
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 스택 소모! (남은 스택: %d)"), CurrentStack - 1);
+			return true;
+		}
+	}
+	return false;
+}
+
+FGameplayTag USPGA_BattleActionBase::GetCooldownTag() const
+{
+	return CooldownTag;
+}
+
+void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier)
+{
+	if (!TargetActor || !DamageEffectClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ApplyDamageToTarget 실패: 타겟이나 GE 클래스가 없습니다."));
+		return;
+	}
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// Spec 핸들 생성 (이펙트 명세서)
+	FGameplayEffectSpecHandle SpecHandle = MakeOutgoingGameplayEffectSpec(DamageEffectClass);
+
+	if (SpecHandle.IsValid())
+	{
+		// 데미지 배율 전달 (SetByCaller)
+		// Tag: Data.Damage -> 데미지 계산기(ExecCalc)가 이 값을 읽어서 공격력에 곱합니다.
+		UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
+			SpecHandle,
+			SPTags.Data_Damage,
+			DamageMultiplier
+		);
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		//  [핵심 방어막] 데미지를 입히기 직전에, 이 몬스터가 아직 살아있는지 기억해둠
+		bool bWasAliveBeforeHit = false;
+		if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+		{
+			bWasAliveBeforeHit = true; // 때리기 전엔 살아있었음!
+		}
+
+		// 이펙트 적용
+		ApplyGameplayEffectSpecToTarget(
+			CurrentSpecHandle,
+			CurrentActorInfo,
+			CurrentActivationInfo,
+			SpecHandle,
+			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetActor)
+		);
+
+		if (HitSound && GetWorld())
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, HitSound, TargetActor->GetActorLocation());
+		}
+
+		if (HitCameraShakeClass && GetWorld())
+		{
+			UGameplayStatics::PlayWorldCameraShake(GetWorld(), HitCameraShakeClass, TargetActor->GetActorLocation(), 0.0f, 1000.0f, 1.0f);
+		}
+
+		if (GetAssetTags().HasTag(SPTags.Battle_Action_Attack))
+		{
+			ASPGASCharacterBase* AvatarChar = Cast<ASPGASCharacterBase>(GetAvatarActorFromActorInfo());
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+			if (AvatarChar && ASC && AvatarChar->GetStatusEffectComponent() && IsValid(TargetActor))
+			{
+				// 타겟의 체력이 0이하라면 상태이상을 적용하지 않음
+				TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+				if (TargetASC && !TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+				{
+					FGameplayTag EquippedWeaponTag;
+					if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir))
+						EquippedWeaponTag = SPTags.Weapon_Fenrir;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr))
+						EquippedWeaponTag = SPTags.Weapon_Surtr;
+					else if (ASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr))
+						EquippedWeaponTag = SPTags.Weapon_Jormungandr;
+
+					if (EquippedWeaponTag.IsValid())
+					{
+						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+					}
+				}
+			}
+			if (ASC) // 1. 타격 이벤트 발사
+			{
+				FGameplayEventData RelicPayload;
+				RelicPayload.Instigator = GetAvatarActorFromActorInfo();
+				RelicPayload.Target = TargetActor;
+				RelicPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+				// 내 몸에 장착된 유물 어빌리티들이 들을 수 있게 전용 이벤트를 발사합니다.
+				ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_AttackHit, &RelicPayload);
+			}
+			UAbilitySystemComponent* EventTargetASC = nullptr;
+			if (IsValid(TargetActor))
+			{
+				EventTargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			}
+
+			if (ASC && TargetASC) // 2. 처치 이벤트 발사
+			{
+				//  [수정됨] 방금 전까지 살아있었는데(bWasAliveBeforeHit), 방금 때리고 나니 죽었다면(State_Death)?
+				if (bWasAliveBeforeHit && TargetASC->HasMatchingGameplayTag(SPTags.State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+					RelicKillPayload.InstigatorTags.AddTag(SPTags.Battle_Action_Attack);
+
+					// 프리즘이 들을 수 있게 "일반 공격 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(SPTags.Event_Combat_AttackKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("일반 공격 처치 발생! 유물들에게 Kill 신호를 보냅니다."));
+				}
+			}
+		}
+		// [추가한 부분] 만약 공격 방식이 '무기 스킬(Skill)' 이라면?
+		else if (AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+		{
+			UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+			if (ASC && TargetASC)
+			{
+				//  [수정됨] 스킬 처치 판정에도 동일하게 '막타' 방어막 적용
+				if (bWasAliveBeforeHit && TargetASC->HasMatchingGameplayTag(SPTags.State_Death))
+				{
+					FGameplayEventData RelicKillPayload;
+					RelicKillPayload.Instigator = GetAvatarActorFromActorInfo();
+					RelicKillPayload.Target = TargetActor;
+
+					// 피 묻은 동전이 들을 수 있게 "스킬 처치!" 신호 쏘기
+					ASC->HandleGameplayEvent(SPTags.Event_Combat_SkillKill, &RelicKillPayload);
+
+					UE_LOG(LogTemp, Warning, TEXT("무기 스킬 처치 발생! 유물들에게 SkillKill 신호를 보냅니다."));
+				}
+			}
+		}
+		
+
+		FHitResult HitResult;
+		AActor* AvatarActor = GetAvatarActorFromActorInfo();
+
+		if (AvatarActor && TargetActor)
+		{
+			FVector StartLoc = AvatarActor->GetActorLocation(); // 내 위치
+			FVector EndLoc = TargetActor->GetActorLocation();   // 적 위치
+
+			// 내 몸에서 적의 중심을 향해 레이저를 쏴서 표면에 닿는 점을 찾습니다.
+			GetWorld()->LineTraceSingleByChannel(HitResult, StartLoc, EndLoc, ECC_Visibility);
+
+			// 만약 장애물 때문에 안 맞았다면, 그냥 적의 중심 위치를 강제로 타격점으로 지정!
+			if (!HitResult.bBlockingHit || HitResult.GetActor() != TargetActor)
+			{
+				HitResult.ImpactPoint = TargetActor->GetActorLocation();
+			}
+			HitResult.HitObjectHandle = FActorInstanceHandle(TargetActor); // 맞은 놈이 얘라고 명시
+
+			// 적의 ASC에 Hit VFX(GameplayCue) 실행 명령!
+			TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+			if (TargetASC && HitVFXTag.IsValid())
+			{
+				FGameplayCueParameters CueParams;
+				CueParams.EffectContext = TargetASC->MakeEffectContext();
+				CueParams.EffectContext.AddHitResult(HitResult); // 방금 찾은 정확한 표면 좌표를 넘김!
+				//타격용 GameplayCue 태그 호출!
+				TargetASC->ExecuteGameplayCue(HitVFXTag, CueParams);
+			}
+
+			// 적에게 피격 애니메이션(Hit React) 재생 명령!
+			// (ASPGASCharacterBase에 PlayHitReact 함수가 구현되어 있다고 가정)
+			if (ASPGASCharacterBase* TargetBaseChar = Cast<ASPGASCharacterBase>(TargetActor))
+			{
