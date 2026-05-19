@@ -138,4 +138,6 @@ void USPDialogSubsystem::EndDialog()
 
 	// 퀘스트 시스템 등에게 대화 종료 알림
 	OnDialogFinished.Broadcast();
+
+	// 보스 전투 전 대화 인지 판단해서 전투 진입 코드 로직 넣기
 }
