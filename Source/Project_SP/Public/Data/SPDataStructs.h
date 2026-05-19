@@ -85,10 +85,10 @@ struct FPlayerPermanentWallet
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Sand = 1000; // 모래
+    int32 Sand = 0; // 모래
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 10; // 불완전한 기운
+    int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)

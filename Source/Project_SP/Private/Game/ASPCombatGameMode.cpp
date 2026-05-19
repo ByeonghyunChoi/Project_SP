@@ -502,7 +502,11 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 				// 🌟 2. 경험치 즉시 지급
 				if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
 				{
-					if (TotalReward.Exp > 0) SPPlayer->AddExperience(TotalReward.Exp);
+					if (TotalReward.Exp > 0)
+					{
+						SPPlayer->AddExperience(TotalReward.Exp);
+						MapManager->PendingExpReward += TotalReward.Exp; // 경험치 기록
+					}
 				}
 
 				// 🌟 3. 재화 대기열(PendingToastRewards)에 안전하게 보관!
@@ -522,7 +526,7 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Type);
 							SavedAmount += Amount;
 						}
-						};
+					};
 
 					GiveReward(EResourceType::Gold, TotalReward.Gold);
 					GiveReward(EResourceType::Sand, TotalReward.Sand);
@@ -537,6 +541,10 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 				{
 					SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 					SaveSys->SaveRunToDisk();
+
+					// 런 데이터 뿐만 아니라 영구 데이터도 같이 저장
+					SaveSys->CachePermDataFromPlayer(PlayerPawn);
+					SaveSys->SavePermToDisk();
 					UE_LOG(LogTemp, Log, TEXT("[AutoSave] 전투 보상을 획득하고 게임을 저장했습니다."));
 				}
 			}

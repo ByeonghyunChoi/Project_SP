@@ -134,6 +134,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Reward")
 	TMap<EResourceType, int32> PendingToastRewards;
 
+	// 경험치 UI 업데이트용 대기열
+	UPROPERTY(BlueprintReadWrite, Category = "Reward")
+	int32 PendingExpReward = 0;
+
+	// '클리어한 맵 이름'을 저장하는 메모지
+	UPROPERTY(BlueprintReadWrite, Category = "Map|Flow")
+	FName ClearedStageName = NAME_None;
+
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)

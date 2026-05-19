@@ -3,6 +3,9 @@
 #pragma once
 
 #include "Component/InventoryComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -13,10 +16,36 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// [테스트용] 개발 편의를 위해 초기 자원 지급 (나중에 삭제)
-	PermanentWallet.Sand = 1000;
-	PermanentWallet.IncompleteEnergy = 10;
-	RunWallet.Money = 500;
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+
+	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		// 세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
+		if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
+		{
+			PermanentWallet.Sand = 1000;
+			PermanentWallet.IncompleteEnergy = 10;
+
+			if (OwnerPawn)
+			{
+				SaveSys->CachePermDataFromPlayer(OwnerPawn); // 영구 장부 즉시 동기화
+			}
+			UE_LOG(LogTemp, Warning, TEXT(" 초기 영구 재화가 주입되었습니다."));
+		}
+
+		//  세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
+		if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
+		{
+			RunWallet.Money = 500;
+
+			if (OwnerPawn)
+			{
+				SaveSys->CacheRunDataFromPlayer(OwnerPawn); // 런 장부 즉시 동기화
+			}
+			UE_LOG(LogTemp, Warning, TEXT(" 초기 런 재화(골드)가 주입되었습니다."));
+		}
+		// 테스트 끝나면 헤더에 있는 bForceGiveTestCurrencies 변수도 같이 지워주기
+	}
 
 	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
@@ -29,6 +58,8 @@ void UInventoryComponent::AddSand(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("모래 획득: +%d (현재: %d)"), Amount, PermanentWallet.Sand);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeSand(int32 Amount)
@@ -44,6 +75,8 @@ bool UInventoryComponent::ConsumeSand(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("모래 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.Sand);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -54,6 +87,8 @@ void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("기운 획득: +%d (현재: %d)"), Amount, PermanentWallet.IncompleteEnergy);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
@@ -69,6 +104,8 @@ bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("기운 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.IncompleteEnergy);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -79,6 +116,9 @@ void UInventoryComponent::AddMoney(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("골드 획득: +%d (현재: %d)"), Amount, RunWallet.Money);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
+
 }
 
 bool UInventoryComponent::ConsumeMoney(int32 Amount)
@@ -94,6 +134,8 @@ bool UInventoryComponent::ConsumeMoney(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("골드 소모: -%d (남은 양: %d)"), Amount, RunWallet.Money);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -104,6 +146,8 @@ void UInventoryComponent::AddFragment(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("권능의 파편 획득: +%d (현재: %d)"), Amount, RunWallet.Fragment);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeFragment(int32 Amount)
@@ -119,6 +163,8 @@ bool UInventoryComponent::ConsumeFragment(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("권능의 파편 소모: -%d (남은 양: %d)"), Amount, RunWallet.Fragment);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -135,4 +181,21 @@ void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, co
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Inventory] 지갑 복구 완료! 골드: %d / 모래: %d"), RunWallet.Money, PermanentWallet.Sand);
+}
+
+// 서브시스템 장부 갱신 함수 구현
+void UInventoryComponent::SyncWalletToSaveSystem()
+{
+	// 인벤토리의 주인이 플레이어 폰인지 확인
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신합니다! (렉 유발 X)
+			SaveSys->CacheRunDataFromPlayer(OwnerPawn);
+			SaveSys->CachePermDataFromPlayer(OwnerPawn);
+
+			UE_LOG(LogTemp, Verbose, TEXT("[Inventory] 지갑 변동! 세이브 서브시스템 메모리에 즉시 동기화 완료."));
+		}
+	}
 }

@@ -124,6 +124,15 @@ void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 	LoadStageLevel();
 
 	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
+
+	if (bIsVictory)
+	{
+		// 현재 열려있는 맵(레벨)의 이름을 문자열로 가져옴
+		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
+		ClearedStageName = FName(*CurrentLevel); // FName으로 변환해서 저장
+
+		UE_LOG(LogTemp, Warning, TEXT("자동 메모 작성 완료! 클리어한 맵: %s"), *CurrentLevel);
+	}
 }
 
 void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
