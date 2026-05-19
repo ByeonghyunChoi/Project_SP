@@ -800,6 +800,11 @@ ASPGASMonsterCharacter* AASPCombatGameMode::SummonMonsterMidBattle(USPMonsterDat
 
 		UGameplayStatics::FinishSpawningActor(SpawnedMinion, FinalTransform);
 
+		if (CurrentTurnActor)
+		{
+			SpawnedMinion->Summoner = CurrentTurnActor;
+		}
+
 		// ==========================================
 		// 4. 전투 명단에 정식 등록!
 		// ==========================================

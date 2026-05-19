@@ -221,8 +221,28 @@ void ASPGASAIController::TryExecuteAITurn()
 		{
 			if (Pattern.AbilityToExecute)
 			{
-				HighestPriority = Pattern.Priority;
-				BestAbility = Pattern.AbilityToExecute;
+				// 🌟 [추가된 핵심 로직] GAS의 권능을 이용해 쿨타임/코스트 검사를 먼저 합니다!
+				bool bCanActivate = false;
+
+				// 마녀가 이 스킬(GA)을 가지고 있는지 스펙(Spec)을 찾아옵니다.
+				FGameplayAbilitySpec* Spec = CachedASC->FindAbilitySpecFromClass(Pattern.AbilityToExecute);
+
+				if (Spec && Spec->Ability)
+				{
+					// CanActivateAbility: "지금 쿨타임 안 돌고 있니? 마나(코스트)는 충분하니?" 를 물어봅니다.
+					bCanActivate = Spec->Ability->CanActivateAbility(Spec->Handle, CachedASC->AbilityActorInfo.Get());
+				}
+
+				// 쿨타임이 아니라서 당장 쓸 수 있을 때만 '최고의 스킬'로 낙점!
+				if (bCanActivate)
+				{
+					HighestPriority = Pattern.Priority;
+					BestAbility = Pattern.AbilityToExecute;
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[AI] %s 패턴은 조건이 맞았으나, 쿨타임 중이라 이번 턴엔 보류합니다."), *Pattern.AbilityToExecute->GetName());
+				}
 			}
 		}
 	}

@@ -36,7 +36,10 @@ public:
 	FGameplayTag State_Monster_HowlingComboReady;
 	FGameplayTag State_Monster_CastingHowling;
 	FGameplayTag State_Monster_DoingCombo;
+	FGameplayTag State_Monster_Witch_BasicAttackStack;
+	FGameplayTag State_Monster_Witch_ShieldActive;
 	FGameplayTag State_Status_DamageDisabled;
+	FGameplayTag State_Witch_ReadyElemental;
 
 	// 입력(Input)
 	FGameplayTag Input_Action_Interact;
@@ -69,12 +72,14 @@ public:
 	FGameplayTag Event_Battle_ApplyDamage;
 	FGameplayTag Event_Battle_Parried;
 	FGameplayTag Event_Montage_Hit;
+	FGameplayTag Event_Montage_Spawn;
 	FGameplayTag Event_Hit_Start;
 	FGameplayTag Event_Hit_Bounce;
 	FGameplayTag Event_Hit_AoE;
 	FGameplayTag Event_Jormungandr_Fire;
 	FGameplayTag Event_Jourmungandr_Hit;
 	FGameplayTag Event_Battle_ForceCounter;
+	FGameplayTag Event_Witch_MinionDied;
 
 	//유물 전용 이벤트들
 	FGameplayTag Event_Combat_CriticalHit;
@@ -106,6 +111,7 @@ public:
 	FGameplayTag Cooldown_Weapon_Jormungandr_Skill;
 	FGameplayTag Cooldown_Weapon_Jormungandr_Parry;
 	FGameplayTag Cooldown_Skill_TimeInterference;
+	FGameplayTag Cooldown_Witch_Summon;
 
 	//상태 이상(Debuff)
 	FGameplayTag Debuff_Basic_Weathering;  // 풍화

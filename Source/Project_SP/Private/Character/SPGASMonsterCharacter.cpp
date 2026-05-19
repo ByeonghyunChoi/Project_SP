@@ -5,7 +5,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Game/ASPCombatGameMode.h"
 #include "Character/SPGASPlayerController.h"
-
+#include "AbilitySystemBlueprintLibrary.h" 
 
 
 
@@ -254,6 +254,21 @@ void ASPGASMonsterCharacter::Die()
 	bIsDead = true;
 
 	UE_LOG(LogTemp, Warning, TEXT("[%s] 사망했습니다!"), *GetName());
+
+	if (Summoner)
+	{
+		if (UAbilitySystemComponent* SummonerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Summoner))
+		{
+			FGameplayEventData Payload;
+			Payload.Instigator = this;       
+			Payload.Target = Summoner;  
+
+			FGameplayTag DeathTag = FGameplayTag::RequestGameplayTag(FName("Event.Witch.MinionDied"));
+			SummonerASC->HandleGameplayEvent(DeathTag, &Payload);
+
+			UE_LOG(LogTemp, Warning, TEXT("[%s] 주인님(%s)에게 사망 무전을 보냈습니다!"), *GetName(), *Summoner->GetName());
+		}
+	}
 
 	if (GetEnemyRank() == EMonsterRank::Boss)
 	{
