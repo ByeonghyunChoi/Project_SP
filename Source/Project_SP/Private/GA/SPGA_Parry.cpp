@@ -39,21 +39,6 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 			ECC_GameTraceChannel3, FCollisionShape::MakeSphere(80.0f), Params
 		);
 
-#if WITH_EDITOR
-		FColor DebugColor = bHit ? FColor::Green : FColor::Red;
-		// 출발지부터 도착지까지 스캔 경로 전체를 캡슐 형태로 그려줍니다.
-		DrawDebugCapsule(
-			GetWorld(),
-			(StartLoc + EndLoc) * 0.5f,                  // 중심점
-			(100.0f * 0.5f) + 80.0f,                     // 반만 펼쳐진 길이 + 반지름
-			80.0f,                                       // 반지름
-			FRotationMatrix::MakeFromZ(MyAvatar->GetActorForwardVector()).ToQuat(), // 방향
-			DebugColor,                                  // 평소엔 빨간색, 투사체 감지하면 초록색
-			false,                                       // 영구 지속 여부
-			1.0f                                         // 화면에 잔상이 남을 시간 (1초 동안 유지)
-		);
-#endif
-
 		if (bHit)
 		{
 			AActor* HitActor = HitResult.GetActor();
