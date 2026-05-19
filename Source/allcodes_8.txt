@@ -1,43 +1,8 @@
-﻿enum class EEnemyRank :uint8
-{
-    Normal,
-    Epic,
-    Boss
-};
-// ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿	void FinishTurnDelayed();
 
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API ASPGASAIController : public AAIController
-{
-	GENERATED_BODY()
-
-public:
-	ASPGASAIController();
-
-protected:
-	virtual void OnPossess(APawn* InPawn) override;
-	virtual void OnUnPossess() override;
-	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
-
-	// �� ���� �̺�Ʈ ���� (�� ���ʰ� ��)
-	void OnTurnStartEvent(const FGameplayEventData* Payload);
-
-	// �� ���� ���� ó�� �Լ�
-	void FinishTurnDelayed();
+	// ���� ���� Ÿ�̸� �ڵ��, ���� �� �ൿ�� �õ��� �Լ�
+	FTimerHandle TurnWaitTimerHandle;
+	void TryExecuteAITurn();
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "AI")
@@ -163,16 +128,23 @@ public:
     virtual void Destroyed() override;
 
 public:
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
     TObjectPtr<UCombatEncounterData> EncounterData;
 
     //몬스터 데이터
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     class USPMonsterData* MonsterDataAsset;
 
     //해당 몬스터의 현재 레벨
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     float CurrentLevel = 1.0f;
+
+    // AI 패턴을 위한 상태 변수들
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    int32 CurrentTurnCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    bool bWasAttackedLastTurn = false;
 
 public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
@@ -206,11 +178,18 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat | Data")
     FGameplayTagContainer GetCurrentWeaknessTags() const;
 
+    UFUNCTION(BlueprintCallable, Category = "Combat")
     void SetWeaknessOverride(const FGameplayTagContainer& NewWeaknesses)
     {
         bHasWeaknessOverride = true;
         OverriddenWeaknessTags = NewWeaknesses;
     }
+
+    UFUNCTION(BlueprintCallable, Category = "Combat | Status")
+    void RemoveVisualPlayingTag();
+
+    UFUNCTION(BlueprintCallable, Category = "Combat | AI")
+    void SetAttackedLastTurn(bool bAttacked) { bWasAttackedLastTurn = bAttacked; }
 
 public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
@@ -460,6 +439,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPlayerLevelChangedDelegate, int32
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponChangedDelegate, FGameplayTag, NewWeaponTag);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimeInterferenceChangedDelegate, bool, bIsActive);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerTurnStartedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInputProcessedDelegate, FGameplayTag, InputTag, bool, bIsSuccess);
 // 입력 액션과 태그를 매핑하는 구조체
 USTRUCT(BlueprintType)
 struct FSPInputConfig
@@ -471,6 +451,12 @@ struct FSPInputConfig
 
 	UPROPERTY(EditAnywhere)
 	FGameplayTag InputTag;
+
+	UPROPERTY(EditAnywhere, Category = "Sound")
+	TObjectPtr<class USoundBase> ValidSound;
+
+	UPROPERTY(EditAnywhere, Category = "Sound")
+	TObjectPtr<class USoundBase> InvalidSound;
 };
 
 UCLASS()
@@ -617,6 +603,12 @@ protected:
 	//턴 시작 감지 함수
 	void OnTurnActiveTagChanged(const FGameplayTag Tag, int32 NewCount);
 
+	// 키보드 입력을 감지해 소리를 재생하는 함수
+	void PlayActionSound(FGameplayTag InputTag, bool bIsSuccess);
+
+	// 전투 중 입력에 따라 UI 상태를 바로 갱신하는 함수
+	void HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess);
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")
@@ -667,7 +659,7 @@ public:
 
 	//턴 순서 UI를 업데이트 하는 함수
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
-	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns);
+	void UpdateTurnTimelineUI(const TArray<AActor*>& NormalTurns, const TArray<AActor*>& VIPTurns, int32 CycleEndIndex);
 
 	// 상점에서 아이템을 구매할 때 UI가 호출할 함수
 	UFUNCTION(BlueprintCallable, Category = "Shop")
@@ -715,6 +707,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnPlayerTurnStartedDelegate OnPlayerTurnStarted;
+
+	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
+	FOnInputProcessedDelegate OnInputProcessed;
 
 };
 // ==========================================
@@ -969,11 +964,11 @@ public:
 	
 	// ������ ������ �õ� (�� �Ҹ� ���� ���� ����)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
-	void TryUpgradeLevel();
+	bool TryUpgradeLevel();
 
 	// ��Ƽ��Ʈ �ر� �õ� (�ҿ����� ��� �Ҹ� ���� ���� ����)
 	UFUNCTION(BlueprintCallable, Category = "Oparts")
-	void TryUnlockNextArtifact();
+	bool TryUnlockNextArtifact();
 
 	
 	UFUNCTION(BlueprintPure, Category = "Oparts")
@@ -1080,7 +1075,7 @@ public:
 
     // 4. 스테이지와 전체 유물 목록을 받아, 3개의 유물을 뽑아주는 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
-    TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool);
+    TArray<URelicDefinition*> GenerateRelicRewards(int32 CurrentStage, const TArray<URelicDefinition*>& AllRelicPool, bool bIsBossReward = false);
 
     //세이브 시스템에서 호출할 로드 전용 함수
     UFUNCTION(BlueprintCallable, Category = "Relic")
@@ -1250,7 +1245,7 @@ public:
 	void ReduceStatusEffectTurns();
 
 	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
-	void ExecutePendingDamage(AActor* TargetActor);
+	void ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag);
 
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | Visual")
@@ -1409,3 +1404,192 @@ public:
 	ERelicRarity Rarity; // 유물 희귀도
 
     //장착 시 플레이어에게 부여할 패시브 스탯/능력 이펙트
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "3. Ability")
+    TSubclassOf<UGameplayEffect> RelicEffectClass;
+};
+// ==========================================
+// FILE: SPMonsterData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Tag/SPGameplayTags.h"
+#include "ScalableFloat.h"
+#include "SPMonsterData.generated.h"
+
+UENUM(BlueprintType)
+enum class EMonsterRank : uint8
+{
+	Normal  UMETA(DisplayName = "일반"),
+	Epic    UMETA(DisplayName = "에픽"),
+	Boss    UMETA(DisplayName = "보스")
+};
+
+UENUM(BlueprintType)
+enum class EMonsterAICondition : uint8
+{
+	Always			UMETA(DisplayName = "항상"),
+	TurnCount		UMETA(DisplayName = "특정 턴 마다"),
+	HP_Below		UMETA(DisplayName = "체력이 특정 % 이하일 때"),
+	WasAttacked		UMETA(DisplayName = "이전 턴에 피격 당했을 때"),
+	AllyCount_Below	UMETA(DisplayName = "생존한 아군 수가 특정 수 이하일 때"),
+	HasGameplayTag	UMETA(DisplayName = "특정 상태 태그가 있을 때")
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterBaseStats
+{
+	GENERATED_BODY()
+
+	// 레벨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Level = 1.f;
+	// 체력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat MaxHealth;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Attack;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Defense;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FScalableFloat Speed;
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterSkillUIInfo
+{
+	GENERATED_BODY()
+
+	// 스킬 이름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillName;
+
+	// 스킬 종류 (텍스트로 바로 입력. 예: "일반 공격", "스킬", "필살기")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI")
+	FText SkillType;
+
+	// 스킬 내용 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skill UI", meta = (MultiLine = true))
+	FText SkillDescription;
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterAIPattern
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EMonsterAICondition Condition = EMonsterAICondition::Always;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "Condition != EMonsterAICondition::Always && Condition != EMonsterAICondition::WasAttacked && Condition != EMonsterAICondition::HasGameplayTag"))
+	float ConditionValue = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "Condition == EMonsterAICondition::HasGameplayTag"))
+	FGameplayTag RequiredTag;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<class UGameplayAbility> AbilityToExecute;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Priority = 0;
+};
+
+UCLASS()
+class PROJECT_SP_API USPMonsterData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+	//몬스터 이름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	FText MonsterName;
+	
+	//몬스터 등급
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	EMonsterRank MonsterRank = EMonsterRank::Normal;
+
+	//몬스터 이미지
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	TSoftObjectPtr<UTexture2D> MonsterIcon;
+
+	//해당 몬스터 클래스
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "1. Info")
+	TSubclassOf<class ASPGASMonsterCharacter> MonsterClass;
+
+	// 몬스터 스텟
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
+	FMonsterBaseStats BaseStats;
+
+	// 몬스터 약점
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
+	FGameplayTagContainer WeaknessTags;
+
+	// 몬스터가 보유한 스킬 리스트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
+	TArray<FMonsterSkillUIInfo> SkillList;
+
+	//몬스터의 AI 패턴 리스트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat | AI Pattern")
+	TArray<FMonsterAIPattern> AIPatterns;
+
+	// 고유 ID 설정
+	virtual FPrimaryAssetId GetPrimaryAssetId() const override
+	{
+		return FPrimaryAssetId("MonsterData", GetFName());
+	}
+};
+// ==========================================
+// FILE: SPStageMonsterPoolData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Data/Asset/SPMonsterData.h"
+#include "SPStageMonsterPoolData.generated.h"
+
+
+USTRUCT(BlueprintType)
+struct FStageMonsterPool
+{
+	GENERATED_BODY()
+
+	// �� ������������ ������ ������ �� �̸�
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName CombatLevelName;
+
+	// �� ���������� ������ �Ϲ� ���͵� ���
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<USPMonsterData*> NormalMonsters;
+};
+
+UCLASS()
+class PROJECT_SP_API USPStageMonsterPoolData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnPool")
+	TMap<int32, FStageMonsterPool> StagePools;
+};
+// ==========================================
+// FILE: StatusEffectData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayEffect.h"
+#include "Tag/SPGameplayTags.h"
+#include "StatusEffectData.generated.h"

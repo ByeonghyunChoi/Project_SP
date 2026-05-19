@@ -16,6 +16,17 @@ enum class EMonsterRank : uint8
 	Boss    UMETA(DisplayName = "보스")
 };
 
+UENUM(BlueprintType)
+enum class EMonsterAICondition : uint8
+{
+	Always			UMETA(DisplayName = "항상"),
+	TurnCount		UMETA(DisplayName = "특정 턴 마다"),
+	HP_Below		UMETA(DisplayName = "체력이 특정 % 이하일 때"),
+	WasAttacked		UMETA(DisplayName = "이전 턴에 피격 당했을 때"),
+	AllyCount_Below	UMETA(DisplayName = "생존한 아군 수가 특정 수 이하일 때"),
+	HasGameplayTag	UMETA(DisplayName = "특정 상태 태그가 있을 때")
+};
+
 USTRUCT(BlueprintType)
 struct FMonsterBaseStats
 {
@@ -56,6 +67,27 @@ struct FMonsterSkillUIInfo
 	FText SkillDescription;
 };
 
+USTRUCT(BlueprintType)
+struct FMonsterAIPattern
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EMonsterAICondition Condition = EMonsterAICondition::Always;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "Condition != EMonsterAICondition::Always && Condition != EMonsterAICondition::WasAttacked && Condition != EMonsterAICondition::HasGameplayTag"))
+	float ConditionValue = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (EditCondition = "Condition == EMonsterAICondition::HasGameplayTag"))
+	FGameplayTag RequiredTag;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TSubclassOf<class UGameplayAbility> AbilityToExecute;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Priority = 0;
+};
+
 UCLASS()
 class PROJECT_SP_API USPMonsterData : public UPrimaryDataAsset
 {
@@ -90,23 +122,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat")
 	TArray<FMonsterSkillUIInfo> SkillList;
 
-	/// <몬스터가 플레이어에게 줄 기본 보상>
-
-	// 경험지 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 ExpReward = 50;
-	// 돈 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 MoneyReward = 100;
-	// 모래 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 SandReward = 10;
-	// 불완전한 기운 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 IncompleteEnergyReward = 2;
-	// 파편 보상
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "3. Reward")
-	int32 FragmentReward = 0;
+	//몬스터의 AI 패턴 리스트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "2. Combat | AI Pattern")
+	TArray<FMonsterAIPattern> AIPatterns;
 
 	// 고유 ID 설정
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override

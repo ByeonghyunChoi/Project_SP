@@ -28,6 +28,10 @@ class PROJECT_SP_API UInventoryComponent : public UActorComponent
 public:
 	UInventoryComponent();
 
+	// 에디터 테스트용: 세이브 파일을 무시하고 초기 재화를 강제로 주입할지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Debug")
+	bool bForceGiveTestCurrencies = false;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -96,4 +100,8 @@ public:
 	//로드 시스템
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet);
+
+private:
+	// 재화가 변동될 때마다 세이브 서브시스템의 메모리를 즉각 갱신하는 함수
+	void SyncWalletToSaveSystem();
 };

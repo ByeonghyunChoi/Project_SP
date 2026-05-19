@@ -9,6 +9,8 @@
 #include "Character/SPGASCharacterBase.h"
 #include "Tag/SPGameplayTags.h"
 #include "TimerManager.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+#include "Game/ASPCombatGameMode.h"
 
 
 ASPGASAIController::ASPGASAIController()
@@ -100,19 +102,104 @@ void ASPGASAIController::TryExecuteAITurn()
 
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	// 1. 몬스터(나 자신)에게 '연출 중(VisualPlaying)' 태그가 있는지 확인합니다.
 	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Status_VisualPlaying))
 	{
-		// 태그가 있다면? 아직 연출이 안 끝났으므로 0.1초 뒤에 이 함수를 다시 부릅니다!
 		GetWorld()->GetTimerManager().SetTimer(TurnWaitTimerHandle, this, &ASPGASAIController::TryExecuteAITurn, 0.1f, false);
 		return;
 	}
 
-	// 2. 태그가 없다면? 연출이 끝났거나 애초에 없었던 것이므로 진짜 공격을 시작합니다!
 	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 연출 종료 확인, 진짜 턴 행동 시작! <<<"));
 
-	FGameplayTag AttackTag = SPTags.Battle_Monster_BasicAttack;
-	FGameplayTagContainer TagContainer(AttackTag);
+	ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetPawn());
+	if (!Monster || !Monster->MonsterDataAsset)
+	{
+		FGameplayTagContainer TagContainer(SPTags.Battle_Monster_BasicAttack);
+		CachedASC->TryActivateAbilitiesByTag(TagContainer);
+		return;
+	}
 
-	bool bSuccess = CachedASC->TryActivateAbilitiesByTag(TagContainer);
+	Monster->CurrentTurnCount++;
+
+	float CurrentHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	float MaxHP = CachedASC->GetNumericAttribute(USPGASAttributeSet::GetMaxHealthAttribute());
+	float HPPercent = (MaxHP > 0.0f) ? (CurrentHP / MaxHP) * 100.0f : 100.0f;
+
+	TSubclassOf<UGameplayAbility> BestAbility = nullptr;
+	int32 HighestPriority = -1;
+
+	for (const FMonsterAIPattern& Pattern : Monster->MonsterDataAsset->AIPatterns)
+	{
+		bool bConditionMet = false;
+
+		switch (Pattern.Condition)
+		{
+		case EMonsterAICondition::Always:
+			bConditionMet = true;
+			break;
+
+		case EMonsterAICondition::TurnCount:
+			if (Pattern.ConditionValue > 0 && Monster->CurrentTurnCount % FMath::RoundToInt(Pattern.ConditionValue) == 0)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::HP_Below:
+			if (HPPercent <= Pattern.ConditionValue)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::WasAttacked:
+			if (Monster->bWasAttackedLastTurn)
+			{
+				bConditionMet = true;
+			}
+			break;
+
+		case EMonsterAICondition::AllyCount_Below:
+			if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+			{
+				if (GM->GetCurrentEnemies().Num() <= FMath::RoundToInt(Pattern.ConditionValue))
+				{
+					bConditionMet = true;
+				}
+			}
+			break;
+
+		case EMonsterAICondition::HasGameplayTag:
+			if (CachedASC->HasMatchingGameplayTag(Pattern.RequiredTag))
+			{
+				bConditionMet = true;
+			}
+			break;
+		}
+
+		// 조건이 맞았고, 지금까지 찾은 스킬보다 우선순위가 더 높다면 교체!
+		if (bConditionMet && Pattern.Priority > HighestPriority)
+		{
+			if (Pattern.AbilityToExecute)
+			{
+				HighestPriority = Pattern.Priority;
+				BestAbility = Pattern.AbilityToExecute;
+			}
+		}
+	}
+
+	// 5. 찾아낸 최고의 스킬(BestAbility) 발동!
+	if (BestAbility)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AI] 패턴 조건 달성! 스킬 실행: %s"), *BestAbility->GetName());
+		CachedASC->TryActivateAbilityByClass(BestAbility);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AI] 만족하는 패턴이 없어 기본 공격을 실행합니다."));
+		FGameplayTagContainer TagContainer(SPTags.Battle_Monster_BasicAttack);
+		CachedASC->TryActivateAbilitiesByTag(TagContainer);
+	}
+
+	// 6. 다음 턴을 위해 "저번 턴에 맞았음" 기억 리셋!
+	Monster->SetAttackedLastTurn(false);
 }
