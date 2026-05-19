@@ -29,6 +29,10 @@ public:
 	// 죽은 유닛 제외 (전투 중 사망 시 호출)
 	void RemoveParticipant(AActor* DeadActor);
 
+	// 유닛 등록
+	UFUNCTION(BlueprintCallable, Category = "TurnManager")
+	void AddParticipant(AActor* NewActor);
+
 	// 특정 유닛의 게이지 강제 설정 (선제공격 보너스, 턴 종료 시 리셋용)
 	void SetActionGauge(AActor* Target, float NewValue);
 
@@ -48,6 +52,10 @@ public:
 
 	void ClearActorFromQueue(AActor* Target);
 
+	void SetRoundIterating(bool bIsIterating);
+
+	void MergePendingParticipants();
+
 	// GAS Helper Functions
 	float GetSpeed(const AActor* Target) const;
 	float GetActionGauge(const AActor* Target) const;
@@ -62,6 +70,15 @@ private:
 	// 전체 참가자 목록
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager")
 	TArray<AActor*> Participants;
+
+	//전투 중간에 소환된 몬스터 목록
+	UPROPERTY()
+	TArray<AActor*> PendingParticipants;
+
+	int32 CurrentTurnIndex = 0;
+
+	// 현재 라운드가 진행 중인지 여부
+	bool bIsRoundIterating = false;
 
 	// 행동 가능 상태가 된 유닛들의 대기열
 	UPROPERTY(VisibleAnywhere, Category = "TurnManager")

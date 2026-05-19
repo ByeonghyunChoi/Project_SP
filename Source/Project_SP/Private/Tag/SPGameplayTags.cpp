@@ -30,6 +30,13 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_Buff_JadeClock = Manager.AddNativeGameplayTag(FName("State.Buff.JadeClock"), TEXT("시간 간섭 옥시계"));
 	State_Buff_GoldBug = Manager.AddNativeGameplayTag(FName("State.Buff.GoldBug"), TEXT("시간 간섭 골드버그"));
 	State_Status_VisualPlaying = Manager.AddNativeGameplayTag(FName("State.Status.VisualPlaying"), TEXT("상태 이상 연출 재생 중"));
+	State_Monster_HowlingComboReady = Manager.AddNativeGameplayTag(FName("State.Monster.HowlingComboReady"), TEXT("웨어울프 하울링 후"));
+	State_Monster_CastingHowling = Manager.AddNativeGameplayTag(FName("State.Monster.CastingHowling"), TEXT("웨어울프 하울링 중"));
+	State_Monster_DoingCombo = Manager.AddNativeGameplayTag(FName("State.Monster.DoingCombo"), TEXT("몬스터 연속 공격 패턴 사용 중"));
+	State_Monster_Witch_BasicAttackStack = Manager.AddNativeGameplayTag(FName("State.Monster.Witch.BasicAttackStack"), TEXT("마녀 평타 스택"));
+	State_Monster_Witch_ShieldActive = Manager.AddNativeGameplayTag(FName("State.Monster.Witch.ShieldActive"), TEXT("마녀 피해 감소 버프"));
+	State_Status_DamageDisabled = Manager.AddNativeGameplayTag(FName("State.Status.DamageDisabled"), TEXT("패링 성공 시 데미지 안 받음"));
+	State_Witch_ReadyElemental = Manager.AddNativeGameplayTag(FName("State.Witch.ReadyElemental"), TEXT("마녀 원소 공격 준비 완료"));
 
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
@@ -55,12 +62,15 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
 	Event_Battle_ApplyDamage = Manager.AddNativeGameplayTag(FName("Event.Battle.ApplyDamage"), TEXT("데미지 받을 때 이벤트"));
 	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
+	Event_Montage_Spawn = Manager.AddNativeGameplayTag(FName("Event.Montage.Spawn"), TEXT("몽타주 발사 시점"));
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
 	Event_Battle_Parried = Manager.AddNativeGameplayTag(FName("Event.Battle.Parried"), TEXT("패링 알림"));
 	Event_Jormungandr_Fire = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Fire"), TEXT("요르문간드 공격 타이밍 알림"));
 	Event_Jourmungandr_Hit = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Hit"), TEXT("요르문간드 공격 맞음 알림"));
+	Event_Battle_ForceCounter = Manager.AddNativeGameplayTag(FName("Event.Battle.ForceCounter"), TEXT("반격 하라고 알림"));
+	Event_Witch_MinionDied = Manager.AddNativeGameplayTag(FName("Event.Witch.MinionDied"), TEXT("마녀 소환수 죽음"));
 
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
@@ -87,6 +97,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Cooldown_Weapon_Jormungandr_Skill = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Skill"), TEXT("쿨타임: 요르문간드 스킬"));
 	Cooldown_Weapon_Jormungandr_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Parry"), TEXT("쿨타임: 요르문간드 패링"));
 	Cooldown_Skill_TimeInterference = Manager.AddNativeGameplayTag(FName("Cooldown.Skill.TimeInterference"), TEXT("쿨타임: 시간 간섭"));
+	Cooldown_Witch_Summon = Manager.AddNativeGameplayTag(FName("Cooldown.Witch.Summon"), TEXT("쿨타임: 시간 간섭"));
 
 	Debuff_Basic_Weathering = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Weathering"), TEXT("상태이상: 풍화"));
 	Debuff_Basic_Burn = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Burn"), TEXT("상태이상: 화상"));

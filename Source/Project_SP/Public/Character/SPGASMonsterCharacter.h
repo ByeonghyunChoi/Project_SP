@@ -42,6 +42,12 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
     bool bWasAttackedLastTurn = false;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    bool bIsSummonedMinion = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat | AI", meta = (ExposeOnSpawn = "true"))
+    TObjectPtr<AActor> Summoner = nullptr;
+
 public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
     EMonsterRank GetEnemyRank() const { return MonsterDataAsset ? MonsterDataAsset->MonsterRank : EMonsterRank::Normal; }
