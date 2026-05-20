@@ -47,6 +47,15 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 		InputMode.SetWidgetToFocus(ActiveDialogWidget->GetCachedWidget());
 		PC->SetInputMode(InputMode);
 		PC->SetShowMouseCursor(true);
+
+		// 유령 입력 방지
+		PC->FlushPressedKeys();
+
+		// 캐릭터의 이동 명령까지 확실히 정지
+		if (APawn* PlayerPawn = PC->GetPawn())
+		{
+			PlayerPawn->ConsumeMovementInputVector();
+		}
 	}
 
 	//NPC 이미지 선행 로드
@@ -129,4 +138,6 @@ void USPDialogSubsystem::EndDialog()
 
 	// 퀘스트 시스템 등에게 대화 종료 알림
 	OnDialogFinished.Broadcast();
+
+	// 보스 전투 전 대화 인지 판단해서 전투 진입 코드 로직 넣기
 }

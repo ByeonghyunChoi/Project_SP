@@ -7,6 +7,7 @@
 #include "Data/Asset/OpartsDefinition.h"
 #include "Map/MapInfo.h"
 #include "Engine/DataTable.h"
+#include "Data/CombatEncounterData.h"
 #include "SPDataStructs.generated.h"
 
 /**
@@ -18,6 +19,18 @@ struct FPlayerLevelRewardRow : public FTableRowBase
     GENERATED_BODY()
 
    // 보상 테이블 혹시 모르니 코드 상에는 남겨 둠
+};
+
+USTRUCT(BlueprintType)
+struct FSavedEncounterData
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName CombatLevelName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FEnemySpawnInfo> EnemyGroup;
 };
 
 USTRUCT(BlueprintType)
@@ -72,10 +85,10 @@ struct FPlayerPermanentWallet
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Sand = 1000; // 모래
+    int32 Sand = 0; // 모래
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 10; // 불완전한 기운
+    int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)
@@ -150,6 +163,10 @@ struct FPlayerMapProgressData
     //포탈 목적지 목록
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<EMapType> SavedPortalOptions;
+
+    //몬스터 명부
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
 };
 
 USTRUCT(BlueprintType)

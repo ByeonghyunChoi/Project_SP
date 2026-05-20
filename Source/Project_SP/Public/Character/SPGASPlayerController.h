@@ -254,6 +254,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat | Oparts")
 	const class UOpartsDefinition* GetCurrentOpartsDefinition() const;
 
+	//보스 전용 UI를 키는 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI | Boss")
+	void ShowBossUI(class ASPGASMonsterCharacter* BossCharacter);
+
+	//보스 전용 UI를 끄는 함수
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI | Boss")
+	void HideBossUI();
+
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
 	class AMerchantNPC* CurrentMerchant;

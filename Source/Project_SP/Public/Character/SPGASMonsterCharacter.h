@@ -35,6 +35,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     float CurrentLevel = 1.0f;
 
+    // AI 패턴을 위한 상태 변수들
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    int32 CurrentTurnCount = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    bool bWasAttackedLastTurn = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat | AI")
+    bool bIsSummonedMinion = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat | AI", meta = (ExposeOnSpawn = "true"))
+    TObjectPtr<AActor> Summoner = nullptr;
+
 public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
     EMonsterRank GetEnemyRank() const { return MonsterDataAsset ? MonsterDataAsset->MonsterRank : EMonsterRank::Normal; }
@@ -76,6 +89,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combat | Status")
     void RemoveVisualPlayingTag();
+
+    UFUNCTION(BlueprintCallable, Category = "Combat | AI")
+    void SetAttackedLastTurn(bool bAttacked) { bWasAttackedLastTurn = bAttacked; }
 
 public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")

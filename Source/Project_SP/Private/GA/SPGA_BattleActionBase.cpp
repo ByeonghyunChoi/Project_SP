@@ -469,12 +469,15 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 
 	if (PayloadTarget)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
 		ApplyDamageToTarget(PayloadTarget, PrimaryMultiplier);
 		return;
 	}
 
 	// -------------------------------------------------------------------------
 	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
+
+	UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
 	switch (SkillTargetingType)
 	{
 	case ETargetingType::Single:

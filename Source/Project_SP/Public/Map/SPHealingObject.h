@@ -19,6 +19,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<class UStaticMeshComponent> MeshComponent;
 
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> RelicRewardWidgetClass;
+
 public:
 	virtual void ExecuteInteraction(AActor* Interactor) override;
 	virtual FText GetInteractText() const override;

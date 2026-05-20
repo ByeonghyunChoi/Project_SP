@@ -5,6 +5,8 @@
 #include "Map/MapInfo.h"       // EMapType, EMapGrade 등 정의
 #include "Engine/DataTable.h"
 #include "Data/CombatEncounterData.h"
+#include "Data/SPDataStructs.h"
+#include "Data/RewardDataStructs.h"
 #include "SubSystem/SPCombatSubsystem.h" // ECombatAdvantage 정의
 #include "Component/InventoryComponent.h"
 #include "MapManagerSubsystem.generated.h"
@@ -70,6 +72,17 @@ public:
 	//로비 맵 판독용
 	bool GetIsInLobby() const { return bIsInLobby; }
 
+	// 일반 전투 몬스터 생성 함수
+	void PreGenerateAllNormalEncounters();
+
+	// 전투 종료 시 확정 보상 계산
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	FRewardResult CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType);
+
+	// 상호작용 (상자/회복) 시 가중치 랜덤 보상 계산
+	UFUNCTION(BlueprintCallable, Category = "Reward")
+	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
+
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -89,6 +102,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetMaxFloors() const { return 5; }
 
+	TMap<int32, FSavedEncounterData> GetPreGeneratedEncounters() const { return PreGeneratedEncounters; }
+
 	// 레벨 계산기
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 CalculateMonsterLevel() const;
@@ -106,7 +121,7 @@ public:
 	FTransform GetFieldSpawnTransform(int32 Index);
 
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
-	EMapGrade GetMapGradeForUI(int32 Floor) const { return GetMapGradeByFloor(Floor); }
+	EMapGrade GetMapGradeForUI(int32 Floor) const;
 
 	//Setter
 	void SetCurrentRoomState(EMapState NewState) { CurrentRoomState = NewState; }
@@ -118,6 +133,14 @@ public:
 	// 필드 복귀 시 화면에 띄워줄 보상 대기열 (재화 종류, 수량)
 	UPROPERTY(BlueprintReadWrite, Category = "Reward")
 	TMap<EResourceType, int32> PendingToastRewards;
+
+	// 경험치 UI 업데이트용 대기열
+	UPROPERTY(BlueprintReadWrite, Category = "Reward")
+	int32 PendingExpReward = 0;
+
+	// '클리어한 맵 이름'을 저장하는 메모지
+	UPROPERTY(BlueprintReadWrite, Category = "Map|Flow")
+	FName ClearedStageName = NAME_None;
 
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
@@ -166,6 +189,10 @@ private:
 	// [플래그] 플레이어가 로비 맵에 있는가?
 	bool bIsInLobby = true;
 
+	// 몬스터 명부
+	UPROPERTY()
+	TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
+
 private:
 	// 맵 생성 및 플레이어 이동 처리
 	void SpawnMapActor(EMapType MapType);
@@ -176,8 +203,7 @@ private:
 	// 스테이지 레벨 로드 헬퍼
 	void LoadStageLevel();
 
-	// 난이도/타입 결정 헬퍼
-	EMapGrade GetMapGradeByFloor(int32 Floor) const;
-	EMapType GetRandomTypeFromGrade(EMapGrade Grade) const;
+	// 가중치 기반으로 맵을 정하는 함수
+	EMapType PickAndRemoveWeightedMap(TMap<EMapType, int32>& InOutWeightPool);
 
 };

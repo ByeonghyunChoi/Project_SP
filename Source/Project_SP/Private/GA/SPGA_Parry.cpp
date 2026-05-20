@@ -11,44 +11,106 @@
 #include "Tag/SPGameplayTags.h"
 #include "Sound/SoundBase.h"     
 #include "Kismet/GameplayStatics.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "Game/SPProjectileBase.h"
 
 
 bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 {
-	if (!TargetMonster) return false;
-
+	AActor* MyAvatar = GetAvatarActorFromActorInfo();
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
-	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
-	if (!PlayerASC || !TargetASC) return false;
-
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
-	// 패링 창이 열려있는지 검사 (태그 확인)
-	if (!TargetMonster->GetAbilitySystemComponent()->HasMatchingGameplayTag(SPTags.State_ParryWindow))
+	if (!PlayerASC) return false;
+
+	// 눈앞에 날아오는 투사체(Projectile)가 있는지 먼저 검사합니다.
+	if (MyAvatar)
+	{
+		FVector StartLoc = MyAvatar->GetActorLocation();
+		FVector EndLoc = StartLoc + (MyAvatar->GetActorForwardVector() * 100.0f); // 패링 사거리
+
+		FHitResult HitResult;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(MyAvatar);
+
+		// 플레이어 정면으로 구체 트레이스 발사 (반지름 80으로 넉넉하게 스캔)
+		bool bHit = GetWorld()->SweepSingleByChannel(
+			HitResult, StartLoc, EndLoc, FQuat::Identity,
+			ECC_GameTraceChannel3, FCollisionShape::MakeSphere(80.0f), Params
+		);
+
+		if (bHit)
+		{
+			AActor* HitActor = HitResult.GetActor();
+			UE_LOG(LogTemp, Warning, TEXT("[패링 레이더] 무언가 레이더에 걸렸습니다: %s"), HitActor ? *HitActor->GetName() : TEXT("NULL"));
+			// 맞은 액터가 투사체 클래스(ASPProjectileBase)인지 확인!
+			if (ASPProjectileBase* Projectile = Cast<ASPProjectileBase>(HitResult.GetActor()))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[패링 레이더] 잡힌 물체가 투사체입니다! (투사체 태그: %s)"), *Projectile->ElementTag.ToString());
+
+				if (!Projectile->bIsParried) // 이미 튕겨낸 투사체가 아니라면
+				{
+					bool bIsProjMatch = false;
+					FGameplayTag ProjElement = Projectile->ElementTag;
+
+					// 투사체 속성과 내 무기 태그 매칭 검사
+					if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) && ProjElement == SPTags.Weakness_Fenrir) bIsProjMatch = true;
+					else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) && ProjElement == SPTags.Weakness_Surtr) bIsProjMatch = true;
+					else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) && ProjElement == SPTags.Weakness_Jormungandr) bIsProjMatch = true;
+
+					if (bIsProjMatch)
+					{
+						// [투사체 패링 성공!]
+						Projectile->bIsParried = true;
+						Projectile->Destroy(); // 투사체를 즉시 화면에서 파괴합니다.
+
+						UE_LOG(LogTemp, Warning, TEXT("[패링 성공] 투사체를 튕겨냈습니다!"));
+
+						// true를 반환하면, 기존 블루프린트 로직이 알아서 TargetMonster(마녀)에게 
+						// SendParriedEventToMonster를 호출하여 경직/스택 무전을 쏘게 됩니다!
+						return true;
+					}
+					else
+					{
+						// 태그가 달라서 실패했음을 알림
+						UE_LOG(LogTemp, Error, TEXT("[패링 실패] 투사체는 맞췄으나, 내 무기 태그와 투사체 태그가 다릅니다!"));
+					}
+				}
+			}
+			else
+            {
+                // 투사체가 아닌 다른 것(내 무기 등)을 때렸음을 알림
+                UE_LOG(LogTemp, Error, TEXT("[패링 실패] 투사체가 아니라 이상한 물체(%s)가 레이더를 가로막고 있습니다!"), HitActor ? *HitActor->GetName() : TEXT("NULL"));
+            }
+		}
+	}
+
+	// 투사체가 없다면, 근접 공격(몬스터 몸통) 패링을 검사합니다.
+	if (!TargetMonster) return false;
+
+	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
+	if (!TargetASC) return false;
+
+	// 패링 창이 열려있는지 검사 
+	if (!TargetASC->HasMatchingGameplayTag(SPTags.State_ParryWindow))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태(창문)가 아닙니다."));
 		return false;
 	}
 
-	// 2. 무기와 약점 상성 확인 (선생님의 태그 이름에 맞춰 수정하세요!)
-	// [펜리르]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir))
-	{
-		return true;
-	}
+	// 무기와 약점 상성 확인 
+	bool bIsMatch = false;
+	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir)) bIsMatch = true;
+	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr)) bIsMatch = true;
+	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr)) bIsMatch = true;
 
-	// [수르트]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr))
+	// 상성이 맞다면, 그 즉시 몬스터의 패링 창을 닫아버립니다!
+	if (bIsMatch)
 	{
-		return true;
-	}
+		TargetASC->RemoveLooseGameplayTag(SPTags.State_ParryWindow);
+		TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
 
-	// [요르문간드]
-	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) &&
-		TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr))
-	{
+		UE_LOG(LogTemp, Warning, TEXT("근접 패링 성공!"));
 		return true;
 	}
 
@@ -116,7 +178,7 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		UE_LOG(LogTemp, Warning, TEXT("몬스터에게 패링 이벤트를 성공적으로 전송했습니다."));
 	}
 
-	//  [추가할 코드] 내 몸의 유물들에게 패링 성공했다고 알림
+	// 내 몸의 유물들에게 패링 성공했다고 알림
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (ASC)
 	{
@@ -125,5 +187,10 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		ParryPayload.Target = TargetMonster;
 
 		ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_ParrySuccess, &ParryPayload);
+	}
+
+	if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetMonster))
+	{
+		TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
 	}
 }

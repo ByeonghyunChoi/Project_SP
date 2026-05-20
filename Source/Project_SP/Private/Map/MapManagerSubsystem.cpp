@@ -24,7 +24,6 @@ void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	StagePoolDataAsset = Cast<USPStageMonsterPoolData>(StaticLoadObject(USPStageMonsterPoolData::StaticClass(), nullptr, *PoolPath));
 
-	if (!StagePoolDataAsset)
 	{
 		UE_LOG(LogTemp, Error, TEXT("FATAL: StagePoolDataAsset Load Failed! Path: %s"), *PoolPath);
 	}
@@ -70,6 +69,8 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
+
+	PreGenerateAllNormalEncounters();
 
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 
@@ -123,6 +124,15 @@ void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 	LoadStageLevel();
 
 	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
+
+	if (bIsVictory)
+	{
+		// 현재 열려있는 맵(레벨)의 이름을 문자열로 가져옴
+		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
+		ClearedStageName = FName(*CurrentLevel); // FName으로 변환해서 저장
+
+		UE_LOG(LogTemp, Warning, TEXT("자동 메모 작성 완료! 클리어한 맵: %s"), *CurrentLevel);
+	}
 }
 
 void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
@@ -297,30 +307,35 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
-EMapGrade UMapManagerSubsystem::GetMapGradeByFloor(int32 Floor) const
+EMapType UMapManagerSubsystem::PickAndRemoveWeightedMap(TMap<EMapType, int32>& InOutWeightPool)
 {
-	switch (Floor)
-	{
-	case 1: return EMapGrade::Normal;
-	case 2: return EMapGrade::Normal;
-	case 3: return EMapGrade::Normal;
-	case 4: return EMapGrade::Prepare;
-	case 5: return EMapGrade::Boss;
-	default: return EMapGrade::Normal;
-	}
-}
+	if (InOutWeightPool.IsEmpty()) return EMapType::NormalBattle;
 
-EMapType UMapManagerSubsystem::GetRandomTypeFromGrade(EMapGrade Grade) const
-{
-	switch (Grade)
+	int32 TotalWeight = 0;
+	for (const auto& Pair : InOutWeightPool)
 	{
-	case EMapGrade::Normal: return (FMath::RandRange(0, 100) < 80) ? EMapType::NormalBattle : EMapType::Rest;
-	case EMapGrade::Epic: return (FMath::RandBool()) ? EMapType::StrongEnemyBattle : EMapType::Jester;
-	case EMapGrade::Prepare: return EMapType::Prepare;
-	case EMapGrade::Boss: return EMapType::BossBattle;
-
-	default: return EMapType::NormalBattle;
+		TotalWeight += Pair.Value;
 	}
+
+	int32 WinningTicket = FMath::RandRange(1, TotalWeight);
+
+	for (auto It = InOutWeightPool.CreateIterator(); It; ++It)
+	{
+		WinningTicket -= It->Value;
+
+		// 0 이하가 되면 이 항목이 당첨된 것입니다!
+		if (WinningTicket <= 0)
+		{
+			EMapType SelectedMap = It->Key;
+
+			// 한 번 뽑힌 맵은 다음 추첨을 위해 바구니에서 제거합니다!
+			It.RemoveCurrent();
+
+			return SelectedMap;
+		}
+	}
+
+	return EMapType::NormalBattle;
 }
 
 TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
@@ -332,20 +347,182 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 
 	int32 NextFloor = CurrentFloor + 1;
 
-	// 스테이지의 끝(4층)을 넘어가면, 다음 스테이지 1층의 옵션을 줘야 합니다.
 	if (NextFloor > 5)
 	{
-		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
-		CurrentPortalOptions.Add(GetRandomTypeFromGrade(EMapGrade::Normal));
+		NextFloor = 1;
+	}
+
+	if (NextFloor == 4)
+	{
+		CurrentPortalOptions.Add(EMapType::Prepare);
+		CurrentPortalOptions.Add(EMapType::Prepare);
 		return CurrentPortalOptions;
 	}
 
-	EMapGrade NextGrade = GetMapGradeByFloor(NextFloor);
+	if (NextFloor == 5)
+	{
+		CurrentPortalOptions.Add(EMapType::BossBattle);
+		CurrentPortalOptions.Add(EMapType::BossBattle);
+		return CurrentPortalOptions;
+	}
 
-	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
-	CurrentPortalOptions.Add(GetRandomTypeFromGrade(NextGrade));
+	TMap<EMapType, int32> FloorWeightPool;
+
+	// 선생님이 기획하신 가중치 세팅
+	FloorWeightPool.Add(EMapType::NormalBattle, 3);      // 일반 전투 3
+	FloorWeightPool.Add(EMapType::Rest, 1);              // 쉼터 1
+	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1); // 강적 1
+	FloorWeightPool.Add(EMapType::Jester, 1);            // 광대 1
+
+	// 첫 번째 포탈 추첨 (당첨된 맵은 바구니에서 제거됨)
+	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
+
+	// 두 번째 포탈 추첨 (남은 맵들끼리 가중치 비율대로 재추첨)
+	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 
 	return CurrentPortalOptions;
+}
+
+void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
+{
+	PreGeneratedEncounters.Empty();
+
+	if (!StagePoolDataAsset) return;
+
+	// 1스테이지부터 3스테이지까지, 각 1층부터 5층까지 전부 미리 뽑습니다!
+	for (int32 TargetStage = 1; TargetStage <= 3; ++TargetStage)
+	{
+		if (!StagePoolDataAsset->StagePools.Contains(TargetStage)) continue;
+		const FStageMonsterPool& Pool = StagePoolDataAsset->StagePools[TargetStage];
+
+		for (int32 TargetFloor = 1; TargetFloor <= 5; ++TargetFloor)
+		{
+			FSavedEncounterData EncounterData;
+			EncounterData.CombatLevelName = Pool.CombatLevelName;
+
+			// 해당 층에 맞는 레벨 미리 계산
+			int32 MonsterLevel = ((TargetStage - 1) * 10) + ((TargetFloor - 1) * 3) + 1;
+
+			// 몬스터 3마리와 약점을 미리 고정시켜버립니다!
+			for (int32 i = 0; i < 3; ++i)
+			{
+				FEnemySpawnInfo Slot;
+				int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+
+				Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+				Slot.SpawnLevel = MonsterLevel;
+				Slot.SpawnPositionIndex = i;
+				Slot.bOverrideWeakness = true;
+				Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2));
+
+				EncounterData.EnemyGroup.Add(Slot);
+			}
+
+			// Key 생성 (예: 1스테이지 2층 = 102, 3스테이지 5층 = 305)
+			int32 Key = (TargetStage * 100) + TargetFloor;
+			PreGeneratedEncounters.Add(Key, EncounterData);
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 일반 몬스터 인카운터 명부가 고정되었습니다!"));
+}
+
+FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType)
+{
+	FRewardResult TotalReward;
+
+	// 죽은 몬스터 수만큼 반복하면서 스테이지/맵 타입에 따라 보상을 누적!
+	for (EMonsterRank Rank : DefeatedRanks)
+	{
+		if (Stage == 1)
+		{
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 250 : 60;
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 70; TotalReward.Sand += 10; TotalReward.IncompleteEnergy += 2; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 83; TotalReward.Sand += 13; TotalReward.IncompleteEnergy += 3; }
+		}
+		else if (Stage == 2)
+		{
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 1300 : 330;
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 80; TotalReward.Sand += 12; TotalReward.IncompleteEnergy += 2; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 96; TotalReward.Sand += 15; TotalReward.IncompleteEnergy += 4; }
+		}
+		else if (Stage >= 3)
+		{
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 2500 : 600;
+			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 90; TotalReward.Sand += 14; TotalReward.IncompleteEnergy += 3; }
+			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 100; TotalReward.Sand += 17; TotalReward.IncompleteEnergy += 5; }
+		}
+	}
+	return TotalReward;
+}
+
+FRewardResult UMapManagerSubsystem::GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType)
+{
+	FRewardResult Result;
+
+	// 1. 배율 설정 (소수점 반올림을 위해 float 사용)
+	float Multiplier = 1.0f;
+	if (Stage == 2) Multiplier = 1.15f;
+	else if (Stage >= 3) Multiplier = 1.3f;
+
+	// 2. 보스 맵 상자 하드코딩 (고정 보상)
+	if (MapType == EMapType::BossBattle)
+	{
+		if (Stage == 1) { Result.Gold = 800; Result.Sand = 150; Result.IncompleteEnergy = 30; Result.Fragment = 1; Result.Exp = 150; }
+		else if (Stage == 2) { Result.Gold = 2000; Result.Sand = 600; Result.IncompleteEnergy = 100; Result.Fragment = 1; Result.Exp = 820; }
+		else { Result.Gold = 3000; Result.Sand = 1500; Result.IncompleteEnergy = 250; Result.Fragment = 1; Result.Exp = 1536; }
+
+		Result.RelicRewardCount = 1;
+		Result.bIsBossReward = true; 
+		return Result;
+	}
+
+	// 3. 내부 가중치 랜덤 함수 람다 정의
+	auto GetWeightedRandom = [](const TArray<int32>& Weights) -> int32 {
+		int32 Total = 0;
+		for (int32 W : Weights) Total += W;
+		int32 RandNum = FMath::RandRange(1, Total);
+		for (int32 i = 0; i < Weights.Num(); ++i) {
+			RandNum -= Weights[i];
+			if (RandNum <= 0) return i;
+		}
+		return 0;
+		};
+
+	// 4. 상호작용 타입별 가중치 추첨
+	if (bIsHealingObject)
+	{
+		// 0: Gold, 1: Sand, 2: Energy, 3: Relic
+		int32 Pick = GetWeightedRandom({ 30, 40, 20, 10 });
+		if (Pick == 0) Result.Gold = FMath::RoundToInt(FMath::RandRange(75, 100) * Multiplier);
+		else if (Pick == 1) Result.Sand = FMath::RoundToInt(FMath::RandRange(20, 30) * Multiplier);
+		else if (Pick == 2) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(5, 7) * Multiplier);
+		else if (Pick == 3) Result.RelicRewardCount = 1;
+	}
+	else if (MapType == EMapType::StrongEnemyBattle) // 에픽(강적) 맵 상자
+	{
+		Result.RelicRewardCount = 1; // 🌟 확정 유물 1개 지급
+
+		// 추가 보상 추첨
+		// 0: Relic(20), 1: Gold(40), 2: Sand(30), 3: Energy(10), 4: Frag(10)
+		int32 Pick = GetWeightedRandom({ 20, 40, 30, 10, 10 });
+		if (Pick == 0) Result.RelicRewardCount += 1; // 추가 유물 당첨 (총 2개)
+		else if (Pick == 1) Result.Gold = FMath::RoundToInt(FMath::RandRange(350, 450) * Multiplier);
+		else if (Pick == 2) Result.Sand = FMath::RoundToInt(FMath::RandRange(100, 150) * Multiplier);
+		else if (Pick == 3) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(25, 40) * Multiplier);
+		else if (Pick == 4) Result.Fragment = FMath::RoundToInt(2 * Multiplier); // 파편도 배율을 타나요? 아니라면 배율 제거
+	}
+	else // 일반 맵 상자
+	{
+		// 0: Relic(30), 1: Gold(30), 2: Sand(25), 3: Energy(10), 4: Frag(5)
+		int32 Pick = GetWeightedRandom({ 30, 30, 25, 10, 5 });
+		if (Pick == 0) Result.RelicRewardCount = 1;
+		else if (Pick == 1) Result.Gold = FMath::RoundToInt(FMath::RandRange(150, 200) * Multiplier);
+		else if (Pick == 2) Result.Sand = FMath::RoundToInt(FMath::RandRange(40, 60) * Multiplier);
+		else if (Pick == 3) Result.IncompleteEnergy = FMath::RoundToInt(FMath::RandRange(10, 15) * Multiplier);
+		else if (Pick == 4) Result.Fragment = FMath::RoundToInt(1 * Multiplier);
+	}
+
+	return Result;
 }
 
 int32 UMapManagerSubsystem::CalculateMonsterLevel() const
@@ -371,32 +548,21 @@ FGameplayTagContainer UMapManagerSubsystem::GenerateRandomWeaknesses(int32 Count
 
 UCombatEncounterData* UMapManagerSubsystem::GenerateFieldEncounter()
 {
-	UCombatEncounterData* NewEncounter = NewObject<UCombatEncounterData>(this);
+	int32 Key = (CurrentStage * 100) + CurrentFloor;
 
-	if (!StagePoolDataAsset || !StagePoolDataAsset->StagePools.Contains(CurrentStage)) return nullptr;
-
-	const FStageMonsterPool& Pool = StagePoolDataAsset->StagePools[CurrentStage];
-	NewEncounter->CombatLevelName = Pool.CombatLevelName;
-
-	int32 MonsterLevel = CalculateMonsterLevel();
-
-	for (int32 i = 0; i < 3; ++i)
+	// 🌟 끄고 켜도 안 바뀜! 미리 뽑아둔 명부에서 현재 층의 정보를 가져와서 반환합니다.
+	if (PreGeneratedEncounters.Contains(Key))
 	{
-		FEnemySpawnInfo Slot;
-		int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+		UCombatEncounterData* NewEncounter = NewObject<UCombatEncounterData>(this);
+		NewEncounter->CombatLevelName = PreGeneratedEncounters[Key].CombatLevelName;
+		NewEncounter->EnemyGroup = PreGeneratedEncounters[Key].EnemyGroup;
 
-		Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
-		Slot.SpawnLevel = MonsterLevel;
-		Slot.SpawnPositionIndex = i; // 0=중앙, 1=좌측, 2=우측
-
-		// 🌟 약점 랜덤 오버라이드 설정
-		Slot.bOverrideWeakness = true;
-		Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2)); // 1~2개 약점
-
-		NewEncounter->EnemyGroup.Add(Slot);
+		UE_LOG(LogTemp, Warning, TEXT("미리 고정된 몬스터 구성을 불러옵니다. (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+		return NewEncounter;
 	}
 
-	return NewEncounter;
+	UE_LOG(LogTemp, Error, TEXT("FATAL: 고정된 몬스터 명부가 없습니다!"));
+	return nullptr;
 }
 
 FTransform UMapManagerSubsystem::GetFieldSpawnTransform(int32 Index)
@@ -431,6 +597,11 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 	bIsInLobby = bSavedInLobby;
 	CurrentPortalOptions = SavedPortalOptions;
 
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		PreGeneratedEncounters = SaveSys->GetRunData().MapProgress.PreGeneratedEncounters;
+	}
+
 	// 스테이지 레벨을 열면 -> OnPostLoadMapWithWorld가 작동하면서 맵을 복구함!
 	if (bIsInLobby)
 	{
@@ -463,4 +634,17 @@ void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
 {
 	// MapBase가 BeginPlay에서 호출해줌
 	if (!CurrentMapActor.IsValid()) CurrentMapActor = InMapActor;
+}
+
+EMapGrade UMapManagerSubsystem::GetMapGradeForUI(int32 Floor) const
+{
+	switch (Floor)
+	{
+	case 1: return EMapGrade::Normal;
+	case 2: return EMapGrade::Normal;
+	case 3: return EMapGrade::Normal;
+	case 4: return EMapGrade::Prepare;
+	case 5: return EMapGrade::Boss;
+	default: return EMapGrade::Normal;
+	}
 }
