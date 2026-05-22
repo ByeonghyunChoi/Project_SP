@@ -251,6 +251,22 @@ void USPSaveGameSubsystem::SaveSoundSettings(float Master, float BGM, float SFX,
 	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 사운드 설정 영구 데이터에 저장 완료! (Master: %f)"), Master);
 }
 
+void USPSaveGameSubsystem::MarkIntroAsSeen()
+{
+	// 오프닝을 봤다고 체크!
+	PermData.bHasSeenIntro = true;
+
+	// 이 중요한 사실을 잊어버리지 않게 즉시 디스크(영구 세이브)에 덮어씁니다.
+	SavePermToDisk();
+
+	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 플레이어가 최초 오프닝을 시청했습니다. 영구 저장 완료!"));
+}
+
+bool USPSaveGameSubsystem::HasSeenIntro() const
+{
+	return PermData.bHasSeenIntro;
+}
+
 void USPSaveGameSubsystem::SavePermToDisk()
 {
 	USPPermSaveGame* SaveInst = Cast<USPPermSaveGame>(UGameplayStatics::CreateSaveGameObject(USPPermSaveGame::StaticClass()));

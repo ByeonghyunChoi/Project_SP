@@ -776,6 +776,26 @@ const UOpartsDefinition* ASPGASPlayerController::GetCurrentOpartsDefinition() co
 	return nullptr;
 }
 
+void ASPGASPlayerController::SetAllHUDVisibility(bool bIsVisible)
+{
+	// 켤 때는 Visible, 끌 때는 Hidden으로 세팅
+	ESlateVisibility NewVisibility = bIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
+
+	// 필드 UI가 존재한다면 가시성 조절
+	if (FieldHUDWidget)
+	{
+		FieldHUDWidget->SetVisibility(NewVisibility);
+	}
+
+	// 전투 UI가 존재한다면 가시성 조절
+	if (BattleHUDWidget)
+	{
+		BattleHUDWidget->SetVisibility(NewVisibility);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[UI Control] 인게임 HUD 가시성 변경 완료 -> %s"), bIsVisible ? TEXT("ON") : TEXT("OFF"));
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기

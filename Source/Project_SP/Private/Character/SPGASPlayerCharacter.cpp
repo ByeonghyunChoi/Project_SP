@@ -650,3 +650,22 @@ void ASPGASPlayerCharacter::OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool
 		HandleWeaponShow();
 	}
 }
+
+void ASPGASPlayerCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	// 1순위: 전투용 시네마틱 카메라(CombatCineCamera)가 켜져 있다면 최우선으로 사용!
+	if (CombatCineCamera && CombatCineCamera->IsActive())
+	{
+		CombatCineCamera->GetCameraView(DeltaTime, OutResult);
+	}
+	// 2순위: 필드용 카메라(FollowCamera)가 켜져 있다면 그걸 사용!
+	else if (FollowCamera && FollowCamera->IsActive())
+	{
+		FollowCamera->GetCameraView(DeltaTime, OutResult);
+	}
+	// 둘 다 아니면 (혹은 에러 시) 기본 부모 클래스의 로직을 따름
+	else
+	{
+		Super::CalcCamera(DeltaTime, OutResult);
+	}
+}

@@ -262,6 +262,10 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "UI | Boss")
 	void HideBossUI();
 
+	//컷신 전용 모든 UI를 끄는 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void SetAllHUDVisibility(bool bIsVisible);
+
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
 	class AMerchantNPC* CurrentMerchant;
