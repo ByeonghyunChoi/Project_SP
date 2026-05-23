@@ -114,6 +114,13 @@ protected:
 	UPROPERTY()
 	TObjectPtr<class UUserWidget> FieldHUDWidget;
 
+	//로비 용 UI
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> LobbyHUDClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> LobbyHUDWidget;
+
 	//전투 용 UI
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> BattleHUDClass;
@@ -265,6 +272,10 @@ public:
 	//컷신 전용 모든 UI를 끄는 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void SetAllHUDVisibility(bool bIsVisible);
+
+	//UI 전환 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void SwitchHUDMode(FName ModeName);
 
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")

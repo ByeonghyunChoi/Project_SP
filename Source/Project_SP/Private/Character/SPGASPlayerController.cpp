@@ -41,34 +41,43 @@ void ASPGASPlayerController::BeginPlay()
 	InputModeData.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputModeData);
 
-	bool bIsBattleMap = false;
-	UGameInstance* GI = GetGameInstance();
-	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	if (LobbyHUDClass && !LobbyHUDWidget)
 	{
-		bIsBattleMap = MapManager->IsInBattleMap();
+		LobbyHUDWidget = CreateWidget<UUserWidget>(this, LobbyHUDClass);
+		if (LobbyHUDWidget) LobbyHUDWidget->AddToViewport();
 	}
-
 	if (FieldHUDClass && !FieldHUDWidget)
 	{
 		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
-		if (FieldHUDWidget)
-		{
-			FieldHUDWidget->AddToViewport();
-
-			// 전투 맵이라면 처음부터 필드 UI를 숨긴 채로 만들고, 필드일 때만 켭니다!
-			FieldHUDWidget->SetVisibility(bIsBattleMap ? ESlateVisibility::Hidden : ESlateVisibility::SelfHitTestInvisible);
-		}
+		if (FieldHUDWidget) FieldHUDWidget->AddToViewport();
 	}
-
 	if (BattleHUDClass && !BattleHUDWidget)
 	{
 		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget)
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
+	// 2. 선생님의 MapManager를 이용해 지금 무슨 맵인지 판단합니다.
+	FName StartMode = TEXT("Field");
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		if (MapManager->IsInBattleMap())
 		{
-			BattleHUDWidget->AddToViewport();
-			BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+			StartMode = TEXT("Battle");
+		}
+		else if (MapManager->GetIsInLobby())
+		{
+			StartMode = TEXT("Lobby");
+		}
+		else
+		{
+			StartMode = TEXT("Field");
 		}
 	}
+
+	// 3. 결정된 UI 딱 하나만 켭니다.
+	SwitchHUDMode(StartMode);
 }
 
 void ASPGASPlayerController::SetupInputComponent()
@@ -640,34 +649,22 @@ void ASPGASPlayerController::SetupAndShowBattleUI()
 		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
 	}
 
-	// 2. 위젯 생성 및 스위치!
-	if (!BattleHUDWidget && BattleHUDClass)
-	{
-		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
-	}
-
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
+	SwitchHUDMode(TEXT("Battle"));
 	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
 }
 
 void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
 {
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
 		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
 		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
 		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
 	}
-
-	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
 	CancelTargetSelection();
+
+	// 🌟 필드 UI 켜라!
+	SwitchHUDMode(TEXT("Field"));
 
 	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
 }
@@ -778,22 +775,48 @@ const UOpartsDefinition* ASPGASPlayerController::GetCurrentOpartsDefinition() co
 
 void ASPGASPlayerController::SetAllHUDVisibility(bool bIsVisible)
 {
-	// 켤 때는 Visible, 끌 때는 Hidden으로 세팅
-	ESlateVisibility NewVisibility = bIsVisible ? ESlateVisibility::Visible : ESlateVisibility::Hidden;
-
-	// 필드 UI가 존재한다면 가시성 조절
-	if (FieldHUDWidget)
+	if (bIsVisible)
 	{
-		FieldHUDWidget->SetVisibility(NewVisibility);
+		// 🌟 다시 켤 때는 그냥 무식하게 켜지 말고, 현재 맵 상태를 물어봐서 똑똑하게 켭니다!
+		UGameInstance* GI = GetGameInstance();
+		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+		{
+			if (MapManager->IsInBattleMap()) SwitchHUDMode(TEXT("Battle"));
+			else if (MapManager->GetIsInLobby()) SwitchHUDMode(TEXT("Lobby"));
+			else SwitchHUDMode(TEXT("Field"));
+		}
+	}
+	else
+	{
+		// 🌟 끌 때는 3개 다 꺼버림
+		if (LobbyHUDWidget) LobbyHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	// 전투 UI가 존재한다면 가시성 조절
-	if (BattleHUDWidget)
-	{
-		BattleHUDWidget->SetVisibility(NewVisibility);
-	}
+	UE_LOG(LogTemp, Log, TEXT("[UI Control] 컷신 HUD 가시성 변경 완료 -> %s"), bIsVisible ? TEXT("ON") : TEXT("OFF"));
+}
 
-	UE_LOG(LogTemp, Log, TEXT("[UI Control] 인게임 HUD 가시성 변경 완료 -> %s"), bIsVisible ? TEXT("ON") : TEXT("OFF"));
+void ASPGASPlayerController::SwitchHUDMode(FName ModeName)
+{
+	// 1. 무조건 3개를 싹 다 끕니다. (중첩 원천 차단)
+	if (LobbyHUDWidget) LobbyHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+
+	// 2. 들어온 이름에 맞춰서 딱 하나만 살립니다.
+	if (ModeName == TEXT("Lobby") && LobbyHUDWidget)
+	{
+		LobbyHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else if (ModeName == TEXT("Field") && FieldHUDWidget)
+	{
+		FieldHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else if (ModeName == TEXT("Battle") && BattleHUDWidget)
+	{
+		BattleHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
 }
 
 void ASPGASPlayerController::StartTargetSelection()
