@@ -134,6 +134,10 @@ protected:
 	// 회귀 연출 타이머
 	FTimerHandle RegressionTimerHandle;
 
+	// 패배 위젯 메모리
+	UPROPERTY(BlueprintReadWrite, Category = "GameFlow | UI")
+	TObjectPtr<class UUserWidget> RegressionHUDWidget;
+
 public:
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")

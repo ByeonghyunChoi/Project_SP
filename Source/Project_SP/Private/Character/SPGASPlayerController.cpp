@@ -828,7 +828,7 @@ void ASPGASPlayerController::StartRegressionSequence()
 	ShowRegressionUI();
 
 	// 3. 로비로 보내버리는 타이머 가동!
-	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 3.0f, false);
+	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 5.0f, false);
 }
 
 void ASPGASPlayerController::StartTargetSelection()
@@ -1140,6 +1140,12 @@ void ASPGASPlayerController::HandleInputFeedback(FGameplayTag InputTag, bool bIs
 
 void ASPGASPlayerController::ExecuteGoToLobby()
 {
+	if (RegressionHUDWidget)
+	{
+		RegressionHUDWidget->RemoveFromParent(); 
+		RegressionHUDWidget = nullptr;       
+	}
+
 	UGameInstance* GI = GetGameInstance();
 	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
 	{
