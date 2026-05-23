@@ -131,6 +131,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Combat | TimeMagic")
 	TObjectPtr<class UMaterialParameterCollection> TimeMagicMPC;
 
+	// 회귀 연출 타이머
+	FTimerHandle RegressionTimerHandle;
+
+public:
+	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
+	UPROPERTY(BlueprintReadWrite, Category = "Shop")
+	class AMerchantNPC* CurrentMerchant;
+
 protected:
 	// 필드 이동 처리
 	void OnMove(const FInputActionValue& Value);
@@ -194,6 +202,9 @@ protected:
 
 	// 전투 중 입력에 따라 UI 상태를 바로 갱신하는 함수
 	void HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess);
+
+	// 타이머 종료 후 로비로 보내는 함수
+	void ExecuteGoToLobby();
 
 public:
 	// 무기 교체 처리
@@ -277,9 +288,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void SwitchHUDMode(FName ModeName);
 
-	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
-	UPROPERTY(BlueprintReadWrite, Category = "Shop")
-	class AMerchantNPC* CurrentMerchant;
+	//시간의 힘 고갈 연출을 시작하는 함수
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void StartRegressionSequence();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "GameFlow | UI")
+	void ShowRegressionUI();
 
 private:
 	UPROPERTY()

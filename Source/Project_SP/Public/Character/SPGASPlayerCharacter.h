@@ -120,6 +120,9 @@ protected:
 
 	void OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
+	// 시간의 힘을 전부 다 썼을 때 연출 함수
+	void ExecuteTimeOverSequence();
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;

@@ -819,6 +819,18 @@ void ASPGASPlayerController::SwitchHUDMode(FName ModeName)
 	}
 }
 
+void ASPGASPlayerController::StartRegressionSequence()
+{
+	// 1. 화면에 켜져 있던 모든 전투/필드 UI를 강제로 끕니다.
+	SetAllHUDVisibility(false);
+
+	// 2. 블루프린트에 만들어둔 '회귀 텍스트 UI'를 띄워라! (이벤트 송출)
+	ShowRegressionUI();
+
+	// 3. 로비로 보내버리는 타이머 가동!
+	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 3.0f, false);
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
@@ -1124,6 +1136,16 @@ void ASPGASPlayerController::PlayActionSound(FGameplayTag InputTag, bool bIsSucc
 void ASPGASPlayerController::HandleInputFeedback(FGameplayTag InputTag, bool bIsSuccess)
 {
 	OnInputProcessed.Broadcast(InputTag, bIsSuccess);
+}
+
+void ASPGASPlayerController::ExecuteGoToLobby()
+{
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		// 맵 매니저의 기능 재활용! (세이브 데이터 초기화 + 로비 레벨 이동)
+		MapManager->GoToLobby();
+	}
 }
 
 
