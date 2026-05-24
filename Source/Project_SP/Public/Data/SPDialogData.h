@@ -5,6 +5,30 @@
 #include "GameplayTagContainer.h"
 #include "SPDialogData.generated.h"
 
+UENUM(BlueprintType)
+enum class EClownChoiceType : uint8
+{
+    None			UMETA(DisplayName = "선택 안 함"),
+    ReduceTP_Relic1		UMETA(DisplayName = "1. TP 20 감소 / 유물 1개 획득"),
+    ReduceHP_Relic1		UMETA(DisplayName = "2. HP 50% 감소 / 유물 1개 획득"),
+    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 20% 감소 / 유물 2개 획득"),
+    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 20% 감소 / 유물 2개 획득")
+};
+
+USTRUCT(BlueprintType)
+struct FDialogChoiceData
+{
+    GENERATED_BODY()
+
+    // 버튼에 표시될 텍스트 (예: "1. TP 20감소, 대신 유물 획득")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog|Choice")
+    FText ChoiceText;
+
+    // 이 버튼을 눌렀을 때 발동할 고정 효과
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog|Choice")
+    EClownChoiceType ChoiceType = EClownChoiceType::None;
+};
+
 USTRUCT(BlueprintType)
 struct FDialogLineData : public FTableRowBase
 {
@@ -21,6 +45,9 @@ public:
     // 대사 내용
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog", meta = (MultiLine = true))
     FText DialogText;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    TArray<FDialogChoiceData> Choices;
 };
 
 USTRUCT(BlueprintType)
