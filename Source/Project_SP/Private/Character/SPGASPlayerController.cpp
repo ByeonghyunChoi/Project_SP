@@ -1085,7 +1085,6 @@ void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAct
 
 		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 		{
-			// None이 아니면 행동을 선택한 것이므로 True 전달
 			bool bIsSelecting = (NewAction != ESelectedActionType::None);
 			PlayerChar->ToggleActionCameraMode(bIsSelecting, bInstantReset, CurrentTargetIndex, CurrentTargetingType);
 		}
