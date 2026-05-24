@@ -175,6 +175,10 @@ public:
 	void HandleWeaponShow();
 
 	void CheckLevelUp();
+
+	//행동 선택 시 UI 보여주는 연출 이벤트
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Camera | Action")
+	void ToggleActionCameraMode(bool bIsSelecting, bool bInstantReset, int32 TargetIndex, ETargetingType TargetType);
 	
 public:
 	// 경험치 획득 함수

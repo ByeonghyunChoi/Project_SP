@@ -274,7 +274,7 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
-	if (CurrentFloor >= 5 && CurrentStage < 3) // 5층(보스) 클리어 시
+	if (CurrentFloor >= 5 && CurrentStage < 2) // 5층(보스) 클리어 시
 	{
 		CurrentStage++;
 		CurrentFloor = 1;
@@ -297,7 +297,7 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 			SpawnMapActor(SelectedType);
 		}
 	}
-	else if (CurrentFloor >= 4 && CurrentStage >= 3)
+	else if (CurrentFloor >= 5 && CurrentStage >= 2)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 모든 스테이지 클리어! 데모 종료 및 로비로 귀환합니다."));
 		GoToLobby();
@@ -352,32 +352,28 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 		NextFloor = 1;
 	}
 
+	// 4층(준비 맵)일 때 옵션을 딱 1개만 넣습니다!
 	if (NextFloor == 4)
 	{
 		CurrentPortalOptions.Add(EMapType::Prepare);
-		CurrentPortalOptions.Add(EMapType::Prepare);
 		return CurrentPortalOptions;
 	}
 
+	// 5층(보스 맵)일 때 옵션을 딱 1개만 넣습니다!
 	if (NextFloor == 5)
 	{
 		CurrentPortalOptions.Add(EMapType::BossBattle);
-		CurrentPortalOptions.Add(EMapType::BossBattle);
 		return CurrentPortalOptions;
 	}
 
+	// 그 외 일반 층(2층, 3층)일 때는 정상적으로 가중치를 돌려 2개를 뽑습니다.
 	TMap<EMapType, int32> FloorWeightPool;
+	FloorWeightPool.Add(EMapType::NormalBattle, 3);
+	FloorWeightPool.Add(EMapType::Rest, 1);
+	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
+	FloorWeightPool.Add(EMapType::Jester, 1);
 
-	// 선생님이 기획하신 가중치 세팅
-	FloorWeightPool.Add(EMapType::NormalBattle, 3);      // 일반 전투 3
-	FloorWeightPool.Add(EMapType::Rest, 1);              // 쉼터 1
-	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1); // 강적 1
-	FloorWeightPool.Add(EMapType::Jester, 1);            // 광대 1
-
-	// 첫 번째 포탈 추첨 (당첨된 맵은 바구니에서 제거됨)
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
-
-	// 두 번째 포탈 추첨 (남은 맵들끼리 가중치 비율대로 재추첨)
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 
 	return CurrentPortalOptions;
@@ -390,7 +386,7 @@ void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
 	if (!StagePoolDataAsset) return;
 
 	// 1스테이지부터 3스테이지까지, 각 1층부터 5층까지 전부 미리 뽑습니다!
-	for (int32 TargetStage = 1; TargetStage <= 3; ++TargetStage)
+	for (int32 TargetStage = 1; TargetStage <= 2; ++TargetStage)
 	{
 		if (!StagePoolDataAsset->StagePools.Contains(TargetStage)) continue;
 		const FStageMonsterPool& Pool = StagePoolDataAsset->StagePools[TargetStage];

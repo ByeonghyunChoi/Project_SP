@@ -240,11 +240,14 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 	{
 		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
-
-		// 3. 새 타겟 하이라이트 켜기
 		HighlightCurrentTarget(true);
-		UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
 		OnTargetChanged.Broadcast(SelectedTarget);
+
+		// 🌟 [추가] 타겟이 바뀌었으니, 새 타겟 인덱스에 맞춰 카메라를 돌려라!
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			PlayerChar->ToggleActionCameraMode(true, false, CurrentTargetIndex, CurrentTargetingType);
+		}
 	}
 	else
 	{
@@ -883,7 +886,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
 
 		// 행동 초기화 (다음 턴을 위해)
-		SetCurrentSelectedAction(ESelectedActionType::None);
+		SetCurrentSelectedAction(ESelectedActionType::None, true);
 
 		OnTargetChanged.Broadcast(nullptr);
 	}
@@ -905,7 +908,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 {
 	HighlightCurrentTarget(false);
 	bIsSelectingTarget = false;
-	SetCurrentSelectedAction(ESelectedActionType::None);
+	SetCurrentSelectedAction(ESelectedActionType::None, false);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
 	OnTargetChanged.Broadcast(nullptr);
@@ -1031,9 +1034,12 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 				HighlightCurrentTarget(false);
 				CurrentTargetIndex = FoundIndex;
 				HighlightCurrentTarget(true);
-
-				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
 				OnTargetChanged.Broadcast(ClickedActor);
+
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+				{
+					PlayerChar->ToggleActionCameraMode(true, false, CurrentTargetIndex, CurrentTargetingType);
+				}
 			}
 		}
 	}
@@ -1069,13 +1075,20 @@ void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeDat
 	RefreshBattlePointUI();
 }
 
-void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction)
+void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction, bool bInstantReset)
 {
 	if(CurrentSelectedAction != NewAction)
 	{
 		CurrentSelectedAction = NewAction;
 		OnActionStateChanged.Broadcast(CurrentSelectedAction);
 		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			// None이 아니면 행동을 선택한 것이므로 True 전달
+			bool bIsSelecting = (NewAction != ESelectedActionType::None);
+			PlayerChar->ToggleActionCameraMode(bIsSelecting, bInstantReset, CurrentTargetIndex, CurrentTargetingType);
+		}
 	}
 }
 
@@ -1162,11 +1175,6 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 	if (CurrentWeaponTag == NewWeaponTag) return;
 	if (!CachedASC) return;
 
-	if (bIsSelectingTarget)
-	{
-		HighlightCurrentTarget(false);
-	}
-
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
@@ -1182,38 +1190,24 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
 
+	// 전투 상태일 때 행동 강제 초기화!
 	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
 	{
-		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
-		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		// 행동을 고르는 중이었거나, 타겟팅 중이었다면?
+		if (bIsSelectingTarget || CurrentSelectedAction != ESelectedActionType::None)
 		{
-			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-			{
-				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
-			}
-
-			HighlightCurrentTarget(true);
-
-			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-			{
-				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
-			}
-		}
-		else
-		{
-			SetCurrentSelectedAction(ESelectedActionType::None);
+			// 타겟팅 해제 + 상태 None 변경 + 카메라 스무스 복귀 + UI 숨기기
+			// 이 모든 것이 CancelTargetSelection() 한 방에 전부 처리됩니다!
+			CancelTargetSelection();
+			UE_LOG(LogTemp, Log, TEXT("[전투] 무기 교체로 인해 행동 선택이 초기화되었습니다."));
 		}
 	}
 	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
 	{
-		// [필드 상태일 때만 실행]
-		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
-
-		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		// [필드 상태일 때]
 		bIsSelectingTarget = false;
 		SetCurrentSelectedAction(ESelectedActionType::None);
-
-		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다."));
 	}
 }
 

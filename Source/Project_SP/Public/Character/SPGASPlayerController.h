@@ -187,7 +187,7 @@ protected:
 	void OnMaxBattlePointChanged(const FOnAttributeChangeData& Data);
 
 	// 플레이어의 행동 상태 변경을 관리할 함수
-	void SetCurrentSelectedAction(ESelectedActionType NewAction);
+	void SetCurrentSelectedAction(ESelectedActionType NewAction, bool bInstantReset = false);
 
 	// 시간 간섭 상태 변경 감지 함수
 	void OnTimeInterferenceTagChanged(const FGameplayTag Tag, int32 NewCount);
