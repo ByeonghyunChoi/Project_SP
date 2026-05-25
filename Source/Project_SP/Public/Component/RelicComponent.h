@@ -84,4 +84,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Relic")
     void LoadRelicData(const FPlayerRelicData& SavedRelicData);
 
+    // 전체 유물 풀에서 장착하지 않은 유물을 랜덤으로 즉시 장착시키는 함수
+    UFUNCTION(BlueprintCallable, Category = "Relic")
+    int32 GrantRandomRelics(int32 Count, const TArray<URelicDefinition*>& AllRelicPool);
+
 };

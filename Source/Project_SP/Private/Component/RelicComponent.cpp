@@ -319,3 +319,58 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		OnRelicUpdated.Broadcast();
 	}
 }
+
+int32 URelicComponent::GrantRandomRelics(int32 Count, const TArray<URelicDefinition*>& AllRelicPool)
+{
+	// 방어 코드: 0개 이하로 달라고 하거나, 전체 유물 풀이 비어있으면 취소
+	if (Count <= 0 || AllRelicPool.IsEmpty()) return 0;
+
+	// 1. 현재 장착하지 않은 유물들만 따로 모아둘 임시 바구니를 만듭니다.
+	TArray<URelicDefinition*> AvailableRelics;
+	for (URelicDefinition* Relic : AllRelicPool)
+	{
+		// 유물이 유효하고, 내 장착 목록에 없다면(중복 방지) 바구니에 넣습니다.
+		if (Relic && !EquippedRelics.Contains(Relic))
+		{
+			AvailableRelics.Add(Relic);
+		}
+	}
+
+	// 2. 바구니가 비어있다면? (모든 유물을 다 얻었을 경우)
+	if (AvailableRelics.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Relic] 장착 가능한 새로운 유물이 더 이상 없습니다!"));
+		return 0;
+	}
+
+	// 3. 바구니 안의 유물들을 마구 섞어줍니다! (셔플)
+	int32 LastIndex = AvailableRelics.Num() - 1;
+	for (int32 i = 0; i <= LastIndex; ++i)
+	{
+		int32 SwapIndex = FMath::RandRange(i, LastIndex);
+		AvailableRelics.Swap(i, SwapIndex);
+	}
+
+	// 4. 요청한 개수만큼 장착을 시도합니다. (바구니에 남은 유물이 요청 개수보다 적을 수 있으니 안전하게 계산)
+	int32 GrantedCount = 0;
+	int32 ActualCountToGive = FMath::Min(Count, AvailableRelics.Num());
+
+	for (int32 i = 0; i < ActualCountToGive; ++i)
+	{
+		// 성민 님이 이미 만들어두신 AddRelic을 재활용합니다!
+		// AddRelic 내부에서 최대 6개 제한을 알아서 막아주기 때문에 아주 안전합니다.
+		if (AddRelic(AvailableRelics[i]))
+		{
+			GrantedCount++; // 장착 성공!
+		}
+		else
+		{
+			// 장착 실패 (아마도 유물 칸이 6개로 꽉 찬 경우)
+			UE_LOG(LogTemp, Warning, TEXT("[Relic] 유물 슬롯이 가득 차서 더 이상 획득할 수 없습니다."));
+			break; // 남은 지급을 즉시 중단합니다.
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Relic] 광대 이벤트 등으로 랜덤 유물 %d개 획득 성공!"), GrantedCount);
+	return GrantedCount;
+}
