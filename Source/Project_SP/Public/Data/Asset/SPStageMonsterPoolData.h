@@ -20,6 +20,10 @@ struct FStageMonsterPool
 	// 이 스테이지에 등장할 일반 몬스터들 목록
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TArray<USPMonsterData*> NormalMonsters;
+
+	// 이 스테이지에 등장할 강적 몬스터들 목록
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<USPMonsterData*> StrongMonsters;
 };
 
 UCLASS()

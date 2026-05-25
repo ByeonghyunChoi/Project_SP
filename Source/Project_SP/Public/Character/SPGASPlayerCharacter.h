@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "Data/Asset/WeaponAbilityData.h"
 #include "Manager/SPGASBattleTypes.h"
+#include "Data/SPDialogData.h"
 #include "SPGASPlayerCharacter.generated.h"
 
 USTRUCT(BlueprintType)
@@ -65,6 +66,10 @@ public:
 	// 레벨업 보상용 데이터 테이블(일단 지금은 비워 둠)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Data | Growth")
 	class UDataTable* PlayerRewardTable;
+
+	// 광대 선택지 실행 함수
+	UFUNCTION(BlueprintCallable, Category = "Event") 
+	void ExecuteClownChoice(EClownChoiceType Choice, const TArray<URelicDefinition*>& AllRelicPool);
 
 protected:
 
@@ -151,6 +156,7 @@ public:
 
 public:
 	// Setter
+	UFUNCTION(BlueprintCallable)
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }

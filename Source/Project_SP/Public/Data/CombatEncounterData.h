@@ -30,7 +30,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override", meta = (EditCondition = "bOverrideWeakness"))
 	FGameplayTagContainer OverriddenWeaknessTags;
 
-	// 스폰 위치 인덱스 0=중앙, 1=좌측, 2=우측
+	// 스폰 위치 인덱스 1=중앙, 0=좌측, 2=우측
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnPositionIndex = 0;
 

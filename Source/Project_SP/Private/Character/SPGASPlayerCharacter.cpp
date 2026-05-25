@@ -17,6 +17,7 @@
 #include "Map/MapManagerSubSystem.h"
 #include "Components/WidgetComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
+#include "Component/RelicComponent.h"
 
 
 
@@ -329,6 +330,8 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 
 	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
 	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
 }
 
@@ -510,6 +513,64 @@ void ASPGASPlayerCharacter::OnActionTagChanged(const FGameplayTag CallbackTag, i
 	{
 		BattlePointWidgetComponent->SetVisibility(bShouldShowUI);
 	}
+}
+
+void ASPGASPlayerCharacter::ExecuteClownChoice(EClownChoiceType Choice, const TArray<URelicDefinition*>& AllRelicPool)
+{
+	if (Choice == EClownChoiceType::None) return;
+
+	// 1. GAS 어빌리티 시스템 및 컴포넌트 가져오기
+	UAbilitySystemComponent* AbilityComp = GetAbilitySystemComponent();
+	URelicComponent* RelicComp = FindComponentByClass<URelicComponent>();
+	if (!AbilityComp || !RelicComp) return;
+
+	int32 RelicsToGive = 0;
+
+	// 2. 선택지에 따른 스탯(Attribute) 감소 처리
+	switch (Choice)
+	{
+		case EClownChoiceType::ReduceTP_Relic1:
+		{
+			// TP 20 감소
+			float CurrentTP = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute());
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), FMath::Max(0.0f, CurrentTP - 20.0f));
+			RelicsToGive = 1;
+			break;
+		}
+		case EClownChoiceType::ReduceHP_Relic1:
+		{
+			// HP 50% 감소 (현재 체력의 절반을 깎는 로직)
+			float CurrentHP = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute());
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), FMath::Max(1.0f, CurrentHP * 0.5f));
+			RelicsToGive = 1;
+			break;
+		}
+		case EClownChoiceType::ReduceATK_Relic2:
+		{
+			// 공격력 20% 감소
+			float CurrentATK = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), CurrentATK * 0.8f);
+			RelicsToGive = 2;
+			break;
+		}
+		case EClownChoiceType::ReduceDEF_Relic2:
+		{
+			// 방어력 20% 감소
+			float CurrentDEF = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), CurrentDEF * 0.8f);
+			RelicsToGive = 2;
+			break;
+		}
+	}
+
+
+	if (RelicsToGive > 0)
+	{
+		RelicComp->GrantRandomRelics(RelicsToGive, AllRelicPool);
+	}
+	
+
+	UE_LOG(LogTemp, Warning, TEXT("광대 이벤트 적용 완료! 유물 %d개 획득"), RelicsToGive);
 }
 
 
