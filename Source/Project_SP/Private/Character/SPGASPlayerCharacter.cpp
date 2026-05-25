@@ -329,6 +329,8 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 
 	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
 	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
 }
 

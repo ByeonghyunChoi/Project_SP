@@ -73,7 +73,7 @@ public:
 	bool GetIsInLobby() const { return bIsInLobby; }
 
 	// 일반 전투 몬스터 생성 함수
-	void PreGenerateAllNormalEncounters();
+	void PreGenerateAllEncounters();
 
 	// 전투 종료 시 확정 보상 계산
 	UFUNCTION(BlueprintCallable, Category = "Reward")

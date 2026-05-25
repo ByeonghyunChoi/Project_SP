@@ -70,7 +70,7 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
 
-	PreGenerateAllNormalEncounters();
+	PreGenerateAllEncounters();
 
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 
@@ -379,7 +379,7 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	return CurrentPortalOptions;
 }
 
-void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
+void UMapManagerSubsystem::PreGenerateAllEncounters()
 {
 	PreGeneratedEncounters.Empty();
 
@@ -399,27 +399,56 @@ void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
 			// 해당 층에 맞는 레벨 미리 계산
 			int32 MonsterLevel = ((TargetStage - 1) * 10) + ((TargetFloor - 1) * 3) + 1;
 
-			// 몬스터 3마리와 약점을 미리 고정시켜버립니다!
-			for (int32 i = 0; i < 3; ++i)
+			if (Pool.NormalMonsters.Num() > 0)
 			{
-				FEnemySpawnInfo Slot;
-				int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+				FSavedEncounterData NormalEncounter;
+				NormalEncounter.CombatLevelName = Pool.CombatLevelName;
 
-				Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+				for (int32 i = 0; i < 3; ++i)
+				{
+					FEnemySpawnInfo Slot;
+					int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+
+					Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+					Slot.SpawnLevel = MonsterLevel;
+					Slot.SpawnPositionIndex = i; // 0, 1, 2번에 각각 스폰
+					Slot.bOverrideWeakness = true;
+					Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2));
+
+					NormalEncounter.EnemyGroup.Add(Slot);
+				}
+
+				// 🌟 [핵심] Key 규칙 변경: (스테이지 * 1000) + (층수 * 10) + 맵타입(Enum)
+				int32 NormalKey = (TargetStage * 1000) + (TargetFloor * 10) + (uint8)EMapType::NormalBattle;
+				PreGeneratedEncounters.Add(NormalKey, NormalEncounter);
+			}
+
+			// ==============================================================
+			// 2. 강적 전투 (StrongEnemyBattle) 명부 작성: 1마리 스폰
+			// ==============================================================
+			if (Pool.StrongMonsters.Num() > 0)
+			{
+				FSavedEncounterData StrongEncounter;
+				StrongEncounter.CombatLevelName = Pool.CombatLevelName;
+
+				FEnemySpawnInfo Slot;
+				int32 RandomIdx = FMath::RandRange(0, Pool.StrongMonsters.Num() - 1);
+
+				Slot.MonsterData = Pool.StrongMonsters[RandomIdx];
 				Slot.SpawnLevel = MonsterLevel;
-				Slot.SpawnPositionIndex = i;
+				Slot.SpawnPositionIndex = 1;		// 🌟 강적은 중앙(1번)에 위풍당당하게 1마리만 스폰!
 				Slot.bOverrideWeakness = true;
 				Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2));
 
-				EncounterData.EnemyGroup.Add(Slot);
-			}
+				StrongEncounter.EnemyGroup.Add(Slot);
 
-			// Key 생성 (예: 1스테이지 2층 = 102, 3스테이지 5층 = 305)
-			int32 Key = (TargetStage * 100) + TargetFloor;
-			PreGeneratedEncounters.Add(Key, EncounterData);
+				// 🌟 강적 전용 Key 발급
+				int32 StrongKey = (TargetStage * 1000) + (TargetFloor * 10) + (uint8)EMapType::StrongEnemyBattle;
+				PreGeneratedEncounters.Add(StrongKey, StrongEncounter);
+			}
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 일반 몬스터 인카운터 명부가 고정되었습니다!"));
+	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 몬스터 인카운터 명부가 고정되었습니다!"));
 }
 
 FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType)
@@ -544,20 +573,21 @@ FGameplayTagContainer UMapManagerSubsystem::GenerateRandomWeaknesses(int32 Count
 
 UCombatEncounterData* UMapManagerSubsystem::GenerateFieldEncounter()
 {
-	int32 Key = (CurrentStage * 100) + CurrentFloor;
+	int32 Key = (CurrentStage * 1000) + (CurrentFloor * 10) + (uint8)CurrentMapType;
 
-	// 🌟 끄고 켜도 안 바뀜! 미리 뽑아둔 명부에서 현재 층의 정보를 가져와서 반환합니다.
 	if (PreGeneratedEncounters.Contains(Key))
 	{
 		UCombatEncounterData* NewEncounter = NewObject<UCombatEncounterData>(this);
 		NewEncounter->CombatLevelName = PreGeneratedEncounters[Key].CombatLevelName;
 		NewEncounter->EnemyGroup = PreGeneratedEncounters[Key].EnemyGroup;
 
-		UE_LOG(LogTemp, Warning, TEXT("미리 고정된 몬스터 구성을 불러옵니다. (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+		UE_LOG(LogTemp, Warning, TEXT("미리 고정된 몬스터 구성을 불러옵니다. (Stage %d - Floor %d - MapType %d)"),
+			CurrentStage, CurrentFloor, (uint8)CurrentMapType);
+
 		return NewEncounter;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("FATAL: 고정된 몬스터 명부가 없습니다!"));
+	UE_LOG(LogTemp, Error, TEXT("FATAL: 해당 층/맵 타입에 고정된 몬스터 명부가 없습니다! (Key: %d)"), Key);
 	return nullptr;
 }
 

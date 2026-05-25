@@ -151,6 +151,7 @@ public:
 
 public:
 	// Setter
+	UFUNCTION(BlueprintCallable)
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }

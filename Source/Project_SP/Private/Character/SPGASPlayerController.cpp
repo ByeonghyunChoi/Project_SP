@@ -227,7 +227,7 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 	HighlightCurrentTarget(false);
 
 	// 2. 인덱스 계산 (좌우 순환)
-	if (Direction > 0) // 오른쪽 (D)
+	if (Direction < 0) // 오른쪽 (D)
 	{
 		CurrentTargetIndex = (CurrentTargetIndex + 1) % AvailableTargets.Num();
 	}

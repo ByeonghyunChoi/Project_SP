@@ -17,7 +17,6 @@ public:
 
 public:
 	// 스폰 위치 인덱스 (EncounterData의 SpawnPositionIndex와 매칭)
-	// 0=중앙, 1=좌측, 2=우측
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnIndex = 0;
 
