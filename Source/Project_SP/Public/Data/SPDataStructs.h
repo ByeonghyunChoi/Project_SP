@@ -202,12 +202,17 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
     FSoundSettingsData SoundSettings;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
+    bool bHasSeenIntro = false;
+
     void Reset()
     {
         // 지갑 0원으로 초기화
         PermanentWallet = FPlayerPermanentWallet();
         // 오파츠 장착 해제 및 장부(Map) 싹 비우기
         OpartsData = FPlayerOpartsData();
+        // 인트로 컷신 초기화
+        bHasSeenIntro = false;
     }
 };
 

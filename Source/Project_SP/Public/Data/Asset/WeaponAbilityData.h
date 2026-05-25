@@ -12,6 +12,29 @@
 /**
  * 
  */
+
+USTRUCT(BlueprintType)
+struct FActionUIData
+{
+	GENERATED_BODY()
+
+	// 1. 스킬 이름 (예: "염룡의 참격")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	FText ActionName;
+
+	// 2. 스킬 종류 (예: "단일 공격", "광역 스킬", "반격기")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	FText ActionCategory;
+
+	// 3. 스킬 내용 (MultiLine으로 에디터에서 줄바꿈 가능)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta = (MultiLine = true))
+	FText ActionDescription;
+
+	// 4. 무기/스킬 아이콘 (UI의 Image 위젯에 넣을 텍스처)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TObjectPtr<class UTexture2D> ActionIcon;
+};
+
 UCLASS()
 class PROJECT_SP_API UWeaponAbilityData : public UPrimaryDataAsset
 {
@@ -51,6 +74,12 @@ public:
 	FText NormalAttackUIText; 
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
-	FText WeaponSkillUIText; 
+	FText WeaponSkillUIText;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FActionUIData NormalAttackUIData;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FActionUIData WeaponSkillUIData;
 
 };

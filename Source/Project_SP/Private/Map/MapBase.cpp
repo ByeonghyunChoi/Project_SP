@@ -96,6 +96,12 @@ void AMapBase::InitializeMap(EMapType InType, EMapState InitialState)
 		// Reward 단계를 건너뛰고 바로 Cleared로 직행! -> 상자 절대 안 나옴! 포탈만 활성화됨!
 		SetMapState(EMapState::Cleared);
 	}
+	else if (MapType == EMapType::Prepare)
+	{
+		// 진입하자마자 즉시 클리어 상태로 덮어버립니다!
+		SetMapState(EMapState::Cleared);
+		UE_LOG(LogTemp, Warning, TEXT("[MapBase] 준비 구역 진입: 포탈을 즉시 개방합니다."));
+	}
 }
 
 void AMapBase::ClearFieldMonsters()
@@ -118,20 +124,43 @@ void AMapBase::HandleStateInProgress()
 	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
 	if (!MapManager || !PortalClass) return;
 
-	// 다음 층 선택지 미리 계산
 	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
-	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
-
 	SpawnedPortals.Empty();
 
-	// 포탈 스폰 (비활성화)
+	// 🌟 1. 포탈이 딱 1개만 나올 때 (보스, 준비 맵)
+	if (Options.Num() == 1)
+	{
+		// 선생님의 아이디어: 특정 태그(Center)를 가진 스폰 포인트를 찾습니다!
+		TArray<FTransform> CenterPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal.Center"));
+
+		if (CenterPoints.Num() > 0)
+		{
+			APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, CenterPoints[0]);
+			if (NewPortal)
+			{
+				NewPortal->SetPortalTargetType(Options[0]);
+				NewPortal->ActivatePortal(false);
+				SpawnedPortals.Add(NewPortal);
+			}
+			return; // 🌟 1개 스폰에 성공했으니 함수를 깔끔하게 종료!
+		}
+		else
+		{
+			// 만약 맵에 Center 태그를 깜빡하고 안 달았다면, 경고 로그를 띄우고 아래의 기본 로직으로 넘어갑니다.
+			UE_LOG(LogTemp, Warning, TEXT("[MapBase] Center 포탈 스폰 포인트가 없습니다! 기본 스폰 포인트를 사용합니다."));
+		}
+	}
+
+	// 🌟 2. 포탈이 여러 개일 때 (또는 Center 태그를 못 찾았을 때)
+	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
+
 	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
 	{
 		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
 		if (NewPortal)
 		{
 			NewPortal->SetPortalTargetType(Options[i]);
-			NewPortal->ActivatePortal(false); //비활성화 상태로 시작
+			NewPortal->ActivatePortal(false);
 			SpawnedPortals.Add(NewPortal);
 		}
 	}

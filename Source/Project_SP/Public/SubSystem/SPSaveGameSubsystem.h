@@ -72,6 +72,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Sound")
 	void SaveSoundSettings(float Master, float BGM, float SFX, float UI);
 
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Flow")
+	void MarkIntroAsSeen();
+
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Flow")
+	bool HasSeenIntro() const;
 private:
 	UPROPERTY()
 	FPlayerRunData RunData;

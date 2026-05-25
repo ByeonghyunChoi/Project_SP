@@ -52,6 +52,9 @@ public:
 	//카메라 모드(전투/ 필드) 변경 함수
 	void SwitchCameraMode(bool bIsBattle);
 
+	// 카메라 확정 함수
+	virtual void CalcCamera(float DeltaTime, struct FMinimalViewInfo& OutResult) override;
+
 	//행동을 태그로 감지할 콜백 함수
 	virtual void OnActionTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 
@@ -122,6 +125,9 @@ protected:
 
 	void OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
+	// 시간의 힘을 전부 다 썼을 때 연출 함수
+	void ExecuteTimeOverSequence();
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	TObjectPtr<class USPInteractionComponent> InteractionComponent;
@@ -150,6 +156,7 @@ public:
 
 public:
 	// Setter
+	UFUNCTION(BlueprintCallable)
 	void SetCameraProfile(const FCameraProfile& Profile);
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
@@ -174,6 +181,10 @@ public:
 	void HandleWeaponShow();
 
 	void CheckLevelUp();
+
+	//행동 선택 시 UI 보여주는 연출 이벤트
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Camera | Action")
+	void ToggleActionCameraMode(bool bIsSelecting, bool bInstantReset, int32 TargetIndex, ETargetingType TargetType);
 	
 public:
 	// 경험치 획득 함수

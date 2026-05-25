@@ -330,6 +330,8 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 
 	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
 	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
 	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
 }
 
@@ -599,13 +601,7 @@ void ASPGASPlayerCharacter::OnHealthChanged(const FOnAttributeChangeData& Data)
 				// 진짜 사망 (시간의 힘 부족)
 				UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 부족하여 사망했습니다."));
 
-				if (UGameInstance* GI = GetGameInstance())
-				{
-					if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-					{
-						MapManager->GoToLobby();
-					}
-				}
+				ExecuteTimeOverSequence();
 			}
 		}
 	}
@@ -616,10 +612,10 @@ void ASPGASPlayerCharacter::OnTimePowerChanged(const FOnAttributeChangeData& Dat
 	// 방금 전까지 0보다 컸는데, 지금 0 이하가 되었다면?
 	if (Data.NewValue <= 0.0f && Data.OldValue > 0.0f)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 모두 고갈되었습니다! 로비로 귀환합니다."));
-		UGameInstance* GI = GetGameInstance();
-		UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr;
-		MapManager->GoToLobby();
+		UE_LOG(LogTemp, Error, TEXT("[플레이어] 시간의 힘이 모두 고갈되었습니다! 회귀 시퀀스를 시작합니다."));
+
+		// 즉시 맵을 이동하지 않고 연출 함수를 부릅니다!
+		ExecuteTimeOverSequence();
 	}
 }
 
@@ -707,5 +703,49 @@ void ASPGASPlayerCharacter::OnWeaponSwapMontageEnded(UAnimMontage* Montage, bool
 	if (bInterrupted)
 	{
 		HandleWeaponShow();
+	}
+}
+
+void ASPGASPlayerCharacter::ExecuteTimeOverSequence()
+{
+	// 1. 캐릭터 조작 완전 차단 (키보드/마우스 입력 무시)
+	DisableInput(Cast<APlayerController>(GetController()));
+
+	// 2. 물리 관성 멈춤 (미끄러지면서 죽는 현상 방지)
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->DisableMovement();
+		MoveComp->StopMovementImmediately();
+	}
+
+	// 3. 부모 클래스에 만들어둔 DeathMontage 재생!
+	if (DeathMontage)
+	{
+		PlayAnimMontage(DeathMontage);
+	}
+
+	// 4. 컨트롤러에게 "나 죽었으니 UI 띄워" 라고 지시
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
+	{
+		PC->StartRegressionSequence();
+	}
+}
+
+void ASPGASPlayerCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	// 1순위: 전투용 시네마틱 카메라(CombatCineCamera)가 켜져 있다면 최우선으로 사용!
+	if (CombatCineCamera && CombatCineCamera->IsActive())
+	{
+		CombatCineCamera->GetCameraView(DeltaTime, OutResult);
+	}
+	// 2순위: 필드용 카메라(FollowCamera)가 켜져 있다면 그걸 사용!
+	else if (FollowCamera && FollowCamera->IsActive())
+	{
+		FollowCamera->GetCameraView(DeltaTime, OutResult);
+	}
+	// 둘 다 아니면 (혹은 에러 시) 기본 부모 클래스의 로직을 따름
+	else
+	{
+		Super::CalcCamera(DeltaTime, OutResult);
 	}
 }

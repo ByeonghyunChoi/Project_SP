@@ -41,34 +41,43 @@ void ASPGASPlayerController::BeginPlay()
 	InputModeData.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputModeData);
 
-	bool bIsBattleMap = false;
-	UGameInstance* GI = GetGameInstance();
-	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	if (LobbyHUDClass && !LobbyHUDWidget)
 	{
-		bIsBattleMap = MapManager->IsInBattleMap();
+		LobbyHUDWidget = CreateWidget<UUserWidget>(this, LobbyHUDClass);
+		if (LobbyHUDWidget) LobbyHUDWidget->AddToViewport();
 	}
-
 	if (FieldHUDClass && !FieldHUDWidget)
 	{
 		FieldHUDWidget = CreateWidget<UUserWidget>(this, FieldHUDClass);
-		if (FieldHUDWidget)
-		{
-			FieldHUDWidget->AddToViewport();
-
-			// 전투 맵이라면 처음부터 필드 UI를 숨긴 채로 만들고, 필드일 때만 켭니다!
-			FieldHUDWidget->SetVisibility(bIsBattleMap ? ESlateVisibility::Hidden : ESlateVisibility::SelfHitTestInvisible);
-		}
+		if (FieldHUDWidget) FieldHUDWidget->AddToViewport();
 	}
-
 	if (BattleHUDClass && !BattleHUDWidget)
 	{
 		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget)
+		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
+	}
+
+	// 2. 선생님의 MapManager를 이용해 지금 무슨 맵인지 판단합니다.
+	FName StartMode = TEXT("Field");
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		if (MapManager->IsInBattleMap())
 		{
-			BattleHUDWidget->AddToViewport();
-			BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+			StartMode = TEXT("Battle");
+		}
+		else if (MapManager->GetIsInLobby())
+		{
+			StartMode = TEXT("Lobby");
+		}
+		else
+		{
+			StartMode = TEXT("Field");
 		}
 	}
+
+	// 3. 결정된 UI 딱 하나만 켭니다.
+	SwitchHUDMode(StartMode);
 }
 
 void ASPGASPlayerController::SetupInputComponent()
@@ -218,7 +227,7 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 	HighlightCurrentTarget(false);
 
 	// 2. 인덱스 계산 (좌우 순환)
-	if (Direction > 0) // 오른쪽 (D)
+	if (Direction < 0) // 오른쪽 (D)
 	{
 		CurrentTargetIndex = (CurrentTargetIndex + 1) % AvailableTargets.Num();
 	}
@@ -231,11 +240,14 @@ void ASPGASPlayerController::OnBattleNavigate(const FInputActionValue& Value)
 	if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
 	{
 		AActor* SelectedTarget = AvailableTargets[CurrentTargetIndex].Get();
-
-		// 3. 새 타겟 하이라이트 켜기
 		HighlightCurrentTarget(true);
-		UE_LOG(LogTemp, Log, TEXT("타겟 변경: [%d] %s"), CurrentTargetIndex, *AvailableTargets[CurrentTargetIndex]->GetName());
 		OnTargetChanged.Broadcast(SelectedTarget);
+
+		// 🌟 [추가] 타겟이 바뀌었으니, 새 타겟 인덱스에 맞춰 카메라를 돌려라!
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			PlayerChar->ToggleActionCameraMode(true, false, CurrentTargetIndex, CurrentTargetingType);
+		}
 	}
 	else
 	{
@@ -640,34 +652,22 @@ void ASPGASPlayerController::SetupAndShowBattleUI()
 		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(true);
 	}
 
-	// 2. 위젯 생성 및 스위치!
-	if (!BattleHUDWidget && BattleHUDClass)
-	{
-		BattleHUDWidget = CreateWidget<UUserWidget>(this, BattleHUDClass);
-		if (BattleHUDWidget) BattleHUDWidget->AddToViewport();
-	}
-
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
+	SwitchHUDMode(TEXT("Battle"));
 	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 전투 화면 UI 및 위젯 컴포넌트 활성화 완료!"));
 }
 
 void ASPGASPlayerController::HideBattleUIAndShowFieldUI()
 {
-	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
-	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-	// 필드로 돌아갈 때 전투용 위젯 컴포넌트도 깔끔하게 숨깁니다.
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
 	{
 		if (PlayerChar->GetWeaponWidgetComponent()) PlayerChar->GetWeaponWidgetComponent()->SetVisibility(false);
 		if (PlayerChar->GetActionWidgetComponent()) PlayerChar->GetActionWidgetComponent()->SetVisibility(false);
 		if (PlayerChar->GetBattlePointWidgetComponent()) PlayerChar->GetBattlePointWidgetComponent()->SetVisibility(false);
 	}
-
-	// 전투가 끝났으니 타겟팅 하이라이트도 끄고 초기화!
 	CancelTargetSelection();
+
+	// 🌟 필드 UI 켜라!
+	SwitchHUDMode(TEXT("Field"));
 
 	UE_LOG(LogTemp, Warning, TEXT("[UI 통합 제어] 필드 UI 전환 및 전투 위젯 컴포넌트 비활성화 완료!"));
 }
@@ -776,6 +776,64 @@ const UOpartsDefinition* ASPGASPlayerController::GetCurrentOpartsDefinition() co
 	return nullptr;
 }
 
+void ASPGASPlayerController::SetAllHUDVisibility(bool bIsVisible)
+{
+	if (bIsVisible)
+	{
+		// 🌟 다시 켤 때는 그냥 무식하게 켜지 말고, 현재 맵 상태를 물어봐서 똑똑하게 켭니다!
+		UGameInstance* GI = GetGameInstance();
+		if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+		{
+			if (MapManager->IsInBattleMap()) SwitchHUDMode(TEXT("Battle"));
+			else if (MapManager->GetIsInLobby()) SwitchHUDMode(TEXT("Lobby"));
+			else SwitchHUDMode(TEXT("Field"));
+		}
+	}
+	else
+	{
+		// 🌟 끌 때는 3개 다 꺼버림
+		if (LobbyHUDWidget) LobbyHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+		if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[UI Control] 컷신 HUD 가시성 변경 완료 -> %s"), bIsVisible ? TEXT("ON") : TEXT("OFF"));
+}
+
+void ASPGASPlayerController::SwitchHUDMode(FName ModeName)
+{
+	// 1. 무조건 3개를 싹 다 끕니다. (중첩 원천 차단)
+	if (LobbyHUDWidget) LobbyHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (FieldHUDWidget) FieldHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (BattleHUDWidget) BattleHUDWidget->SetVisibility(ESlateVisibility::Hidden);
+
+	// 2. 들어온 이름에 맞춰서 딱 하나만 살립니다.
+	if (ModeName == TEXT("Lobby") && LobbyHUDWidget)
+	{
+		LobbyHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else if (ModeName == TEXT("Field") && FieldHUDWidget)
+	{
+		FieldHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else if (ModeName == TEXT("Battle") && BattleHUDWidget)
+	{
+		BattleHUDWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+}
+
+void ASPGASPlayerController::StartRegressionSequence()
+{
+	// 1. 화면에 켜져 있던 모든 전투/필드 UI를 강제로 끕니다.
+	SetAllHUDVisibility(false);
+
+	// 2. 블루프린트에 만들어둔 '회귀 텍스트 UI'를 띄워라! (이벤트 송출)
+	ShowRegressionUI();
+
+	// 3. 로비로 보내버리는 타이머 가동!
+	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 5.0f, false);
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
@@ -828,7 +886,7 @@ void ASPGASPlayerController::ConfirmTargetAndExecute()
 		ExecuteBattleAbility(CurrentSelectedAction, SelectedTarget);
 
 		// 행동 초기화 (다음 턴을 위해)
-		SetCurrentSelectedAction(ESelectedActionType::None);
+		SetCurrentSelectedAction(ESelectedActionType::None, true);
 
 		OnTargetChanged.Broadcast(nullptr);
 	}
@@ -850,7 +908,7 @@ void ASPGASPlayerController::CancelTargetSelection()
 {
 	HighlightCurrentTarget(false);
 	bIsSelectingTarget = false;
-	SetCurrentSelectedAction(ESelectedActionType::None);
+	SetCurrentSelectedAction(ESelectedActionType::None, false);
 	AvailableTargets.Empty();
 	UE_LOG(LogTemp, Log, TEXT("타겟 선택 취소됨"));
 	OnTargetChanged.Broadcast(nullptr);
@@ -976,9 +1034,12 @@ void ASPGASPlayerController::OnBattleClick(const FInputActionValue& Value)
 				HighlightCurrentTarget(false);
 				CurrentTargetIndex = FoundIndex;
 				HighlightCurrentTarget(true);
-
-				UE_LOG(LogTemp, Log, TEXT("마우스 타겟 변경: [%d] %s"), CurrentTargetIndex, *ClickedActor->GetName());
 				OnTargetChanged.Broadcast(ClickedActor);
+
+				if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+				{
+					PlayerChar->ToggleActionCameraMode(true, false, CurrentTargetIndex, CurrentTargetingType);
+				}
 			}
 		}
 	}
@@ -1014,13 +1075,19 @@ void ASPGASPlayerController::OnMaxBattlePointChanged(const FOnAttributeChangeDat
 	RefreshBattlePointUI();
 }
 
-void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction)
+void ASPGASPlayerController::SetCurrentSelectedAction(ESelectedActionType NewAction, bool bInstantReset)
 {
 	if(CurrentSelectedAction != NewAction)
 	{
 		CurrentSelectedAction = NewAction;
 		OnActionStateChanged.Broadcast(CurrentSelectedAction);
 		UE_LOG(LogTemp, Log, TEXT("상태 변경 방송: %d"), (int32)CurrentSelectedAction);
+
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+		{
+			bool bIsSelecting = (NewAction != ESelectedActionType::None);
+			PlayerChar->ToggleActionCameraMode(bIsSelecting, bInstantReset, CurrentTargetIndex, CurrentTargetingType);
+		}
 	}
 }
 
@@ -1083,6 +1150,22 @@ void ASPGASPlayerController::HandleInputFeedback(FGameplayTag InputTag, bool bIs
 	OnInputProcessed.Broadcast(InputTag, bIsSuccess);
 }
 
+void ASPGASPlayerController::ExecuteGoToLobby()
+{
+	if (RegressionHUDWidget)
+	{
+		RegressionHUDWidget->RemoveFromParent(); 
+		RegressionHUDWidget = nullptr;       
+	}
+
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		// 맵 매니저의 기능 재활용! (세이브 데이터 초기화 + 로비 레벨 이동)
+		MapManager->GoToLobby();
+	}
+}
+
 
 void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 {
@@ -1090,11 +1173,6 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	if (CurrentWeaponTag == NewWeaponTag) return;
 	if (!CachedASC) return;
-
-	if (bIsSelectingTarget)
-	{
-		HighlightCurrentTarget(false);
-	}
 
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
 	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
@@ -1111,38 +1189,24 @@ void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
 
 	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
 
+	// 전투 상태일 때 행동 강제 초기화!
 	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
 	{
-		// [전투 상태일 때만 실행] 타겟팅 및 액션 연결 로직
-		if (bIsSelectingTarget && CurrentSelectedAction != ESelectedActionType::None)
+		// 행동을 고르는 중이었거나, 타겟팅 중이었다면?
+		if (bIsSelectingTarget || CurrentSelectedAction != ESelectedActionType::None)
 		{
-			if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
-			{
-				CurrentTargetingType = PlayerChar->GetTargetingType(CurrentWeaponTag, CurrentSelectedAction);
-			}
-
-			HighlightCurrentTarget(true);
-
-			if (AvailableTargets.IsValidIndex(CurrentTargetIndex) && AvailableTargets[CurrentTargetIndex].IsValid())
-			{
-				OnTargetChanged.Broadcast(AvailableTargets[CurrentTargetIndex].Get());
-			}
-		}
-		else
-		{
-			SetCurrentSelectedAction(ESelectedActionType::None);
+			// 타겟팅 해제 + 상태 None 변경 + 카메라 스무스 복귀 + UI 숨기기
+			// 이 모든 것이 CancelTargetSelection() 한 방에 전부 처리됩니다!
+			CancelTargetSelection();
+			UE_LOG(LogTemp, Log, TEXT("[전투] 무기 교체로 인해 행동 선택이 초기화되었습니다."));
 		}
 	}
 	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
 	{
-		// [필드 상태일 때만 실행]
-		// (예: 타겟팅 로직은 무시하고, 단순히 등 뒤의 무기 메쉬를 스왑하는 애니메이션만 재생한다거나 아무것도 안 함)
-
-		// 꼬임을 방지하기 위해 전투 관련 변수 강제 초기화
+		// [필드 상태일 때]
 		bIsSelectingTarget = false;
 		SetCurrentSelectedAction(ESelectedActionType::None);
-
-		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다. (타겟팅 무시)"));
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다."));
 	}
 }
 
