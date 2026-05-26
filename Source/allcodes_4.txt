@@ -1,19 +1,4 @@
-﻿			const FStatusEffectConfig& Config = Pair.Value;
-
-			// DoT 계수가 존재하고 & 내 몸에 그 상태이상 태그가 붙어있다면!
-			if (Config.DotDamageCoefficient > 0.0f && GrantedTags.HasTag(StatusTag))
-			{
-				// 4. 이 상태이상을 걸었던 시전자(Instigator)를 찾습니다.
-				AActor* Instigator = ActiveGE->Spec.GetContext().GetInstigator();
-				UAbilitySystemComponent* InstigatorASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Instigator);
-
-				if (InstigatorASC)
-				{
-					// 순수 계수만 가져옵니다.
-					float TargetCoefficient = Config.DotDamageCoefficient;
-
-					// 5. 데미지 적용
-					FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
+﻿					FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
 					Context.AddSourceObject(Instigator);
 
 					// 🌟 [추가된 핵심 로직] 어떤 총알(GE)을 쏠지 결정합니다.
@@ -1593,3 +1578,158 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			// (ASPGASCharacterBase에 PlayHitReact 함수가 구현되어 있다고 가정)
 			if (ASPGASCharacterBase* TargetBaseChar = Cast<ASPGASCharacterBase>(TargetActor))
 			{
+				TargetBaseChar->PlayHitReact(HitResult.ImpactPoint);
+			}
+		}
+	}
+}
+
+void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// =========================================================================
+	// 시간 간섭이 발동 중인가?
+	// =========================================================================
+	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference))
+	{
+		// 1. 해골 수정 + 무기 스킬일 경우
+		if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
+			AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 해골 수정 활성화! 쿨타임을 부여하지 않고 스택만 소모합니다."));
+			return; 
+		}
+
+		// 2. 옥시계 + 패링 반격일 경우
+		if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) &&
+			AbilityTags.HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(SPTags.State_Buff_JadeClock));
+			TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+			for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+			{
+				ASC->RemoveActiveGameplayEffect(Handle, 1); // 옥시계 스택 1 차감
+				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 옥시계 반격! 쿨타임을 부여하지 않고 스택만 소모합니다."));
+				return; 
+			}
+		}
+	}
+	// =========================================================================
+
+	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
+	if (AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+	{
+		if (ASC->HasMatchingGameplayTag(SPTags.Relic_Passive_ResonatingRune))
+		{
+			if (FMath::RandRange(1, 100) <= 25) // 난수 범위 수정 (1~100 중 25 이하)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("✨ [유물 발동] 공명하는 룬! 이번 스킬은 쿨타임이 돌지 않습니다!"));
+				return; 
+			}
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// 위 방어막들을 모두 무사히 통과했다면? 정상적으로 쿨타임을 부여합니다.
+	// -------------------------------------------------------------------------
+	if (CooldownTurns <= 0 || !CooldownEffectClass || !CooldownTag.IsValid()) return;
+
+	FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+	Context.AddSourceObject(this);
+
+	FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(CooldownEffectClass, 1.0f, Context);
+
+	if (SpecHandle.IsValid())
+	{
+		SpecHandle.Data->SetStackCount(CooldownTurns);
+		ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+
+		UE_LOG(LogTemp, Log, TEXT("쿨타임 시작: %s (%d 턴)"), *CooldownTag.ToString(), CooldownTurns);
+	}
+}
+
+AActor* USPGA_BattleActionBase::GetSingleTarget() const
+{
+	return const_cast<AActor*>(CachedEventData.Target.Get());
+}
+
+TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
+{
+	TArray<AActor*> OutActors;
+	TArray<AActor*> FoundActors;
+
+	// 일단 월드의 모든 캐릭터나 전투 참여자를 찾습니다. 
+	// (가장 좋은 건 TurnManager가 살아있는 적 리스트를 주는 것이지만, 일단 유지합시다)
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundActors);
+
+	AActor* MyAvatar = GetAvatarActorFromActorInfo();
+
+	for (AActor* Actor : FoundActors)
+	{
+		// 1. 나 자신은 때리지 않음 (몬스터가 이 스킬을 쓸 때 자해 방지)
+		if (Actor == MyAvatar) continue;
+
+		// 2. 체력이 0보다 큰 '살아있는' 녀석만 타겟으로 잡음
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
+
+		// ASC가 존재하고, 체력이 0보다 큰지 확인!
+		if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
+		{
+			OutActors.Add(Actor); // 통과! 데미지 명단에 추가!
+		}
+	}
+
+	return OutActors;
+}
+
+TArray<AActor*> USPGA_BattleActionBase::GetSecondaryTargets(AActor* PrimaryTarget) const
+{
+	TArray<AActor*> AllEnemies = GetAllEnemies();
+	TArray<AActor*> SecondaryTargets;
+
+	for (AActor* Enemy : AllEnemies)
+	{
+		// 주 타겟과 동일한 액터가 아니면 보조 타겟 배열에 추가합니다.
+		if (Enemy != PrimaryTarget)
+		{
+			SecondaryTargets.Add(Enemy);
+		}
+	}
+
+	return SecondaryTargets;
+}
+
+AActor* USPGA_BattleActionBase::GetRandomEnemy() const
+{
+	TArray<AActor*> Enemies = GetAllEnemies();
+
+	if (Enemies.Num() == 0) return nullptr;
+
+	int32 RandIndex = FMath::RandRange(0, Enemies.Num() - 1);
+	return Enemies[RandIndex];
+}
+
+
+void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
+{
+	float PrimaryMultiplier = (Payload.EventMagnitude > 0.0f) ? Payload.EventMagnitude : DefaultDamageMultiplier;
+	float Ratio = (DefaultDamageMultiplier > 0.0f) ? (PrimaryMultiplier / DefaultDamageMultiplier) : 1.0f;
+	float SecondaryMultiplier = SecondaryDamageMultiplier * Ratio;
+
+	AActor* PayloadTarget = const_cast<AActor*>(Payload.Target.Get());
+
+	if (PayloadTarget)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
+		ApplyDamageToTarget(PayloadTarget, PrimaryMultiplier);
+		return;
+	}
+
+	// -------------------------------------------------------------------------
+	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
+
