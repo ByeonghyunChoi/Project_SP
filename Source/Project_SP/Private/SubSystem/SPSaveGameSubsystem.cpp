@@ -54,7 +54,6 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		RunData.RunWallet.Money = InventoryComp->GetMoney();
-		RunData.RunWallet.Fragment = InventoryComp->GetFragment();
 	}
 
 	// 3. 유물 저장
@@ -156,6 +155,7 @@ void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
 	// 1. 영구 지갑 저장
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
+		PermData.PermanentWallet.Fragment = InventoryComp->GetFragment();
 		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
 		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
@@ -217,7 +217,12 @@ void USPSaveGameSubsystem::UpdateRunWalletData(const FPlayerRunWallet& NewWallet
 	// 외부(권능 매니저 등)에서 완전히 계산되어 넘어온 지갑 데이터를 그대로 덮어씁니다.
 	RunData.RunWallet = NewWallet;
 
-	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 런 지갑 데이터가 범용 창구를 통해 성공적으로 업데이트되었습니다. (Money: %d, Fragment: %d)"),RunData.RunWallet.Money, RunData.RunWallet.Fragment);
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 런 지갑 데이터가 범용 창구를 통해 성공적으로 업데이트되었습니다. (Money: %d)"),RunData.RunWallet.Money);
+}
+
+void USPSaveGameSubsystem::ActivateNewRun()
+{
+	RunData.bIsRunStarted = true; // 스위치 ON!
 }
 
 void USPSaveGameSubsystem::SaveRunToDisk()

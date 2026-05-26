@@ -1702,3 +1702,34 @@ void ASPGASPlayerCharacter::OnRep_PlayerState()
 
 		float CurrentLevel = ASC->GetNumericAttribute(USPGASAttributeSet::GetLevelAttribute());
 		ApplyLevelStats(FMath::RoundToInt(CurrentLevel), false);
+
+		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
+	}
+}
+
+void ASPGASPlayerCharacter::GiveAbilities()
+{
+	// 권한 확인 로그
+	if (!HasAuthority())
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveAbilities Failed: Not Authority (Client tried to run this?)"));
+		return;
+	}
+	if (!ASC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveAbilities Failed: ASC is NULL"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities Start: %s ==="), *GetName());
+
+	// 필드 입력 GA 확인
+	UE_LOG(LogTemp, Log, TEXT("FieldInputAbilities Count: %d"), FieldInputAbilities.Num());
+	for (const auto& Pair : FieldInputAbilities)
+	{
+		if (Pair.Value)
+		{
+			FGameplayAbilitySpec Spec(Pair.Value);
+			ASC->GiveAbility(Spec);
+
+			UE_LOG(LogTemp, Log, TEXT("   -> Given Ability: %s (Tag: %s)"), *Pair.Value->GetName(), *Pair.Key.ToString());

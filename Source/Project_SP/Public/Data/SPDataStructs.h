@@ -74,9 +74,6 @@ struct FPlayerRunWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Money = 0; // 골드
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Fragment = 0; // 파편
 };
 
 USTRUCT(BlueprintType)
@@ -89,6 +86,9 @@ struct FPlayerPermanentWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 IncompleteEnergy = 0; // 불완전한 기운
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+    int32 Fragment = 0; // 파편
 };
 
 USTRUCT(BlueprintType)
@@ -285,6 +285,10 @@ struct FPlayerRunData // 런 데이터
 {
     GENERATED_BODY()
 
+    // 런이 정상적으로 시작되었는지 확인하는 전용 스위치
+    UPROPERTY()
+    bool bIsRunStarted = false;
+
     UPROPERTY()
     FPlayerRunWallet RunWallet; // 일시적 재화
 
@@ -298,7 +302,7 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return Stats.CurrentHealth >= 0.0f; }
+    bool IsValid() const { return  Stats.CurrentHealth >= 0.0f; }
 
     // 초기화
     void Reset()
@@ -307,5 +311,6 @@ struct FPlayerRunData // 런 데이터
         RunWallet = FPlayerRunWallet();
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();
+        bIsRunStarted = false;
     }
 };

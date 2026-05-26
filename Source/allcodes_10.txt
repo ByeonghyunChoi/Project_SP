@@ -1,38 +1,4 @@
-﻿	int32 CurrentRound = 1;
-
-	// ���� ���忡�� ������ �ൿ ��ġ (0 ~ 100)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Round")
-	float PassedTimeInCurrentRound = 0.0f;
-
-	// �� ���带 �� ä��� �ൿ ��ġ(�ð�) (�⺻ 100)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
-	float TimePerRound = 150.0f;
-
-	// ���� ����Ŭ�� ���Ǵ� �ִ� ���� �� (�⺻ 3)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
-	int32 MaxRoundsPerCycle = 3;
-
-	// ���� ���� �� �����ؾ� �� �ð��� ��(TP)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
-	float PenaltyTPCost = 30.0f;
-
-	// óġ�� ���� ���� ������ ��Ƶδ� ���
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
-	TArray<EMonsterRank> DefeatedMonsterRanks;
-
-
-protected:
-	void ProcessEndOfTurn();
-
-	void ApplyRoundPenalty();
-
-private:
-	FTransform GetSpawnTransformByIndex(int32 Index);
-
-	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
-
-	void FinalizeBattleSetup();
-
+﻿
 	void CheckAndStartBattle();
 
 	void ApplyPlayerSavedData();
@@ -1315,6 +1281,57 @@ private:
 	TObjectPtr<class UUserWidget> ActiveDialogWidget;
 };
 // ==========================================
+// FILE: SPPowerUpgradeSubsystem.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+#include "Data/SPDataStructs.h"
+#include "SPPowerUpgradeSubsystem.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPPowerUpgradeSubsystem : public UGameInstanceSubsystem
+{
+	GENERATED_BODY()
+	
+public:
+	// 서브시스템 탄생 시 호출되는 초기화 함수 오버라이드
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	// 에디터(블루프린트)에서 할당해 줄 권능 데이터 테이블
+	UPROPERTY(BlueprintReadWrite, Category = "PowerUpgrade")
+	class UDataTable* PowerUpgradeDataTable;
+
+	// 1. 특정 권능의 현재 레벨 가져오기
+	UFUNCTION(BlueprintPure, Category = "PowerUpgrade")
+	int32 GetPowerLevel(EPowerUpgradeType UpgradeType) const;
+
+	// 2. 다음 레벨업에 필요한 비용(파편) 가져오기
+	UFUNCTION(BlueprintPure, Category = "PowerUpgrade")
+	int32 GetNextLevelCost(EPowerUpgradeType UpgradeType) const;
+
+	// 3. 권능 업그레이드 시도 (파편 차감 후 세이브)
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade")
+	bool TryUpgradePower(EPowerUpgradeType UpgradeType, class APlayerController* PlayerController);
+
+	//특정 권능의 현재 레벨에 따른 '실제 적용 수치(Effect Value)' 가져오기
+	UFUNCTION(BlueprintPure, Category = "PowerUpgrade")
+	float GetPowerEffectValue(EPowerUpgradeType UpgradeType) const;
+
+	// 새 게임(런)이 시작될 때 적용해야 할 그룹A 보너스 일괄 적용
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade")
+	void ApplyNewRunBonuses();
+
+private:
+	// 데이터 테이블에서 정보 추출하는 내부 헬퍼 함수
+	FPowerUpgradeData* GetUpgradeData(EPowerUpgradeType UpgradeType) const;
+};
+// ==========================================
 // FILE: SPSaveGameSubsystem.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -1335,7 +1352,7 @@ class PROJECT_SP_API USPSaveGameSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	// �� ������ ����
+	// 런 데이터 제어
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
 	void CacheRunDataFromPlayer(APawn* PlayerPawn);
 
@@ -1343,16 +1360,16 @@ public:
 	void RestoreRunDataToPlayer(APawn* PlayerPawn);
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
-	void ResetRunData(); // ���, ���� Ŭ���� �� ȣ��
+	void ResetRunData(); // 사망, 보스 클리어 시 호출
 
-	// ���� ������ ����
+	// 영구 데이터 제어
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
 	void CachePermDataFromPlayer(APawn* PlayerPawn);
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
 	void RestorePermDataToPlayer(APawn* PlayerPawn);
 
-	//������ �ʱ�ȭ(���� �ϱ��� �� ȣ��)
+	//데이터 초기화(새로 하기할 때 호출)
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Core")
 	void ResetAllData();
 
@@ -1363,28 +1380,40 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
 	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
 
-public:
-	//���̺� ���� ����
+	// 권능 수복 레벨을 업데이트하고 즉시 디스크에 저장하는 전용 Setter 함수
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void UpdatePowerUpgradeLevel(EPowerUpgradeType UpgradeType, int32 NewLevel);
+	
+	//특정 재화에 종속되지 않고, 런 지갑 데이터 전체를 안전하게 업데이트하는 범용 창구
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void UpdateRunWalletData(const FPlayerRunWallet& NewWallet);
 
-	// �� ������ ���� ����
+	// 새 런 시작을 알리는 전용 스위치 함수
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void ActivateNewRun();
+
+public:
+	//세이브 파일 관리
+
+	// 런 데이터 파일 관리
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	void SaveRunToDisk();
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadRunFromDisk(); 
 
-	// ���� ������ ���� ����
+	// 영구 데이터 파일 관리
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	void SavePermToDisk();
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadPermFromDisk();
 
-	//���� ������ ���� ���� Ȯ��
+	//영구 데이터 존재 여부 확인
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidPermSave() const;
 
-	//�� ������ ���� ���� Ȯ��
+	//런 데이터 존재 여부 확인
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
 
@@ -1403,7 +1432,7 @@ private:
 	UPROPERTY()
 	FPlayerMetaProgressionData PermData;
 
-	//����� ���� �̸�
+	//저장될 파일 이름
 	const FString RunSlotName = TEXT("Slot_Run");
 	const FString PermSlotName = TEXT("Slot_Perm");
 };

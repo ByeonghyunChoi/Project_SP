@@ -52,6 +52,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
 	void UpdateRunWalletData(const FPlayerRunWallet& NewWallet);
 
+	// 새 런 시작을 알리는 전용 스위치 함수
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void ActivateNewRun();
+
 public:
 	//세이브 파일 관리
 
@@ -76,6 +80,9 @@ public:
 	//런 데이터 존재 여부 확인
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SaveSystem|State")
+	bool bHasInitializedThisSession = false;
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Sound")
 	void SaveSoundSettings(float Master, float BGM, float SFX, float UI);

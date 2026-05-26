@@ -1,4 +1,11 @@
-﻿    Boss
+﻿#include "MonsterInfo.generated.h"
+
+UENUM(BlueprintType)
+enum class EEnemyRank :uint8
+{
+    Normal,
+    Epic,
+    Boss
 };
 // ==========================================
 // FILE: SPGASAIController.h
@@ -908,7 +915,7 @@ public:
 	int32 GetMoney() const { return RunWallet.Money; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
-	int32 GetFragment() const { return RunWallet.Fragment; }
+	int32 GetFragment() const { return PermanentWallet.Fragment; }
 
 	// =========================================================
 	// 2. 조작 (Gain / Consume)
@@ -1702,3 +1709,27 @@ public:
 
 #pragma once
 
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayEffect.h"
+#include "Tag/SPGameplayTags.h"
+#include "StatusEffectData.generated.h"
+
+/**
+ * 
+ */
+USTRUCT(BlueprintType)
+struct FStatusEffectConfig
+{
+	GENERATED_BODY()
+
+	// �����̻� �̸� 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName EffectName;
+
+	// ������ GE Ŭ����(�� �� ������) 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TSubclassOf<UGameplayEffect> EffectClass;
+
+	// ������ ���� GE Ŭ����(���ȸ� ���� ���� GE)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")

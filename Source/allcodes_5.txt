@@ -1,113 +1,4 @@
-﻿		if (ASC->HasMatchingGameplayTag(SPTags.Relic_Passive_ResonatingRune))
-		{
-			if (FMath::RandRange(1, 100) <= 25) // 난수 범위 수정 (1~100 중 25 이하)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("✨ [유물 발동] 공명하는 룬! 이번 스킬은 쿨타임이 돌지 않습니다!"));
-				return; 
-			}
-		}
-	}
-
-	// -------------------------------------------------------------------------
-	// 위 방어막들을 모두 무사히 통과했다면? 정상적으로 쿨타임을 부여합니다.
-	// -------------------------------------------------------------------------
-	if (CooldownTurns <= 0 || !CooldownEffectClass || !CooldownTag.IsValid()) return;
-
-	FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
-	Context.AddSourceObject(this);
-
-	FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(CooldownEffectClass, 1.0f, Context);
-
-	if (SpecHandle.IsValid())
-	{
-		SpecHandle.Data->SetStackCount(CooldownTurns);
-		ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-
-		UE_LOG(LogTemp, Log, TEXT("쿨타임 시작: %s (%d 턴)"), *CooldownTag.ToString(), CooldownTurns);
-	}
-}
-
-AActor* USPGA_BattleActionBase::GetSingleTarget() const
-{
-	return const_cast<AActor*>(CachedEventData.Target.Get());
-}
-
-TArray<AActor*> USPGA_BattleActionBase::GetAllEnemies() const
-{
-	TArray<AActor*> OutActors;
-	TArray<AActor*> FoundActors;
-
-	// 일단 월드의 모든 캐릭터나 전투 참여자를 찾습니다. 
-	// (가장 좋은 건 TurnManager가 살아있는 적 리스트를 주는 것이지만, 일단 유지합시다)
-	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("Enemy"), FoundActors);
-
-	AActor* MyAvatar = GetAvatarActorFromActorInfo();
-
-	for (AActor* Actor : FoundActors)
-	{
-		// 1. 나 자신은 때리지 않음 (몬스터가 이 스킬을 쓸 때 자해 방지)
-		if (Actor == MyAvatar) continue;
-
-		// 2. 체력이 0보다 큰 '살아있는' 녀석만 타겟으로 잡음
-		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor);
-
-		// ASC가 존재하고, 체력이 0보다 큰지 확인!
-		if (TargetASC && TargetASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) > 0.0f)
-		{
-			OutActors.Add(Actor); // 통과! 데미지 명단에 추가!
-		}
-	}
-
-	return OutActors;
-}
-
-TArray<AActor*> USPGA_BattleActionBase::GetSecondaryTargets(AActor* PrimaryTarget) const
-{
-	TArray<AActor*> AllEnemies = GetAllEnemies();
-	TArray<AActor*> SecondaryTargets;
-
-	for (AActor* Enemy : AllEnemies)
-	{
-		// 주 타겟과 동일한 액터가 아니면 보조 타겟 배열에 추가합니다.
-		if (Enemy != PrimaryTarget)
-		{
-			SecondaryTargets.Add(Enemy);
-		}
-	}
-
-	return SecondaryTargets;
-}
-
-AActor* USPGA_BattleActionBase::GetRandomEnemy() const
-{
-	TArray<AActor*> Enemies = GetAllEnemies();
-
-	if (Enemies.Num() == 0) return nullptr;
-
-	int32 RandIndex = FMath::RandRange(0, Enemies.Num() - 1);
-	return Enemies[RandIndex];
-}
-
-
-void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
-{
-	float PrimaryMultiplier = (Payload.EventMagnitude > 0.0f) ? Payload.EventMagnitude : DefaultDamageMultiplier;
-	float Ratio = (DefaultDamageMultiplier > 0.0f) ? (PrimaryMultiplier / DefaultDamageMultiplier) : 1.0f;
-	float SecondaryMultiplier = SecondaryDamageMultiplier * Ratio;
-
-	AActor* PayloadTarget = const_cast<AActor*>(Payload.Target.Get());
-
-	if (PayloadTarget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
-		ApplyDamageToTarget(PayloadTarget, PrimaryMultiplier);
-		return;
-	}
-
-	// -------------------------------------------------------------------------
-	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
-
-	UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
+﻿	UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
 	switch (SkillTargetingType)
 	{
 	case ETargetingType::Single:
@@ -1702,3 +1593,143 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 
 		AActor* NextActor = TurnManager->CalculateNextTurn();
 		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
+		{
+			bIsCurrentTurnInterrupt = true;
+		}
+		StartTurn(NextActor);
+	}
+}
+
+void AASPCombatGameMode::ApplyRoundPenalty()
+{
+	UE_LOG(LogTemp, Error, TEXT("제한 라운드(%d) 초과! 시간의 힘을 %f 소모합니다."), MaxRoundsPerCycle, PenaltyTPCost);
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			float CurrentTP = ASC->GetNumericAttribute(USPGASAttributeSet::GetTimePowerAttribute());
+			float NewTP = FMath::Max(0.0f, CurrentTP - PenaltyTPCost);
+
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), NewTP);
+
+			// 사이클 초기화
+			CurrentRound = 1;
+			PassedTimeInCurrentRound = 0.0f;
+			UE_LOG(LogTemp, Error, TEXT("🚨 사이클 종료! 시간의 힘 %f 소모. 신규 사이클 시작."), PenaltyTPCost);
+		}
+	}
+}
+
+FTransform AASPCombatGameMode::GetSpawnTransformByIndex(int32 Index)
+{
+	// 맵에 배치된 모든 스폰 포인트 검색
+	TArray<AActor*> SpawnPoints;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASPGASSpawnPoint::StaticClass(), SpawnPoints);
+
+	for (AActor* Actor : SpawnPoints)
+	{
+		if (ASPGASSpawnPoint* SP = Cast<ASPGASSpawnPoint>(Actor))
+		{
+			if (SP->SpawnIndex == Index)
+			{
+				return SP->GetActorTransform();
+			}
+		}
+	}
+
+	// 못 찾았을 경우 기본값
+	UE_LOG(LogTemp, Warning, TEXT("스폰 포인트 [%d]를 찾지 못했습니다."), Index);
+	return FTransform(FRotator::ZeroRotator, FVector(Index * 200.0f, 0.0f, 100.0f));
+}
+// ==========================================
+// FILE: SPBattleCameraActor.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Game/SPBattleCameraActor.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Kismet/GameplayStatics.h"
+
+// Sets default values
+ASPBattleCameraActor::ASPBattleCameraActor()
+{
+	USceneComponent* RootComp = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+	SetRootComponent(RootComp);
+
+	CameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
+	CameraSpringArm->SetupAttachment(RootComponent);
+
+	CameraSpringArm->TargetArmLength = 400.0f;
+	CameraSpringArm->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f)); // 약간 위에서 정면을 내려다보는 각도
+	CameraSpringArm->bDoCollisionTest = false; // 충돌로 인한 카메라 튕김 방지
+
+	MainCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("MainCamera"));
+	MainCamera->SetupAttachment(CameraSpringArm, USpringArmComponent::SocketName);
+
+}
+
+void ASPBattleCameraActor::InitCameraManager(APlayerController* PC)
+{
+	if (PC)
+	{
+		CachedPC = PC;
+		// 현재 PC가 보고 있는 화면(보통 플레이어 캐릭터)을 '돌아갈 고향'으로 저장해둡니다.
+		DefaultViewTarget = PC->GetViewTarget();
+		UE_LOG(LogTemp, Log, TEXT("[CameraManager] 초기화 완료. 복귀 타겟: %s"), *DefaultViewTarget->GetName());
+	}
+}
+
+void ASPBattleCameraActor::FocusOnTarget(AActor* TargetActor, float BlendTime)
+{
+	if (!TargetActor || !CachedPC) return;
+
+	// 몬스터의 현재 위치와 방향을 가져옵니다.
+	FVector TargetLoc = TargetActor->GetActorLocation();
+	FVector TargetForward = TargetActor->GetActorForwardVector();
+
+	// 🌟 몬스터의 정면에서 약간 떨어져서 몬스터를 바라보게 설정!
+	// (예: 몬스터 정면 방향으로 100만큼 앞, 높이는 50 위로)
+	FVector CameraPos = TargetLoc + (TargetForward * 100.0f) + FVector(0, 0, 50.0f);
+	SetActorLocation(CameraPos);
+
+	// 몬스터를 바라보게 회전
+	FRotator LookAtRot = (TargetLoc - CameraPos).Rotation();
+	SetActorRotation(LookAtRot);
+
+	// 즉시 화면 전환! (BlendTime이 0.0f일 경우)
+	CachedPC->SetViewTargetWithBlend(this, BlendTime);
+}
+
+void ASPBattleCameraActor::ReturnToMainView(float BlendTime)
+{
+	if (!CachedPC || !DefaultViewTarget) return;
+
+	// 🌟 3. 아까 저장해둔 고향(플레이어 뷰)으로 다시 부드럽게 날아갑니다.
+	CachedPC->SetViewTargetWithBlend(DefaultViewTarget, BlendTime, EViewTargetBlendFunction::VTBlend_Cubic);
+
+	UE_LOG(LogTemp, Log, TEXT("[CameraManager] 메인 뷰로 복귀!"));
+}
+
+
+
+// ==========================================
+// FILE: SPBattleDirector.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Game/SPBattleDirector.h"
+#include "Game/SPBattleCameraActor.h"
+#include "Component/SPStatusEffectComponent.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "Game/ASPCombatGameMode.h"
+
+ASPBattleDirector::ASPBattleDirector()
+{
+
+}

@@ -4,6 +4,7 @@
 
 #include "Component/InventoryComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
+#include "SubSystem/SPPowerUpgradeSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -20,35 +21,58 @@ void UInventoryComponent::BeginPlay()
 
 	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		// 세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
-		if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
+		// 🌟 [절대 방어벽]
+		// 서브시스템(게임 인스턴스)은 맵이 넘어가도 죽지 않습니다.
+		// "이번에 게임 켜고 초기화를 한 번이라도 했어?" 라고 물어봅니다.
+		if (!SaveSys->bHasInitializedThisSession)
 		{
-			PermanentWallet.Sand = 1000;
-			PermanentWallet.IncompleteEnergy = 10;
+			// 이 안으로 들어왔다는 것은 게임을 처음 켠 '첫 번째 맵'이라는 뜻입니다!
+			// 여기서 치트키(bForceGiveTestCurrencies) 여부를 검사해서 재화를 줍니다.
 
-			if (OwnerPawn)
+			// 1. 영구 재화 주입
+			if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
 			{
-				SaveSys->CachePermDataFromPlayer(OwnerPawn); // 영구 장부 즉시 동기화
-			}
-			UE_LOG(LogTemp, Warning, TEXT(" 초기 영구 재화가 주입되었습니다."));
-		}
+				PermanentWallet.Sand = 1000;
+				PermanentWallet.IncompleteEnergy = 10;
+				PermanentWallet.Fragment = 10; // 테스트용 파편 지급!
 
-		//  세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
-		if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
+				if (OwnerPawn) SaveSys->CachePermDataFromPlayer(OwnerPawn);
+				UE_LOG(LogTemp, Warning, TEXT("초기 영구 재화가 주입되었습니다."));
+			}
+
+			// 2. 런 재화 주입
+			if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
+			{
+				RunWallet.Money = 500;
+
+				// 권능 보너스 골드 계산
+				if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
+				{
+					float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
+					if (BonusGold > 0.0f)
+					{
+						RunWallet.Money += FMath::RoundToInt(BonusGold);
+						UE_LOG(LogTemp, Log, TEXT("[Inventory] 권능 보너스 적용 완료! 최종 시작 골드: %d"), RunWallet.Money);
+					}
+				}
+
+				if (OwnerPawn) SaveSys->CacheRunDataFromPlayer(OwnerPawn);
+				UE_LOG(LogTemp, Warning, TEXT("초기 런 재화(골드)가 주입되었습니다."));
+			}
+
+			// 🌟 [가장 중요] 치트키로 재화를 줬든, 깡통으로 시작했든 세팅이 끝났습니다.
+			// 셔터를 내려서 이번 세션(게임 끄기 전까지)에서는 다시는 이 코드가 실행되지 않게 막아버립니다!
+			SaveSys->bHasInitializedThisSession = true;
+		}
+		else
 		{
-			RunWallet.Money = 500;
-			RunWallet.Fragment = 10;
-
-			if (OwnerPawn)
-			{
-				SaveSys->CacheRunDataFromPlayer(OwnerPawn); // 런 장부 즉시 동기화
-			}
-			UE_LOG(LogTemp, Warning, TEXT(" 초기 런 재화(골드)가 주입되었습니다."));
+			// 맵을 이동해서 새로 태어난 경우, 이쪽으로 빠집니다.
+			// 치트키가 true인 상태로 스폰되었더라도 절대 방어벽에 막혀버리므로, 
+			// 우리가 의도한 대로 이전 맵에서 쓴 파편과 늘어난 600골드가 그대로 유지됩니다!
+			UE_LOG(LogTemp, Log, TEXT("[Inventory] 이미 진행 중인 게임입니다. 치트키와 디버그 재화 초기화를 건너뜁니다."));
 		}
-		// 테스트 끝나면 헤더에 있는 bForceGiveTestCurrencies 변수도 같이 지워주기
 	}
 
-	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
@@ -143,9 +167,9 @@ bool UInventoryComponent::ConsumeMoney(int32 Amount)
 void UInventoryComponent::AddFragment(int32 Amount)
 {
 	if (Amount <= 0) return;
-	RunWallet.Fragment += Amount;
+	PermanentWallet.Fragment += Amount;
 
-	UE_LOG(LogTemp, Log, TEXT("권능의 파편 획득: +%d (현재: %d)"), Amount, RunWallet.Fragment);
+	UE_LOG(LogTemp, Log, TEXT("권능의 파편 획득: +%d (현재: %d)"), Amount, PermanentWallet.Fragment);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 
 	SyncWalletToSaveSystem();
@@ -154,14 +178,14 @@ void UInventoryComponent::AddFragment(int32 Amount)
 bool UInventoryComponent::ConsumeFragment(int32 Amount)
 {
 	if (Amount <= 0) return false;
-	if (RunWallet.Fragment < Amount)
+	if (PermanentWallet.Fragment < Amount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("권능의 파편 부족! 필요: %d, 보유: %d"), Amount, RunWallet.Fragment);
+		UE_LOG(LogTemp, Warning, TEXT("권능의 파편 부족! 필요: %d, 보유: %d"), Amount, PermanentWallet.Fragment);
 		return false;
 	}
 
-	RunWallet.Fragment -= Amount;
-	UE_LOG(LogTemp, Log, TEXT("권능의 파편 소모: -%d (남은 양: %d)"), Amount, RunWallet.Fragment);
+	PermanentWallet.Fragment -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("권능의 파편 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.Fragment);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 

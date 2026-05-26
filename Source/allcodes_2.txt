@@ -1,35 +1,4 @@
-﻿
-		UE_LOG(LogTemp, Warning, TEXT("[Client] GAS Initialized for %s"), *GetName());
-	}
-}
-
-void ASPGASPlayerCharacter::GiveAbilities()
-{
-	// 권한 확인 로그
-	if (!HasAuthority())
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveAbilities Failed: Not Authority (Client tried to run this?)"));
-		return;
-	}
-	if (!ASC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveAbilities Failed: ASC is NULL"));
-		return;
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities Start: %s ==="), *GetName());
-
-	// 필드 입력 GA 확인
-	UE_LOG(LogTemp, Log, TEXT("FieldInputAbilities Count: %d"), FieldInputAbilities.Num());
-	for (const auto& Pair : FieldInputAbilities)
-	{
-		if (Pair.Value)
-		{
-			FGameplayAbilitySpec Spec(Pair.Value);
-			ASC->GiveAbility(Spec);
-
-			UE_LOG(LogTemp, Log, TEXT("   -> Given Ability: %s (Tag: %s)"), *Pair.Value->GetName(), *Pair.Key.ToString());
-		}
+﻿		}
 		else
 		{
 			UE_LOG(LogTemp, Error, TEXT("   -> Failed: Value(Class) is None for Tag: %s"), *Pair.Key.ToString());
@@ -1702,3 +1671,65 @@ void ASPGASPlayerController::ExecuteGoToLobby()
 		// 맵 매니저의 기능 재활용! (세이브 데이터 초기화 + 로비 레벨 이동)
 		MapManager->GoToLobby();
 	}
+}
+
+
+void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (CurrentWeaponTag == NewWeaponTag) return;
+	if (!CachedASC) return;
+
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
+
+	CachedASC->AddLooseGameplayTag(NewWeaponTag);
+	CurrentWeaponTag = NewWeaponTag;
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	// 전투 상태일 때 행동 강제 초기화!
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// 행동을 고르는 중이었거나, 타겟팅 중이었다면?
+		if (bIsSelectingTarget || CurrentSelectedAction != ESelectedActionType::None)
+		{
+			// 타겟팅 해제 + 상태 None 변경 + 카메라 스무스 복귀 + UI 숨기기
+			// 이 모든 것이 CancelTargetSelection() 한 방에 전부 처리됩니다!
+			CancelTargetSelection();
+			UE_LOG(LogTemp, Log, TEXT("[전투] 무기 교체로 인해 행동 선택이 초기화되었습니다."));
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때]
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다."));
+	}
+}
+
+bool ASPGASPlayerController::IsMyTurn() const
+{
+	if (CachedASC)
+	{
+		return CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+	}
+	return false;
+}
+
+void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (!IsLocalController()) return;
+
+	// 1. 캐릭터 & 서브시스템 가져오기
+	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
+	auto* Subsystem = GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();

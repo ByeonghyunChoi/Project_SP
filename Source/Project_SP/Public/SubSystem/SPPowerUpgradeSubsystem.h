@@ -16,6 +16,8 @@ class PROJECT_SP_API USPPowerUpgradeSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 	
 public:
+	// 서브시스템 탄생 시 호출되는 초기화 함수 오버라이드
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	// 에디터(블루프린트)에서 할당해 줄 권능 데이터 테이블
 	UPROPERTY(BlueprintReadWrite, Category = "PowerUpgrade")
 	class UDataTable* PowerUpgradeDataTable;
