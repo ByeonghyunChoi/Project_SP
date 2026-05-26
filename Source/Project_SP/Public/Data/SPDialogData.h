@@ -10,9 +10,9 @@ enum class EClownChoiceType : uint8
 {
     None			UMETA(DisplayName = "선택 안 함"),
     ReduceTP_Relic1		UMETA(DisplayName = "1. TP 20 감소 / 유물 1개 획득"),
-    ReduceHP_Relic1		UMETA(DisplayName = "2. HP 50% 감소 / 유물 1개 획득"),
-    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 20% 감소 / 유물 2개 획득"),
-    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 20% 감소 / 유물 2개 획득")
+    ReduceHP_Relic1		UMETA(DisplayName = "2. 현재 HP 50% 감소 / 유물 1개 획득"),
+    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 5% 감소 / 유물 2개 획득"),
+    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 10% 감소 / 유물 2개 획득")
 };
 
 USTRUCT(BlueprintType)

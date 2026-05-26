@@ -33,7 +33,7 @@ void UInventoryComponent::BeginPlay()
 			if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
 			{
 				PermanentWallet.Sand = 1000;
-				PermanentWallet.IncompleteEnergy = 10;
+				PermanentWallet.IncompleteEnergy = 15;
 				PermanentWallet.Fragment = 10; // 테스트용 파편 지급!
 
 				if (OwnerPawn) SaveSys->CachePermDataFromPlayer(OwnerPawn);
