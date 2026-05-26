@@ -90,8 +90,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Flow")
 	void MarkIntroAsSeen();
 
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Flow")
+	void MarkIntroAsSeen2();
+
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Flow")
 	bool HasSeenIntro() const;
+
+	UFUNCTION(BlueprintPure, Category = "SaveSystem|Flow")
+	bool HasSeenIntro2() const;
 private:
 	UPROPERTY()
 	FPlayerRunData RunData;

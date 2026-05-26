@@ -12,6 +12,7 @@
 #include "MapManagerSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMapLocationChanged, int32, NewStage, int32, NewFloor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAllStagesCleared);
 
 // 데이터 테이블 구조체
 USTRUCT(BlueprintType)
@@ -66,6 +67,10 @@ public:
 	// 맵 바뀐거 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Map")
 	FOnMapLocationChanged OnMapLocationChanged;
+
+	// 게임 전체 클리어 알림용
+	UPROPERTY(BlueprintAssignable, Category = "Map|Flow")
+	FOnAllStagesCleared OnAllStagesCleared;
 
 	bool IsInBattleMap() { return bIsBattleActive; }
 	

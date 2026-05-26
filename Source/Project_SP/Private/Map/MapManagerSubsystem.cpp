@@ -353,7 +353,7 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	else if (CurrentFloor >= 5 && CurrentStage >= 2)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 모든 스테이지 클리어! 데모 종료 및 로비로 귀환합니다."));
-		GoToLobby();
+		OnAllStagesCleared.Broadcast();
 		return;
 	}
 

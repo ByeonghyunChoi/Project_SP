@@ -267,6 +267,9 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
     bool bHasSeenIntro = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
+    bool bHasSeenIntro2 = false;
+
     void Reset()
     {
         // 지갑 0원으로 초기화
@@ -277,6 +280,7 @@ struct FPlayerMetaProgressionData //영구 데이터
         PowerUpgradeData = FPlayerPowerUpgradeData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
+        bHasSeenIntro2 = false;
     }
 };
 
