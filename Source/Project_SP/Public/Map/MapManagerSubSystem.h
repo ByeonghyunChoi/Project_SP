@@ -130,6 +130,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void ResumeRunFromSave(int32 SavedStage, int32 SavedFloor, EMapType SavedMapType, EMapState SavedRoomState, FTransform SavedTransform, bool bSavedInLobby, TArray<EMapType> SavedPortalOptions);
 
+public:
+
 	// 필드 복귀 시 화면에 띄워줄 보상 대기열 (재화 종류, 수량)
 	UPROPERTY(BlueprintReadWrite, Category = "Reward")
 	TMap<EResourceType, int32> PendingToastRewards;
@@ -141,6 +143,10 @@ public:
 	// '클리어한 맵 이름'을 저장하는 메모지
 	UPROPERTY(BlueprintReadWrite, Category = "Map|Flow")
 	FName ClearedStageName = NAME_None;
+
+	// 튜토리얼 1차전을 클리어 했는가?
+	UPROPERTY(BlueprintReadWrite, Category = "Tutorial")
+	bool bIsTutorialBasicCleared = false;
 
 protected:
 	// 로비 레벨 레퍼런스 (에디터에서 경로 확인 필요)
@@ -192,6 +198,12 @@ private:
 	// 몬스터 명부
 	UPROPERTY()
 	TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
+
+	// 튜토리얼 용 전투 진입전 맵 이름을 저장할 변수
+	UPROPERTY()
+	FName SavedFieldLevelName;
+
+	bool bIsReturningToTutorial = false;
 
 private:
 	// 맵 생성 및 플레이어 이동 처리

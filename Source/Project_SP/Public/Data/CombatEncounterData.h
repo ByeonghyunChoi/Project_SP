@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -11,13 +11,21 @@
  * 
  */
 
+UENUM(BlueprintType)
+enum class ETutorialStage : uint8
+{
+	None			UMETA(DisplayName = "ì¼ë°˜ ì „íˆ¬"),
+	Tutorial_Basic	UMETA(DisplayName = "1ì°¨ì „ (ì‹œìŠ¤í…œ ì„¤ëª…)"),
+	Tutorial_Boss	UMETA(DisplayName = "2ì°¨ì „ (ê°•ì œ íŒ¨ë°° ë³´ìŠ¤ì „)")
+};
+
 USTRUCT(BlueprintType)
 struct FEnemySpawnInfo
 {
 	GENERATED_BODY()
 
 public:
-	// ½ºÆùÇÒ Àû µ¥ÀÌÅÍ
+	// ìŠ¤í°í•  ì  ë°ì´í„°
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	class USPMonsterData* MonsterData = nullptr;
 
@@ -30,7 +38,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override", meta = (EditCondition = "bOverrideWeakness"))
 	FGameplayTagContainer OverriddenWeaknessTags;
 
-	// ½ºÆù À§Ä¡ ÀÎµ¦½º 1=Áß¾Ó, 0=ÁÂÃø, 2=¿ìÃø
+	// ìŠ¤í° ìœ„ì¹˜ ì¸ë±ìŠ¤ 1=ì¤‘ì•™, 0=ì¢Œì¸¡, 2=ìš°ì¸¡
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnPositionIndex = 0;
 
@@ -44,12 +52,18 @@ class PROJECT_SP_API UCombatEncounterData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	// ÀÌ ÀüÅõ¿¡ µîÀåÇÒ ÀûµéÀÇ ¸ñ·Ï
+	// ì´ ì „íˆ¬ì— ë“±ì¥í•  ì ë“¤ì˜ ëª©ë¡
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
 	TArray<FEnemySpawnInfo> EnemyGroup;
 
-	// ÀüÅõ°¡ ¹ú¾îÁú ·¹º§ÀÇ ÀÌ¸§
+	// ì „íˆ¬ê°€ ë²Œì–´ì§ˆ ë ˆë²¨ì˜ ì´ë¦„
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
 	FName CombatLevelName;
 	
+	// íŠœí† ë¦¬ì–¼ ì—¬ë¶€
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter|Tutorial")
+	bool bIsTutorial = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter|Tutorial", meta = (EditCondition = "bIsTutorial"))
+	ETutorialStage TutorialStage = ETutorialStage::None;
 };

@@ -69,6 +69,7 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
+	bIsTutorialBasicCleared = false;
 
 	PreGenerateAllEncounters();
 
@@ -90,6 +91,7 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 
 	// 필드에서의 현재 위치 저장
 	SavedFieldTransform = PlayerPawn->GetActorTransform();
+	SavedFieldLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
 	bIsReturningFromBattle = false;
 	bIsBattleActive = true;
 
@@ -120,17 +122,34 @@ void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 	bIsReturningFromBattle = true;
 	CurrentRoomState = bIsVictory ? EMapState::Reward : EMapState::InProgress;
 
-	// 스테이지 레벨 로드 (-> OnPostLoadMapWithWorld가 호출됨)
-	LoadStageLevel();
-
-	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
-
-	if (bIsVictory)
+	bool bIsTutorialBasic = false;
+	if (USPCombatSubsystem* CombatSys = GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
-		// 현재 열려있는 맵(레벨)의 이름을 문자열로 가져옴
-		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
-		ClearedStageName = FName(*CurrentLevel); // FName으로 변환해서 저장
+		if (CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
+		{
+			bIsTutorialBasic = true;
+		}
+	}
 
+	// 🌟 2. 튜토리얼 1차전 승리 복귀라면?
+	if (bIsTutorialBasic && !SavedFieldLevelName.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[튜토리얼] 원래 있던 튜토리얼 필드(%s)로 복귀합니다."), *SavedFieldLevelName.ToString());
+		bIsReturningToTutorial = true; // 튜토리얼 복귀 모드 ON
+		bIsTutorialBasicCleared = true;
+		UGameplayStatics::OpenLevel(this, SavedFieldLevelName); // 기억해둔 맵 열기
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("일반 필드로 복귀합니다."));
+		// 🌟 3. 일반 로그라이크 전투 복귀라면 기존처럼 스테이지 레벨을 엽니다.
+		LoadStageLevel();
+	}
+
+	if (bIsVictory && !bIsTutorialBasic)
+	{
+		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
+		ClearedStageName = FName(*CurrentLevel);
 		UE_LOG(LogTemp, Warning, TEXT("자동 메모 작성 완료! 클리어한 맵: %s"), *CurrentLevel);
 	}
 }
@@ -142,6 +161,40 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 	if (bIsBattleActive)
 	{
 		UE_LOG(LogTemp, Log, TEXT("전투 레벨 로드 완료 - 맵 스폰을 건너뜁니다."));
+		return;
+	}
+
+	if (bIsReturningToTutorial)
+	{
+		APawn* Player = UGameplayStatics::GetPlayerPawn(LoadedWorld, 0);
+		if (Player)
+		{
+			Player->SetActorTransform(SavedFieldTransform, false, nullptr, ETeleportType::ResetPhysics);
+			if (auto* MoveComp = Player->FindComponentByClass<UCharacterMovementComponent>())
+			{
+				MoveComp->StopMovementImmediately();
+			}
+		}
+
+		// 🌟 [추가] 1차전을 클리어하고 돌아온 거라면, 시체를 치워버립니다!
+		if (bIsTutorialBasicCleared)
+		{
+			TArray<AActor*> FoundMonsters;
+			// "TutorialMonster_1" 이라는 이름표(Tag)를 가진 액터를 모두 색출합니다.
+			UGameplayStatics::GetAllActorsWithTag(LoadedWorld, FName("TutorialMonster_1"), FoundMonsters);
+
+			for (AActor* Monster : FoundMonsters)
+			{
+				if (IsValid(Monster))
+				{
+					Monster->Destroy(); // 확인 사살!
+				}
+			}
+			UE_LOG(LogTemp, Warning, TEXT("1차전 튜토리얼 몬스터를 맵에서 영구 제거했습니다."));
+		}
+
+		bIsReturningToTutorial = false;
+		bIsReturningFromBattle = false;
 		return;
 	}
 
