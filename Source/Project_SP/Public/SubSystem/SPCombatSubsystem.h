@@ -36,6 +36,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	ECombatAdvantage GetAdvantageState() const { return CurrentAdvantage; }
 
+	// 현재 전투가 튜토리얼인지 반환 
+	UFUNCTION(BlueprintPure, Category = "Combat|Tutorial")
+	ETutorialStage GetCurrentTutorialStage() const;
+
+	// 튜토리얼 각본 제어//
+	// 현재 튜토리얼 진행 단계 반환
+	UFUNCTION(BlueprintPure, Category = "Combat|Tutorial")
+	int32 GetCurrentTutorialStep() const { return CurrentTutorialStep; }
+
+	// 튜토리얼 단계 1 증가 (유저가 올바른 행동을 했을 때 블루프린트에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "Combat|Tutorial")
+	void AdvanceTutorialStep();
+
+	// 튜토리얼 단계 초기화 (전투 시작 시 호출)
+	UFUNCTION(BlueprintCallable, Category = "Combat|Tutorial")
+	void ResetTutorialStep();
+
 private:
 	// 다음 전투에 사용할 몬스터 데이터 (안전하게 보관 중)
 	UPROPERTY(VisibleAnywhere, Category = "Combat")
@@ -44,4 +61,8 @@ private:
 	// 선공 여부
 	UPROPERTY(VisibleAnywhere, Category = "Combat")
 	ECombatAdvantage CurrentAdvantage;
+
+	// 현재 튜토리얼 스텝
+	UPROPERTY()
+	int32 CurrentTutorialStep = 1;
 };
