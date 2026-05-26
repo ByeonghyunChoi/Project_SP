@@ -547,17 +547,17 @@ void ASPGASPlayerCharacter::ExecuteClownChoice(EClownChoiceType Choice, const TA
 		}
 		case EClownChoiceType::ReduceATK_Relic2:
 		{
-			// 공격력 20% 감소
+			// 공격력 5% 감소
 			float CurrentATK = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
-			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), CurrentATK * 0.8f);
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), CurrentATK * 0.95f);
 			RelicsToGive = 2;
 			break;
 		}
 		case EClownChoiceType::ReduceDEF_Relic2:
 		{
-			// 방어력 20% 감소
+			// 방어력 10% 감소
 			float CurrentDEF = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
-			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), CurrentDEF * 0.8f);
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), CurrentDEF * 0.9f);
 			RelicsToGive = 2;
 			break;
 		}
