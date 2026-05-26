@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -16,7 +16,7 @@ class PROJECT_SP_API USPSaveGameSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	// ·± µ¥ÀÌÅÍ Á¦¾î
+	// ëŸ° ë°ì´í„° ì œì–´
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
 	void CacheRunDataFromPlayer(APawn* PlayerPawn);
 
@@ -24,16 +24,16 @@ public:
 	void RestoreRunDataToPlayer(APawn* PlayerPawn);
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
-	void ResetRunData(); // »ç¸Á, º¸½º Å¬¸®¾î ½Ã È£Ãâ
+	void ResetRunData(); // ì‚¬ë§, ë³´ìŠ¤ í´ë¦¬ì–´ ì‹œ í˜¸ì¶œ
 
-	// ¿µ±¸ µ¥ÀÌÅÍ Á¦¾î
+	// ì˜êµ¬ ë°ì´í„° ì œì–´
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
 	void CachePermDataFromPlayer(APawn* PlayerPawn);
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
 	void RestorePermDataToPlayer(APawn* PlayerPawn);
 
-	//µ¥ÀÌÅÍ ÃÊ±âÈ­(»õ·Î ÇÏ±âÇÒ ¶§ È£Ãâ)
+	//ë°ì´í„° ì´ˆê¸°í™”(ìƒˆë¡œ í•˜ê¸°í•  ë•Œ í˜¸ì¶œ)
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Core")
 	void ResetAllData();
 
@@ -44,28 +44,36 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
 	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
 
-public:
-	//¼¼ÀÌºê ÆÄÀÏ °ü¸®
+	// ê¶ŒëŠ¥ ìˆ˜ë³µ ë ˆë²¨ì„ ì—…ë°ì´íŠ¸í•˜ê³  ì¦‰ì‹œ ë””ìŠ¤í¬ì— ì €ì¥í•˜ëŠ” ì „ìš© Setter í•¨ìˆ˜
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
+	void UpdatePowerUpgradeLevel(EPowerUpgradeType UpgradeType, int32 NewLevel);
+	
+	//íŠ¹ì • ì¬í™”ì— ì¢…ì†ë˜ì§€ ì•Šê³ , ëŸ° ì§€ê°‘ ë°ì´í„° ì „ì²´ë¥¼ ì•ˆì „í•˜ê²Œ ì—…ë°ì´íŠ¸í•˜ëŠ” ë²”ìš© ì°½êµ¬
+	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Run")
+	void UpdateRunWalletData(const FPlayerRunWallet& NewWallet);
 
-	// ·± µ¥ÀÌÅÍ ÆÄÀÏ °ü¸®
+public:
+	//ì„¸ì´ë¸Œ íŒŒì¼ ê´€ë¦¬
+
+	// ëŸ° ë°ì´í„° íŒŒì¼ ê´€ë¦¬
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	void SaveRunToDisk();
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadRunFromDisk(); 
 
-	// ¿µ±¸ µ¥ÀÌÅÍ ÆÄÀÏ °ü¸®
+	// ì˜êµ¬ ë°ì´í„° íŒŒì¼ ê´€ë¦¬
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	void SavePermToDisk();
 
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Disk")
 	bool LoadPermFromDisk();
 
-	//¿µ±¸ µ¥ÀÌÅÍ Á¸Àç ¿©ºÎ È®ÀÎ
+	//ì˜êµ¬ ë°ì´í„° ì¡´ì¬ ì—¬ë¶€ í™•ì¸
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidPermSave() const;
 
-	//·± µ¥ÀÌÅÍ Á¸Àç ¿©ºÎ È®ÀÎ
+	//ëŸ° ë°ì´í„° ì¡´ì¬ ì—¬ë¶€ í™•ì¸
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Disk")
 	bool HasValidRunSave() const;
 
@@ -84,7 +92,7 @@ private:
 	UPROPERTY()
 	FPlayerMetaProgressionData PermData;
 
-	//ÀúÀåµÉ ÆÄÀÏ ÀÌ¸§
+	//ì €ì¥ë  íŒŒì¼ ì´ë¦„
 	const FString RunSlotName = TEXT("Slot_Run");
 	const FString PermSlotName = TEXT("Slot_Perm");
 };

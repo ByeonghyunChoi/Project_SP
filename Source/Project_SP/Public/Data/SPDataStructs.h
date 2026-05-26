@@ -188,6 +188,64 @@ struct FSoundSettingsData
     float UIVolume = 10.0f;
 };
 
+// 권능 수복 능력 리스트
+UENUM(BlueprintType)
+enum class EPowerUpgradeType : uint8
+{
+    None			UMETA(DisplayName = "없음"),
+    CombatResource	UMETA(DisplayName = "전투 자원 강화 (BP 증가)"),
+    RelicReroll		UMETA(DisplayName = "유물 리롤 해금"),
+    RewardBoost		UMETA(DisplayName = "보상 강화 (획득량 증가)"),
+    TimeSkillCost	UMETA(DisplayName = "시간 간섭 코스트 감소"),
+    MaxTimePower	UMETA(DisplayName = "시간의 힘 최대치 증가"),
+    FreeRevive		UMETA(DisplayName = "생존 (1회 무료 부활)"),
+    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)"),
+    RelicLuck		UMETA(DisplayName = "보상 운 (유물 등장 확률 증가)")
+};
+
+// 권능 수복 데이터 테이블 구조체
+USTRUCT(BlueprintType)
+struct FPowerUpgradeData : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    // 1. 어떤 능력인가?
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    EPowerUpgradeType UpgradeType = EPowerUpgradeType::None;
+
+    // 2. 능력 이름 (예: "전투 시작 BP 최소/최대 증가")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    FString UpgradeName;
+
+    // 3. 최대 가능 단계 (예: 2단계, 3단계)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    int32 MaxLevel = 1;
+
+    // 4. 레벨별 파편 소모량 (Index 0: 1단계 비용, Index 1: 2단계 비용...)
+    // 예: [10, 20] 넣으면 1단계 갈 때 10, 2단계 갈 때 20 소모
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    TArray<int32> CostPerLevel;
+
+    // 5. 레벨별 실제 적용될 수치 (Index 0: 1단계 효과, Index 1: 2단계 효과...)
+    // 예: 시작 골드면 [100, 300, 500] 입력
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    TArray<float> EffectValuePerLevel;
+
+    // 6. 툴팁이나 비고란 설명 텍스트
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    FText Description;
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerPowerUpgradeData
+{
+    GENERATED_BODY()
+
+    // 어떤 권능(Enum)을 몇 레벨(int32)까지 올렸는지 영구 저장합니다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<EPowerUpgradeType, int32> UpgradeLevels;
+};
+
 USTRUCT(BlueprintType)
 struct FPlayerMetaProgressionData //영구 데이터
 {
@@ -198,6 +256,10 @@ struct FPlayerMetaProgressionData //영구 데이터
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
+
+	// 권능 수복
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPlayerPowerUpgradeData PowerUpgradeData;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
     FSoundSettingsData SoundSettings;
@@ -211,6 +273,8 @@ struct FPlayerMetaProgressionData //영구 데이터
         PermanentWallet = FPlayerPermanentWallet();
         // 오파츠 장착 해제 및 장부(Map) 싹 비우기
         OpartsData = FPlayerOpartsData();
+		// 권능 수복 데이터 초기화
+        PowerUpgradeData = FPlayerPowerUpgradeData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
     }

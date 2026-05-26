@@ -1,4 +1,58 @@
-﻿
+﻿}
+
+
+void ASPGASPlayerController::ProcessWeaponSwitch(FGameplayTag NewWeaponTag)
+{
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (CurrentWeaponTag == NewWeaponTag) return;
+	if (!CachedASC) return;
+
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Fenrir);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Surtr);
+	CachedASC->RemoveLooseGameplayTag(SPTags.Weapon_Jormungandr);
+
+	CachedASC->AddLooseGameplayTag(NewWeaponTag);
+	CurrentWeaponTag = NewWeaponTag;
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn()))
+	{
+		PlayerChar->PlayWeaponSwapSequence(NewWeaponTag);
+		OnWeaponChanged.Broadcast(NewWeaponTag);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("무기 교체 완료: %s"), *NewWeaponTag.ToString());
+
+	// 전투 상태일 때 행동 강제 초기화!
+	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Battle))
+	{
+		// 행동을 고르는 중이었거나, 타겟팅 중이었다면?
+		if (bIsSelectingTarget || CurrentSelectedAction != ESelectedActionType::None)
+		{
+			// 타겟팅 해제 + 상태 None 변경 + 카메라 스무스 복귀 + UI 숨기기
+			// 이 모든 것이 CancelTargetSelection() 한 방에 전부 처리됩니다!
+			CancelTargetSelection();
+			UE_LOG(LogTemp, Log, TEXT("[전투] 무기 교체로 인해 행동 선택이 초기화되었습니다."));
+		}
+	}
+	else if (CachedASC->HasMatchingGameplayTag(SPTags.State_Mode_Field))
+	{
+		// [필드 상태일 때]
+		bIsSelectingTarget = false;
+		SetCurrentSelectedAction(ESelectedActionType::None);
+		UE_LOG(LogTemp, Log, TEXT("[필드] 무기가 성공적으로 교체되었습니다."));
+	}
+}
+
+bool ASPGASPlayerController::IsMyTurn() const
+{
+	if (CachedASC)
+	{
+		return CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
+	}
+	return false;
+}
+
 void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (!IsLocalController()) return;
@@ -62,6 +116,9 @@ UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
 #pragma once
 
 #include "Component/InventoryComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -72,10 +129,36 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// [테스트용] 개발 편의를 위해 초기 자원 지급 (나중에 삭제)
-	PermanentWallet.Sand = 1000;
-	PermanentWallet.IncompleteEnergy = 10;
-	RunWallet.Money = 500;
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+
+	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		// 세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
+		if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
+		{
+			PermanentWallet.Sand = 1000;
+			PermanentWallet.IncompleteEnergy = 10;
+
+			if (OwnerPawn)
+			{
+				SaveSys->CachePermDataFromPlayer(OwnerPawn); // 영구 장부 즉시 동기화
+			}
+			UE_LOG(LogTemp, Warning, TEXT(" 초기 영구 재화가 주입되었습니다."));
+		}
+
+		//  세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
+		if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
+		{
+			RunWallet.Money = 500;
+
+			if (OwnerPawn)
+			{
+				SaveSys->CacheRunDataFromPlayer(OwnerPawn); // 런 장부 즉시 동기화
+			}
+			UE_LOG(LogTemp, Warning, TEXT(" 초기 런 재화(골드)가 주입되었습니다."));
+		}
+		// 테스트 끝나면 헤더에 있는 bForceGiveTestCurrencies 변수도 같이 지워주기
+	}
 
 	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
@@ -88,6 +171,8 @@ void UInventoryComponent::AddSand(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("모래 획득: +%d (현재: %d)"), Amount, PermanentWallet.Sand);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeSand(int32 Amount)
@@ -103,6 +188,8 @@ bool UInventoryComponent::ConsumeSand(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("모래 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.Sand);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -113,6 +200,8 @@ void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("기운 획득: +%d (현재: %d)"), Amount, PermanentWallet.IncompleteEnergy);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
@@ -128,6 +217,8 @@ bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("기운 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.IncompleteEnergy);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -138,6 +229,9 @@ void UInventoryComponent::AddMoney(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("골드 획득: +%d (현재: %d)"), Amount, RunWallet.Money);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
+
 }
 
 bool UInventoryComponent::ConsumeMoney(int32 Amount)
@@ -153,6 +247,8 @@ bool UInventoryComponent::ConsumeMoney(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("골드 소모: -%d (남은 양: %d)"), Amount, RunWallet.Money);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -163,6 +259,8 @@ void UInventoryComponent::AddFragment(int32 Amount)
 
 	UE_LOG(LogTemp, Log, TEXT("권능의 파편 획득: +%d (현재: %d)"), Amount, RunWallet.Fragment);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 }
 
 bool UInventoryComponent::ConsumeFragment(int32 Amount)
@@ -178,6 +276,8 @@ bool UInventoryComponent::ConsumeFragment(int32 Amount)
 	UE_LOG(LogTemp, Log, TEXT("권능의 파편 소모: -%d (남은 양: %d)"), Amount, RunWallet.Fragment);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+
+	SyncWalletToSaveSystem();
 	return true;
 }
 
@@ -194,6 +294,23 @@ void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, co
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[Inventory] 지갑 복구 완료! 골드: %d / 모래: %d"), RunWallet.Money, PermanentWallet.Sand);
+}
+
+// 서브시스템 장부 갱신 함수 구현
+void UInventoryComponent::SyncWalletToSaveSystem()
+{
+	// 인벤토리의 주인이 플레이어 폰인지 확인
+	if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신합니다! (렉 유발 X)
+			SaveSys->CacheRunDataFromPlayer(OwnerPawn);
+			SaveSys->CachePermDataFromPlayer(OwnerPawn);
+
+			UE_LOG(LogTemp, Verbose, TEXT("[Inventory] 지갑 변동! 세이브 서브시스템 메모리에 즉시 동기화 완료."));
+		}
+	}
 }
 // ==========================================
 // FILE: OpartsComponent.cpp
@@ -918,6 +1035,61 @@ void URelicComponent::LoadRelicData(const FPlayerRelicData& SavedRelicData)
 		OnRelicUpdated.Broadcast();
 	}
 }
+
+int32 URelicComponent::GrantRandomRelics(int32 Count, const TArray<URelicDefinition*>& AllRelicPool)
+{
+	// 방어 코드: 0개 이하로 달라고 하거나, 전체 유물 풀이 비어있으면 취소
+	if (Count <= 0 || AllRelicPool.IsEmpty()) return 0;
+
+	// 1. 현재 장착하지 않은 유물들만 따로 모아둘 임시 바구니를 만듭니다.
+	TArray<URelicDefinition*> AvailableRelics;
+	for (URelicDefinition* Relic : AllRelicPool)
+	{
+		// 유물이 유효하고, 내 장착 목록에 없다면(중복 방지) 바구니에 넣습니다.
+		if (Relic && !EquippedRelics.Contains(Relic))
+		{
+			AvailableRelics.Add(Relic);
+		}
+	}
+
+	// 2. 바구니가 비어있다면? (모든 유물을 다 얻었을 경우)
+	if (AvailableRelics.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Relic] 장착 가능한 새로운 유물이 더 이상 없습니다!"));
+		return 0;
+	}
+
+	// 3. 바구니 안의 유물들을 마구 섞어줍니다! (셔플)
+	int32 LastIndex = AvailableRelics.Num() - 1;
+	for (int32 i = 0; i <= LastIndex; ++i)
+	{
+		int32 SwapIndex = FMath::RandRange(i, LastIndex);
+		AvailableRelics.Swap(i, SwapIndex);
+	}
+
+	// 4. 요청한 개수만큼 장착을 시도합니다. (바구니에 남은 유물이 요청 개수보다 적을 수 있으니 안전하게 계산)
+	int32 GrantedCount = 0;
+	int32 ActualCountToGive = FMath::Min(Count, AvailableRelics.Num());
+
+	for (int32 i = 0; i < ActualCountToGive; ++i)
+	{
+		// 성민 님이 이미 만들어두신 AddRelic을 재활용합니다!
+		// AddRelic 내부에서 최대 6개 제한을 알아서 막아주기 때문에 아주 안전합니다.
+		if (AddRelic(AvailableRelics[i]))
+		{
+			GrantedCount++; // 장착 성공!
+		}
+		else
+		{
+			// 장착 실패 (아마도 유물 칸이 6개로 꽉 찬 경우)
+			UE_LOG(LogTemp, Warning, TEXT("[Relic] 유물 슬롯이 가득 차서 더 이상 획득할 수 없습니다."));
+			break; // 남은 지급을 즉시 중단합니다.
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Relic] 광대 이벤트 등으로 랜덤 유물 %d개 획득 성공!"), GrantedCount);
+	return GrantedCount;
+}
 // ==========================================
 // FILE: ShopComponent.cpp
 // ==========================================
@@ -1530,66 +1702,3 @@ void USPStatusEffectComponent::ProcessStatusEffect(FGameplayTag IncomingStatusTa
 				UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
 					SpecHandle,
 					SPTags.Data_Damage,
-					FinalDamage
-				);
-
-				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
-				if (bIsExecute)
-				{
-					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
-				}
-
-				SpecHandle.Data->AddDynamicAssetTag(IncomingStatusTag);
-
-				AActor* TargetAvatar = TargetASC->GetAvatarActor();
-
-				// 1. 탄약고에 보관
-				PendingDamageMap.FindOrAdd(TargetAvatar).Add(SpecHandle);
-
-				// 2. 몬스터에게 연출 중 태그 부착
-				if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
-				{
-					TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
-				}
-
-				// 3. 블루프린트에게 "즉발 연출 시작!" 방송 송출 (bIsInstant = true)
-				OnStatusVisualTriggered.Broadcast(TargetAvatar, IncomingStatusTag, true);
-			}
-		}
-	}
-
-	if (TargetASC)
-	{
-		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetASC->GetAvatarActor()))
-		{
-			Monster->BroadcastStatusUI();
-		}
-	}
-}
-
-void USPStatusEffectComponent::ProcessTurnStartDoT()
-{
-	AActor* Owner = GetOwner();
-	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Owner);
-
-	if (!OwnerASC || !StatusEffectDataAsset || !StatusDamageEffectClass) return;
-
-	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
-
-	// 1. 내 몸(Owner)에 붙어있는 모든 활성화된 이펙트를 가져옵니다.
-	FGameplayEffectQuery Query;
-	TArray<FActiveGameplayEffectHandle> ActiveEffects = OwnerASC->GetActiveEffects(Query);
-
-	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-	{
-		const FActiveGameplayEffect* ActiveGE = OwnerASC->GetActiveGameplayEffect(Handle);
-		if (!ActiveGE) continue;
-
-		// 2. 이 이펙트가 무슨 태그를 부여하고 있는지 확인합니다.
-		FGameplayTagContainer GrantedTags;
-		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
-
-		// 3. 우리 데이터 에셋을 순회하며 비교합니다.
-		for (const auto& Pair : StatusEffectDataAsset->StatusConfigs)
-		{
-			FGameplayTag StatusTag = Pair.Key;

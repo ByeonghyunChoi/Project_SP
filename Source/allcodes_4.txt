@@ -1,4 +1,67 @@
-﻿			const FStatusEffectConfig& Config = Pair.Value;
+﻿					FinalDamage
+				);
+
+				// 일반몹 치명상일 경우에만 '처형' 태그를 몰래 붙여서 쏩니다.
+				if (bIsExecute)
+				{
+					SpecHandle.Data->AddDynamicAssetTag(SPTags.Damage_Type_Execute);
+				}
+
+				SpecHandle.Data->AddDynamicAssetTag(IncomingStatusTag);
+
+				AActor* TargetAvatar = TargetASC->GetAvatarActor();
+
+				// 1. 탄약고에 보관
+				PendingDamageMap.FindOrAdd(TargetAvatar).Add(SpecHandle);
+
+				// 2. 몬스터에게 연출 중 태그 부착
+				if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+				{
+					TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+				}
+
+				// 3. 블루프린트에게 "즉발 연출 시작!" 방송 송출 (bIsInstant = true)
+				OnStatusVisualTriggered.Broadcast(TargetAvatar, IncomingStatusTag, true);
+			}
+		}
+	}
+
+	if (TargetASC)
+	{
+		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(TargetASC->GetAvatarActor()))
+		{
+			Monster->BroadcastStatusUI();
+		}
+	}
+}
+
+void USPStatusEffectComponent::ProcessTurnStartDoT()
+{
+	AActor* Owner = GetOwner();
+	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Owner);
+
+	if (!OwnerASC || !StatusEffectDataAsset || !StatusDamageEffectClass) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// 1. 내 몸(Owner)에 붙어있는 모든 활성화된 이펙트를 가져옵니다.
+	FGameplayEffectQuery Query;
+	TArray<FActiveGameplayEffectHandle> ActiveEffects = OwnerASC->GetActiveEffects(Query);
+
+	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+	{
+		const FActiveGameplayEffect* ActiveGE = OwnerASC->GetActiveGameplayEffect(Handle);
+		if (!ActiveGE) continue;
+
+		// 2. 이 이펙트가 무슨 태그를 부여하고 있는지 확인합니다.
+		FGameplayTagContainer GrantedTags;
+		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+
+		// 3. 우리 데이터 에셋을 순회하며 비교합니다.
+		for (const auto& Pair : StatusEffectDataAsset->StatusConfigs)
+		{
+			FGameplayTag StatusTag = Pair.Key;
+			const FStatusEffectConfig& Config = Pair.Value;
 
 			// DoT 계수가 존재하고 & 내 몸에 그 상태이상 태그가 붙어있다면!
 			if (Config.DotDamageCoefficient > 0.0f && GrantedTags.HasTag(StatusTag))
@@ -1593,3 +1656,49 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 			// (ASPGASCharacterBase에 PlayHitReact 함수가 구현되어 있다고 가정)
 			if (ASPGASCharacterBase* TargetBaseChar = Cast<ASPGASCharacterBase>(TargetActor))
 			{
+				TargetBaseChar->PlayHitReact(HitResult.ImpactPoint);
+			}
+		}
+	}
+}
+
+void USPGA_BattleActionBase::ApplyTurnBasedCooldown()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return;
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	// =========================================================================
+	// 시간 간섭이 발동 중인가?
+	// =========================================================================
+	if (ASC->HasMatchingGameplayTag(SPTags.State_TimeInterference))
+	{
+		// 1. 해골 수정 + 무기 스킬일 경우
+		if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_CrystalSkull) &&
+			AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 해골 수정 활성화! 쿨타임을 부여하지 않고 스택만 소모합니다."));
+			return; 
+		}
+
+		// 2. 옥시계 + 패링 반격일 경우
+		if (ASC->HasMatchingGameplayTag(SPTags.State_Buff_JadeClock) &&
+			AbilityTags.HasTag(SPTags.Battle_Action_CounterAttack))
+		{
+			FGameplayEffectQuery Query = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(SPTags.State_Buff_JadeClock));
+			TArray<FActiveGameplayEffectHandle> ActiveEffects = ASC->GetActiveEffects(Query);
+
+			for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+			{
+				ASC->RemoveActiveGameplayEffect(Handle, 1); // 옥시계 스택 1 차감
+				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 옥시계 반격! 쿨타임을 부여하지 않고 스택만 소모합니다."));
+				return; 
+			}
+		}
+	}
+	// =========================================================================
+
+	//  '공명하는 룬' 효과: 무기 스킬일 경우 25% 확률로 쿨타임 무시!
+	if (AbilityTags.HasTag(SPTags.Battle_Action_Skill))
+	{

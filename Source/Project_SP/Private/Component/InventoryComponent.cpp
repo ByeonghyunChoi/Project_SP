@@ -37,6 +37,7 @@ void UInventoryComponent::BeginPlay()
 		if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
 		{
 			RunWallet.Money = 500;
+			RunWallet.Fragment = 10;
 
 			if (OwnerPawn)
 			{
