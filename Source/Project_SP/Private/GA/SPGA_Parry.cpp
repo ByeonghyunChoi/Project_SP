@@ -13,6 +13,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Game/SPProjectileBase.h"
+#include "SubSystem/SPCombatSubsystem.h"
 
 
 bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
@@ -22,6 +23,28 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	if (!PlayerASC) return false;
+
+	if (USPCombatSubsystem* CombatSys = GetWorld()->GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		// 튜토리얼 중이고, 현재 각본이 6단계(패링)라면?
+		if (CombatSys->GetCurrentTutorialStage() != ETutorialStage::None && CombatSys->GetCurrentTutorialStep() == 6)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 각본] 튜토리얼 패링! 레이더와 상성 검사를 무시하고 강제 성공 처리합니다."));
+
+			// 혹시라도 열려있을지 모르는 몬스터의 패링 창을 깔끔하게 닫아줍니다.
+			if (TargetMonster)
+			{
+				if (UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent())
+				{
+					TargetASC->RemoveLooseGameplayTag(SPTags.State_ParryWindow);
+					TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
+				}
+			}
+
+			// 🚨 여기서 즉시 true를 반환하여 아래의 복잡한 물리/레이더 로직을 전부 건너뜁니다!
+			return true;
+		}
+	}
 
 	// 눈앞에 날아오는 투사체(Projectile)가 있는지 먼저 검사합니다.
 	if (MyAvatar)

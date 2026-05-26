@@ -59,7 +59,7 @@ public:
 	int32 GetMoney() const { return RunWallet.Money; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
-	int32 GetFragment() const { return RunWallet.Fragment; }
+	int32 GetFragment() const { return PermanentWallet.Fragment; }
 
 	// =========================================================
 	// 2. 조작 (Gain / Consume)

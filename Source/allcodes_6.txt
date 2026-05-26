@@ -1,73 +1,4 @@
-﻿	CameraSpringArm->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f)); // 약간 위에서 정면을 내려다보는 각도
-	CameraSpringArm->bDoCollisionTest = false; // 충돌로 인한 카메라 튕김 방지
-
-	MainCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("MainCamera"));
-	MainCamera->SetupAttachment(CameraSpringArm, USpringArmComponent::SocketName);
-
-}
-
-void ASPBattleCameraActor::InitCameraManager(APlayerController* PC)
-{
-	if (PC)
-	{
-		CachedPC = PC;
-		// 현재 PC가 보고 있는 화면(보통 플레이어 캐릭터)을 '돌아갈 고향'으로 저장해둡니다.
-		DefaultViewTarget = PC->GetViewTarget();
-		UE_LOG(LogTemp, Log, TEXT("[CameraManager] 초기화 완료. 복귀 타겟: %s"), *DefaultViewTarget->GetName());
-	}
-}
-
-void ASPBattleCameraActor::FocusOnTarget(AActor* TargetActor, float BlendTime)
-{
-	if (!TargetActor || !CachedPC) return;
-
-	// 몬스터의 현재 위치와 방향을 가져옵니다.
-	FVector TargetLoc = TargetActor->GetActorLocation();
-	FVector TargetForward = TargetActor->GetActorForwardVector();
-
-	// 🌟 몬스터의 정면에서 약간 떨어져서 몬스터를 바라보게 설정!
-	// (예: 몬스터 정면 방향으로 100만큼 앞, 높이는 50 위로)
-	FVector CameraPos = TargetLoc + (TargetForward * 100.0f) + FVector(0, 0, 50.0f);
-	SetActorLocation(CameraPos);
-
-	// 몬스터를 바라보게 회전
-	FRotator LookAtRot = (TargetLoc - CameraPos).Rotation();
-	SetActorRotation(LookAtRot);
-
-	// 즉시 화면 전환! (BlendTime이 0.0f일 경우)
-	CachedPC->SetViewTargetWithBlend(this, BlendTime);
-}
-
-void ASPBattleCameraActor::ReturnToMainView(float BlendTime)
-{
-	if (!CachedPC || !DefaultViewTarget) return;
-
-	// 🌟 3. 아까 저장해둔 고향(플레이어 뷰)으로 다시 부드럽게 날아갑니다.
-	CachedPC->SetViewTargetWithBlend(DefaultViewTarget, BlendTime, EViewTargetBlendFunction::VTBlend_Cubic);
-
-	UE_LOG(LogTemp, Log, TEXT("[CameraManager] 메인 뷰로 복귀!"));
-}
-
-
-
-// ==========================================
-// FILE: SPBattleDirector.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Game/SPBattleDirector.h"
-#include "Game/SPBattleCameraActor.h"
-#include "Component/SPStatusEffectComponent.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-#include "Game/ASPCombatGameMode.h"
-
-ASPBattleDirector::ASPBattleDirector()
-{
-
-}
-
+﻿
 void ASPBattleDirector::InitDirector(ASPBattleCameraActor* InCameraManager)
 {
 	if (InCameraManager)
@@ -253,6 +184,35 @@ void USPGASGameInstance::SetbIsReturnFromGame(bool IsReturn)
 bool USPGASGameInstance::GetbIsReturnFromGame() const
 {
 	return bIsReturnFromGame;
+}
+// ==========================================
+// FILE: SPProjectileBase.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Game/SPProjectileBase.h"
+#include "Components/SphereComponent.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+
+// Sets default values
+ASPProjectileBase::ASPProjectileBase()
+{
+	// 데미지 충돌체 세팅
+	DamageCollision = CreateDefaultSubobject<USphereComponent>(TEXT("DamageCollision"));
+	DamageCollision->InitSphereRadius(15.0f);
+	RootComponent = DamageCollision;
+
+	// 패링 감지용 대형 충돌체 세팅
+	ParryCollision = CreateDefaultSubobject<USphereComponent>(TEXT("ParryCollision"));
+	ParryCollision->InitSphereRadius(100.0f); // 🌟 데미지 판정보다 훨씬 크게!
+	ParryCollision->SetupAttachment(RootComponent);
+
+	// 투사체 이동 컴포넌트
+	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
+	ProjectileMovement->InitialSpeed = 1500.0f;
+	ProjectileMovement->MaxSpeed = 1500.0f;
+	ProjectileMovement->ProjectileGravityScale = 0.0f;
 }
 // ==========================================
 // FILE: InteractionActorBase.cpp
@@ -467,6 +427,23 @@ void ASPCombatTurnManager::RemoveParticipant(AActor* DeadActor)
 	}
 }
 
+void ASPCombatTurnManager::AddParticipant(AActor* NewActor)
+{
+	if (!NewActor) return;
+
+	// 🌟 현재 라운드가 진행 중(루프 내부)이라면 메인 배열을 건드리지 않고 대기열로 보낸다!
+	if (bIsRoundIterating)
+	{
+		PendingParticipants.Add(NewActor);
+		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] 전투 진행 중 소환 발생! 임시 대기열에 예약됨: %s"), *NewActor->GetName());
+	}
+	else
+	{
+		// 전투 시작 전이거나 라운드 정비 타임일 때는 즉시 추가
+		Participants.Add(NewActor);
+	}
+}
+
 float ASPCombatTurnManager::GetSpeed(const AActor* Target) const
 {
 	if (const IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Target))
@@ -631,6 +608,40 @@ void ASPCombatTurnManager::ClearActorFromQueue(AActor* Target)
 		TurnQueue.Remove(Target);
 	}
 }
+
+void ASPCombatTurnManager::SetRoundIterating(bool bIsIterating)
+{
+	bIsRoundIterating = bIsIterating;
+
+	// 만약 누군가의 행동이 끝나서 라운드가 멈췄다면(false), 이때 대기열을 병합합니다!
+	if (!bIsRoundIterating)
+	{
+		MergePendingParticipants();
+	}
+}
+
+void ASPCombatTurnManager::MergePendingParticipants()
+{
+	if (PendingParticipants.Num() > 0)
+	{
+		for (AActor* PendingMinion : PendingParticipants)
+		{
+			if (IsValid(PendingMinion))
+			{
+				Participants.Add(PendingMinion);
+
+				// 🌟 중요: 갓 태어난 소환수는 이번 턴 사이클에 새치기하지 못하게 게이지를 0으로 맞춥니다!
+				SetActionGauge(PendingMinion, 0.0f);
+			}
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[TurnManager] %d 마리의 소환수가 정식 명단에 합류했습니다!"), PendingParticipants.Num());
+		PendingParticipants.Empty();
+
+		// 턴 UI 업데이트 방송
+		OnTurnOrderChanged.Broadcast();
+	}
+}
 // ==========================================
 // FILE: EnterancePortal.cpp
 // ==========================================
@@ -779,6 +790,12 @@ void AMapBase::InitializeMap(EMapType InType, EMapState InitialState)
 		// Reward 단계를 건너뛰고 바로 Cleared로 직행! -> 상자 절대 안 나옴! 포탈만 활성화됨!
 		SetMapState(EMapState::Cleared);
 	}
+	else if (MapType == EMapType::Prepare)
+	{
+		// 진입하자마자 즉시 클리어 상태로 덮어버립니다!
+		SetMapState(EMapState::Cleared);
+		UE_LOG(LogTemp, Warning, TEXT("[MapBase] 준비 구역 진입: 포탈을 즉시 개방합니다."));
+	}
 }
 
 void AMapBase::ClearFieldMonsters()
@@ -801,20 +818,43 @@ void AMapBase::HandleStateInProgress()
 	UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
 	if (!MapManager || !PortalClass) return;
 
-	// 다음 층 선택지 미리 계산
 	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
-	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
-
 	SpawnedPortals.Empty();
 
-	// 포탈 스폰 (비활성화)
+	// 🌟 1. 포탈이 딱 1개만 나올 때 (보스, 준비 맵)
+	if (Options.Num() == 1)
+	{
+		// 선생님의 아이디어: 특정 태그(Center)를 가진 스폰 포인트를 찾습니다!
+		TArray<FTransform> CenterPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal.Center"));
+
+		if (CenterPoints.Num() > 0)
+		{
+			APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, CenterPoints[0]);
+			if (NewPortal)
+			{
+				NewPortal->SetPortalTargetType(Options[0]);
+				NewPortal->ActivatePortal(false);
+				SpawnedPortals.Add(NewPortal);
+			}
+			return; // 🌟 1개 스폰에 성공했으니 함수를 깔끔하게 종료!
+		}
+		else
+		{
+			// 만약 맵에 Center 태그를 깜빡하고 안 달았다면, 경고 로그를 띄우고 아래의 기본 로직으로 넘어갑니다.
+			UE_LOG(LogTemp, Warning, TEXT("[MapBase] Center 포탈 스폰 포인트가 없습니다! 기본 스폰 포인트를 사용합니다."));
+		}
+	}
+
+	// 🌟 2. 포탈이 여러 개일 때 (또는 Center 태그를 못 찾았을 때)
+	TArray<FTransform> SpawnPoints = GetSpawnTransformsByTag(TEXT("SpawnPoint.Portal"));
+
 	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
 	{
 		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
 		if (NewPortal)
 		{
 			NewPortal->SetPortalTargetType(Options[i]);
-			NewPortal->ActivatePortal(false); //비활성화 상태로 시작
+			NewPortal->ActivatePortal(false);
 			SpawnedPortals.Add(NewPortal);
 		}
 	}
@@ -962,7 +1002,7 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
 
-	PreGenerateAllNormalEncounters();
+	PreGenerateAllEncounters();
 
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 
@@ -1016,6 +1056,15 @@ void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 	LoadStageLevel();
 
 	UE_LOG(LogTemp, Log, TEXT("필드로 복귀합니다."));
+
+	if (bIsVictory)
+	{
+		// 현재 열려있는 맵(레벨)의 이름을 문자열로 가져옴
+		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
+		ClearedStageName = FName(*CurrentLevel); // FName으로 변환해서 저장
+
+		UE_LOG(LogTemp, Warning, TEXT("자동 메모 작성 완료! 클리어한 맵: %s"), *CurrentLevel);
+	}
 }
 
 void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
@@ -1157,7 +1206,7 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
-	if (CurrentFloor >= 5 && CurrentStage < 3) // 5층(보스) 클리어 시
+	if (CurrentFloor >= 5 && CurrentStage < 2) // 5층(보스) 클리어 시
 	{
 		CurrentStage++;
 		CurrentFloor = 1;
@@ -1180,7 +1229,7 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 			SpawnMapActor(SelectedType);
 		}
 	}
-	else if (CurrentFloor >= 4 && CurrentStage >= 3)
+	else if (CurrentFloor >= 5 && CurrentStage >= 2)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 모든 스테이지 클리어! 데모 종료 및 로비로 귀환합니다."));
 		GoToLobby();
@@ -1235,45 +1284,41 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 		NextFloor = 1;
 	}
 
+	// 4층(준비 맵)일 때 옵션을 딱 1개만 넣습니다!
 	if (NextFloor == 4)
 	{
 		CurrentPortalOptions.Add(EMapType::Prepare);
-		CurrentPortalOptions.Add(EMapType::Prepare);
 		return CurrentPortalOptions;
 	}
 
+	// 5층(보스 맵)일 때 옵션을 딱 1개만 넣습니다!
 	if (NextFloor == 5)
 	{
 		CurrentPortalOptions.Add(EMapType::BossBattle);
-		CurrentPortalOptions.Add(EMapType::BossBattle);
 		return CurrentPortalOptions;
 	}
 
+	// 그 외 일반 층(2층, 3층)일 때는 정상적으로 가중치를 돌려 2개를 뽑습니다.
 	TMap<EMapType, int32> FloorWeightPool;
+	FloorWeightPool.Add(EMapType::NormalBattle, 3);
+	FloorWeightPool.Add(EMapType::Rest, 1);
+	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
+	FloorWeightPool.Add(EMapType::Jester, 500);
 
-	// 선생님이 기획하신 가중치 세팅
-	FloorWeightPool.Add(EMapType::NormalBattle, 3);      // 일반 전투 3
-	FloorWeightPool.Add(EMapType::Rest, 1);              // 쉼터 1
-	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1); // 강적 1
-	FloorWeightPool.Add(EMapType::Jester, 1);            // 광대 1
-
-	// 첫 번째 포탈 추첨 (당첨된 맵은 바구니에서 제거됨)
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
-
-	// 두 번째 포탈 추첨 (남은 맵들끼리 가중치 비율대로 재추첨)
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 
 	return CurrentPortalOptions;
 }
 
-void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
+void UMapManagerSubsystem::PreGenerateAllEncounters()
 {
 	PreGeneratedEncounters.Empty();
 
 	if (!StagePoolDataAsset) return;
 
 	// 1스테이지부터 3스테이지까지, 각 1층부터 5층까지 전부 미리 뽑습니다!
-	for (int32 TargetStage = 1; TargetStage <= 3; ++TargetStage)
+	for (int32 TargetStage = 1; TargetStage <= 2; ++TargetStage)
 	{
 		if (!StagePoolDataAsset->StagePools.Contains(TargetStage)) continue;
 		const FStageMonsterPool& Pool = StagePoolDataAsset->StagePools[TargetStage];
@@ -1286,27 +1331,56 @@ void UMapManagerSubsystem::PreGenerateAllNormalEncounters()
 			// 해당 층에 맞는 레벨 미리 계산
 			int32 MonsterLevel = ((TargetStage - 1) * 10) + ((TargetFloor - 1) * 3) + 1;
 
-			// 몬스터 3마리와 약점을 미리 고정시켜버립니다!
-			for (int32 i = 0; i < 3; ++i)
+			if (Pool.NormalMonsters.Num() > 0)
 			{
-				FEnemySpawnInfo Slot;
-				int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+				FSavedEncounterData NormalEncounter;
+				NormalEncounter.CombatLevelName = Pool.CombatLevelName;
 
-				Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+				for (int32 i = 0; i < 3; ++i)
+				{
+					FEnemySpawnInfo Slot;
+					int32 RandomIdx = FMath::RandRange(0, Pool.NormalMonsters.Num() - 1);
+
+					Slot.MonsterData = Pool.NormalMonsters[RandomIdx];
+					Slot.SpawnLevel = MonsterLevel;
+					Slot.SpawnPositionIndex = i; // 0, 1, 2번에 각각 스폰
+					Slot.bOverrideWeakness = true;
+					Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2));
+
+					NormalEncounter.EnemyGroup.Add(Slot);
+				}
+
+				// 🌟 [핵심] Key 규칙 변경: (스테이지 * 1000) + (층수 * 10) + 맵타입(Enum)
+				int32 NormalKey = (TargetStage * 1000) + (TargetFloor * 10) + (uint8)EMapType::NormalBattle;
+				PreGeneratedEncounters.Add(NormalKey, NormalEncounter);
+			}
+
+			// ==============================================================
+			// 2. 강적 전투 (StrongEnemyBattle) 명부 작성: 1마리 스폰
+			// ==============================================================
+			if (Pool.StrongMonsters.Num() > 0)
+			{
+				FSavedEncounterData StrongEncounter;
+				StrongEncounter.CombatLevelName = Pool.CombatLevelName;
+
+				FEnemySpawnInfo Slot;
+				int32 RandomIdx = FMath::RandRange(0, Pool.StrongMonsters.Num() - 1);
+
+				Slot.MonsterData = Pool.StrongMonsters[RandomIdx];
 				Slot.SpawnLevel = MonsterLevel;
-				Slot.SpawnPositionIndex = i;
+				Slot.SpawnPositionIndex = 1;		// 🌟 강적은 중앙(1번)에 위풍당당하게 1마리만 스폰!
 				Slot.bOverrideWeakness = true;
 				Slot.OverriddenWeaknessTags = GenerateRandomWeaknesses(FMath::RandRange(1, 2));
 
-				EncounterData.EnemyGroup.Add(Slot);
-			}
+				StrongEncounter.EnemyGroup.Add(Slot);
 
-			// Key 생성 (예: 1스테이지 2층 = 102, 3스테이지 5층 = 305)
-			int32 Key = (TargetStage * 100) + TargetFloor;
-			PreGeneratedEncounters.Add(Key, EncounterData);
+				// 🌟 강적 전용 Key 발급
+				int32 StrongKey = (TargetStage * 1000) + (TargetFloor * 10) + (uint8)EMapType::StrongEnemyBattle;
+				PreGeneratedEncounters.Add(StrongKey, StrongEncounter);
+			}
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 일반 몬스터 인카운터 명부가 고정되었습니다!"));
+	UE_LOG(LogTemp, Warning, TEXT("[MapManager] 이번 런의 모든 몬스터 인카운터 명부가 고정되었습니다!"));
 }
 
 FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonsterRank>& DefeatedRanks, int32 Stage, EMapType MapType)
@@ -1431,20 +1505,21 @@ FGameplayTagContainer UMapManagerSubsystem::GenerateRandomWeaknesses(int32 Count
 
 UCombatEncounterData* UMapManagerSubsystem::GenerateFieldEncounter()
 {
-	int32 Key = (CurrentStage * 100) + CurrentFloor;
+	int32 Key = (CurrentStage * 1000) + (CurrentFloor * 10) + (uint8)CurrentMapType;
 
-	// 🌟 끄고 켜도 안 바뀜! 미리 뽑아둔 명부에서 현재 층의 정보를 가져와서 반환합니다.
 	if (PreGeneratedEncounters.Contains(Key))
 	{
 		UCombatEncounterData* NewEncounter = NewObject<UCombatEncounterData>(this);
 		NewEncounter->CombatLevelName = PreGeneratedEncounters[Key].CombatLevelName;
 		NewEncounter->EnemyGroup = PreGeneratedEncounters[Key].EnemyGroup;
 
-		UE_LOG(LogTemp, Warning, TEXT("미리 고정된 몬스터 구성을 불러옵니다. (Stage %d - Floor %d)"), CurrentStage, CurrentFloor);
+		UE_LOG(LogTemp, Warning, TEXT("미리 고정된 몬스터 구성을 불러옵니다. (Stage %d - Floor %d - MapType %d)"),
+			CurrentStage, CurrentFloor, (uint8)CurrentMapType);
+
 		return NewEncounter;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("FATAL: 고정된 몬스터 명부가 없습니다!"));
+	UE_LOG(LogTemp, Error, TEXT("FATAL: 해당 층/맵 타입에 고정된 몬스터 명부가 없습니다! (Key: %d)"), Key);
 	return nullptr;
 }
 
@@ -1593,3 +1668,68 @@ void APortalActor::ExecuteInteraction(AActor* Interactor)
 	IInteractableInterface::Execute_PlayInteractSound(this);
 }
 
+FText APortalActor::GetInteractText() const
+{
+	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
+	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
+
+	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
+	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
+}
+
+bool APortalActor::CanInteract(AActor* Interactor) const
+{
+	return bIsActive;
+}
+
+void APortalActor::PlayInteractSound_Implementation()
+{
+}
+
+void APortalActor::SetPortalTargetType(EMapType InType)
+{
+	TargetMapType = InType;
+
+	if (PortalVisualClasses.Contains(TargetMapType))
+	{
+		// 바구니에 블루프린트 클래스를 설정하면, 자동으로 해당 액터가 스폰되어 자식으로 들어옵니다.
+		PortalVisualComponent->SetChildActorClass(PortalVisualClasses[TargetMapType]);
+
+		UE_LOG(LogTemp, Log, TEXT("포탈 외형 교체 완료: %d"), (int32)TargetMapType);
+	}
+
+	// 타겟 타입이 정해지는 즉시 블루프린트에 알림
+	OnUpdatePortalColor(TargetMapType);
+}
+
+void APortalActor::ActivatePortal(bool bActive)
+{
+	bIsActive = bActive;
+
+	// 시각적 효과 (블루프린트에서 파티클 켜기/끄기 구현)
+	OnPortalStateChanged(bActive);
+}
+
+void APortalActor::ExecutePortalTransition()
+{
+	// 맵 이동 핵심 로직
+	UGameInstance* GI = GetGameInstance();
+	if (!GI) return;
+
+	if (!bIsActive)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Portal is not active yet!"));
+		return;
+	}
+
+	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+	if (MapManager)
+	{
+		bIsActive = false;
+		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
+		MapManager->MoveToNextFloor(TargetMapType);
+	}
+}
+// ==========================================
+// FILE: RewardBox.cpp
+// ==========================================

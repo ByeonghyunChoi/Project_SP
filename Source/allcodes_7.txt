@@ -1,69 +1,4 @@
-﻿FText APortalActor::GetInteractText() const
-{
-	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
-	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
-
-	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
-	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
-}
-
-bool APortalActor::CanInteract(AActor* Interactor) const
-{
-	return bIsActive;
-}
-
-void APortalActor::PlayInteractSound_Implementation()
-{
-}
-
-void APortalActor::SetPortalTargetType(EMapType InType)
-{
-	TargetMapType = InType;
-
-	if (PortalVisualClasses.Contains(TargetMapType))
-	{
-		// 바구니에 블루프린트 클래스를 설정하면, 자동으로 해당 액터가 스폰되어 자식으로 들어옵니다.
-		PortalVisualComponent->SetChildActorClass(PortalVisualClasses[TargetMapType]);
-
-		UE_LOG(LogTemp, Log, TEXT("포탈 외형 교체 완료: %d"), (int32)TargetMapType);
-	}
-
-	// 타겟 타입이 정해지는 즉시 블루프린트에 알림
-	OnUpdatePortalColor(TargetMapType);
-}
-
-void APortalActor::ActivatePortal(bool bActive)
-{
-	bIsActive = bActive;
-
-	// 시각적 효과 (블루프린트에서 파티클 켜기/끄기 구현)
-	OnPortalStateChanged(bActive);
-}
-
-void APortalActor::ExecutePortalTransition()
-{
-	// 맵 이동 핵심 로직
-	UGameInstance* GI = GetGameInstance();
-	if (!GI) return;
-
-	if (!bIsActive)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Portal is not active yet!"));
-		return;
-	}
-
-	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
-	if (MapManager)
-	{
-		bIsActive = false;
-		// 매니저에게 내가 가진 목적지 타입을 전달하며 이동 요청
-		MapManager->MoveToNextFloor(TargetMapType);
-	}
-}
-// ==========================================
-// FILE: RewardBox.cpp
-// ==========================================
-#include "Map/RewardBox.h"
+﻿#include "Map/RewardBox.h"
 #include "Map/MapBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -575,6 +510,15 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 		InputMode.SetWidgetToFocus(ActiveDialogWidget->GetCachedWidget());
 		PC->SetInputMode(InputMode);
 		PC->SetShowMouseCursor(true);
+
+		// 유령 입력 방지
+		PC->FlushPressedKeys();
+
+		// 캐릭터의 이동 명령까지 확실히 정지
+		if (APawn* PlayerPawn = PC->GetPawn())
+		{
+			PlayerPawn->ConsumeMovementInputVector();
+		}
 	}
 
 	//NPC 이미지 선행 로드
@@ -657,6 +601,193 @@ void USPDialogSubsystem::EndDialog()
 
 	// 퀘스트 시스템 등에게 대화 종료 알림
 	OnDialogFinished.Broadcast();
+
+	// 보스 전투 전 대화 인지 판단해서 전투 진입 코드 로직 넣기
+}
+// ==========================================
+// FILE: SPPowerUpgradeSubsystem.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "SubSystem/SPPowerUpgradeSubsystem.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
+#include "Component/InventoryComponent.h"
+#include "GameFramework/PlayerController.h"
+
+void USPPowerUpgradeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	FString AssetPath = TEXT("/Game/DataTable/DT_PowerUpgrade.DT_PowerUpgrade");
+
+	UDataTable* LoadedTable = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *AssetPath));
+	if (LoadedTable)
+	{
+		PowerUpgradeDataTable = LoadedTable;
+		UE_LOG(LogTemp, Log, TEXT("✅ [PowerUpgrade] C++ 내부에서 데이터 테이블을 자동으로 찾아서 로드했습니다!"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ [PowerUpgrade] 데이터 테이블 로드 실패! AssetPath 경로가 올바른지 확인하세요: %s"), *AssetPath);
+	}
+}
+
+int32 USPPowerUpgradeSubsystem::GetPowerLevel(EPowerUpgradeType UpgradeType) const
+{
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		const FPlayerMetaProgressionData& PermSaveData = SaveSys->GetPermData();
+
+		//  권능 장부에서 현재 확인하려는 권능(UpgradeType)이 찍혀있는지 찾습니다.
+		if (const int32* FoundLevel = PermSaveData.PowerUpgradeData.UpgradeLevels.Find(UpgradeType))
+		{
+			// 찾았다면 그 레벨을 반환
+			return *FoundLevel;
+		}
+		
+	}
+	return 0; // 기록이 없으면 기본 0레벨
+}
+
+FPowerUpgradeData* USPPowerUpgradeSubsystem::GetUpgradeData(EPowerUpgradeType UpgradeType) const
+{
+	// 탐지 1: 게임 인스턴스에서 넘겨준 표가 아예 증발해버린 경우
+	if (!PowerUpgradeDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ [PowerUpgrade] 테이블 에셋이 NULL입니다! (GameInstance의 Set 노드 값이 C++로 넘어오지 않고 휘발됨)"));
+		return nullptr;
+	}
+
+	TArray<FPowerUpgradeData*> AllData;
+	PowerUpgradeDataTable->GetAllRows<FPowerUpgradeData>(TEXT("PowerUpgradeContext"), AllData);
+
+	// 탐지 2: 표는 잘 넘어왔는데, 안의 내용물(행)이 0개로 읽히는 경우
+	if (AllData.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ [PowerUpgrade] 테이블 연결은 성공했으나, 안의 데이터(행)가 0개로 인식됩니다!"));
+		return nullptr;
+	}
+
+	// 일치하는 권능 찾기
+	for (FPowerUpgradeData* Data : AllData)
+	{
+		if (Data && Data->UpgradeType == UpgradeType)
+		{
+			return Data; // 성공!
+		}
+	}
+
+	// 탐지 3: 표도 있고 데이터도 있는데, 버튼에서 넘겨준 Enum과 표의 Enum이 일치하지 않는 경우
+	UE_LOG(LogTemp, Error, TEXT("❌ [PowerUpgrade] 테이블 정상 (행 %d개). 하지만 표 안에서 [%d] 타입의 권능을 찾을 수 없습니다! Enum 엇갈림 발생."), AllData.Num(), (uint8)UpgradeType);
+	return nullptr;
+}
+
+int32 USPPowerUpgradeSubsystem::GetNextLevelCost(EPowerUpgradeType UpgradeType) const
+{
+	FPowerUpgradeData* Data = GetUpgradeData(UpgradeType);
+	if (!Data) return -1; // 구체적인 에러 로그는 위에서 이미 출력됨
+
+	int32 CurrentLevel = GetPowerLevel(UpgradeType);
+
+	// 탐지 4: 이미 최대 레벨인 경우
+	if (CurrentLevel >= Data->MaxLevel)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("⚠️ [PowerUpgrade] 이미 설정된 최대 레벨(%d)에 도달했습니다!"), Data->MaxLevel);
+		return -1;
+	}
+
+	if (!Data->CostPerLevel.IsValidIndex(CurrentLevel))
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ [PowerUpgrade] %d 레벨로 가기 위한 비용 데이터가 배열에 없습니다!"), CurrentLevel);
+		return -1;
+	}
+
+	return Data->CostPerLevel[CurrentLevel];
+}
+
+bool USPPowerUpgradeSubsystem::TryUpgradePower(EPowerUpgradeType UpgradeType, APlayerController* PlayerController)
+{
+	if (!PlayerController) return false;
+
+	int32 Cost = GetNextLevelCost(UpgradeType);
+	if (Cost < 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PowerUpgrade] 이미 최대 레벨이거나 비용 데이터가 없습니다."));
+		return false;
+	}
+
+	APawn* PlayerPawn = PlayerController->GetPawn();
+	if (!PlayerPawn) return false;
+
+	UInventoryComponent* Inventory = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+	if (!Inventory) return false;
+
+	// 핵심 기획: 오직 '파편'만 소모합니다! (이미 만들어두신 ConsumeFragment 함수 활용)
+	if (!Inventory->ConsumeFragment(Cost))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PowerUpgrade] 파편이 부족합니다! 필요 파편: %d"), Cost);
+		return false;
+	}
+
+	// 파편 지불 성공 -> 레벨 증가 및 세이브 연동
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		int32 CurrentLevel = GetPowerLevel(UpgradeType);
+		int32 NewLevel = CurrentLevel + 1;
+
+		// 1. 권능 레벨 장부 업데이트 및 디스크 저장
+		SaveSys->UpdatePowerUpgradeLevel(UpgradeType, NewLevel);
+
+		// 🌟 2. 파편이 영구 재화라면, 캐릭터의 영구 데이터를 다시 캐싱하고 영구 디스크에 구워야 합니다!
+		SaveSys->CachePermDataFromPlayer(PlayerPawn);
+		SaveSys->SavePermToDisk();
+
+		UE_LOG(LogTemp, Log, TEXT("[PowerUpgrade] 권능 수복 성공! [%d] 레벨 -> %d"), (int32)UpgradeType, NewLevel);
+		return true;
+	}
+
+	return false;
+}
+
+float USPPowerUpgradeSubsystem::GetPowerEffectValue(EPowerUpgradeType UpgradeType) const
+{
+	int32 CurrentLevel = GetPowerLevel(UpgradeType);
+
+	// 0레벨(안 찍음)이면 보너스 수치는 무조건 0입니다.
+	if (CurrentLevel == 0) return 0.0f;
+
+	FPowerUpgradeData* Data = GetUpgradeData(UpgradeType);
+	if (!Data) return 0.0f;
+
+	// 인덱스는 0부터 시작하므로, 1레벨 효과는 Index 0에 있습니다.
+	int32 EffectIndex = CurrentLevel - 1;
+
+	// 배열 범위 방어
+	if (Data->EffectValuePerLevel.IsValidIndex(EffectIndex))
+	{
+		return Data->EffectValuePerLevel[EffectIndex];
+	}
+
+	return 0.0f;
+}
+
+void USPPowerUpgradeSubsystem::ApplyNewRunBonuses()
+{
+	USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>();
+	if (!SaveSys) return;
+
+	// 인벤토리가 주입해 둔 현재 지갑 데이터(500원)를 가져옵니다.
+	FPlayerRunWallet DynamicWallet = SaveSys->GetRunData().RunWallet;
+
+	// 영구 권능 레벨에 따른 보너스 골드 계산
+	float BonusGold = GetPowerEffectValue(EPowerUpgradeType::StartGold);
+	if (BonusGold > 0.0f)
+	{
+		// 🌟 덮어쓰기가 아니라 기존 데이터(500)에 보너스(100)를 더해줍니다 (500 + 100 = 600)
+		DynamicWallet.Money += FMath::RoundToInt(BonusGold);
+	}
+
+	// 계산된 600원을 세이브 시스템에 다시 넣어줍니다.
+	SaveSys->UpdateRunWalletData(DynamicWallet);
 }
 // ==========================================
 // FILE: SPSaveGameSubsystem.cpp
@@ -717,7 +848,6 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		RunData.RunWallet.Money = InventoryComp->GetMoney();
-		RunData.RunWallet.Fragment = InventoryComp->GetFragment();
 	}
 
 	// 3. 유물 저장
@@ -819,6 +949,7 @@ void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
 	// 1. 영구 지갑 저장
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
+		PermData.PermanentWallet.Fragment = InventoryComp->GetFragment();
 		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
 		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
@@ -863,6 +994,30 @@ void USPSaveGameSubsystem::ResetAllData()
 	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 새로하기: 영구 데이터와 런 데이터가 모두 공장 초기화되었습니다! (Hard Reset)"));
 }
 
+
+void USPSaveGameSubsystem::UpdatePowerUpgradeLevel(EPowerUpgradeType UpgradeType, int32 NewLevel)
+{
+	// 1. 자신의 영구 데이터 장부에 새로운 레벨을 기록합니다.
+	PermData.PowerUpgradeData.UpgradeLevels.Add(UpgradeType, NewLevel);
+
+	// 2. 변경된 내용이 유실되지 않게 즉시 디스크(Slot_Perm)에 덮어씁니다.
+	SavePermToDisk();
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 권능 데이터 업데이트 및 영구 저장 완료! (%d -> 레벨 %d)"), (uint8)UpgradeType, NewLevel);
+}
+
+void USPSaveGameSubsystem::UpdateRunWalletData(const FPlayerRunWallet& NewWallet)
+{
+	// 외부(권능 매니저 등)에서 완전히 계산되어 넘어온 지갑 데이터를 그대로 덮어씁니다.
+	RunData.RunWallet = NewWallet;
+
+	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 런 지갑 데이터가 범용 창구를 통해 성공적으로 업데이트되었습니다. (Money: %d)"),RunData.RunWallet.Money);
+}
+
+void USPSaveGameSubsystem::ActivateNewRun()
+{
+	RunData.bIsRunStarted = true; // 스위치 ON!
+}
 
 void USPSaveGameSubsystem::SaveRunToDisk()
 {
@@ -912,6 +1067,22 @@ void USPSaveGameSubsystem::SaveSoundSettings(float Master, float BGM, float SFX,
 	SavePermToDisk();
 
 	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 사운드 설정 영구 데이터에 저장 완료! (Master: %f)"), Master);
+}
+
+void USPSaveGameSubsystem::MarkIntroAsSeen()
+{
+	// 오프닝을 봤다고 체크!
+	PermData.bHasSeenIntro = true;
+
+	// 이 중요한 사실을 잊어버리지 않게 즉시 디스크(영구 세이브)에 덮어씁니다.
+	SavePermToDisk();
+
+	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 플레이어가 최초 오프닝을 시청했습니다. 영구 저장 완료!"));
+}
+
+bool USPSaveGameSubsystem::HasSeenIntro() const
+{
+	return PermData.bHasSeenIntro;
 }
 
 void USPSaveGameSubsystem::SavePermToDisk()
@@ -999,6 +1170,13 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	State_Buff_JadeClock = Manager.AddNativeGameplayTag(FName("State.Buff.JadeClock"), TEXT("시간 간섭 옥시계"));
 	State_Buff_GoldBug = Manager.AddNativeGameplayTag(FName("State.Buff.GoldBug"), TEXT("시간 간섭 골드버그"));
 	State_Status_VisualPlaying = Manager.AddNativeGameplayTag(FName("State.Status.VisualPlaying"), TEXT("상태 이상 연출 재생 중"));
+	State_Monster_HowlingComboReady = Manager.AddNativeGameplayTag(FName("State.Monster.HowlingComboReady"), TEXT("웨어울프 하울링 후"));
+	State_Monster_CastingHowling = Manager.AddNativeGameplayTag(FName("State.Monster.CastingHowling"), TEXT("웨어울프 하울링 중"));
+	State_Monster_DoingCombo = Manager.AddNativeGameplayTag(FName("State.Monster.DoingCombo"), TEXT("몬스터 연속 공격 패턴 사용 중"));
+	State_Monster_Witch_BasicAttackStack = Manager.AddNativeGameplayTag(FName("State.Monster.Witch.BasicAttackStack"), TEXT("마녀 평타 스택"));
+	State_Monster_Witch_ShieldActive = Manager.AddNativeGameplayTag(FName("State.Monster.Witch.ShieldActive"), TEXT("마녀 피해 감소 버프"));
+	State_Status_DamageDisabled = Manager.AddNativeGameplayTag(FName("State.Status.DamageDisabled"), TEXT("패링 성공 시 데미지 안 받음"));
+	State_Witch_ReadyElemental = Manager.AddNativeGameplayTag(FName("State.Witch.ReadyElemental"), TEXT("마녀 원소 공격 준비 완료"));
 
 	Input_Action_Interact = Manager.AddNativeGameplayTag(FName("Input.Action.Interact"), TEXT("상호작용 입력"));
 	Input_Action_FieldAttack = Manager.AddNativeGameplayTag(FName("Input.Action.FieldAttack"), TEXT("필드 공격 입력"));
@@ -1024,12 +1202,15 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Event_Battle_ExecuteAction = Manager.AddNativeGameplayTag(FName("Event.Battle.ExecuteAction"), TEXT("행동 수행 이벤트"));
 	Event_Battle_ApplyDamage = Manager.AddNativeGameplayTag(FName("Event.Battle.ApplyDamage"), TEXT("데미지 받을 때 이벤트"));
 	Event_Montage_Hit = Manager.AddNativeGameplayTag(FName("Event.Montage.Hit"), TEXT("몽타주 타격 시점"));
+	Event_Montage_Spawn = Manager.AddNativeGameplayTag(FName("Event.Montage.Spawn"), TEXT("몽타주 발사 시점"));
 	Event_Hit_Start = Manager.AddNativeGameplayTag(FName("Event.Hit.Start"), TEXT("바운스 시작 타격"));
 	Event_Hit_Bounce = Manager.AddNativeGameplayTag(FName("Event.Hit.Bounce"), TEXT("바운스 후속 타격"));
 	Event_Hit_AoE = Manager.AddNativeGameplayTag(FName("Event.Hit.AoE"), TEXT("광역 타격 시점"));
 	Event_Battle_Parried = Manager.AddNativeGameplayTag(FName("Event.Battle.Parried"), TEXT("패링 알림"));
 	Event_Jormungandr_Fire = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Fire"), TEXT("요르문간드 공격 타이밍 알림"));
 	Event_Jourmungandr_Hit = Manager.AddNativeGameplayTag(FName("Event.Jormungandr.Hit"), TEXT("요르문간드 공격 맞음 알림"));
+	Event_Battle_ForceCounter = Manager.AddNativeGameplayTag(FName("Event.Battle.ForceCounter"), TEXT("반격 하라고 알림"));
+	Event_Witch_MinionDied = Manager.AddNativeGameplayTag(FName("Event.Witch.MinionDied"), TEXT("마녀 소환수 죽음"));
 
 	Event_Combat_CriticalHit = Manager.AddNativeGameplayTag(FName("Event.Combat.CriticalHit")), TEXT("치명타 시점");
 	Event_Battle_Start = Manager.AddNativeGameplayTag(FName("Event.Battle.Start"), TEXT("전투 시작 시 이벤트 활성화"));
@@ -1056,6 +1237,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Cooldown_Weapon_Jormungandr_Skill = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Skill"), TEXT("쿨타임: 요르문간드 스킬"));
 	Cooldown_Weapon_Jormungandr_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Parry"), TEXT("쿨타임: 요르문간드 패링"));
 	Cooldown_Skill_TimeInterference = Manager.AddNativeGameplayTag(FName("Cooldown.Skill.TimeInterference"), TEXT("쿨타임: 시간 간섭"));
+	Cooldown_Witch_Summon = Manager.AddNativeGameplayTag(FName("Cooldown.Witch.Summon"), TEXT("쿨타임: 시간 간섭"));
 
 	Debuff_Basic_Weathering = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Weathering"), TEXT("상태이상: 풍화"));
 	Debuff_Basic_Burn = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Burn"), TEXT("상태이상: 화상"));
@@ -1551,45 +1733,3 @@ public:
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MonsterInfo.generated.h"
-
-UENUM(BlueprintType)
-enum class EEnemyRank :uint8
-{
-    Normal,
-    Epic,
-    Boss
-};
-// ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "AIController.h"
-#include "Tag/SPGameplayTags.h"
-#include "SPGASAIController.generated.h"
-
-struct FGameplayEventData;
-/**
- * 
- */
-UCLASS()
-class PROJECT_SP_API ASPGASAIController : public AAIController
-{
-	GENERATED_BODY()
-
-public:
-	ASPGASAIController();
-
-protected:
-	virtual void OnPossess(APawn* InPawn) override;
-	virtual void OnUnPossess() override;
-	void OnBattleTagChanged(const FGameplayTag Tag, int32 NewCount);
-
-	// �� ���� �̺�Ʈ ���� (�� ���ʰ� ��)
-	void OnTurnStartEvent(const FGameplayEventData* Payload);
-
-	// �� ���� ���� ó�� �Լ�

@@ -1,23 +1,4 @@
-﻿
-/**
- * 
- */
-USTRUCT(BlueprintType)
-struct FStatusEffectConfig
-{
-	GENERATED_BODY()
-
-	// �����̻� �̸� 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FName EffectName;
-
-	// ������ GE Ŭ����(�� �� ������) 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSubclassOf<UGameplayEffect> EffectClass;
-
-	// ������ ���� GE Ŭ����(���ȸ� ���� ���� GE)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
-	TSubclassOf<class UGameplayEffect> StatModifierClass;
+﻿	TSubclassOf<class UGameplayEffect> StatModifierClass;
 
 	// ���� �� �� (��� �ߵ����� 0)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -73,6 +54,29 @@ public:
 /**
  * 
  */
+
+USTRUCT(BlueprintType)
+struct FActionUIData
+{
+	GENERATED_BODY()
+
+	// 1. ��ų �̸� (��: "������ ����")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	FText ActionName;
+
+	// 2. ��ų ���� (��: "���� ����", "���� ��ų", "�ݰݱ�")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	FText ActionCategory;
+
+	// 3. ��ų ���� (MultiLine���� �����Ϳ��� �ٹٲ� ����)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, meta = (MultiLine = true))
+	FText ActionDescription;
+
+	// 4. ����/��ų ������ (UI�� Image ������ ���� �ؽ�ó)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TObjectPtr<class UTexture2D> ActionIcon;
+};
+
 UCLASS()
 class PROJECT_SP_API UWeaponAbilityData : public UPrimaryDataAsset
 {
@@ -112,7 +116,13 @@ public:
 	FText NormalAttackUIText; 
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
-	FText WeaponSkillUIText; 
+	FText WeaponSkillUIText;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FActionUIData NormalAttackUIData;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Info")
+	FActionUIData WeaponSkillUIData;
 
 };
 // ==========================================
@@ -150,7 +160,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override", meta = (EditCondition = "bOverrideWeakness"))
 	FGameplayTagContainer OverriddenWeaknessTags;
 
-	// ���� ��ġ �ε��� 0=�߾�, 1=����, 2=����
+	// ���� ��ġ �ε��� 1=�߾�, 0=����, 2=����
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnPositionIndex = 0;
 
@@ -470,9 +480,6 @@ struct FPlayerRunWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Money = 0; // 골드
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Fragment = 0; // 파편
 };
 
 USTRUCT(BlueprintType)
@@ -481,10 +488,13 @@ struct FPlayerPermanentWallet
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 Sand = 1000; // 모래
+    int32 Sand = 0; // 모래
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 10; // 불완전한 기운
+    int32 IncompleteEnergy = 0; // 불완전한 기운
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+    int32 Fragment = 0; // 파편
 };
 
 USTRUCT(BlueprintType)
@@ -584,6 +594,64 @@ struct FSoundSettingsData
     float UIVolume = 10.0f;
 };
 
+// 권능 수복 능력 리스트
+UENUM(BlueprintType)
+enum class EPowerUpgradeType : uint8
+{
+    None			UMETA(DisplayName = "없음"),
+    CombatResource	UMETA(DisplayName = "전투 자원 강화 (BP 증가)"),
+    RelicReroll		UMETA(DisplayName = "유물 리롤 해금"),
+    RewardBoost		UMETA(DisplayName = "보상 강화 (획득량 증가)"),
+    TimeSkillCost	UMETA(DisplayName = "시간 간섭 코스트 감소"),
+    MaxTimePower	UMETA(DisplayName = "시간의 힘 최대치 증가"),
+    FreeRevive		UMETA(DisplayName = "생존 (1회 무료 부활)"),
+    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)"),
+    RelicLuck		UMETA(DisplayName = "보상 운 (유물 등장 확률 증가)")
+};
+
+// 권능 수복 데이터 테이블 구조체
+USTRUCT(BlueprintType)
+struct FPowerUpgradeData : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    // 1. 어떤 능력인가?
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    EPowerUpgradeType UpgradeType = EPowerUpgradeType::None;
+
+    // 2. 능력 이름 (예: "전투 시작 BP 최소/최대 증가")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    FString UpgradeName;
+
+    // 3. 최대 가능 단계 (예: 2단계, 3단계)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    int32 MaxLevel = 1;
+
+    // 4. 레벨별 파편 소모량 (Index 0: 1단계 비용, Index 1: 2단계 비용...)
+    // 예: [10, 20] 넣으면 1단계 갈 때 10, 2단계 갈 때 20 소모
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    TArray<int32> CostPerLevel;
+
+    // 5. 레벨별 실제 적용될 수치 (Index 0: 1단계 효과, Index 1: 2단계 효과...)
+    // 예: 시작 골드면 [100, 300, 500] 입력
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    TArray<float> EffectValuePerLevel;
+
+    // 6. 툴팁이나 비고란 설명 텍스트
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PowerUpgrade")
+    FText Description;
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerPowerUpgradeData
+{
+    GENERATED_BODY()
+
+    // 어떤 권능(Enum)을 몇 레벨(int32)까지 올렸는지 영구 저장합니다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<EPowerUpgradeType, int32> UpgradeLevels;
+};
+
 USTRUCT(BlueprintType)
 struct FPlayerMetaProgressionData //영구 데이터
 {
@@ -595,8 +663,15 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
 
+	// 권능 수복
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPlayerPowerUpgradeData PowerUpgradeData;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SaveData")
     FSoundSettingsData SoundSettings;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
+    bool bHasSeenIntro = false;
 
     void Reset()
     {
@@ -604,6 +679,10 @@ struct FPlayerMetaProgressionData //영구 데이터
         PermanentWallet = FPlayerPermanentWallet();
         // 오파츠 장착 해제 및 장부(Map) 싹 비우기
         OpartsData = FPlayerOpartsData();
+		// 권능 수복 데이터 초기화
+        PowerUpgradeData = FPlayerPowerUpgradeData();
+        // 인트로 컷신 초기화
+        bHasSeenIntro = false;
     }
 };
 
@@ -611,6 +690,10 @@ USTRUCT(BlueprintType)
 struct FPlayerRunData // 런 데이터
 {
     GENERATED_BODY()
+
+    // 런이 정상적으로 시작되었는지 확인하는 전용 스위치
+    UPROPERTY()
+    bool bIsRunStarted = false;
 
     UPROPERTY()
     FPlayerRunWallet RunWallet; // 일시적 재화
@@ -625,7 +708,7 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return Stats.CurrentHealth >= 0.0f; }
+    bool IsValid() const { return bIsRunStarted ||  Stats.CurrentHealth >= 0.0f; }
 
     // 초기화
     void Reset()
@@ -634,6 +717,7 @@ struct FPlayerRunData // 런 데이터
         RunWallet = FPlayerRunWallet();
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();
+        bIsRunStarted = false;
     }
 };
 // ==========================================
@@ -645,6 +729,30 @@ struct FPlayerRunData // 런 데이터
 #include "Engine/DataTable.h"
 #include "GameplayTagContainer.h"
 #include "SPDialogData.generated.h"
+
+UENUM(BlueprintType)
+enum class EClownChoiceType : uint8
+{
+    None			UMETA(DisplayName = "선택 안 함"),
+    ReduceTP_Relic1		UMETA(DisplayName = "1. TP 20 감소 / 유물 1개 획득"),
+    ReduceHP_Relic1		UMETA(DisplayName = "2. HP 50% 감소 / 유물 1개 획득"),
+    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 20% 감소 / 유물 2개 획득"),
+    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 20% 감소 / 유물 2개 획득")
+};
+
+USTRUCT(BlueprintType)
+struct FDialogChoiceData
+{
+    GENERATED_BODY()
+
+    // 버튼에 표시될 텍스트 (예: "1. TP 20감소, 대신 유물 획득")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog|Choice")
+    FText ChoiceText;
+
+    // 이 버튼을 눌렀을 때 발동할 고정 효과
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog|Choice")
+    EClownChoiceType ChoiceType = EClownChoiceType::None;
+};
 
 USTRUCT(BlueprintType)
 struct FDialogLineData : public FTableRowBase
@@ -662,6 +770,9 @@ public:
     // 대사 내용
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog", meta = (MultiLine = true))
     FText DialogText;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialog")
+    TArray<FDialogChoiceData> Choices;
 };
 
 USTRUCT(BlueprintType)
@@ -1404,13 +1515,17 @@ protected:
 	UFUNCTION()
 	void OnParriedEventCallback(FGameplayEventData Payload);
 
-	// ?? ���Ͱ� �������� �� �� ����� Gameplay Effect (�������Ʈ���� �Ҵ�)
+	// ���Ͱ� �������� �� �� ����� Gameplay Effect (�������Ʈ���� �Ҵ�)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage")
 	TSubclassOf<class UGameplayEffect> DamageEffectClass;
 
-	// ?? �浹�� Ÿ��(�÷��̾�)���� ������ ����Ʈ�� �����ϴ� �Լ�
+	// ������ ����
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Damage")
+	float DamageMultiplier = 1.0f;
+
+	// �浹�� Ÿ��(�÷��̾�)���� ������ ����Ʈ�� �����ϴ� �Լ�
 	UFUNCTION(BlueprintCallable, Category = "Combat|Damage")
-	void ApplyDamageToTarget(AActor* TargetActor, float DamageMultiplier);
+	void ApplyDamageToTarget(AActor* TargetActor, float Damage);
 
 	UFUNCTION()
 	void OnDamageEventReceived(FGameplayEventData Payload);
@@ -1509,6 +1624,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle | Round")
 	void AdvanceBattleTime(float TimePassed);
 
+	// ���� ���� ���� ��ȯ�ϴ� �Լ�
+	UFUNCTION(BlueprintCallable, Category = "Battle | Summon")
+	class ASPGASMonsterCharacter* SummonMonsterMidBattle(class USPMonsterData* MinionData);
+
+	// ���� �޽��� �Լ�
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Battle | UI")
+	void ShowBattleWarningMessage(const FString& WarningText, float Duration = 1.5f);
+
 	//getter
 	FORCEINLINE TObjectPtr<class ASPCombatTurnManager> GetTurnManager() { return TurnManager; }
 
@@ -1556,6 +1679,9 @@ protected:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
 	bool bIsCurrentTurnParry = false;
 
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Battle | Flow")
+	bool bIsBattleRunning = false;
+
 	// Ŭ���� �Ҵ�� (�����Ϳ��� ����)
 	UPROPERTY(EditDefaultsOnly, Category = "Battle | Visual")
 	TSubclassOf<class ASPBattleCameraActor> CameraManagerClass;
@@ -1593,3 +1719,17 @@ protected:
 
 	// óġ�� ���� ���� ������ ��Ƶδ� ���
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
+	TArray<EMonsterRank> DefeatedMonsterRanks;
+
+
+protected:
+	void ProcessEndOfTurn();
+
+	void ApplyRoundPenalty();
+
+private:
+	FTransform GetSpawnTransformByIndex(int32 Index);
+
+	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
+
+	void FinalizeBattleSetup();
