@@ -24,10 +24,12 @@
 #include "Data/ShopDataStructs.h"
 #include "Data/Asset/OpartsDefinition.h"
 #include "Component/OpartsComponent.h"
+#include "Component/SPTutorialManagerComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
+	TutorialManager = CreateDefaultSubobject<USPTutorialManagerComponent>(TEXT("TutorialManager"));
 	CurrentSelectedAction = ESelectedActionType::None;
 }
 
@@ -283,6 +285,21 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
 	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
 
+	if (TutorialManager && TutorialManager->IsTutorialActive())
+	{
+		if (TutorialManager->CanProcessInput(InputTag))
+		{
+			// 정답 키를 눌렀다! ➡️ 타겟팅/스킬 시작 전에 일시정지부터 푼다!
+			UGameplayStatics::SetGamePaused(GetWorld(), false);
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 정답] 일시정지 해제! 액션 진입."));
+		}
+		else
+		{
+			HandleInputFeedback(InputTag, false);
+			return;
+		}
+	}
+
 	// 무기 교체 입력 
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
 	{
@@ -301,7 +318,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	}
 
 	// 턴 체크
-	if (!IsMyTurn())
+	if (!IsMyTurn() && (!TutorialManager || !TutorialManager->IsTutorialActive()))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
 		return;
@@ -345,6 +362,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 				PlayActionSound(InputTag, true);
 				HandleInputFeedback(InputTag, true);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
+
+				if (TutorialManager && TutorialManager->GetCurrentStep() == 7)
+				{
+					TutorialManager->AdvanceStep(); // Step 8로 넘어감 (튜토리얼 완전 종료!)
+				}
 			}
 			else
 			{
@@ -972,6 +994,20 @@ void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType
 
 		// 캐릭터에게 실행 요청 (타겟 정보 전달)
 		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+		
+		if (TutorialManager && TutorialManager->IsTutorialActive())
+		{
+			// Step 4에서 일반 공격을 성공적으로 발사했다면?
+			if (TutorialManager->GetCurrentStep() == 4 && ActionType == ESelectedActionType::NormalAttack)
+			{
+				TutorialManager->AdvanceStep(); // Step 5로 넘어감!
+			}
+			// Step 5에서 무기 스킬을 성공적으로 발사했다면?
+			else if (TutorialManager->GetCurrentStep() == 5 && ActionType == ESelectedActionType::WeaponSkill)
+			{
+				TutorialManager->AdvanceStep(); // Step 6으로 넘어감!
+			}
+		}
 	}
 }
 
@@ -1053,15 +1089,49 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 {
 	if (!CachedASC) return;
 
+	if (TutorialManager && TutorialManager->IsTutorialActive())
+	{
+		if (TutorialManager->GetCurrentStep() == 6)
+		{
+			// 1. 일시정지 해제
+			UGameplayStatics::SetGamePaused(GetWorld(), false);
+
+			// 2. 패링 어빌리티 강제 발동
+			FGameplayTag ParryTag = FSPGameplayTags::Get().Battle_Action_Parry;
+			if (CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(ParryTag)))
+			{
+				// 3. 발동 성공 시 각본 넘기기 (6 -> 7)
+				TutorialManager->AdvanceStep();
+			}
+			else
+			{
+				// 안전장치
+				UGameplayStatics::SetGamePaused(GetWorld(), true);
+			}
+			return; // 튜토리얼 처리 끝
+		}
+		else
+		{
+			// 6단계가 아닐 때 헛손질 방지
+			return;
+		}
+	}
+
 	if (IsMyTurn())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("지금은 내 턴입니다. 패링을 사용할 수 없습니다."));
 		return;
 	}
 
-	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
+	bool bActivated = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
 
 	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+
+	if (bActivated && TutorialManager && TutorialManager->GetCurrentStep() == 6)
+	{
+		// 아까 GA_Parry 쪽에 만들어둔 '튜토리얼 하이패스' 덕분에 무조건 성공 처리됩니다.
+		TutorialManager->AdvanceStep(); // Step 7로 넘어감!
+	}
 }
 
 

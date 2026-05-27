@@ -138,6 +138,9 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "GameFlow | UI")
 	TObjectPtr<class UUserWidget> RegressionHUDWidget;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
+	TObjectPtr<class USPTutorialManagerComponent> TutorialManager;
+
 public:
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
@@ -246,6 +249,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Growth")
 	int32 GetCurrentPlayerLevel() const;
 
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	class USPTutorialManagerComponent* GetTutorialManager() const { return TutorialManager; }
+
 	//전투 UI 활성화 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void SetupAndShowBattleUI();
@@ -302,7 +308,6 @@ public:
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnBattlePointUpdatedDelegate OnBattlePointUIUpdated;

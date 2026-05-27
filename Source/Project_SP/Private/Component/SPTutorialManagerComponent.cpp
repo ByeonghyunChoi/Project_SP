@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Component/SPTutorialManagerComponent.h"
@@ -16,50 +16,80 @@ void USPTutorialManagerComponent::StartTutorialScenario()
 {
 	bIsTutorialActive = true;
 	CurrentStep = 1;
-	ProcessStep();
+
+	// íŒì—… ìœ„ì ¯ ë„ìš°ê¸°
+	if (TutorialPopupClass && !ActivePopupWidget)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+		{
+			ActivePopupWidget = CreateWidget<UUserWidget>(PC, TutorialPopupClass);
+			if (ActivePopupWidget) ActivePopupWidget->AddToViewport(100);
+		}
+	}
+
+	ProcessCurrentStep();
 }
 
-void USPTutorialManagerComponent::OnPlayerTurnStarted()
+void USPTutorialManagerComponent::EndTutorial()
 {
-}
+	bIsTutorialActive = false;
+	UGameplayStatics::SetGamePaused(GetWorld(), false);
 
-void USPTutorialManagerComponent::OnParryTimingTriggered()
-{
+	if (ActivePopupWidget)
+	{
+		ActivePopupWidget->RemoveFromParent();
+		ActivePopupWidget = nullptr;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] íŠœí† ë¦¬ì–¼ ì¢…ë£Œ. ììœ  ì „íˆ¬ ì „í™˜."));
 }
 
 void USPTutorialManagerComponent::AdvanceStep()
 {
-	CurrentStep++;
-	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] Step %d ·Î ÀÌµ¿"), CurrentStep);
+	if (!bIsTutorialActive) return;
 
-	// °¢º»ÀÇ ³¡(¿¹: 8´Ü°è ÀÌÈÄ)¿¡ µµ´ŞÇÏ¸é Æ©Åä¸®¾ó Á¾·á
-	if (CurrentStep >= 8)
-	{
-		bIsTutorialActive = false;
-		UGameplayStatics::SetGamePaused(GetWorld(), false);
-		if (ActivePopupWidget) ActivePopupWidget->RemoveFromParent();
-	}
-	else
-	{
-		ProcessStep();
-	}
+	CurrentStep++;
+	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] ê°ë³¸ ì´ë™ -> Step %d"), CurrentStep);
+
+	if (CurrentStep >= 8) EndTutorial();
+	else ProcessCurrentStep();
+}
+
+void USPTutorialManagerComponent::OnPlayerTurnStarted()
+{
+	if (!bIsTutorialActive) return;
+	// í”Œë ˆì´ì–´ í„´ì— ë©ˆì¶°ì•¼ í•˜ëŠ” ìŠ¤í…ë“¤ (1ì°¨ì „ ì„¤ëª…, 5: ìŠ¤í‚¬, 7: ì‹œê°„ê°„ì„­)
+	if (CurrentStep == 1 || CurrentStep == 5 || CurrentStep == 7) ProcessCurrentStep();
+}
+
+void USPTutorialManagerComponent::OnParryTimingTriggered()
+{
+	if (!bIsTutorialActive) return;
+	// ì  ê³µê²© ë„ì¤‘ íŒ¨ë§ íƒ€ì´ë° ë„ë‹¬
+	if (CurrentStep == 6) ProcessCurrentStep();
 }
 
 bool USPTutorialManagerComponent::CanProcessInput(FGameplayTag InputTag) const
 {
 	if (!bIsTutorialActive) return true;
 
-	// °¢º» ´Ü°èº°·Î Çã¿ëµÇ´Â ÅÂ±× ¸ÅÄª ·ÎÁ÷
-	// Step 4¸é ÀÏ¹İ °ø°İ(Battle_Action_Attack)¸¸ Çã¿ë, ÀÌ·± ½ÄÀ¸·Î ±¸Çö
-	return false;
+	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
+
+	switch (CurrentStep)
+	{
+	case 1: case 2: case 3: return false; // ì„¤ëª… ë‹¨ê³„: ëª¨ë“  ì…ë ¥ ì°¨ë‹¨ (UI 'ë‹¤ìŒ' ë²„íŠ¼ë§Œ ê°€ëŠ¥)
+	case 4: return InputTag.MatchesTagExact(Tags.Battle_Action_Attack); // ì¼ë°˜ ê³µê²© ìœ ë„
+	case 5: return InputTag.MatchesTagExact(Tags.Battle_Action_Skill);  // ë¬´ê¸° ìŠ¤í‚¬ ìœ ë„
+	case 6: return InputTag.MatchesTagExact(Tags.Battle_Action_Parry);  // íŒ¨ë§ ìœ ë„
+	case 7: return InputTag.MatchesTagExact(Tags.Battle_Action_TimeInterference); // ì‹œê°„ ê°„ì„­ ìœ ë„
+	default: return false;
+	}
 }
 
-void USPTutorialManagerComponent::ProcessStep()
+void USPTutorialManagerComponent::ProcessCurrentStep()
 {
-	// ¿©±â¼­ °ÔÀÓ ÀÏ½ÃÁ¤Áö, À§Á¬ ¶ç¿ì±â, ÇÏÀÌ¶óÀÌÆ® À§Ä¡ º¯°æÀ» ¼öÇàÇÕ´Ï´Ù.
-	// WBP_TutorialPopupÀÇ UpdateTutorialView ÇÔ¼ö¸¦ ¿©±â¼­ È£ÃâÇÏ¼¼¿ä!
+	// 1. ê²Œì„ ê°•ì œ ì •ì§€
 	UGameplayStatics::SetGamePaused(GetWorld(), true);
-
-	// ÆË¾÷ »ı¼º/¾÷µ¥ÀÌÆ® ·ÎÁ÷...
+	// 2. UIì— í™”ë©´ ê°±ì‹  ë°©ì†¡ (ë¸”ë£¨í”„ë¦°íŠ¸ì—ì„œ êµ¬ë© ìœ„ì¹˜/í…ìŠ¤íŠ¸ ë³€ê²½)
+	OnTutorialStepChanged.Broadcast(CurrentStep);
 }
 

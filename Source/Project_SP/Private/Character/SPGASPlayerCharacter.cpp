@@ -454,6 +454,13 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 
 	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
 	{
+		if (!PC->GetCurrentWeaponTag().IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시스템] 장착된 무기가 없어 기본 무기(펜리르)를 자동 장착합니다."));
+			// 이미 만들어둔 ProcessWeaponSwitch 함수를 재활용하여 완벽하게 장착시킵니다!
+			PC->ProcessWeaponSwitch(FSPGameplayTags::Get().Weapon_Fenrir);
+		}
+
 		PC->SetupAndShowBattleUI();
 	}
 }
