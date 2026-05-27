@@ -25,6 +25,7 @@
 #include "Component/InventoryComponent.h"
 #include "Data/RewardDataStructs.h"
 #include "GA/SPGA_BattleActionBase.h"
+#include "Component/SPTutorialManagerComponent.h"
 
 
 AASPCombatGameMode::AASPCombatGameMode()
@@ -259,6 +260,18 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 
 	CurrentTurnActor = TurnActor;
 	UE_LOG(LogTemp, Log, TEXT("턴 시작: %s"), *TurnActor->GetName());
+
+	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
+	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
+		{
+			if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
+			{
+				// 플레이어 턴이 왔으니 매니저가 현재 Step(0, 1, 5, 7)을 확인하고 정지시킵니다!
+				TutMgr->OnPlayerTurnStarted();
+			}
+		}
+	}
 
 	if (TurnManager)
 	{

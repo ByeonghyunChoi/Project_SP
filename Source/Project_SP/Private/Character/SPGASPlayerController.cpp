@@ -1108,7 +1108,7 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 				// 안전장치
 				UGameplayStatics::SetGamePaused(GetWorld(), true);
 			}
-			return; // 튜토리얼 처리 끝
+			return; // 🚨 튜토리얼 처리 끝! 여기서 함수 종료
 		}
 		else
 		{
@@ -1127,11 +1127,6 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 
 	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
 
-	if (bActivated && TutorialManager && TutorialManager->GetCurrentStep() == 6)
-	{
-		// 아까 GA_Parry 쪽에 만들어둔 '튜토리얼 하이패스' 덕분에 무조건 성공 처리됩니다.
-		TutorialManager->AdvanceStep(); // Step 7로 넘어감!
-	}
 }
 
 

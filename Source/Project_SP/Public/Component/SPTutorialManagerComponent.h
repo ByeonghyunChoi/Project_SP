@@ -64,10 +64,13 @@ protected:
 	TSubclassOf<class UUserWidget> TutorialPopupClass;
 
 	// 실제로 생성된 팝업 위젯 메모리
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<class UUserWidget> ActivePopupWidget;
 
 private:
 	// 내부 상태 갱신 및 UI 업데이트 지시
 	void ProcessCurrentStep();
+
+	FTimerHandle TutorialStartTimer;
+	void ExecuteTutorialPause();
 };

@@ -15,9 +15,8 @@ USPTutorialManagerComponent::USPTutorialManagerComponent()
 void USPTutorialManagerComponent::StartTutorialScenario()
 {
 	bIsTutorialActive = true;
-	CurrentStep = 1;
+	CurrentStep = -1;
 
-	// 팝업 위젯 띄우기
 	if (TutorialPopupClass && !ActivePopupWidget)
 	{
 		if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
@@ -27,7 +26,9 @@ void USPTutorialManagerComponent::StartTutorialScenario()
 		}
 	}
 
-	ProcessCurrentStep();
+	// 2. 🌟 핵심: 1.5초 뒤에 게임을 멈추고 튜토리얼을 본격적으로 시작합니다!
+	// 이 1.5초 동안 전투 HUD가 화면에 예쁘게 나타나고 전투 돌입 연출이 나옵니다.
+	GetWorld()->GetTimerManager().SetTimer(TutorialStartTimer, this, &USPTutorialManagerComponent::ExecuteTutorialPause, 3.0f, false);
 }
 
 void USPTutorialManagerComponent::EndTutorial()
@@ -58,7 +59,10 @@ void USPTutorialManagerComponent::OnPlayerTurnStarted()
 {
 	if (!bIsTutorialActive) return;
 	// 플레이어 턴에 멈춰야 하는 스텝들 (1차전 설명, 5: 스킬, 7: 시간간섭)
-	if (CurrentStep == 1 || CurrentStep == 5 || CurrentStep == 7) ProcessCurrentStep();
+	if (CurrentStep == 0 || CurrentStep == 1 || CurrentStep == 5 || CurrentStep == 7)
+	{
+		ProcessCurrentStep();
+	}
 }
 
 void USPTutorialManagerComponent::OnParryTimingTriggered()
@@ -76,7 +80,7 @@ bool USPTutorialManagerComponent::CanProcessInput(FGameplayTag InputTag) const
 
 	switch (CurrentStep)
 	{
-	case 1: case 2: case 3: return false; // 설명 단계: 모든 입력 차단 (UI '다음' 버튼만 가능)
+	case -1: case 0: case 1: case 2: case 3: return false; // 설명 단계: 모든 입력 차단 (UI '다음' 버튼만 가능)
 	case 4: return InputTag.MatchesTagExact(Tags.Battle_Action_Attack); // 일반 공격 유도
 	case 5: return InputTag.MatchesTagExact(Tags.Battle_Action_Skill);  // 무기 스킬 유도
 	case 6: return InputTag.MatchesTagExact(Tags.Battle_Action_Parry);  // 패링 유도
@@ -92,4 +96,12 @@ void USPTutorialManagerComponent::ProcessCurrentStep()
 	// 2. UI에 화면 갱신 방송 (블루프린트에서 구멍 위치/텍스트 변경)
 	OnTutorialStepChanged.Broadcast(CurrentStep);
 }
+
+void USPTutorialManagerComponent::ExecuteTutorialPause()
+{
+	CurrentStep = 0;
+	ProcessCurrentStep();
+}
+
+
 
