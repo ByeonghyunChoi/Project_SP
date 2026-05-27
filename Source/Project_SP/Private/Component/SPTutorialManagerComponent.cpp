@@ -15,7 +15,7 @@ USPTutorialManagerComponent::USPTutorialManagerComponent()
 void USPTutorialManagerComponent::StartTutorialScenario()
 {
 	bIsTutorialActive = true;
-	CurrentStep = -1;
+	CurrentStep = 0;
 
 	if (TutorialPopupClass && !ActivePopupWidget)
 	{
@@ -26,9 +26,7 @@ void USPTutorialManagerComponent::StartTutorialScenario()
 		}
 	}
 
-	// 2. 🌟 핵심: 1.5초 뒤에 게임을 멈추고 튜토리얼을 본격적으로 시작합니다!
-	// 이 1.5초 동안 전투 HUD가 화면에 예쁘게 나타나고 전투 돌입 연출이 나옵니다.
-	GetWorld()->GetTimerManager().SetTimer(TutorialStartTimer, this, &USPTutorialManagerComponent::ExecuteTutorialPause, 3.0f, false);
+	ProcessCurrentStep();
 }
 
 void USPTutorialManagerComponent::EndTutorial()
@@ -97,11 +95,6 @@ void USPTutorialManagerComponent::ProcessCurrentStep()
 	OnTutorialStepChanged.Broadcast(CurrentStep);
 }
 
-void USPTutorialManagerComponent::ExecuteTutorialPause()
-{
-	CurrentStep = 0;
-	ProcessCurrentStep();
-}
 
 
 

@@ -71,6 +71,4 @@ private:
 	// 내부 상태 갱신 및 UI 업데이트 지시
 	void ProcessCurrentStep();
 
-	FTimerHandle TutorialStartTimer;
-	void ExecuteTutorialPause();
 };

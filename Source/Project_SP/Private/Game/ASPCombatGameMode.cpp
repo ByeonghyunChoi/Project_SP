@@ -192,16 +192,13 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 void AASPCombatGameMode::FinalizeBattleSetup()
 {
 	bIsBattleRunning = true;
-
 	UE_LOG(LogTemp, Warning, TEXT("[GameMode] 전원 세팅 완료! 전투 UI를 띄우고 즉시 전투를 시작합니다."));
 
-	// 플레이어 컨트롤러에게 명령!
+	// 1. 캐릭터 전투 시작 (이 안에서 메인 HUD가 켜지고 껍데기가 생성됩니다!)
 	for (AActor* Participant : AllParticipants)
 	{
 		if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(Participant))
 		{
-			// 다형성(Polymorphism) 폭발! 
-			// 플레이어면 컨트롤러 UI가 켜지고, 몬스터면 머리 위 위젯이 켜집니다.
 			Character->OnBattleStarted();
 		}
 	}
@@ -210,23 +207,45 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 	if (PlayerPawn)
 	{
 		FGameplayEventData Payload;
-		Payload.Instigator = this;    // 이벤트를 쏜 사람 (GameMode)
-		Payload.Target = PlayerPawn;  // 이벤트를 받을 사람 (Player)
-
-		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(
-			PlayerPawn,
-			FSPGameplayTags::Get().Event_Battle_Start,
-			Payload
-		);
-		UE_LOG(LogTemp, Log, TEXT("Battle Start Event Sent to Player!"));
+		Payload.Instigator = this;
+		Payload.Target = PlayerPawn;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(PlayerPawn, FSPGameplayTags::Get().Event_Battle_Start, Payload);
 	}
 
-	// 턴 매니저에게 첫 턴을 물어보고 시작!
+	// =======================================================================
+	// 🌟 [수정된 핵심] 턴 계산과 UI 업데이트는 튜토리얼 여부와 상관없이 '즉시' 실행!
+	// 이 함수들이 실행되어야 블루프린트 턴 UI에 초상화 데이터가 전달되어 그려집니다!
+	// =======================================================================
 	if (TurnManager)
 	{
 		RefreshTurnTimelineUI();
 		AActor* FirstActor = TurnManager->CalculateNextTurn();
 		StartTurn(FirstActor);
+	}
+
+	// =======================================================================
+	// 🌟 3. 튜토리얼 1차전일 경우 2초 뒤에 세상을 멈추는 타이머만 예약!
+	// =======================================================================
+	UGameInstance* GI = GetGameInstance();
+	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
+
+	if (CombatSys && CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
+	{
+		FTimerHandle TutorialTriggerTimer;
+		GetWorld()->GetTimerManager().SetTimer(
+			TutorialTriggerTimer,
+			[this, PlayerPawn]() // 람다 함수
+			{
+				if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+				{
+					if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[GameMode] 연출 시간(2초) 종료! 튜토리얼 각본을 강제로 시작합니다!"));
+						TutMgr->StartTutorialScenario();
+					}
+				}
+			},
+			2.0f, false);
 	}
 }
 
