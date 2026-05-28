@@ -47,6 +47,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Tutorial")
 	bool IsTutorialActive() const { return bIsTutorialActive; }
 
+	void SetCurrentStep(int32 NewStep) { CurrentStep = NewStep; }
+
+	void HideTutorialPopup();
+
 public:
 	// 위젯에서 이 이벤트에 바인딩하여 텍스트와 구멍 위치를 업데이트합니다.
 	UPROPERTY(BlueprintAssignable, Category = "Tutorial|Event")
@@ -54,7 +58,7 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
-	int32 CurrentStep = 1;
+	int32 CurrentStep = 0;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
 	bool bIsTutorialActive = false;

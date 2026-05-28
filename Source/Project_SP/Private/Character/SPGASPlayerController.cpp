@@ -289,14 +289,31 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	{
 		if (TutorialManager->CanProcessInput(InputTag))
 		{
-			// 정답 키를 눌렀다! ➡️ 타겟팅/스킬 시작 전에 일시정지부터 푼다!
-			UGameplayStatics::SetGamePaused(GetWorld(), false);
-			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 정답] 일시정지 해제! 액션 진입."));
+			int32 Step = TutorialManager->GetCurrentStep();
+
+			// [기믹 1] 일반 공격 설명 중 정답 입력 시
+			if (Step == 4 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Attack))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false); // 세상 정지 해제
+				TutorialManager->HideTutorialPopup();              // UI 숨기기
+			}
+			// [기믹 2] 무기 스킬 설명 중 정답 입력 시
+			else if (Step == 6 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Skill))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false);
+				TutorialManager->HideTutorialPopup();
+			}
+			// [기믹 3] 시간 간섭 설명 중 정답 입력 시 ➡️ 대단원의 막을 내림!
+			else if (Step == 7 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_TimeInterference))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false);
+				TutorialManager->EndTutorial();                    // 튜토리얼 완전 종료 및 자유전투 전환!
+			}
 		}
 		else
 		{
 			HandleInputFeedback(InputTag, false);
-			return;
+			return; // 오답 키는 철저하게 차단
 		}
 	}
 
@@ -856,6 +873,16 @@ void ASPGASPlayerController::StartRegressionSequence()
 	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 5.0f, false);
 }
 
+bool ASPGASPlayerController::IsNormalAttackRestricted() const
+{
+	// 1. 수정 해골 버프가 켜져 있다면 일반 공격 제한!
+	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull))
+	{
+		return true;
+	}
+	return false;
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
@@ -997,15 +1024,15 @@ void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType
 		
 		if (TutorialManager && TutorialManager->IsTutorialActive())
 		{
-			// Step 4에서 일반 공격을 성공적으로 발사했다면?
+			// 일반 공격 발사 성공 -> 이제 적의 턴이 오고, 패링 타이밍(Step 5)을 기다림
 			if (TutorialManager->GetCurrentStep() == 4 && ActionType == ESelectedActionType::NormalAttack)
 			{
-				TutorialManager->AdvanceStep(); // Step 5로 넘어감!
+				TutorialManager->SetCurrentStep(5);
 			}
-			// Step 5에서 무기 스킬을 성공적으로 발사했다면?
-			else if (TutorialManager->GetCurrentStep() == 5 && ActionType == ESelectedActionType::WeaponSkill)
+			// 무기 스킬 발사 성공 -> 이제 턴이 한 바퀴 돌고 시간 간섭(Step 7)을 기다림
+			else if (TutorialManager->GetCurrentStep() == 6 && ActionType == ESelectedActionType::WeaponSkill)
 			{
-				TutorialManager->AdvanceStep(); // Step 6으로 넘어감!
+				TutorialManager->SetCurrentStep(7);
 			}
 		}
 	}
@@ -1091,28 +1118,35 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 
 	if (TutorialManager && TutorialManager->IsTutorialActive())
 	{
-		if (TutorialManager->GetCurrentStep() == 6)
+		// 🌟 적이 공격해와서 세상이 멈춘 Step 5 상태일 때 패링 키를 눌렀다면?
+		if (TutorialManager->GetCurrentStep() == 5)
 		{
-			// 1. 일시정지 해제
-			UGameplayStatics::SetGamePaused(GetWorld(), false);
+			UGameplayStatics::SetGamePaused(GetWorld(), false); // 정지 풀기
+			TutorialManager->HideTutorialPopup();              // UI 숨기기
+			TutorialManager->SetCurrentStep(6);                // 🚨 다음 타겟인 '무기스킬 대기상태'로 변경!
 
-			// 2. 패링 어빌리티 강제 발동
-			FGameplayTag ParryTag = FSPGameplayTags::Get().Battle_Action_Parry;
-			if (CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(ParryTag)))
-			{
-				// 3. 발동 성공 시 각본 넘기기 (6 -> 7)
-				TutorialManager->AdvanceStep();
-			}
-			else
-			{
-				// 안전장치
-				UGameplayStatics::SetGamePaused(GetWorld(), true);
-			}
-			return; // 🚨 튜토리얼 처리 끝! 여기서 함수 종료
+			// ====================================================================
+			// 🌟 [핵심 수정] 엔진이 정지를 완전히 풀고 물리/애니메이션 틱을 재개할 수 있도록
+			// 0.05초만 딜레이를 준 뒤에 패링 스킬을 발동시킵니다!
+			// ====================================================================
+			FTimerHandle ParryTriggerTimer;
+			GetWorld()->GetTimerManager().SetTimer(
+				ParryTriggerTimer,
+				[this]()
+				{
+					if (CachedASC)
+					{
+						FGameplayTag ParryTag = FSPGameplayTags::Get().Battle_Action_Parry;
+						CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(ParryTag)); // 패링 발사!
+						UE_LOG(LogTemp, Warning, TEXT("[튜토리얼] 지연 패링 발동 완료!"));
+					}
+				},
+				0.05f, false);
+
+			return;
 		}
-		else
+		else if (TutorialManager->GetCurrentStep() < 5)
 		{
-			// 6단계가 아닐 때 헛손질 방지
 			return;
 		}
 	}

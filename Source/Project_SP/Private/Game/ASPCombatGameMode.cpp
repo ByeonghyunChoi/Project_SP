@@ -41,6 +41,13 @@ void AASPCombatGameMode::BeginPlay()
 	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
 	const UCombatEncounterData* EncounterData = CombatSys ? CombatSys->GetPendingEncounter() : nullptr;
 
+	if (EncounterData) {
+		UE_LOG(LogTemp, Warning, TEXT("데이터 발견! 인카운터 이름: %s"), *EncounterData->CombatLevelName.ToString());
+	}
+	else {
+		UE_LOG(LogTemp, Error, TEXT("치명적 에러: EncounterData가 NULL입니다!"));
+	}
+
 	TArray<AActor*> SpawnedEnemies;
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
@@ -103,6 +110,7 @@ void AASPCombatGameMode::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("전투 데이터 없음"));
 	}
 
+	UE_LOG(LogTemp, Error, TEXT("==== [디버그] 스폰 성공하여 명부에 등록된 몬스터 수: %d 마리 ===="), SpawnedEnemies.Num());
 	// 전투 시스템 초기화
 	if (PlayerPawn)
 	{
@@ -168,7 +176,7 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 		if (Advantage == ECombatAdvantage::PlayerAdvantage)
 		{
 			// 플레이어 선공: 게이지 50% 보너스 (밸런스에 따라 조절)
-			TurnManager->SetActionGauge(Player, 50.0f);
+			TurnManager->SetActionGauge(Player, 100.0f);
 			UE_LOG(LogTemp, Log, TEXT(">>> 플레이어 선제공격! (게이지 보너스)"));
 		}
 		else if (Advantage == ECombatAdvantage::EnemyAdvantage)
@@ -231,26 +239,41 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 
 	if (CombatSys && CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
 	{
+		// ⏰ 타이머 1: 2.0초 뒤에 턴 순서 UI에 데이터를 채워 넣습니다.
+		FTimerHandle RefreshTimer;
+		GetWorld()->GetTimerManager().SetTimer(
+			RefreshTimer,
+			[this]()
+			{
+				RefreshTurnTimelineUI();
+				UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.0초: 턴 타임라인 UI 데이터 주입 완료"));
+			},
+			2.0f, false);
+
+		// ⏰ 타이머 2: 2.1초 뒤에 튜토리얼 각본을 시작하고 게임을 멈춥니다! (0.1초의 여유)
+		// 이 0.1초 동안 턴 UI가 크기(Geometry) 계산을 완벽하게 끝냅니다.
 		FTimerHandle TutorialTriggerTimer;
 		GetWorld()->GetTimerManager().SetTimer(
 			TutorialTriggerTimer,
-			[this, PlayerPawn]() // 람다 함수
+			[this, PlayerPawn]()
 			{
 				if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 				{
 					if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
 					{
-						UE_LOG(LogTemp, Warning, TEXT("[GameMode] 연출 시간(2초) 종료! 튜토리얼 각본을 강제로 시작합니다!"));
+						UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.1초: UI 렌더링 완료! 튜토리얼 각본을 강제로 시작합니다!"));
 						TutMgr->StartTutorialScenario();
 					}
 				}
 			},
-			2.0f, false);
+			2.1f, false);
 	}
 }
 
 void AASPCombatGameMode::CheckAndStartBattle()
 {
+	UE_LOG(LogTemp, Warning, TEXT("현재 준비된 인원: %d / 전체 인원: %d"), ReadyParticipants.Num(), TotalExpectedParticipants);
+
 	if (bIsBattleInitialized && !bIsBattleRunning && ReadyParticipants.Num() >= TotalExpectedParticipants)
 	{
 		FinalizeBattleSetup();
@@ -286,8 +309,23 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		{
 			if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
 			{
-				// 플레이어 턴이 왔으니 매니저가 현재 Step(0, 1, 5, 7)을 확인하고 정지시킵니다!
-				TutMgr->OnPlayerTurnStarted();
+				// 1. 이 턴이 자동 반격을 위한 턴인지 태그로 확인합니다.
+				bool bIsAutoCounter = false;
+				if (UAbilitySystemComponent* ASC = PlayerChar->GetAbilitySystemComponent())
+				{
+					bIsAutoCounter = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+				}
+
+				// 2. VIP 턴(새치기 턴)이거나, 자동 반격 턴이라면 튜토리얼을 깨우지 않습니다!
+				// 오직 '진짜 내 정규 턴'이 왔을 때만 각본(Step 6)을 넘깁니다.
+				if (!bIsCurrentTurnInterrupt && !bIsAutoCounter)
+				{
+					TutMgr->OnPlayerTurnStarted();
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[튜토리얼] 패링 반격 등 추가 턴이므로 튜토리얼을 일시 보류합니다."));
+				}
 			}
 		}
 	}

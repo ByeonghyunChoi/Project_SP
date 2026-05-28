@@ -131,7 +131,7 @@ void USPDialogSubsystem::EndDialog()
 	// 조작 권한 원상복구
 	if (APlayerController* PC = GetGameInstance()->GetFirstLocalPlayerController())
 	{
-		FInputModeGameOnly GameMode;
+		FInputModeGameAndUI GameMode;
 		PC->SetInputMode(GameMode);
 		PC->SetShowMouseCursor(false);
 	}

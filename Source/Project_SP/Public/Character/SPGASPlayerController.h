@@ -305,6 +305,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "GameFlow | UI")
 	void ShowRegressionUI();
 
+	UFUNCTION(BlueprintPure, Category = "Combat | State")
+	bool IsNormalAttackRestricted() const;
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
