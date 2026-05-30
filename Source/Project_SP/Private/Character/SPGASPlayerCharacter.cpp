@@ -18,6 +18,7 @@
 #include "Components/WidgetComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Component/RelicComponent.h"
+#include "SubSystem/SPPowerUpgradeSubsystem.h"
 
 
 
@@ -197,6 +198,19 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 	}
 }
 
+
+void ASPGASPlayerCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+
+	//  권능 영구 스탯 보너스 일괄 적용 (반드시 기본 스탯 세팅 이후에 호출!)
+	if (USPPowerUpgradeSubsystem* PowerSys = GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
+	{
+		PowerSys->ApplySavedStatUpgradesToPlayer(this);
+		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] BeginPlay: 권능 영구 스탯이 캐릭터에게 성공적으로 적용되었습니다."));
+	}
+}
 
 void ASPGASPlayerCharacter::OnRep_PlayerState()
 {

@@ -86,7 +86,7 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 1.0f);
+		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetOutgoingDamageMultiplierAttribute() ||
 		Attribute == GetIncomingDamageMultiplierAttribute())

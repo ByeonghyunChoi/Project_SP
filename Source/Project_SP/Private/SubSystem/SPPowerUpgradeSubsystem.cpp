@@ -5,6 +5,9 @@
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Component/InventoryComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AttributeSet/SPGASAttributeSet.h"
 
 void USPPowerUpgradeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -179,4 +182,206 @@ void USPPowerUpgradeSubsystem::ApplyNewRunBonuses()
 
 	// 계산된 600원을 세이브 시스템에 다시 넣어줍니다.
 	SaveSys->UpdateRunWalletData(DynamicWallet);
+}
+
+void USPPowerUpgradeSubsystem::GetStatUpgradeInfo(EPowerUpgradeType StatType, int32& OutCurrentLevel, int32& OutNextCost, float& OutCurrentEffectValue) const
+{
+	OutCurrentLevel = GetPowerLevel(StatType);
+
+	// 1. 레벨별 요구 재화 (인덱스 0~4가 각각 1~5레벨로 가는 비용을 의미합니다)
+	static const int32 UpgradeCosts[5] = { 10, 10, 15, 15, 20 };
+
+	if (OutCurrentLevel < 5)
+	{
+		OutNextCost = UpgradeCosts[OutCurrentLevel];
+	}
+	else
+	{
+		OutNextCost = -1; // 만렙(5) 달성 시 -1을 반환하여 UI에서 MAX 처리 유도
+	}
+
+	// 2. 능력치별 1레벨당 증가량 세팅
+	float IncreasePerLevel = 0.0f;
+	switch (StatType)
+	{
+	case EPowerUpgradeType::Stat_HP:         IncreasePerLevel = 140.0f; break;
+	case EPowerUpgradeType::Stat_ATK:        IncreasePerLevel = 70.0f;  break;
+	case EPowerUpgradeType::Stat_DEF:        IncreasePerLevel = 40.0f;  break;
+	case EPowerUpgradeType::Stat_Speed:      IncreasePerLevel = 15.0f;  break;
+	case EPowerUpgradeType::Stat_DamageInc:  IncreasePerLevel = 10.0f;  break; // 10%
+	case EPowerUpgradeType::Stat_CritChance: IncreasePerLevel = 5.0f;   break; // 5%
+	case EPowerUpgradeType::Stat_CritDamage: IncreasePerLevel = 10.0f;  break; // 10%
+	default: IncreasePerLevel = 0.0f; break;
+	}
+
+	// 3. 최종 효과 수치 = 현재 레벨 * 1레벨당 증가량
+	OutCurrentEffectValue = OutCurrentLevel * IncreasePerLevel;
+}
+
+bool USPPowerUpgradeSubsystem::TryUpgradeStatInternal(EPowerUpgradeType StatType, APlayerController* PC)
+{
+	if (!PC) return false;
+
+	int32 CurrentLevel, Cost;
+	float CurrentEffect;
+	GetStatUpgradeInfo(StatType, CurrentLevel, Cost, CurrentEffect);
+
+	// 🌟 최대 레벨 3 -> 5로 방어 조건 수정
+	if (CurrentLevel >= 5 || Cost < 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 이미 최대 레벨(5)입니다."));
+		return false;
+	}
+
+	APawn* PlayerPawn = PC->GetPawn();
+	if (!PlayerPawn) return false;
+
+	UInventoryComponent* Inventory = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+	if (!Inventory) return false;
+
+	// 파편 차감
+	if (!Inventory->ConsumeFragment(Cost))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 파편이 부족합니다! 필요: %d"), Cost);
+		return false;
+	}
+
+	// 저장 및 동기화
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		int32 NewLevel = CurrentLevel + 1;
+		SaveSys->UpdatePowerUpgradeLevel(StatType, NewLevel);
+
+		SaveSys->CachePermDataFromPlayer(PlayerPawn);
+		SaveSys->SavePermToDisk();
+
+		UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerPawn);
+		if (ASC)
+		{
+			FGameplayAttribute Attribute;
+			float IncreaseValue = 0.0f;
+
+			// ⚠️ 주의: GetHPAttribute() 등은 본인의 SPGASAttributeSet에 선언된 이름으로 꼭 맞춰주세요!
+			// ⚠️ 퍼센트 수치의 경우, 기획 상 0.05 단위로 쓰신다면 5.0f 대신 0.05f 로 바꿔주셔야 합니다.
+			switch (StatType)
+			{
+			case EPowerUpgradeType::Stat_HP:         Attribute = USPGASAttributeSet::GetMaxHealthAttribute(); IncreaseValue = 140.0f; break;
+			case EPowerUpgradeType::Stat_ATK:        Attribute = USPGASAttributeSet::GetAttackAttribute(); IncreaseValue = 70.0f; break;
+			case EPowerUpgradeType::Stat_DEF:        Attribute = USPGASAttributeSet::GetDefenseAttribute(); IncreaseValue = 40.0f; break;
+			case EPowerUpgradeType::Stat_Speed:      Attribute = USPGASAttributeSet::GetSpeedAttribute(); IncreaseValue = 15.0f; break;
+			case EPowerUpgradeType::Stat_DamageInc:  Attribute = USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(); IncreaseValue = 0.10f; break;
+			case EPowerUpgradeType::Stat_CritChance: Attribute = USPGASAttributeSet::GetCriticalRateAttribute(); IncreaseValue = 0.05f; break;
+			case EPowerUpgradeType::Stat_CritDamage: Attribute = USPGASAttributeSet::GetCriticalDamageAttribute(); IncreaseValue = 0.10f; break;
+			}
+
+			if (Attribute.IsValid())
+			{
+				// 현재 베이스 수치를 가져와서 증가량을 더한 뒤 다시 덮어씌웁니다.
+				float CurrentBase = ASC->GetNumericAttributeBase(Attribute);
+				ASC->SetNumericAttributeBase(Attribute, CurrentBase + IncreaseValue);
+
+				// 체력의 경우 최대 체력이 늘어났으니 현재 체력도 비율에 맞게(혹은 깡수치로) 채워주는 것이 자연스럽습니다.
+				if (StatType == EPowerUpgradeType::Stat_HP)
+				{
+					float CurrentHP = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute()); // 현재 체력 변수명 확인 필요
+					ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), CurrentHP + 140.0f);
+				}
+
+				UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 실제 GAS 스탯 즉시 적용 완료! (+%f)"), IncreaseValue);
+			}
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("[StatUpgrade] 스탯 업그레이드 성공! [%d] %d -> %d 레벨"), (int32)StatType, CurrentLevel, NewLevel);
+		return true;
+	}
+
+	return false;
+}
+
+// ---------------------------------------------------------
+// 7개의 버튼 전용 함수들 (코드 중복을 막기 위해 Internal 함수로 전달)
+// ---------------------------------------------------------
+
+void USPPowerUpgradeSubsystem::UpgradeStat_ATK(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_ATK, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_ATK, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_DEF(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_DEF, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_DEF, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_Speed(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_Speed, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_Speed, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_HP(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_HP, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_HP, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_DamageInc(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_DamageInc, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_DamageInc, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_CritChance(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_CritChance, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_CritChance, OutLevel, OutNextCost, OutEffectValue);
+}
+
+void USPPowerUpgradeSubsystem::UpgradeStat_CritDamage(APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue)
+{
+	bSuccess = TryUpgradeStatInternal(EPowerUpgradeType::Stat_CritDamage, PC);
+	GetStatUpgradeInfo(EPowerUpgradeType::Stat_CritDamage, OutLevel, OutNextCost, OutEffectValue);
+}
+
+// 새 런(게임) 시작 시 저장된 권능 보너스 일괄 적용
+void USPPowerUpgradeSubsystem::ApplySavedStatUpgradesToPlayer(APawn* PlayerPawn)
+{
+	if (!PlayerPawn) return;
+	UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(PlayerPawn);
+	if (!ASC) return;
+
+	EPowerUpgradeType StatTypes[] = {
+		EPowerUpgradeType::Stat_HP, EPowerUpgradeType::Stat_ATK, EPowerUpgradeType::Stat_DEF,
+		EPowerUpgradeType::Stat_Speed, EPowerUpgradeType::Stat_DamageInc,
+		EPowerUpgradeType::Stat_CritChance, EPowerUpgradeType::Stat_CritDamage
+	};
+
+	for (EPowerUpgradeType Type : StatTypes)
+	{
+		int32 Level = GetPowerLevel(Type);
+		if (Level > 0)
+		{
+			float TotalBonus = 0.0f;
+			FGameplayAttribute Attribute;
+
+			switch (Type)
+			{
+			case EPowerUpgradeType::Stat_HP:         Attribute = USPGASAttributeSet::GetMaxHealthAttribute(); TotalBonus = Level * 140.0f; break;
+			case EPowerUpgradeType::Stat_ATK:        Attribute = USPGASAttributeSet::GetAttackAttribute(); TotalBonus = Level * 70.0f; break;
+			case EPowerUpgradeType::Stat_DEF:        Attribute = USPGASAttributeSet::GetDefenseAttribute(); TotalBonus = Level * 40.0f; break;
+			case EPowerUpgradeType::Stat_Speed:      Attribute = USPGASAttributeSet::GetSpeedAttribute(); TotalBonus = Level * 15.0f; break;
+			case EPowerUpgradeType::Stat_DamageInc:  Attribute = USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute(); TotalBonus = Level * 0.10f; break;
+			case EPowerUpgradeType::Stat_CritChance: Attribute = USPGASAttributeSet::GetCriticalRateAttribute(); TotalBonus = Level * 0.05f; break;
+			case EPowerUpgradeType::Stat_CritDamage: Attribute = USPGASAttributeSet::GetCriticalDamageAttribute(); TotalBonus = Level * 0.10f; break;
+			}
+
+			if (Attribute.IsValid())
+			{
+				float CurrentBase = ASC->GetNumericAttributeBase(Attribute);
+				ASC->SetNumericAttributeBase(Attribute, CurrentBase + TotalBonus);
+			}
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 세이브 파일에서 읽어온 영구 스탯 보너스가 모두 적용되었습니다."));
 }
