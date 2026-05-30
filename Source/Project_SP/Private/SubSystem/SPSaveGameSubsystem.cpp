@@ -66,19 +66,30 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 	// 4. 맵 진행도 저장
 	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
 	{
-		// 맵 매니저가 들고 있는 진행 정보 캐싱
 		RunData.MapProgress.CurrentStage = MapManager->GetCurrentStage();
 		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
 		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
 		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
 		RunData.MapProgress.SavedPortalOptions = MapManager->GetCurrentPortalOptions();
-
-		// 로비 맵인지 확인 정보 캐싱
 		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
-		// 플레이어의 현재 실제 위치 캐싱
-		RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
-
 		RunData.MapProgress.PreGeneratedEncounters = MapManager->GetPreGeneratedEncounters();
+
+		// 🌟 튜토리얼 클리어 여부 캐싱
+		RunData.MapProgress.bIsTutorialBasicCleared = MapManager->bIsTutorialBasicCleared;
+
+		// ====================================================================
+		// 🌟 [핵심 보호 로직] 현재 전투 중이라면, 전투 맵 좌표가 아닌 필드 좌표를 저장합니다!
+		// ====================================================================
+		if (MapManager->IsInBattleMap())
+		{
+			RunData.MapProgress.SavedPlayerTransform = MapManager->GetSavedFieldTransform();
+			RunData.MapProgress.SavedFieldLevelName = MapManager->GetSavedFieldLevelName();
+		}
+		else
+		{
+			RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
+			RunData.MapProgress.SavedFieldLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
+		}
 	}
 }
 

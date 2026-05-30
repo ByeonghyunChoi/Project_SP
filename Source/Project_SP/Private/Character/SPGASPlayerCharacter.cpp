@@ -18,6 +18,8 @@
 #include "Components/WidgetComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Component/RelicComponent.h"
+#include "Game/ASPCombatGameMode.h"
+#include "Manager/SPCombatTurnManager.h"
 
 
 
@@ -721,6 +723,33 @@ void ASPGASPlayerCharacter::ExecuteTimeOverSequence()
 	{
 		MoveComp->DisableMovement();
 		MoveComp->StopMovementImmediately();
+	}
+
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
+		ASC->CancelAllAbilities();
+	}
+
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		// A. 모든 적들의 진행 중인 행동(스킬/이동)을 강제로 취소시킴
+		for (AActor* Enemy : GM->GetCurrentEnemies())
+		{
+			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Enemy))
+			{
+				if (UAbilitySystemComponent* EnemyASC = ASI->GetAbilitySystemComponent())
+				{
+					EnemyASC->CancelAllAbilities();
+				}
+			}
+		}
+
+		// B. 턴 매니저 자체를 파괴! (더 이상 누구에게도 턴이 돌아가지 않습니다)
+		if (GM->GetTurnManager())
+		{
+			GM->GetTurnManager()->Destroy();
+		}
 	}
 
 	// 3. 부모 클래스에 만들어둔 DeathMontage 재생!

@@ -148,6 +148,13 @@ struct FPlayerMapProgressData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EMapType CurrentMapType = EMapType::NormalBattle;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName SavedFieldLevelName;
+
+    // 튜토리얼 1차전 클리어 여부 세이브
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsTutorialBasicCleared = false;
+
     // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EMapState CurrentRoomState = EMapState::InProgress;
