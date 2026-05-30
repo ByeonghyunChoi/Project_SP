@@ -464,6 +464,7 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 		}
 
 		PC->SetupAndShowBattleUI();
+		PC->OnWeaponChanged.Broadcast(FSPGameplayTags::Get().Weapon_Fenrir);
 	}
 }
 

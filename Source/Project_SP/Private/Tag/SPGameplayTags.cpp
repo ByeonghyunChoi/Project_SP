@@ -98,6 +98,7 @@ void FSPGameplayTags::AddAllTags(UGameplayTagsManager& Manager)
 	Cooldown_Weapon_Jormungandr_Parry = Manager.AddNativeGameplayTag(FName("Cooldown.Weapon.Jormungandr.Parry"), TEXT("쿨타임: 요르문간드 패링"));
 	Cooldown_Skill_TimeInterference = Manager.AddNativeGameplayTag(FName("Cooldown.Skill.TimeInterference"), TEXT("쿨타임: 시간 간섭"));
 	Cooldown_Witch_Summon = Manager.AddNativeGameplayTag(FName("Cooldown.Witch.Summon"), TEXT("쿨타임: 시간 간섭"));
+	Cooldown_ParryPenalty = Manager.AddNativeGameplayTag(FName("Cooldown.ParryPenalty"), TEXT("쿨타임: 패링"));
 
 	Debuff_Basic_Weathering = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Weathering"), TEXT("상태이상: 풍화"));
 	Debuff_Basic_Burn = Manager.AddNativeGameplayTag(FName("Debuff.Basic.Burn"), TEXT("상태이상: 화상"));
