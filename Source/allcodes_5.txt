@@ -1,72 +1,4 @@
-﻿	UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
-	switch (SkillTargetingType)
-	{
-	case ETargetingType::Single:
-	{
-		if (AActor* Target = GetSingleTarget())
-		{
-			ApplyDamageToTarget(Target, PrimaryMultiplier);
-		}
-		break;
-	}
-	case ETargetingType::Area:
-	{
-		AActor* CenterTarget = PayloadTarget ? PayloadTarget : GetSingleTarget();
-
-		if (CenterTarget)
-		{
-			ApplyDamageToTarget(CenterTarget, PrimaryMultiplier); 
-
-			TArray<AActor*> SecTargets = GetSecondaryTargets(CenterTarget);
-			for (AActor* SecTarget : SecTargets)
-			{
-				ApplyDamageToTarget(SecTarget, SecondaryMultiplier); 
-			}
-		}
-		break;
-	}
-	case ETargetingType::All:
-	{
-		TArray<AActor*> AllEnemies = GetAllEnemies();
-		for (AActor* Enemy : AllEnemies)
-		{
-			ApplyDamageToTarget(Enemy, PrimaryMultiplier);
-		}
-		break;
-	}
-	case ETargetingType::Random:
-	{
-		if (AActor* RandomTarget = GetRandomEnemy())
-		{
-			ApplyDamageToTarget(RandomTarget, PrimaryMultiplier);
-		}
-		break;
-	}
-	}
-}
-
-void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
-{
-	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
-	if (!GameMode) return;
-
-	AActor* Avatar = GetAvatarActorFromActorInfo();
-	if (!Avatar) return;
-
-	// TurnManager의 VIP 대기열에 나 자신을 ExtraTurns(2번) 만큼 넣습니다!!
-	for (int32 i = 0; i < ExtraTurns; ++i)
-	{
-		GameMode->GetTurnManager()->RequestInterruptTurn(Avatar);
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동! 현재 턴을 유지한 채 추가 턴 %d개를 예약합니다."), ExtraTurns);
-}
-
-void USPGA_BattleActionBase::ExecuteJadeClockInterference(TSubclassOf<class UGameplayEffect> JadeClockBuffClass)
-{
-	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
-	AActor* Avatar = GetAvatarActorFromActorInfo();
-	if (!GameMode || !Avatar) return;
+﻿	if (!GameMode || !Avatar) return;
 
 	// 1. 살아있는 모든 적을 가져와서 숫자를 셉니다.
 	TArray<AActor*> Enemies = GetAllEnemies();
@@ -510,6 +442,7 @@ void USPGA_MonsterAttackBase::OnDamageEventReceived(FGameplayEventData Payload)
 #include "Kismet/GameplayStatics.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Game/SPProjectileBase.h"
+#include "SubSystem/SPCombatSubsystem.h"
 
 
 bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
@@ -519,6 +452,28 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
 
 	if (!PlayerASC) return false;
+
+	if (USPCombatSubsystem* CombatSys = GetWorld()->GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		// 튜토리얼 중이고, 현재 각본이 6단계(패링)라면?
+		if (CombatSys->GetCurrentTutorialStage() != ETutorialStage::None && CombatSys->GetCurrentTutorialStep() == 6)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 각본] 튜토리얼 패링! 레이더와 상성 검사를 무시하고 강제 성공 처리합니다."));
+
+			// 혹시라도 열려있을지 모르는 몬스터의 패링 창을 깔끔하게 닫아줍니다.
+			if (TargetMonster)
+			{
+				if (UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent())
+				{
+					TargetASC->RemoveLooseGameplayTag(SPTags.State_ParryWindow);
+					TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
+				}
+			}
+
+			// 🚨 여기서 즉시 true를 반환하여 아래의 복잡한 물리/레이더 로직을 전부 건너뜁니다!
+			return true;
+		}
+	}
 
 	// 눈앞에 날아오는 투사체(Projectile)가 있는지 먼저 검사합니다.
 	if (MyAvatar)
@@ -1185,7 +1140,7 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr;
 
-	// 🌟 1. [가장 먼저 실행] 세이브하기 전에 유물들에게 "전투 끝났으니 버프 다 빼라!" 라고 방송합니다.
+	// 🌟 1. 세이브하기 전에 유물들에게 "전투 끝났으니 버프 다 빼라!" 라고 방송
 	if (PlayerPawn)
 	{
 		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
@@ -1199,51 +1154,68 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 		}
 	}
 
+	// 🌟 2. 튜토리얼 단계 판별
+	ETutorialStage TutStage = ETutorialStage::None;
+	if (USPCombatSubsystem* CombatSys = GI->GetSubsystem<USPCombatSubsystem>())
+	{
+		TutStage = CombatSys->GetCurrentTutorialStage();
+	}
+
+	UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
+
+	// ==========================================
+	// 🟢 [승리했을 때]
+	// ==========================================
 	if (bPlayerWon)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("🎉 전투 승리! 필드로 복귀합니다."));
 
-		if (PlayerPawn)
+		if (PlayerPawn && MapManager)
 		{
-			UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>();
-
-			if (PlayerPawn && MapManager)
+			// [분기 A: 튜토리얼 1차전 승리]
+			if (TutStage == ETutorialStage::Tutorial_Basic)
 			{
-				// 🌟 1. 맵 매니저의 통합 정산기에 장부, 스테이지, 맵 타입을 넘겨서 결과를 받아옵니다!
+				UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 1차전] 승리! 보상 없이 튜토리얼 필드 맵으로 복귀합니다."));
+				MapManager->ReturnToField(true);
+				return; // 🚨 여기서 함수 종료! (아래 보상 로직 안 탐)
+			}
+
+			// [분기 B: 일반 진짜 전투 승리]
+			if (TutStage == ETutorialStage::None)
+			{
+				// 1. 보상 계산
 				FRewardResult TotalReward = MapManager->CalculateCombatRewards(
 					DefeatedMonsterRanks,
 					MapManager->GetCurrentStage(),
 					MapManager->GetCurrentMapType()
 				);
 
-				// 🌟 2. 경험치 즉시 지급
+				// 2. 경험치 즉시 지급
 				if (ASPGASPlayerCharacter* SPPlayer = Cast<ASPGASPlayerCharacter>(PlayerPawn))
 				{
 					if (TotalReward.Exp > 0)
 					{
 						SPPlayer->AddExperience(TotalReward.Exp);
-						MapManager->PendingExpReward += TotalReward.Exp; // 경험치 기록
+						MapManager->PendingExpReward += TotalReward.Exp;
 					}
 				}
 
-				// 🌟 3. 재화 대기열(PendingToastRewards)에 안전하게 보관!
+				// 3. 재화 대기열(PendingToastRewards)에 보관
 				UInventoryComponent* Inv = PlayerPawn->FindComponentByClass<UInventoryComponent>();
 				if (Inv)
 				{
 					auto GiveReward = [&](EResourceType Type, int32 Amount) {
 						if (Amount > 0) {
-							// 인벤토리에 실시간 지급 (선택사항: 필드 복귀 시점에 지급해도 됨)
 							switch (Type) {
 							case EResourceType::Gold: Inv->AddMoney(Amount); break;
 							case EResourceType::Sand: Inv->AddSand(Amount); break;
 							case EResourceType::IncompleteEnergy: Inv->AddIncompleteEnergy(Amount); break;
 							case EResourceType::Fragment: Inv->AddFragment(Amount); break;
 							}
-							// 팝업을 위해 대기열 누적
 							int32& SavedAmount = MapManager->PendingToastRewards.FindOrAdd(Type);
 							SavedAmount += Amount;
 						}
-					};
+						};
 
 					GiveReward(EResourceType::Gold, TotalReward.Gold);
 					GiveReward(EResourceType::Sand, TotalReward.Sand);
@@ -1251,42 +1223,37 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 					GiveReward(EResourceType::Fragment, TotalReward.Fragment);
 				}
 
-				// ==========================================
-				// 🌟 5. 세이브 파일 덮어쓰기
-				// ==========================================
+				// 4. 세이브 파일 덮어쓰기
 				if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 				{
 					SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 					SaveSys->SaveRunToDisk();
-
-					// 런 데이터 뿐만 아니라 영구 데이터도 같이 저장
 					SaveSys->CachePermDataFromPlayer(PlayerPawn);
 					SaveSys->SavePermToDisk();
-					UE_LOG(LogTemp, Log, TEXT("[AutoSave] 전투 보상을 획득하고 게임을 저장했습니다."));
 				}
 			}
 
-			// ==========================================
-			// 🌟 6. 맵 매니저에게 필드 복귀 명령!
-			// ==========================================
-			if (MapManager)
-			{
-				MapManager->ReturnToField(true);
-			}
+			// 필드 복귀 명령
+			MapManager->ReturnToField(true);
 		}
-		else
+	}
+	// ==========================================
+	// 🔴 [패배했을 때] (일반 게임오버)
+	// ==========================================
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
+
+		// (참고: 튜토리얼 2차전 기획 패배는 아래 OnCharacterDied에서 가로채므로 여기 오지 않습니다!)
+
+		if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			UE_LOG(LogTemp, Error, TEXT("☠️ 전투 패배... 로비로 귀환합니다."));
+			SaveSys->ResetRunData();
+		}
 
-			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
-			{
-				SaveSys->ResetRunData();
-			}
-
-			if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
-			{
-				MapManager->GoToLobby();
-			}
+		if (MapManager)
+		{
+			MapManager->GoToLobby();
 		}
 	}
 }
@@ -1347,6 +1314,47 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 {
 	if (!DeadActor) return;
 
+	// ==========================================
+	// 🌟 1. 플레이어가 죽었을 때 (튜토리얼 2차전 패배 가로채기!)
+	// ==========================================
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (DeadActor == PlayerPawn)
+	{
+		UGameInstance* GI = GetGameInstance();
+		ETutorialStage TutStage = ETutorialStage::None;
+		if (USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr)
+		{
+			TutStage = CombatSys->GetCurrentTutorialStage();
+		}
+
+		// 튜토리얼 2차전(보스전)에서 죽었다면? -> 기획된 패배 연출 수행!
+		if (TutStage == ETutorialStage::Tutorial_Boss)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 2차전] 보스에게 패배했습니다. 로비로 이동하여 컷씬을 재생합니다!"));
+
+			if (USPSaveGameSubsystem* SaveSys = GI->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 앞으로 두 번 다시 튜토리얼을 겪지 않게 오프닝 완료 도장 쾅!
+				SaveSys->MarkIntroAsSeen();
+			}
+
+			if (UMapManagerSubsystem* MapManager = GI->GetSubsystem<UMapManagerSubsystem>())
+			{
+				MapManager->GoToLobby(); // 로비 맵으로 텔레포트
+			}
+			return; // 🚨 다른 사망 로직이나 게임오버 안 타고 여기서 강제 종료!
+		}
+		else
+		{
+			// 튜토리얼이 아닌 진짜 게임에서 플레이어가 죽었을 때
+			EndBattle(false);
+			return;
+		}
+	}
+
+	// ==========================================
+	// 🌟 2. 몬스터가 죽었을 때의 처리 (기존 로직 동일)
+	// ==========================================
 	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(DeadActor))
 	{
 		if (!Monster->bIsSummonedMinion)
@@ -1357,14 +1365,12 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 		}
 		else
 		{
-			// 소환수라면 장부에 적지 않고 로그만 남깁니다.
 			UE_LOG(LogTemp, Warning, TEXT("[전투 정산] 소환된 몬스터(%s) 처치. 보상 장부에서 제외됩니다."), *Monster->GetName());
 		}
 	}
 
 	bool bIsActionExecuting = false;
 
-	// 현재 턴 주인이 액션(스킬)을 진행 중인지 확인
 	if (CurrentTurnActor && CurrentTurnActor != DeadActor)
 	{
 		UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
@@ -1376,7 +1382,6 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 
 	if (bIsActionExecuting)
 	{
-		// 🟢 [플레이어 스킬 공격 중]
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 사망 연출 대기 (현재 액션 진행 중! 오버킬 허용)"), *DeadActor->GetName());
 	}
 	else
@@ -1397,7 +1402,6 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 		}
 		else if (DeadActor == CurrentTurnActor)
 		{
-			// 🌟 [수정된 핵심 파트] 상태이상 연출이 진행 중이라면 턴 종료를 잠시 보류(대기)합니다!
 			UAbilitySystemComponent* CurrentASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(CurrentTurnActor);
 			if (CurrentASC && CurrentASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
 			{
@@ -1405,7 +1409,6 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 			}
 			else
 			{
-				// 연출 중이 아니면 원래대로 즉시 턴 강제 스킵!
 				EndTurn(CurrentTurnActor);
 			}
 		}
@@ -1733,3 +1736,36 @@ ASPBattleDirector::ASPBattleDirector()
 {
 
 }
+
+void ASPBattleDirector::InitDirector(ASPBattleCameraActor* InCameraManager)
+{
+	if (InCameraManager)
+	{
+		CameraManager = InCameraManager;
+		UE_LOG(LogTemp, Log, TEXT("[BattleDirector] 감독 초기화 완료! 카메라 매니저 연동 성공."));
+	}
+}
+
+void ASPBattleDirector::RegisterMonster(AActor* MonsterActor)
+{
+	if (!MonsterActor) return;
+
+	// 몬스터의 상태이상 컴포넌트를 찾아서 내 안테나(HandleStatusVisual)를 꽂습니다.
+	if (USPStatusEffectComponent* StatusComp = MonsterActor->FindComponentByClass<USPStatusEffectComponent>())
+	{
+		// 안전장치: 혹시나 중복 바인딩 되는 것을 막기 위해 한 번 지우고 다시 연결합니다.
+		StatusComp->OnStatusVisualTriggered.RemoveDynamic(this, &ASPBattleDirector::HandleStatusVisual);
+		StatusComp->OnStatusVisualTriggered.AddDynamic(this, &ASPBattleDirector::HandleStatusVisual);
+	}
+}
+
+void ASPBattleDirector::FinishStatusSequence()
+{
+	bIsPlayingVisual = false;
+
+	bool bNextIsSameActor = (VisualQueue.Num() > 0 && VisualQueue[0].TargetActor == CurrentPlayingActor);
+
+	if (bNextIsSameActor)
+	{
+		TryPlayNextVisual();
+	}

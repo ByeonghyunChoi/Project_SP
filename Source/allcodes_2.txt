@@ -1,42 +1,4 @@
-﻿		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("   -> Failed: Value(Class) is None for Tag: %s"), *Pair.Key.ToString());
-		}
-	}
-
-	// 전투 입력 GA 확인
-	UE_LOG(LogTemp, Log, TEXT("BattleInputAbilities Count: %d"), BattleInputAbilities.Num());
-	for (const auto& Pair : BattleInputAbilities)
-	{
-		if (Pair.Value)
-		{
-			FGameplayAbilitySpec Spec(Pair.Value);
-			ASC->GiveAbility(Spec);
-			UE_LOG(LogTemp, Log, TEXT("   -> Given Battle Ability: %s"), *Pair.Value->GetName());
-		}
-	}
-
-	// 필드 패시브 GA 확인
-	UE_LOG(LogTemp, Log, TEXT("FieldPassiveAbilities Count: %d"), FieldPassiveAbilities.Num());
-	FGameplayTag FieldTag = FSPGameplayTags::Get().Ability_Type_Field; // 이름 수정 확인 필요 (Ability_Type_Auto_Field 인지 확인)
-	for (const auto& AbilityClass : FieldPassiveAbilities)
-	{
-		if (AbilityClass)
-		{
-			FGameplayAbilitySpec Spec(AbilityClass);
-			ASC->GiveAbility(Spec);
-			UE_LOG(LogTemp, Log, TEXT("   -> Given Field Passive: %s"), *AbilityClass->GetName());
-		}
-	}
-
-	// 전투 패시브 GA 확인
-	UE_LOG(LogTemp, Log, TEXT("BattlePassiveAbilities Count: %d"), BattlePassiveAbilities.Num());
-	FGameplayTag BattleTag = FSPGameplayTags::Get().Ability_Type_Battle;
-	for (const auto& AbilityClass : BattlePassiveAbilities)
-	{
-		if (AbilityClass)
-		{
+﻿		{
 			FGameplayAbilitySpec Spec(AbilityClass);
 			ASC->GiveAbility(Spec);
 			UE_LOG(LogTemp, Log, TEXT("   -> Given Battle Passive: %s"), *AbilityClass->GetName());
@@ -300,17 +262,17 @@ void ASPGASPlayerCharacter::ExecuteClownChoice(EClownChoiceType Choice, const TA
 		}
 		case EClownChoiceType::ReduceATK_Relic2:
 		{
-			// 공격력 20% 감소
+			// 공격력 5% 감소
 			float CurrentATK = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
-			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), CurrentATK * 0.8f);
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute(), CurrentATK * 0.95f);
 			RelicsToGive = 2;
 			break;
 		}
 		case EClownChoiceType::ReduceDEF_Relic2:
 		{
-			// 방어력 20% 감소
+			// 방어력 10% 감소
 			float CurrentDEF = AbilityComp->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
-			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), CurrentDEF * 0.8f);
+			AbilityComp->SetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute(), CurrentDEF * 0.9f);
 			RelicsToGive = 2;
 			break;
 		}
@@ -1733,3 +1695,77 @@ void ASPGASPlayerController::OnBattleTagChanged(const FGameplayTag Tag, int32 Ne
 	// 1. 캐릭터 & 서브시스템 가져오기
 	ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(GetPawn());
 	auto* Subsystem = GetLocalPlayer()->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	
+	if (!PlayerChar || !Subsystem) return;
+
+	// 2. NewCount가 0보다 크면 전투 모드
+	if (NewCount > 0)
+	{
+		// [전투 진입]
+		Subsystem->RemoveMappingContext(FieldMappingContext);
+		Subsystem->AddMappingContext(BattleMappingContext, 0);
+		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
+		
+		PlayerChar->SwitchCameraMode(true);
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
+	}
+	else
+	{
+		// [전투 종료/필드]
+		Subsystem->RemoveMappingContext(BattleMappingContext);
+		Subsystem->AddMappingContext(FieldMappingContext, 0);
+		CancelTargetSelection();
+
+		PlayerChar->SwitchCameraMode(false);
+
+		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
+	}
+}
+// ==========================================
+// FILE: SPGASPlayerState.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Character/SPGASPlayerState.h"
+#include "AbilitySystemComponent.h"
+#include "AttributeSet/SPGASAttributeSet.h"
+
+ASPGASPlayerState::ASPGASPlayerState()
+{
+	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("GAS"));
+	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
+}
+
+UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
+{
+	return ASC;
+}
+
+// ==========================================
+// FILE: InventoryComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "Component/InventoryComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
+#include "SubSystem/SPPowerUpgradeSubsystem.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+
+UInventoryComponent::UInventoryComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UInventoryComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+
+	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{

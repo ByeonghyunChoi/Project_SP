@@ -1,4 +1,12 @@
-﻿	TSubclassOf<class UGameplayEffect> StatModifierClass;
+﻿	FName EffectName;
+
+	// ������ GE Ŭ����(�� �� ������) 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TSubclassOf<UGameplayEffect> EffectClass;
+
+	// ������ ���� GE Ŭ����(���ȸ� ���� ���� GE)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")
+	TSubclassOf<class UGameplayEffect> StatModifierClass;
 
 	// ���� �� �� (��� �ߵ����� 0)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -141,13 +149,21 @@ public:
  * 
  */
 
+UENUM(BlueprintType)
+enum class ETutorialStage : uint8
+{
+	None			UMETA(DisplayName = "일반 전투"),
+	Tutorial_Basic	UMETA(DisplayName = "1차전 (시스템 설명)"),
+	Tutorial_Boss	UMETA(DisplayName = "2차전 (강제 패배 보스전)")
+};
+
 USTRUCT(BlueprintType)
 struct FEnemySpawnInfo
 {
 	GENERATED_BODY()
 
 public:
-	// ������ �� ������
+	// 스폰할 적 데이터
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	class USPMonsterData* MonsterData = nullptr;
 
@@ -160,7 +176,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn|Override", meta = (EditCondition = "bOverrideWeakness"))
 	FGameplayTagContainer OverriddenWeaknessTags;
 
-	// ���� ��ġ �ε��� 1=�߾�, 0=����, 2=����
+	// 스폰 위치 인덱스 1=중앙, 0=좌측, 2=우측
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Spawn")
 	int32 SpawnPositionIndex = 0;
 
@@ -174,14 +190,20 @@ class PROJECT_SP_API UCombatEncounterData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	// �� ������ ������ ������ ���
+	// 이 전투에 등장할 적들의 목록
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
 	TArray<FEnemySpawnInfo> EnemyGroup;
 
-	// ������ ������ ������ �̸�
+	// 전투가 벌어질 레벨의 이름
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter")
 	FName CombatLevelName;
 	
+	// 튜토리얼 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter|Tutorial")
+	bool bIsTutorial = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter|Tutorial", meta = (EditCondition = "bIsTutorial"))
+	ETutorialStage TutorialStage = ETutorialStage::None;
 };
 // ==========================================
 // FILE: RewardDataStructs.h
@@ -673,6 +695,9 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
     bool bHasSeenIntro = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save | Flow")
+    bool bHasSeenIntro2 = false;
+
     void Reset()
     {
         // 지갑 0원으로 초기화
@@ -683,6 +708,7 @@ struct FPlayerMetaProgressionData //영구 데이터
         PowerUpgradeData = FPlayerPowerUpgradeData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
+        bHasSeenIntro2 = false;
     }
 };
 
@@ -708,7 +734,7 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return bIsRunStarted ||  Stats.CurrentHealth >= 0.0f; }
+    bool IsValid() const { return  Stats.CurrentHealth >= 0.0f; }
 
     // 초기화
     void Reset()
@@ -735,9 +761,9 @@ enum class EClownChoiceType : uint8
 {
     None			UMETA(DisplayName = "선택 안 함"),
     ReduceTP_Relic1		UMETA(DisplayName = "1. TP 20 감소 / 유물 1개 획득"),
-    ReduceHP_Relic1		UMETA(DisplayName = "2. HP 50% 감소 / 유물 1개 획득"),
-    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 20% 감소 / 유물 2개 획득"),
-    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 20% 감소 / 유물 2개 획득")
+    ReduceHP_Relic1		UMETA(DisplayName = "2. 현재 HP 50% 감소 / 유물 1개 획득"),
+    ReduceATK_Relic2	UMETA(DisplayName = "3. 공격력 5% 감소 / 유물 2개 획득"),
+    ReduceDEF_Relic2	UMETA(DisplayName = "4. 방어력 10% 감소 / 유물 2개 획득")
 };
 
 USTRUCT(BlueprintType)
@@ -1733,3 +1759,13 @@ private:
 	void InitializeBattle(const TArray<AActor*>& Enemies, APawn* Player);
 
 	void FinalizeBattleSetup();
+
+	void CheckAndStartBattle();
+
+	void ApplyPlayerSavedData();
+
+};
+// ==========================================
+// FILE: SPBattleCameraActor.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
