@@ -138,7 +138,7 @@ protected:
 
 	// 라운드 오버 시 지불해야 할 시간의 힘(TP)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
-	float PenaltyTPCost = 30.0f;
+	float PenaltyTPCost = 10.0f;
 
 	// 처치한 몬스터 보상 정보를 모아두는 장부
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
