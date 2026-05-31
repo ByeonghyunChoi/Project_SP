@@ -26,12 +26,9 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 
 	if (USPCombatSubsystem* CombatSys = GetWorld()->GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
 	{
-		// 튜토리얼 중이고, 현재 각본이 6단계(패링)라면?
 		if (CombatSys->GetCurrentTutorialStage() != ETutorialStage::None && CombatSys->GetCurrentTutorialStep() == 6)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 각본] 튜토리얼 패링! 레이더와 상성 검사를 무시하고 강제 성공 처리합니다."));
-
-			// 혹시라도 열려있을지 모르는 몬스터의 패링 창을 깔끔하게 닫아줍니다.
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 각본] 튜토리얼 패링! 강제 성공 처리."));
 			if (TargetMonster)
 			{
 				if (UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent())
@@ -40,23 +37,20 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 					TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
 				}
 			}
-
-			// 🚨 여기서 즉시 true를 반환하여 아래의 복잡한 물리/레이더 로직을 전부 건너뜁니다!
 			return true;
 		}
 	}
 
-	// 눈앞에 날아오는 투사체(Projectile)가 있는지 먼저 검사합니다.
+	// 1. 투사체(Projectile) 레이더 검사
 	if (MyAvatar)
 	{
 		FVector StartLoc = MyAvatar->GetActorLocation();
-		FVector EndLoc = StartLoc + (MyAvatar->GetActorForwardVector() * 100.0f); // 패링 사거리
+		FVector EndLoc = StartLoc + (MyAvatar->GetActorForwardVector() * 100.0f);
 
 		FHitResult HitResult;
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(MyAvatar);
 
-		// 플레이어 정면으로 구체 트레이스 발사 (반지름 80으로 넉넉하게 스캔)
 		bool bHit = GetWorld()->SweepSingleByChannel(
 			HitResult, StartLoc, EndLoc, FQuat::Identity,
 			ECC_GameTraceChannel3, FCollisionShape::MakeSphere(80.0f), Params
@@ -65,79 +59,71 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 		if (bHit)
 		{
 			AActor* HitActor = HitResult.GetActor();
-			UE_LOG(LogTemp, Warning, TEXT("[패링 레이더] 무언가 레이더에 걸렸습니다: %s"), HitActor ? *HitActor->GetName() : TEXT("NULL"));
-			// 맞은 액터가 투사체 클래스(ASPProjectileBase)인지 확인!
-			if (ASPProjectileBase* Projectile = Cast<ASPProjectileBase>(HitResult.GetActor()))
+			if (ASPProjectileBase* Projectile = Cast<ASPProjectileBase>(HitActor))
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[패링 레이더] 잡힌 물체가 투사체입니다! (투사체 태그: %s)"), *Projectile->ElementTag.ToString());
-
-				if (!Projectile->bIsParried) // 이미 튕겨낸 투사체가 아니라면
+				if (!Projectile->bIsParried)
 				{
 					bool bIsProjMatch = false;
 					FGameplayTag ProjElement = Projectile->ElementTag;
 
-					// 투사체 속성과 내 무기 태그 매칭 검사
 					if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) && ProjElement == SPTags.Weakness_Fenrir) bIsProjMatch = true;
 					else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) && ProjElement == SPTags.Weakness_Surtr) bIsProjMatch = true;
 					else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) && ProjElement == SPTags.Weakness_Jormungandr) bIsProjMatch = true;
 
 					if (bIsProjMatch)
 					{
-						// [투사체 패링 성공!]
 						Projectile->bIsParried = true;
-						Projectile->Destroy(); // 투사체를 즉시 화면에서 파괴합니다.
-
+						Projectile->Destroy();
 						UE_LOG(LogTemp, Warning, TEXT("[패링 성공] 투사체를 튕겨냈습니다!"));
-
-						// true를 반환하면, 기존 블루프린트 로직이 알아서 TargetMonster(마녀)에게 
-						// SendParriedEventToMonster를 호출하여 경직/스택 무전을 쏘게 됩니다!
 						return true;
 					}
 					else
 					{
-						// 태그가 달라서 실패했음을 알림
-						UE_LOG(LogTemp, Error, TEXT("[패링 실패] 투사체는 맞췄으나, 내 무기 태그와 투사체 태그가 다릅니다!"));
+						UE_LOG(LogTemp, Error, TEXT("[패링 실패]"));
+						ApplyParryPenalty();
+						return false;
 					}
 				}
 			}
-			else
-            {
-                // 투사체가 아닌 다른 것(내 무기 등)을 때렸음을 알림
-                UE_LOG(LogTemp, Error, TEXT("[패링 실패] 투사체가 아니라 이상한 물체(%s)가 레이더를 가로막고 있습니다!"), HitActor ? *HitActor->GetName() : TEXT("NULL"));
-            }
 		}
 	}
 
-	// 투사체가 없다면, 근접 공격(몬스터 몸통) 패링을 검사합니다.
-	if (!TargetMonster) return false;
-
-	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
-	if (!TargetASC) return false;
-
-	// 패링 창이 열려있는지 검사 
-	if (!TargetASC->HasMatchingGameplayTag(SPTags.State_ParryWindow))
+	// 2. 근접 공격 패링 검사
+	if (!TargetMonster)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태(창문)가 아닙니다."));
+		ApplyParryPenalty();
 		return false;
 	}
 
-	// 무기와 약점 상성 확인 
+	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
+	if (!TargetASC)
+	{
+		ApplyParryPenalty(); // 🚨 페널티!
+		return false;
+	}
+
+	if (!TargetASC->HasMatchingGameplayTag(SPTags.State_ParryWindow))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태가 아닙니다."));
+		ApplyParryPenalty(); // 🚨 타이밍 못 맞춤 페널티!
+		return false;
+	}
+
 	bool bIsMatch = false;
 	if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Fenrir) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Fenrir)) bIsMatch = true;
 	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Surtr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Surtr)) bIsMatch = true;
 	else if (PlayerASC->HasMatchingGameplayTag(SPTags.Weapon_Jormungandr) && TargetASC->HasMatchingGameplayTag(SPTags.Weakness_Jormungandr)) bIsMatch = true;
 
-	// 상성이 맞다면, 그 즉시 몬스터의 패링 창을 닫아버립니다!
 	if (bIsMatch)
 	{
 		TargetASC->RemoveLooseGameplayTag(SPTags.State_ParryWindow);
 		TargetASC->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(SPTags.State_ParryWindow));
-
 		UE_LOG(LogTemp, Warning, TEXT("근접 패링 성공!"));
 		return true;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("패링 실패: 무기와 몬스터의 약점이 일치하지 않습니다."));
+	UE_LOG(LogTemp, Warning, TEXT("패링 실패: 무기와 몬스터의 약점이 불일치합니다."));
+	ApplyParryPenalty(); // 🚨 약점 못 맞춤 페널티!
 	return false;
 }
 
@@ -215,5 +201,22 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 	if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetMonster))
 	{
 		TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
+	}
+}
+
+void USPGA_Parry::ApplyParryPenalty()
+{
+	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
+	if (PlayerASC && ParryPenaltyGE)
+	{
+		FGameplayEffectContextHandle Context = PlayerASC->MakeEffectContext();
+		Context.AddSourceObject(GetAvatarActorFromActorInfo());
+
+		FGameplayEffectSpecHandle SpecHandle = PlayerASC->MakeOutgoingSpec(ParryPenaltyGE, 1.0f, Context);
+		if (SpecHandle.IsValid())
+		{
+			PlayerASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+			UE_LOG(LogTemp, Error, TEXT("[패링] 헛손질 페널티! 0.5초간 패링이 금지됩니다."));
+		}
 	}
 }

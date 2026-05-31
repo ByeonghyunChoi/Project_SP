@@ -17,74 +17,53 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 {
 	if (!PlayerPawn) return;
 
-	// 1. 스탯 저장
-	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
-	{
-		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
-		{
-			bool bFound = false;
-			RunData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
-			RunData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
-			RunData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
-			RunData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
-
-			RunData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
-			RunData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
-			RunData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
-
-			RunData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
-			RunData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
-			RunData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
-
-			RunData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
-			RunData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
-			RunData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
-			RunData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
-			RunData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
-
-			RunData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
-			RunData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
-			RunData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
-			RunData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
-			RunData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
-		}
-	}
-
-	// 2. 런 지갑 (골드, 파편) 저장
+	// 런 지갑 (골드, 파편) 저장
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		RunData.RunWallet.Money = InventoryComp->GetMoney();
+		RunData.RunWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
 
-	// 3. 유물 저장
+	// 유물 저장
 	if (URelicComponent* RelicComp = PlayerPawn->FindComponentByClass<URelicComponent>())
 	{
 		RunData.RelicData.EquippedRelics = RelicComp->EquippedRelics;
 		RunData.RelicData.AcquiredHistory = RelicComp->AcquiredHistory;
 	}
 
-	// 4. 맵 진행도 저장
+	// 맵 진행도 저장
 	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
 	{
-		// 맵 매니저가 들고 있는 진행 정보 캐싱
 		RunData.MapProgress.CurrentStage = MapManager->GetCurrentStage();
 		RunData.MapProgress.CurrentFloor = MapManager->GetCurrentFloor();
 		RunData.MapProgress.CurrentMapType = MapManager->GetCurrentMapType();
 		RunData.MapProgress.CurrentRoomState = MapManager->GetCurrentRoomState();
 		RunData.MapProgress.SavedPortalOptions = MapManager->GetCurrentPortalOptions();
-
-		// 로비 맵인지 확인 정보 캐싱
 		RunData.MapProgress.bIsSavedInLobby = MapManager->GetIsInLobby();
-		// 플레이어의 현재 실제 위치 캐싱
-		RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
-
 		RunData.MapProgress.PreGeneratedEncounters = MapManager->GetPreGeneratedEncounters();
+
+		// 🌟 튜토리얼 클리어 여부 캐싱
+		RunData.MapProgress.bIsTutorialBasicCleared = MapManager->bIsTutorialBasicCleared;
+
+		// ====================================================================
+		// 🌟 [핵심 보호 로직] 현재 전투 중이라면, 전투 맵 좌표가 아닌 필드 좌표를 저장합니다!
+		// ====================================================================
+		if (MapManager->IsInBattleMap())
+		{
+			RunData.MapProgress.SavedPlayerTransform = MapManager->GetSavedFieldTransform();
+			RunData.MapProgress.SavedFieldLevelName = MapManager->GetSavedFieldLevelName();
+		}
+		else
+		{
+			RunData.MapProgress.SavedPlayerTransform = PlayerPawn->GetActorTransform();
+			RunData.MapProgress.SavedFieldLevelName = FName(*UGameplayStatics::GetCurrentLevelName(GetWorld(), true));
+		}
 	}
 }
 
 void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
 {
-	if (!PlayerPawn || !RunData.IsValid()) return;
+	if (!PlayerPawn) return;
 
 	// 스탯 복구
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
@@ -92,7 +71,7 @@ void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
 			// 경험치 복구
-			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), RunData.Stats.Experience);
+			ASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), PermData.Stats.Experience);
 
 			// 맵 매니저를 통해 로비인지 확인
 			UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>();
@@ -108,17 +87,17 @@ void USPSaveGameSubsystem::RestoreRunDataToPlayer(APawn* PlayerPawn)
 				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), 0.0f);
 
 				// 런타임 데이터에 덮어쓰기
-				RunData.Stats.CurrentHealth = FinalMaxHP;
-				RunData.Stats.CurrentTimePower = FinalMaxTP;
-				RunData.Stats.CurrentActionGauge = 0.0f;
+				PermData.Stats.CurrentHealth = FinalMaxHP;
+				PermData.Stats.CurrentTimePower = FinalMaxTP;
+				PermData.Stats.CurrentActionGauge = 0.0f;
 			}
 			else
 			{
 				// [던전/전투일 때] 세이브 파일에 기록된 현재 상태를 그대로 불러옵니다.
-				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), RunData.Stats.CurrentHealth);
-				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), RunData.Stats.CurrentBattlePoint);
-				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), RunData.Stats.CurrentTimePower);
-				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), RunData.Stats.CurrentActionGauge);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetHealthAttribute(), PermData.Stats.CurrentHealth);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute(), PermData.Stats.CurrentBattlePoint);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetTimePowerAttribute(), PermData.Stats.CurrentTimePower);
+				ASC->SetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute(), PermData.Stats.CurrentActionGauge);
 			}
 		}
 	}
@@ -152,12 +131,44 @@ void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
 {
 	if (!PlayerPawn) return;
 
+	// 1. 스탯 저장
+	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(PlayerPawn))
+	{
+		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+		{
+			bool bFound = false;
+			PermData.Stats.CurrentHealth = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetHealthAttribute(), bFound);
+			PermData.Stats.CurrentBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetBattlePointAttribute());
+			PermData.Stats.CurrentTimePower = ASC->GetGameplayAttributeValue(USPGASAttributeSet::GetTimePowerAttribute(), bFound);
+			PermData.Stats.CurrentActionGauge = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetActionGaugeAttribute());
+
+			PermData.Stats.MaxHealth = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxHealthAttribute());
+			PermData.Stats.MaxBattlePoint = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxBattlePointAttribute());
+			PermData.Stats.MaxTimePower = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxTimePowerAttribute());
+
+			PermData.Stats.Attack = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetAttackAttribute());
+			PermData.Stats.Defense = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseAttribute());
+			PermData.Stats.Speed = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetSpeedAttribute());
+
+			PermData.Stats.DefenseIgnore = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetDefenseIgnoreAttribute());
+			PermData.Stats.CriticalRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalRateAttribute());
+			PermData.Stats.CriticalDamage = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetCriticalDamageAttribute());
+			PermData.Stats.EffectHitRate = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectHitRateAttribute());
+			PermData.Stats.EffectAmplify = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetEffectAmplifyAttribute());
+
+			PermData.Stats.OutgoingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetOutgoingDamageMultiplierAttribute());
+			PermData.Stats.IncomingDamageMultiplier = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetIncomingDamageMultiplierAttribute());
+			PermData.Stats.Level = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetLevelAttribute());
+			PermData.Stats.Experience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute());
+			PermData.Stats.MaxExperience = ASC->GetNumericAttributeBase(USPGASAttributeSet::GetMaxExperienceAttribute());
+		}
+	}
+
 	// 1. 영구 지갑 저장
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		PermData.PermanentWallet.Fragment = InventoryComp->GetFragment();
 		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
-		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
 
 	// 2. 오파츠 저장
@@ -166,7 +177,6 @@ void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
 		PermData.OpartsData.EquippedOparts = OpartsComp->GetCurrentOpartsData().Definition;
 		PermData.OpartsData.ProgressMap = OpartsComp->OpartsProgressMap;
 	}
-
 	UE_LOG(LogTemp, Log, TEXT("[SaveSystem] 영구 데이터 캐싱 완료!"));
 }
 
@@ -231,7 +241,7 @@ void USPSaveGameSubsystem::SaveRunToDisk()
 	if (SaveInst)
 	{
 		SaveInst->RunData = RunData; // 서브시스템 메모리 데이터를 껍데기에 복사
-		UGameplayStatics::SaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
+		UGameplayStatics::AsyncSaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
 		UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 저장 완료! [%s]"), *RunSlotName);
 	}
 }
@@ -313,7 +323,7 @@ void USPSaveGameSubsystem::SavePermToDisk()
 	if (SaveInst)
 	{
 		SaveInst->PermData = PermData;
-		UGameplayStatics::SaveGameToSlot(SaveInst, PermSlotName, 0);
+		UGameplayStatics::AsyncSaveGameToSlot(SaveInst, PermSlotName, 0);
 		UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 저장 완료! [%s]"), *PermSlotName);
 	}
 }

@@ -41,9 +41,13 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	// 새 게임 시작 
+	// 로그라이크 시작 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartNewRun();
+
+	// 새 게임 시작
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void StartNewCampaign();
 
 	// 전투 맵 진입 (필드 -> 전투)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
@@ -88,6 +92,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Reward")
 	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
 
+	void Cheat_JumpToBossRoom();
+
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -108,6 +114,10 @@ public:
 	int32 GetMaxFloors() const { return 5; }
 
 	TMap<int32, FSavedEncounterData> GetPreGeneratedEncounters() const { return PreGeneratedEncounters; }
+
+	FTransform GetSavedFieldTransform() const { return SavedFieldTransform; }
+
+	FName GetSavedFieldLevelName() const { return SavedFieldLevelName; }
 
 	// 레벨 계산기
 	UFUNCTION(BlueprintPure, Category = "MapProgress")

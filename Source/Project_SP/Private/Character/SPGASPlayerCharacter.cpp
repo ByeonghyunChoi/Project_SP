@@ -19,6 +19,8 @@
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Component/RelicComponent.h"
 #include "SubSystem/SPPowerUpgradeSubsystem.h"
+#include "Game/ASPCombatGameMode.h"
+#include "Manager/SPCombatTurnManager.h"
 
 
 
@@ -101,8 +103,8 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			// 세이브된 런 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
-			TargetLevel = FMath::RoundToInt(SaveSys->GetRunData().Stats.Level);
+			// 세이브된 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
+			TargetLevel = FMath::RoundToInt(SaveSys->GetPermData().Stats.Level);
 		}
 
 		// 커브 테이블을 읽어와서 뼈대 스탯 세팅
@@ -476,6 +478,7 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 		}
 
 		PC->SetupAndShowBattleUI();
+		PC->OnWeaponChanged.Broadcast(FSPGameplayTags::Get().Weapon_Fenrir);
 	}
 }
 
@@ -735,6 +738,33 @@ void ASPGASPlayerCharacter::ExecuteTimeOverSequence()
 	{
 		MoveComp->DisableMovement();
 		MoveComp->StopMovementImmediately();
+	}
+
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
+		ASC->CancelAllAbilities();
+	}
+
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		// A. 모든 적들의 진행 중인 행동(스킬/이동)을 강제로 취소시킴
+		for (AActor* Enemy : GM->GetCurrentEnemies())
+		{
+			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Enemy))
+			{
+				if (UAbilitySystemComponent* EnemyASC = ASI->GetAbilitySystemComponent())
+				{
+					EnemyASC->CancelAllAbilities();
+				}
+			}
+		}
+
+		// B. 턴 매니저 자체를 파괴! (더 이상 누구에게도 턴이 돌아가지 않습니다)
+		if (GM->GetTurnManager())
+		{
+			GM->GetTurnManager()->Destroy();
+		}
 	}
 
 	// 3. 부모 클래스에 만들어둔 DeathMontage 재생!

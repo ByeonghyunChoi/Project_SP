@@ -74,6 +74,9 @@ struct FPlayerRunWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Money = 0; // 골드
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+    int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)
@@ -83,9 +86,6 @@ struct FPlayerPermanentWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Sand = 0; // 모래
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 0; // 불완전한 기운
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Fragment = 0; // 파편
@@ -147,6 +147,13 @@ struct FPlayerMapProgressData
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EMapType CurrentMapType = EMapType::NormalBattle;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName SavedFieldLevelName;
+
+    // 튜토리얼 1차전 클리어 여부 세이브
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsTutorialBasicCleared = false;
 
     // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -257,6 +264,10 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
 
+    // 스탯 데이터 포함 (계층 구조)
+    UPROPERTY()
+    FPlayerStatsData Stats; // 스탯
+
 	// 권능 수복
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerPowerUpgradeData PowerUpgradeData;
@@ -278,6 +289,8 @@ struct FPlayerMetaProgressionData //영구 데이터
         OpartsData = FPlayerOpartsData();
 		// 권능 수복 데이터 초기화
         PowerUpgradeData = FPlayerPowerUpgradeData();
+        // 스텟 초기화
+        Stats = FPlayerStatsData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
         bHasSeenIntro2 = false;
@@ -296,22 +309,15 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY()
     FPlayerRunWallet RunWallet; // 일시적 재화
 
-    // 스탯 데이터 포함 (계층 구조)
-    UPROPERTY()
-    FPlayerStatsData Stats; // 스탯
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerRelicData RelicData; // 유물
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return  Stats.CurrentHealth >= 0.0f; }
-
     // 초기화
     void Reset()
     {
-        Stats = FPlayerStatsData();
         RunWallet = FPlayerRunWallet();
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();

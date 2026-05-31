@@ -101,9 +101,9 @@ bool UInventoryComponent::ConsumeSand(int32 Amount)
 void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 {
 	if (Amount <= 0) return;
-	PermanentWallet.IncompleteEnergy += Amount;
+	RunWallet.IncompleteEnergy += Amount;
 
-	UE_LOG(LogTemp, Log, TEXT("기운 획득: +%d (현재: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+	UE_LOG(LogTemp, Log, TEXT("기운 획득: +%d (현재: %d)"), Amount, RunWallet.IncompleteEnergy);
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 
 	SyncWalletToSaveSystem();
@@ -112,14 +112,14 @@ void UInventoryComponent::AddIncompleteEnergy(int32 Amount)
 bool UInventoryComponent::ConsumeIncompleteEnergy(int32 Amount)
 {
 	if (Amount <= 0) return false;
-	if (PermanentWallet.IncompleteEnergy < Amount)
+	if (RunWallet.IncompleteEnergy < Amount)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("기운 부족! 필요: %d, 보유: %d"), Amount, PermanentWallet.IncompleteEnergy);
+		UE_LOG(LogTemp, Warning, TEXT("기운 부족! 필요: %d, 보유: %d"), Amount, RunWallet.IncompleteEnergy);
 		return false;
 	}
 
-	PermanentWallet.IncompleteEnergy -= Amount;
-	UE_LOG(LogTemp, Log, TEXT("기운 소모: -%d (남은 양: %d)"), Amount, PermanentWallet.IncompleteEnergy);
+	RunWallet.IncompleteEnergy -= Amount;
+	UE_LOG(LogTemp, Log, TEXT("기운 소모: -%d (남은 양: %d)"), Amount, RunWallet.IncompleteEnergy);
 
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 
