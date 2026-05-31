@@ -13,25 +13,6 @@ UInventoryComponent::UInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UInventoryComponent::GiveCheatCurrencies()
-{
-	// 1. 치트 재화 빵빵하게 추가 (원하시는 만큼 수치를 수정하세요!)
-	PermanentWallet.Sand += 9999;
-	PermanentWallet.IncompleteEnergy += 99;
-	PermanentWallet.Fragment += 999;
-	RunWallet.Money += 9999;
-
-	// 2. 바뀐 장부를 세이브 서브시스템 메모리에 즉시 동기화
-	SyncWalletToSaveSystem();
-
-	// 3. UI(위젯)에 돈 바뀌었다고 방송 날리기
-	if (OnInventoryUpdated.IsBound())
-	{
-		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 삐빅- 치트키 발동! 테스트 재화가 성공적으로 지급되었습니다."));
-}
 
 void UInventoryComponent::BeginPlay()
 {

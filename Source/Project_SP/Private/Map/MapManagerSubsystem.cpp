@@ -660,7 +660,7 @@ FRewardResult UMapManagerSubsystem::GenerateInteractableReward(bool bIsHealingOb
 
 void UMapManagerSubsystem::Cheat_JumpToBossRoom()
 {
-	UE_LOG(LogTemp, Error, TEXT("🔥 [치트 발동] 2스테이지 5층 보스방으로 강제 이동합니다!!!"));
+	UE_LOG(LogTemp, Error, TEXT("2스테이지 5층 보스방으로 강제 이동합니다!!!"));
 
 	CurrentStage = 2;
 	CurrentFloor = 5;
