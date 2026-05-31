@@ -144,6 +144,11 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
+	ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController());
+	if (PC)
+	{
+		PC->ConsoleCommand(TEXT("showdebug abilitysystem"));
+	}
 }
 
 

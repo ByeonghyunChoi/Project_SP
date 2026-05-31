@@ -900,7 +900,7 @@ void ASPGASPlayerController::Cheat_AddAllResources()
 		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(PlayerPawn))
 		{
 			// 20레벨 데이터 테이블(커브)을 읽어서 공/방/체 스탯을 갱신하고, 체력을 100% 채움(true)!
-			PlayerChar->ApplyLevelStats(20, true);
+			PlayerChar->ApplyLevelStats(10, true);
 
 			// 깔끔한 UI를 위해 현재 경험치 바를 0으로 리셋해줍니다.
 			if (CachedASC)
