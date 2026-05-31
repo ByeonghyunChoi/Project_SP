@@ -133,7 +133,7 @@ void USPDialogSubsystem::EndDialog()
 	{
 		FInputModeGameAndUI GameMode;
 		PC->SetInputMode(GameMode);
-		PC->SetShowMouseCursor(false);
+		PC->SetShowMouseCursor(true);
 	}
 
 	// 퀘스트 시스템 등에게 대화 종료 알림

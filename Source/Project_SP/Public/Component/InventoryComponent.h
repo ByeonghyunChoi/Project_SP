@@ -32,10 +32,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Debug")
 	bool bForceGiveTestCurrencies = false;
 
-	// UI 버튼으로 언제든 호출할 수 있는 재화 지급 치트키!
-	UFUNCTION(BlueprintCallable, Category = "Inventory|Cheat")
-	void GiveCheatCurrencies();
-
 protected:
 	virtual void BeginPlay() override;
 
@@ -57,7 +53,7 @@ public:
 	int32 GetSand() const { return PermanentWallet.Sand; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
-	int32 GetIncompleteEnergy() const { return PermanentWallet.IncompleteEnergy; }
+	int32 GetIncompleteEnergy() const { return RunWallet.IncompleteEnergy; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetMoney() const { return RunWallet.Money; }

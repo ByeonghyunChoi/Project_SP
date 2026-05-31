@@ -35,4 +35,11 @@ protected:
 	// 패링 성공 시 재생할 사운드
 	UPROPERTY(EditDefaultsOnly, Category = "Parry | Sound")
 	TArray<TObjectPtr<class USoundBase>> ParrySuccessSounds;
+
+	// 패링 실패 시 쿨타임 적용 GE
+	UPROPERTY(EditDefaultsOnly, Category = "Parry | Penalty")
+	TSubclassOf<class UGameplayEffect> ParryPenaltyGE;
+
+	// 페널티를 적용하는 내부 헬퍼 함수
+	void ApplyParryPenalty();
 };

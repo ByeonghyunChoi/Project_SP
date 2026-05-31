@@ -32,6 +32,7 @@ struct FRewardResult
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Gold = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Sand = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 IncompleteEnergy = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Fragment = 0;

@@ -78,6 +78,35 @@ void UMapManagerSubsystem::StartNewRun()
 	LoadStageLevel();
 }
 
+void UMapManagerSubsystem::StartNewCampaign()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[GameFlow] 캠페인 새로 시작! 모든 데이터를 공장 초기화하고 튜토리얼로 직행합니다."));
+
+	// 1. 세이브 시스템: 영구 데이터(오파츠/해금)와 런 데이터 싹 다 포맷!
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->ResetAllData(); // 선생님이 만들어두신 Hard Reset 함수 호출!
+
+		// 🌟 초기화된 빈 껍데기 상태를 영구 저장소와 런 저장소에 한 번 구워줍니다.
+		SaveSys->SavePermToDisk();
+		SaveSys->SaveRunToDisk();
+	}
+
+	// 2. 맵 진행도 기초 상태로 포맷
+	bIsReturningFromBattle = false;
+	bIsBattleActive = false;
+	CurrentRoomState = EMapState::InProgress;
+	CurrentPortalOptions.Empty();
+	CurrentStage = 1;
+	CurrentFloor = 1;
+	CurrentMapType = EMapType::NormalBattle;
+	bIsInLobby = false;
+	bIsTutorialBasicCleared = false;
+
+	// 3. 튜토리얼 맵으로 다이렉트 텔레포트! (엔진 OpenLevel 하드코딩 대체)
+	UGameplayStatics::OpenLevel(this, FName("TutorialMap01"));
+}
+
 
 void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombatEncounterData* EncounterData, ECombatAdvantage Advantage)
 {
@@ -164,7 +193,18 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 		return;
 	}
 
-	if (bIsReturningToTutorial)
+	FString CurrentLevelName = LoadedWorld->GetOutermost()->GetName();
+
+	if (CurrentLevelName.Contains("Tutorial") && !bIsReturningToTutorial && !bIsLoadingSave && !bIsReturningFromBattle)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[MapManager] 튜토리얼 최초 진입! 로그라이크 맵 생성을 무시하고 PlayerStart에서 스폰합니다."));
+		return; // 🚨 함수를 즉시 탈출! 엔진이 알아서 튜토리얼 맵의 PlayerStart에 예쁘게 스폰해줍니다.
+	}
+
+	// =======================================================================
+	// 🌟 [핵심 수정] 튜토리얼 전투 직후 복귀 OR 튜토리얼 도중 세이브 로드
+	// =======================================================================
+	if (bIsReturningToTutorial || (bIsLoadingSave && CurrentLevelName.Contains("Tutorial")))
 	{
 		APawn* Player = UGameplayStatics::GetPlayerPawn(LoadedWorld, 0);
 		if (Player)
@@ -174,27 +214,42 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 			{
 				MoveComp->StopMovementImmediately();
 			}
+
+			if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+			{
+				// 전투 직후 or 로드 후 스탯 및 유물 상태 원상 복구!
+				SaveSys->RestorePermDataToPlayer(Player);
+				SaveSys->RestoreRunDataToPlayer(Player);
+
+				// 🌟 튜토리얼 전투에서 이기고 방금 막 돌아온 거라면, 지금의 상태(소모된 TP 등)를 바로 강제 세이브!!
+				if (bIsReturningToTutorial)
+				{
+					SaveSys->CacheRunDataFromPlayer(Player);
+					SaveSys->SaveRunToDisk();
+				}
+			}
 		}
 
-		// 🌟 [추가] 1차전을 클리어하고 돌아온 거라면, 시체를 치워버립니다!
+		// 🌟 1차전을 클리어한 상태라면 맵에 있는 몬스터 시체를 영구적으로 치워버립니다!
 		if (bIsTutorialBasicCleared)
 		{
 			TArray<AActor*> FoundMonsters;
-			// "TutorialMonster_1" 이라는 이름표(Tag)를 가진 액터를 모두 색출합니다.
 			UGameplayStatics::GetAllActorsWithTag(LoadedWorld, FName("TutorialMonster_1"), FoundMonsters);
 
 			for (AActor* Monster : FoundMonsters)
 			{
 				if (IsValid(Monster))
 				{
-					Monster->Destroy(); // 확인 사살!
+					Monster->Destroy();
 				}
 			}
-			UE_LOG(LogTemp, Warning, TEXT("1차전 튜토리얼 몬스터를 맵에서 영구 제거했습니다."));
+			UE_LOG(LogTemp, Warning, TEXT("[튜토리얼] 1차전 클리어 반영: 몬스터를 맵에서 영구 제거했습니다."));
 		}
 
+		// 플래그 해제 후 맵 스폰 무시
 		bIsReturningToTutorial = false;
 		bIsReturningFromBattle = false;
+		bIsLoadingSave = false;
 		return;
 	}
 
@@ -309,10 +364,10 @@ void UMapManagerSubsystem::LoadStageLevel()
 	if (Data)
 	{
 		// 🌟 4층(보스)이면 보스 레벨을, 아니면 일반 레벨을 선택합니다!
-		TSoftObjectPtr<UWorld> LevelToLoad = (CurrentFloor >= 4) ? Data->BossLevelReference : Data->NormalLevelReference;
+		TSoftObjectPtr<UWorld> LevelToLoad = (CurrentFloor >= 5) ? Data->BossLevelReference : Data->NormalLevelReference;
 
 		// (안전장치) 만약 데이터 테이블에 보스 레벨을 안 채워뒀다면 오류 방지를 위해 일반 레벨을 엽니다.
-		if (CurrentFloor >= 4 && LevelToLoad.IsNull())
+		if (CurrentFloor >= 5 && LevelToLoad.IsNull())
 		{
 			LevelToLoad = Data->NormalLevelReference;
 			UE_LOG(LogTemp, Warning, TEXT("보스 레벨이 비어있어 일반 레벨로 대체합니다!"));
@@ -424,7 +479,7 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	FloorWeightPool.Add(EMapType::NormalBattle, 3);
 	FloorWeightPool.Add(EMapType::Rest, 1);
 	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
-	FloorWeightPool.Add(EMapType::Jester, 500);
+	FloorWeightPool.Add(EMapType::Jester, 1);
 
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
@@ -603,6 +658,34 @@ FRewardResult UMapManagerSubsystem::GenerateInteractableReward(bool bIsHealingOb
 	return Result;
 }
 
+void UMapManagerSubsystem::Cheat_JumpToBossRoom()
+{
+	UE_LOG(LogTemp, Error, TEXT("2스테이지 5층 보스방으로 강제 이동합니다!!!"));
+
+	CurrentStage = 2;
+	CurrentFloor = 5;
+	CurrentMapType = EMapType::BossBattle;
+	CurrentRoomState = EMapState::InProgress;
+
+	
+	bIsReturningFromBattle = false;
+	bIsInLobby = false;
+	bIsBattleActive = false;
+	bIsLoadingSave = false;
+	bIsReturningToTutorial = false;
+
+
+	// 세이브 데이터에도 덮어쓰기 (크래시 방지)
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveSys->GetRunData().MapProgress.CurrentStage = 2;
+		SaveSys->GetRunData().MapProgress.CurrentFloor = 5;
+		SaveSys->GetRunData().MapProgress.CurrentMapType = EMapType::BossBattle;
+	}
+
+	LoadStageLevel();
+}
+
 int32 UMapManagerSubsystem::CalculateMonsterLevel() const
 {
 	return ((CurrentStage - 1) * 10) + ((CurrentFloor - 1) * 3) + 1;
@@ -676,6 +759,15 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 	bIsInLobby = bSavedInLobby;
 	CurrentPortalOptions = SavedPortalOptions;
 
+	FName LevelToLoad = NAME_None;
+	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		PreGeneratedEncounters = SaveSys->GetRunData().MapProgress.PreGeneratedEncounters;
+		SavedFieldLevelName = SaveSys->GetRunData().MapProgress.SavedFieldLevelName;
+		bIsTutorialBasicCleared = SaveSys->GetRunData().MapProgress.bIsTutorialBasicCleared;
+		LevelToLoad = SavedFieldLevelName;
+	}
+
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		PreGeneratedEncounters = SaveSys->GetRunData().MapProgress.PreGeneratedEncounters;
@@ -689,8 +781,17 @@ void UMapManagerSubsystem::ResumeRunFromSave(int32 SavedStage, int32 SavedFloor,
 	}
 	else
 	{
-		LoadStageLevel();
-		UE_LOG(LogTemp, Log, TEXT("이어하기: 스테이지(Stage) 맵으로 복귀합니다."));
+		// 🌟 [추가] 튜토리얼 맵에서 저장된 기록이라면 무조건 튜토리얼 맵을 엽니다!
+		if (!LevelToLoad.IsNone() && LevelToLoad.ToString().Contains("Tutorial"))
+		{
+			UGameplayStatics::OpenLevel(this, LevelToLoad);
+			UE_LOG(LogTemp, Log, TEXT("이어하기: 튜토리얼 맵(%s)으로 복귀합니다."), *LevelToLoad.ToString());
+		}
+		else
+		{
+			LoadStageLevel();
+			UE_LOG(LogTemp, Log, TEXT("이어하기: 일반 스테이지(Stage) 맵으로 복귀합니다."));
+		}
 	}
 	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
@@ -701,12 +802,23 @@ void UMapManagerSubsystem::GoToLobby()
 	bIsBattleActive = false;
 	bIsReturningFromBattle = false;
 	CurrentRoomState = EMapState::None;
-	// 로비로 돌아오면 런 데이터 초기화
+
+
+	CurrentStage = 1;
+	CurrentFloor = 1;
+	CurrentMapType = EMapType::NormalBattle;
+	CurrentPortalOptions.Empty();
+	CurrentMapActor = nullptr; // 기존 맵 생성기 연결 끊기
+
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->ResetRunData();
 	}
-	if (!LobbyLevelReference.IsNull()) UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+
+	if (!LobbyLevelReference.IsNull())
+	{
+		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
+	}
 }
 
 void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)

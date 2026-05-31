@@ -176,7 +176,7 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 		if (Advantage == ECombatAdvantage::PlayerAdvantage)
 		{
 			// 플레이어 선공: 게이지 50% 보너스 (밸런스에 따라 조절)
-			TurnManager->SetActionGauge(Player, 100.0f);
+			TurnManager->SetActionGauge(Player, 8000.0f);
 			UE_LOG(LogTemp, Log, TEXT(">>> 플레이어 선제공격! (게이지 보너스)"));
 		}
 		else if (Advantage == ECombatAdvantage::EnemyAdvantage)
@@ -184,7 +184,7 @@ void AASPCombatGameMode::InitializeBattle(const TArray<AActor*>& Enemies, APawn*
 			// 적 기습: 적 전체 게이지 50% 보너스
 			for (AActor* Enemy : Enemies)
 			{
-				TurnManager->SetActionGauge(Enemy, 50.0f);
+				TurnManager->SetActionGauge(Enemy, 8000.0f);
 			}
 			UE_LOG(LogTemp, Warning, TEXT(">>> 적 기습! (적 게이지 보너스)"));
 		}

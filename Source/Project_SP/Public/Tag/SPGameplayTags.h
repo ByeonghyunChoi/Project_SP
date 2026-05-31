@@ -112,6 +112,7 @@ public:
 	FGameplayTag Cooldown_Weapon_Jormungandr_Parry;
 	FGameplayTag Cooldown_Skill_TimeInterference;
 	FGameplayTag Cooldown_Witch_Summon;
+	FGameplayTag Cooldown_ParryPenalty;
 
 	//상태 이상(Debuff)
 	FGameplayTag Debuff_Basic_Weathering;  // 풍화

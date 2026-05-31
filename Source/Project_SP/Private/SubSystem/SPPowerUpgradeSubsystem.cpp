@@ -240,9 +240,9 @@ bool USPPowerUpgradeSubsystem::TryUpgradeStatInternal(EPowerUpgradeType StatType
 	if (!Inventory) return false;
 
 	// 파편 차감
-	if (!Inventory->ConsumeFragment(Cost))
+	if (!Inventory->ConsumeIncompleteEnergy(Cost))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 파편이 부족합니다! 필요: %d"), Cost);
+		UE_LOG(LogTemp, Warning, TEXT("[StatUpgrade] 불완전한 기운이 부족합니다! 필요: %d"), Cost);
 		return false;
 	}
 
