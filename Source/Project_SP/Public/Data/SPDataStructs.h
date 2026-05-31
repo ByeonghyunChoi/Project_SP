@@ -264,6 +264,10 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
 
+    // 스탯 데이터 포함 (계층 구조)
+    UPROPERTY()
+    FPlayerStatsData Stats; // 스탯
+
 	// 권능 수복
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerPowerUpgradeData PowerUpgradeData;
@@ -285,6 +289,8 @@ struct FPlayerMetaProgressionData //영구 데이터
         OpartsData = FPlayerOpartsData();
 		// 권능 수복 데이터 초기화
         PowerUpgradeData = FPlayerPowerUpgradeData();
+        // 스텟 초기화
+        Stats = FPlayerStatsData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
         bHasSeenIntro2 = false;
@@ -303,22 +309,15 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY()
     FPlayerRunWallet RunWallet; // 일시적 재화
 
-    // 스탯 데이터 포함 (계층 구조)
-    UPROPERTY()
-    FPlayerStatsData Stats; // 스탯
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerRelicData RelicData; // 유물
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return  Stats.CurrentHealth >= 0.0f; }
-
     // 초기화
     void Reset()
     {
-        Stats = FPlayerStatsData();
         RunWallet = FPlayerRunWallet();
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();

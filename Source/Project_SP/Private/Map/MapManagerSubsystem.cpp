@@ -662,23 +662,27 @@ void UMapManagerSubsystem::Cheat_JumpToBossRoom()
 {
 	UE_LOG(LogTemp, Error, TEXT("🔥 [치트 발동] 2스테이지 5층 보스방으로 강제 이동합니다!!!"));
 
-	// 맵 매니저의 머릿속을 2-5 보스방 상태로 완벽하게 세뇌시킵니다.
 	CurrentStage = 2;
 	CurrentFloor = 5;
 	CurrentMapType = EMapType::BossBattle;
 	CurrentRoomState = EMapState::InProgress;
 
+	
 	bIsReturningFromBattle = false;
 	bIsInLobby = false;
+	bIsBattleActive = false;
+	bIsLoadingSave = false;
+	bIsReturningToTutorial = false;
+
 
 	// 세이브 데이터에도 덮어쓰기 (크래시 방지)
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->GetRunData().MapProgress.CurrentStage = 2;
 		SaveSys->GetRunData().MapProgress.CurrentFloor = 5;
+		SaveSys->GetRunData().MapProgress.CurrentMapType = EMapType::BossBattle;
 	}
 
-	// 5층으로 세팅했으니 LoadStageLevel을 부르면 알아서 BossLevelReference를 열어줍니다!
 	LoadStageLevel();
 }
 

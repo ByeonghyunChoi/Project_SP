@@ -102,8 +102,8 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			// 세이브된 런 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
-			TargetLevel = FMath::RoundToInt(SaveSys->GetRunData().Stats.Level);
+			// 세이브된 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
+			TargetLevel = FMath::RoundToInt(SaveSys->GetPermData().Stats.Level);
 		}
 
 		// 커브 테이블을 읽어와서 뼈대 스탯 세팅
