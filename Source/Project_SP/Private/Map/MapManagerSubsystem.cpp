@@ -146,7 +146,7 @@ void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
 		LoadStageLevel();
 	}
 
-	if (bIsVictory && !bIsTutorialBasic)
+	if (bIsVictory || !bIsTutorialBasic)
 	{
 		FString CurrentLevel = UGameplayStatics::GetCurrentLevelName(GetWorld(), true);
 		ClearedStageName = FName(*CurrentLevel);
