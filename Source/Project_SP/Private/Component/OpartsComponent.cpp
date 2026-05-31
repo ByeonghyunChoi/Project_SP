@@ -376,7 +376,7 @@ bool UOpartsComponent::TryUnlockNextArtifact()
 	int32 Cost = Costs[CurrentIndex];
 
 	// 4. 자원 소모 시도
-	if (Inventory->ConsumeIncompleteEnergy(Cost))
+	if (Inventory->ConsumeFragment(Cost))
 	{
 		// 성공 시 해금
 		RuntimeData.UnlockedArtifactCount++;
@@ -390,7 +390,7 @@ bool UOpartsComponent::TryUnlockNextArtifact()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("해금 실패: 불완전한 기운이 부족합니다."));
+		UE_LOG(LogTemp, Warning, TEXT("해금 실패: 파편이 부족합니다."));
 		return false;
 	}
 }

@@ -53,7 +53,7 @@ public:
 	int32 GetSand() const { return PermanentWallet.Sand; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
-	int32 GetIncompleteEnergy() const { return PermanentWallet.IncompleteEnergy; }
+	int32 GetIncompleteEnergy() const { return RunWallet.IncompleteEnergy; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetMoney() const { return RunWallet.Money; }

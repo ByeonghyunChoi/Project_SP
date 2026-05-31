@@ -74,6 +74,9 @@ struct FPlayerRunWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Money = 0; // 골드
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+    int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)
@@ -83,9 +86,6 @@ struct FPlayerPermanentWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Sand = 0; // 모래
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 0; // 불완전한 기운
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Fragment = 0; // 파편

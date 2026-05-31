@@ -479,7 +479,7 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 	FloorWeightPool.Add(EMapType::NormalBattle, 3);
 	FloorWeightPool.Add(EMapType::Rest, 1);
 	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
-	FloorWeightPool.Add(EMapType::Jester, 500);
+	FloorWeightPool.Add(EMapType::Jester, 1);
 
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));

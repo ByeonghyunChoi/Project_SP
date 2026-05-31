@@ -54,6 +54,7 @@ void USPSaveGameSubsystem::CacheRunDataFromPlayer(APawn* PlayerPawn)
 	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
 	{
 		RunData.RunWallet.Money = InventoryComp->GetMoney();
+		RunData.RunWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
 
 	// 3. 유물 저장
@@ -168,7 +169,6 @@ void USPSaveGameSubsystem::CachePermDataFromPlayer(APawn* PlayerPawn)
 	{
 		PermData.PermanentWallet.Fragment = InventoryComp->GetFragment();
 		PermData.PermanentWallet.Sand = InventoryComp->GetSand();
-		PermData.PermanentWallet.IncompleteEnergy = InventoryComp->GetIncompleteEnergy();
 	}
 
 	// 2. 오파츠 저장
