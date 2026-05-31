@@ -13,66 +13,59 @@ UInventoryComponent::UInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
+void UInventoryComponent::GiveCheatCurrencies()
+{
+	// 1. 치트 재화 빵빵하게 추가 (원하시는 만큼 수치를 수정하세요!)
+	PermanentWallet.Sand += 9999;
+	PermanentWallet.IncompleteEnergy += 99;
+	PermanentWallet.Fragment += 999;
+	RunWallet.Money += 9999;
+
+	// 2. 바뀐 장부를 세이브 서브시스템 메모리에 즉시 동기화
+	SyncWalletToSaveSystem();
+
+	// 3. UI(위젯)에 돈 바뀌었다고 방송 날리기
+	if (OnInventoryUpdated.IsBound())
+	{
+		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 삐빅- 치트키 발동! 테스트 재화가 성공적으로 지급되었습니다."));
+}
+
 void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-
 	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		// 🌟 [절대 방어벽]
-		// 서브시스템(게임 인스턴스)은 맵이 넘어가도 죽지 않습니다.
-		// "이번에 게임 켜고 초기화를 한 번이라도 했어?" 라고 물어봅니다.
+		// 게임을 처음 켜서 시작한 첫 번째 맵(세션)일 때 딱 한 번만 권능 보너스를 정산합니다!
 		if (!SaveSys->bHasInitializedThisSession)
 		{
-			// 이 안으로 들어왔다는 것은 게임을 처음 켠 '첫 번째 맵'이라는 뜻입니다!
-			// 여기서 치트키(bForceGiveTestCurrencies) 여부를 검사해서 재화를 줍니다.
-
-			// 1. 영구 재화 주입
-			if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
+			// 🌟 권능 보너스 골드 계산 및 지급
+			if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
 			{
-				PermanentWallet.Sand = 1000;
-				PermanentWallet.IncompleteEnergy = 15;
-				PermanentWallet.Fragment = 10; // 테스트용 파편 지급!
-
-				if (OwnerPawn) SaveSys->CachePermDataFromPlayer(OwnerPawn);
-				UE_LOG(LogTemp, Warning, TEXT("초기 영구 재화가 주입되었습니다."));
-			}
-
-			// 2. 런 재화 주입
-			if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
-			{
-				RunWallet.Money = 500;
-
-				// 권능 보너스 골드 계산
-				if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
+				float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
+				if (BonusGold > 0.0f)
 				{
-					float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
-					if (BonusGold > 0.0f)
-					{
-						RunWallet.Money += FMath::RoundToInt(BonusGold);
-						UE_LOG(LogTemp, Log, TEXT("[Inventory] 권능 보너스 적용 완료! 최종 시작 골드: %d"), RunWallet.Money);
-					}
+					RunWallet.Money += FMath::RoundToInt(BonusGold);
+					UE_LOG(LogTemp, Log, TEXT("[Inventory] 권능 보너스 적용 완료! 보너스 골드: +%d"), FMath::RoundToInt(BonusGold));
 				}
-
-				if (OwnerPawn) SaveSys->CacheRunDataFromPlayer(OwnerPawn);
-				UE_LOG(LogTemp, Warning, TEXT("초기 런 재화(골드)가 주입되었습니다."));
 			}
 
-			// 🌟 [가장 중요] 치트키로 재화를 줬든, 깡통으로 시작했든 세팅이 끝났습니다.
-			// 셔터를 내려서 이번 세션(게임 끄기 전까지)에서는 다시는 이 코드가 실행되지 않게 막아버립니다!
+			// 지급된 보너스 장부를 세이브 시스템 메모리에 안전하게 동기화!
+			if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+			{
+				SaveSys->CacheRunDataFromPlayer(OwnerPawn);
+			}
+
+			// 🌟 세팅이 끝났으니, 다음 맵부터는 이 코드가 다시 실행되지 않도록 스위치를 켭니다.
+			SaveSys->ActivateNewRun();
 			SaveSys->bHasInitializedThisSession = true;
-		}
-		else
-		{
-			// 맵을 이동해서 새로 태어난 경우, 이쪽으로 빠집니다.
-			// 치트키가 true인 상태로 스폰되었더라도 절대 방어벽에 막혀버리므로, 
-			// 우리가 의도한 대로 이전 맵에서 쓴 파편과 늘어난 600골드가 그대로 유지됩니다!
-			UE_LOG(LogTemp, Log, TEXT("[Inventory] 이미 진행 중인 게임입니다. 치트키와 디버그 재화 초기화를 건너뜁니다."));
 		}
 	}
 
+	// 초기 UI 갱신 방송
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 

@@ -1,18 +1,4 @@
-﻿#include "MonsterInfo.generated.h"
-
-UENUM(BlueprintType)
-enum class EEnemyRank :uint8
-{
-    Normal,
-    Epic,
-    Boss
-};
-// ==========================================
-// FILE: SPGASAIController.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "AIController.h"
@@ -1377,6 +1363,64 @@ private:
 	TMap<AActor*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap;
 };
 // ==========================================
+// FILE: SPTutorialManagerComponent.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Tag/SPGameplayTags.h"
+#include "SPTutorialManagerComponent.generated.h"
+
+
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class PROJECT_SP_API USPTutorialManagerComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	USPTutorialManagerComponent();
+
+	// 1. Ʃ�丮�� ����� �Լ�
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void StartTutorialScenario();
+
+	// ���� �帧�� ���� ȣ��Ǵ� Ʈ���ŵ�
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void OnPlayerTurnStarted();
+
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void OnParryTimingTriggered();
+
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void AdvanceStep();
+
+	// �Է� �˹��� (��Ʈ�ѷ����� �Ź� ȣ���Ͽ� ����ç�� ����)
+	bool CanProcessInput(FGameplayTag InputTag) const;
+
+protected:
+	// ���� ���� �ܰ�
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
+	int32 CurrentStep = 1;
+
+	// ������ ���� ���ΰ�?
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
+	bool bIsTutorialActive = false;
+
+	// �˾� ���� Ŭ����
+	UPROPERTY(EditDefaultsOnly, Category = "Tutorial|UI")
+	TSubclassOf<class UUserWidget> TutorialPopupClass;
+
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> ActivePopupWidget;
+
+private:
+	// �� ���ܺ� ���� �� UI ���� ����
+	void ProcessStep();
+};
+// ==========================================
 // FILE: OpartsDefinition.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
@@ -1725,11 +1769,3 @@ struct FStatusEffectConfig
 
 	// �����̻� �̸� 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FName EffectName;
-
-	// ������ GE Ŭ����(�� �� ������) 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TSubclassOf<UGameplayEffect> EffectClass;
-
-	// ������ ���� GE Ŭ����(���ȸ� ���� ���� GE)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Effect")

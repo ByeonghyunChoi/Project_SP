@@ -316,7 +316,7 @@ void UOpartsComponent::ApplyOpartsStatsAndAbilities()
 bool UOpartsComponent::TryUpgradeLevel()
 {
 	if (!RuntimeData.Definition) return false;
-	if (RuntimeData.CurrentLevel >= 5)
+	if (RuntimeData.CurrentLevel >= 30)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("이미 최대 레벨입니다."));
 		return false;
@@ -329,7 +329,25 @@ bool UOpartsComponent::TryUpgradeLevel()
 		UE_LOG(LogTemp, Error, TEXT("인벤토리 컴포넌트를 찾을 수 없습니다!"));
 		return false;
 	}
-	int32 Cost = RuntimeData.CurrentLevel * 100;
+	/*int32 Cost = RuntimeData.CurrentLevel * 100;*/
+
+	int32 Cost = 0;
+
+	switch (FMath::CeilToInt((RuntimeData.CurrentLevel+1) / 10.0f))
+	{
+		case 1:
+			Cost = 10;
+			break;
+		case 2:
+			Cost = 35;
+			break;
+		case 3:
+			Cost = 65;
+			break;
+		default:
+			Cost = 100;
+		break;
+	}
 
 	// 4. 자원 소모 시도
 	if (Inventory->ConsumeSand(Cost))

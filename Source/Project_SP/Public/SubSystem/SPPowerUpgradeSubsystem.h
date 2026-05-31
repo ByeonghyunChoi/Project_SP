@@ -42,7 +42,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade")
 	void ApplyNewRunBonuses();
 
+	// 게임 시작 시, 저장된 권능 레벨을 싹 읽어와서 캐릭터의 어트리뷰트에 일괄 적용하는 함수
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void ApplySavedStatUpgradesToPlayer(class APawn* PlayerPawn);
+
+	// UI를 처음 열었을 때(또는 업데이트 시) 화면에 띄워줄 정보를 한 번에 반환하는 함수
+	UFUNCTION(BlueprintPure, Category = "PowerUpgrade|Stats")
+	void GetStatUpgradeInfo(EPowerUpgradeType StatType, int32& OutCurrentLevel, int32& OutNextCost, float& OutCurrentEffectValue) const;
+
+	// 버튼 7개에 각각 연결할 7개의 업그레이드 함수들
+	// 반환값: 성공 여부(bSuccess), 그리고 UI를 즉시 갱신할 수 있는 3가지 정보
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_ATK(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_DEF(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_Speed(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_HP(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_DamageInc(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_CritChance(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_CritDamage(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
 private:
 	// 데이터 테이블에서 정보 추출하는 내부 헬퍼 함수
 	FPowerUpgradeData* GetUpgradeData(EPowerUpgradeType UpgradeType) const;
+
+	// 7개의 버튼이 공통으로 사용할 내부 실제 업그레이드 로직
+	bool TryUpgradeStatInternal(EPowerUpgradeType StatType, class APlayerController* PC);
 };

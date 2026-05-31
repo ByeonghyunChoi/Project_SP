@@ -1,20 +1,4 @@
-﻿#include "Map/RewardBox.h"
-#include "Map/MapBase.h"
-#include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
-#include "Blueprint/UserWidget.h"
-#include "NiagaraComponent.h"
-#include "NiagaraSystem.h"
-#include "Map/MapManagerSubSystem.h"
-#include "Data/RewardDataStructs.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-
-ARewardBox::ARewardBox()
-{
-	USceneComponent* SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
-	RootComponent = SceneRoot;
+﻿	RootComponent = SceneRoot;
 
 	MeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
 	MeshComp->SetupAttachment(RootComponent);
@@ -449,6 +433,7 @@ void USPCombatSubsystem::SetPendingEncounter(const UCombatEncounterData* Encount
 	{
 		CurrentEncounter = EncounterData;
 		CurrentAdvantage = Advantage;
+		ResetTutorialStep();
 
 		UE_LOG(LogTemp, Log, TEXT("[CombatSubsystem] 전투 데이터 저장 완료! 맵: %s, 상태: %d"),
 			*EncounterData->CombatLevelName.ToString(), (int32)Advantage);
@@ -457,6 +442,27 @@ void USPCombatSubsystem::SetPendingEncounter(const UCombatEncounterData* Encount
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[CombatSubsystem] 전투 데이터가 비어있습니다!"));
 	}
+}
+
+ETutorialStage USPCombatSubsystem::GetCurrentTutorialStage() const
+{
+	if (CurrentEncounter && CurrentEncounter->bIsTutorial)
+	{
+		return CurrentEncounter->TutorialStage;
+	}
+	return ETutorialStage::None;
+}
+
+void USPCombatSubsystem::AdvanceTutorialStep()
+{
+	CurrentTutorialStep++;
+	UE_LOG(LogTemp, Warning, TEXT("[튜토리얼 각본] 유저가 미션을 완수했습니다! Step %d(으)로 넘어갑니다."), CurrentTutorialStep);
+}
+
+void USPCombatSubsystem::ResetTutorialStep()
+{
+	CurrentTutorialStep = 1;
+	UE_LOG(LogTemp, Log, TEXT("[튜토리얼 각본] 튜토리얼 단계가 1로 초기화되었습니다."));
 }
 // ==========================================
 // FILE: SPDialogSubsystem.cpp
@@ -1080,9 +1086,25 @@ void USPSaveGameSubsystem::MarkIntroAsSeen()
 	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 플레이어가 최초 오프닝을 시청했습니다. 영구 저장 완료!"));
 }
 
+void USPSaveGameSubsystem::MarkIntroAsSeen2()
+{
+	// 2번째 오프닝을 봤다고 체크!
+	PermData.bHasSeenIntro2 = true;
+
+	// 이 중요한 사실을 잊어버리지 않게 즉시 디스크(영구 세이브)에 덮어씁니다.
+	SavePermToDisk();
+
+	UE_LOG(LogTemp, Warning, TEXT("[SaveSystem] 플레이어가 최초 오프닝을 시청했습니다. 영구 저장 완료!"));
+}
+
 bool USPSaveGameSubsystem::HasSeenIntro() const
 {
 	return PermData.bHasSeenIntro;
+}
+
+bool USPSaveGameSubsystem::HasSeenIntro2() const
+{
+	return PermData.bHasSeenIntro2;
 }
 
 void USPSaveGameSubsystem::SavePermToDisk()
@@ -1733,3 +1755,17 @@ public:
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MonsterInfo.generated.h"
+
+UENUM(BlueprintType)
+enum class EEnemyRank :uint8
+{
+    Normal,
+    Epic,
+    Boss
+};
+// ==========================================
+// FILE: SPGASAIController.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+

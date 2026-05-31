@@ -1,119 +1,55 @@
-﻿	
-	if (!PlayerChar || !Subsystem) return;
-
-	// 2. NewCount가 0보다 크면 전투 모드
-	if (NewCount > 0)
-	{
-		// [전투 진입]
-		Subsystem->RemoveMappingContext(FieldMappingContext);
-		Subsystem->AddMappingContext(BattleMappingContext, 0);
-		PlayerChar->SetCameraProfile(PlayerChar->GetCombatCameraProfile());
-		
-		PlayerChar->SwitchCameraMode(true);
-
-		UE_LOG(LogTemp, Warning, TEXT("상태 적용: BATTLE Mode"));
-	}
-	else
-	{
-		// [전투 종료/필드]
-		Subsystem->RemoveMappingContext(BattleMappingContext);
-		Subsystem->AddMappingContext(FieldMappingContext, 0);
-		CancelTargetSelection();
-
-		PlayerChar->SwitchCameraMode(false);
-
-		UE_LOG(LogTemp, Warning, TEXT("상태 적용: FIELD Mode"));
-	}
-}
-// ==========================================
-// FILE: SPGASPlayerState.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Character/SPGASPlayerState.h"
-#include "AbilitySystemComponent.h"
-#include "AttributeSet/SPGASAttributeSet.h"
-
-ASPGASPlayerState::ASPGASPlayerState()
-{
-	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("GAS"));
-	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
-}
-
-UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
-{
-	return ASC;
-}
-
-// ==========================================
-// FILE: InventoryComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "Component/InventoryComponent.h"
-#include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
-#include "SubSystem/SPPowerUpgradeSubsystem.h"
-#include "GameFramework/Pawn.h"
-#include "Kismet/GameplayStatics.h"
-
-UInventoryComponent::UInventoryComponent()
-{
-	PrimaryComponentTick.bCanEverTick = false;
-}
-
-void UInventoryComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-
-	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		// 세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
-		if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
+﻿		// 🌟 [절대 방어벽]
+		// 서브시스템(게임 인스턴스)은 맵이 넘어가도 죽지 않습니다.
+		// "이번에 게임 켜고 초기화를 한 번이라도 했어?" 라고 물어봅니다.
+		if (!SaveSys->bHasInitializedThisSession)
 		{
-			PermanentWallet.Sand = 1000;
-			PermanentWallet.IncompleteEnergy = 10;
+			// 이 안으로 들어왔다는 것은 게임을 처음 켠 '첫 번째 맵'이라는 뜻입니다!
+			// 여기서 치트키(bForceGiveTestCurrencies) 여부를 검사해서 재화를 줍니다.
 
-			PermanentWallet.Fragment = 10;
-
-			if (OwnerPawn)
+			// 1. 영구 재화 주입
+			if (!SaveSys->HasValidPermSave() || bForceGiveTestCurrencies)
 			{
-				SaveSys->CachePermDataFromPlayer(OwnerPawn); // 영구 장부 즉시 동기화
+				PermanentWallet.Sand = 1000;
+				PermanentWallet.IncompleteEnergy = 15;
+				PermanentWallet.Fragment = 10; // 테스트용 파편 지급!
+
+				if (OwnerPawn) SaveSys->CachePermDataFromPlayer(OwnerPawn);
+				UE_LOG(LogTemp, Warning, TEXT("초기 영구 재화가 주입되었습니다."));
 			}
-			UE_LOG(LogTemp, Warning, TEXT(" 초기 영구 재화가 주입되었습니다."));
-		}
 
-		//  세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
-		//  세이브 파일이 없거나, 디버그 플래그가 true일 때 작동!
-		if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
-		{
-			RunWallet.Money = 500; // ⬅️ 여기서 500원이 들어갑니다.
-
-			// 🌟 [여기에 추가!] 500원이 세팅된 직후, 매니저를 불러서 보너스를 얹어줍니다.
-			if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
+			// 2. 런 재화 주입
+			if (!SaveSys->HasValidRunSave() || bForceGiveTestCurrencies)
 			{
-				float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
-				if (BonusGold > 0.0f)
+				RunWallet.Money = 500;
+
+				// 권능 보너스 골드 계산
+				if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
 				{
-					RunWallet.Money += FMath::RoundToInt(BonusGold); // 500 + 100 = 600
-					UE_LOG(LogTemp, Log, TEXT("[Inventory] 권능 보너스 골드 적용 완료! 최종 시작 골드: %d"), RunWallet.Money);
+					float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
+					if (BonusGold > 0.0f)
+					{
+						RunWallet.Money += FMath::RoundToInt(BonusGold);
+						UE_LOG(LogTemp, Log, TEXT("[Inventory] 권능 보너스 적용 완료! 최종 시작 골드: %d"), RunWallet.Money);
+					}
 				}
+
+				if (OwnerPawn) SaveSys->CacheRunDataFromPlayer(OwnerPawn);
+				UE_LOG(LogTemp, Warning, TEXT("초기 런 재화(골드)가 주입되었습니다."));
 			}
 
-			if (OwnerPawn)
-			{
-				SaveSys->CacheRunDataFromPlayer(OwnerPawn); // 600원이 된 장부를 안전하게 동기화!
-			}
-			UE_LOG(LogTemp, Warning, TEXT(" 초기 런 재화(골드)가 주입되었습니다."));
+			// 🌟 [가장 중요] 치트키로 재화를 줬든, 깡통으로 시작했든 세팅이 끝났습니다.
+			// 셔터를 내려서 이번 세션(게임 끄기 전까지)에서는 다시는 이 코드가 실행되지 않게 막아버립니다!
+			SaveSys->bHasInitializedThisSession = true;
 		}
-		// 테스트 끝나면 헤더에 있는 bForceGiveTestCurrencies 변수도 같이 지워주기
+		else
+		{
+			// 맵을 이동해서 새로 태어난 경우, 이쪽으로 빠집니다.
+			// 치트키가 true인 상태로 스폰되었더라도 절대 방어벽에 막혀버리므로, 
+			// 우리가 의도한 대로 이전 맵에서 쓴 파편과 늘어난 600골드가 그대로 유지됩니다!
+			UE_LOG(LogTemp, Log, TEXT("[Inventory] 이미 진행 중인 게임입니다. 치트키와 디버그 재화 초기화를 건너뜁니다."));
+		}
 	}
 
-	// 초기 상태 UI 갱신
 	if (OnInventoryUpdated.IsBound()) OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
 }
 
@@ -1733,3 +1669,103 @@ void USPStatusEffectComponent::ProcessTurnStartDoT()
 					float TargetCoefficient = Config.DotDamageCoefficient;
 
 					// 5. 데미지 적용
+					FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
+					Context.AddSourceObject(Instigator);
+
+					// 🌟 [추가된 핵심 로직] 어떤 총알(GE)을 쏠지 결정합니다.
+					TSubclassOf<UGameplayEffect> DamageClassToUse = StatusDamageEffectClass; // 기본은 상태이상 데미지
+
+					// 만약 발동하려는 DoT가 '치명상' 이라면? -> 고정 데미지 GE로 교체!
+					if (StatusTag == FSPGameplayTags::Get().Debuff_Fatal_FatalWound)
+					{
+						DamageClassToUse = FixedDamageEffectClass;
+						UE_LOG(LogTemp, Warning, TEXT("[치명상 DoT] 고정 데미지 타입으로 발동 준비!"));
+					}
+
+					// 결정된 GE 클래스로 Spec을 만듭니다.
+					FGameplayEffectSpecHandle DamageSpec = InstigatorASC->MakeOutgoingSpec(DamageClassToUse, 1.0f, Context);
+
+					if (DamageSpec.IsValid())
+					{
+						// 계산기(DamageCalculation)로 '계수'만 던져줌
+						UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
+							DamageSpec,
+							SPTags.Data_Damage,
+							TargetCoefficient
+						);
+
+						DamageSpec.Data->AddDynamicAssetTag(StatusTag);
+
+						PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
+
+						// 2. 몬스터(Owner)에게 '지금 연출 중임!' 이라는 이름표(태그) 부착 (AI 행동 정지용)
+						if (!OwnerASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
+						{
+							OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
+						}
+
+						// 3. 블루프린트에게 "도트 연출 시작!" 방송 송출 (bIsInstant = false)
+						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
+
+						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 장전 완료! (계수: %f) - 연출 대기 중"),
+							*Owner->GetName(), *StatusTag.ToString(), TargetCoefficient);
+					}
+				}
+			}
+		}
+	}
+}
+
+void USPStatusEffectComponent::ReduceStatusEffectTurns()
+{
+	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
+	if (!OwnerASC) return;
+
+	FGameplayEffectQuery Query;
+	TArray<FActiveGameplayEffectHandle> ActiveEffects = OwnerASC->GetActiveEffects(Query);
+
+	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
+	{
+		const FActiveGameplayEffect* ActiveGE = OwnerASC->GetActiveGameplayEffect(Handle);
+		if (!ActiveGE) continue;
+
+		FGameplayTagContainer GrantedTags;
+		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
+
+		// 이펙트가 "Debuff"로 시작하는 태그를 가지고 있다면 (즉, 상태이상이라면)
+		if (GrantedTags.HasTag(FGameplayTag::RequestGameplayTag("Debuff")))
+		{
+			// 🌟 [새로 추가된 부분] 로그에 출력할 상태이상 태그 이름 찾기
+			FString StatusName = TEXT("알수없음");
+			for (const FGameplayTag& Tag : GrantedTags)
+			{
+				if (Tag.MatchesTag(FGameplayTag::RequestGameplayTag("Debuff")))
+				{
+					StatusName = Tag.ToString();
+					break; // 디버프 태그를 찾으면 루프 종료
+				}
+			}
+
+			int32 CurrentStack = OwnerASC->GetCurrentStackCount(Handle);
+
+			// 스택(턴)을 1 깎습니다.
+			OwnerASC->RemoveActiveGameplayEffect(Handle, 1);
+		}
+	}
+
+	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetOwner()))
+	{
+		Monster->BroadcastStatusUI();
+	}
+}
+
+void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag)
+{
+	if (!TargetActor) return;
+
+	if (TArray<FGameplayEffectSpecHandle>* PendingSpecs = PendingDamageMap.Find(TargetActor))
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
+		if (TargetASC)
+		{
+			for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)

@@ -193,14 +193,14 @@ UENUM(BlueprintType)
 enum class EPowerUpgradeType : uint8
 {
     None			UMETA(DisplayName = "없음"),
-    CombatResource	UMETA(DisplayName = "전투 자원 강화 (BP 증가)"),
-    RelicReroll		UMETA(DisplayName = "유물 리롤 해금"),
-    RewardBoost		UMETA(DisplayName = "보상 강화 (획득량 증가)"),
-    TimeSkillCost	UMETA(DisplayName = "시간 간섭 코스트 감소"),
-    MaxTimePower	UMETA(DisplayName = "시간의 힘 최대치 증가"),
-    FreeRevive		UMETA(DisplayName = "생존 (1회 무료 부활)"),
-    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)"),
-    RelicLuck		UMETA(DisplayName = "보상 운 (유물 등장 확률 증가)")
+    Stat_ATK	UMETA(DisplayName = "공격력 증가"),
+    Stat_DEF		UMETA(DisplayName = "방어력 증가"),
+    Stat_Speed		UMETA(DisplayName = "속도 증가"),
+    Stat_HP	UMETA(DisplayName = "체력 증가"),
+    Stat_DamageInc	UMETA(DisplayName = "가하는 피해량 증가"),
+    Stat_CritChance		UMETA(DisplayName = "치명타 확률 증가"),
+    Stat_CritDamage     UMETA(DisplayName = "치명타 피해 증가"),
+    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)")
 };
 
 // 권능 수복 데이터 테이블 구조체

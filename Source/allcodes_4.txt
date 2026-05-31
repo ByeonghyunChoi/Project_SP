@@ -1,104 +1,4 @@
-﻿					FGameplayEffectContextHandle Context = InstigatorASC->MakeEffectContext();
-					Context.AddSourceObject(Instigator);
-
-					// 🌟 [추가된 핵심 로직] 어떤 총알(GE)을 쏠지 결정합니다.
-					TSubclassOf<UGameplayEffect> DamageClassToUse = StatusDamageEffectClass; // 기본은 상태이상 데미지
-
-					// 만약 발동하려는 DoT가 '치명상' 이라면? -> 고정 데미지 GE로 교체!
-					if (StatusTag == FSPGameplayTags::Get().Debuff_Fatal_FatalWound)
-					{
-						DamageClassToUse = FixedDamageEffectClass;
-						UE_LOG(LogTemp, Warning, TEXT("[치명상 DoT] 고정 데미지 타입으로 발동 준비!"));
-					}
-
-					// 결정된 GE 클래스로 Spec을 만듭니다.
-					FGameplayEffectSpecHandle DamageSpec = InstigatorASC->MakeOutgoingSpec(DamageClassToUse, 1.0f, Context);
-
-					if (DamageSpec.IsValid())
-					{
-						// 계산기(DamageCalculation)로 '계수'만 던져줌
-						UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(
-							DamageSpec,
-							SPTags.Data_Damage,
-							TargetCoefficient
-						);
-
-						DamageSpec.Data->AddDynamicAssetTag(StatusTag);
-
-						PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
-
-						// 2. 몬스터(Owner)에게 '지금 연출 중임!' 이라는 이름표(태그) 부착 (AI 행동 정지용)
-						if (!OwnerASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying))
-						{
-							OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
-						}
-
-						// 3. 블루프린트에게 "도트 연출 시작!" 방송 송출 (bIsInstant = false)
-						OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
-
-						UE_LOG(LogTemp, Warning, TEXT("[%s] 턴 시작! 상태이상(%s) 장전 완료! (계수: %f) - 연출 대기 중"),
-							*Owner->GetName(), *StatusTag.ToString(), TargetCoefficient);
-					}
-				}
-			}
-		}
-	}
-}
-
-void USPStatusEffectComponent::ReduceStatusEffectTurns()
-{
-	UAbilitySystemComponent* OwnerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner());
-	if (!OwnerASC) return;
-
-	FGameplayEffectQuery Query;
-	TArray<FActiveGameplayEffectHandle> ActiveEffects = OwnerASC->GetActiveEffects(Query);
-
-	for (const FActiveGameplayEffectHandle& Handle : ActiveEffects)
-	{
-		const FActiveGameplayEffect* ActiveGE = OwnerASC->GetActiveGameplayEffect(Handle);
-		if (!ActiveGE) continue;
-
-		FGameplayTagContainer GrantedTags;
-		ActiveGE->Spec.GetAllGrantedTags(GrantedTags);
-
-		// 이펙트가 "Debuff"로 시작하는 태그를 가지고 있다면 (즉, 상태이상이라면)
-		if (GrantedTags.HasTag(FGameplayTag::RequestGameplayTag("Debuff")))
-		{
-			// 🌟 [새로 추가된 부분] 로그에 출력할 상태이상 태그 이름 찾기
-			FString StatusName = TEXT("알수없음");
-			for (const FGameplayTag& Tag : GrantedTags)
-			{
-				if (Tag.MatchesTag(FGameplayTag::RequestGameplayTag("Debuff")))
-				{
-					StatusName = Tag.ToString();
-					break; // 디버프 태그를 찾으면 루프 종료
-				}
-			}
-
-			int32 CurrentStack = OwnerASC->GetCurrentStackCount(Handle);
-
-			// 스택(턴)을 1 깎습니다.
-			OwnerASC->RemoveActiveGameplayEffect(Handle, 1);
-		}
-	}
-
-	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetOwner()))
-	{
-		Monster->BroadcastStatusUI();
-	}
-}
-
-void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag)
-{
-	if (!TargetActor) return;
-
-	if (TArray<FGameplayEffectSpecHandle>* PendingSpecs = PendingDamageMap.Find(TargetActor))
-	{
-		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
-		if (TargetASC)
-		{
-			for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
-			{
+﻿			{
 				FGameplayEffectSpecHandle& Spec = (*PendingSpecs)[i];
 				if (Spec.IsValid())
 				{
@@ -159,6 +59,74 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 제거됨: %s"), *StatusTagToRemove.ToString());
+}
+
+// ==========================================
+// FILE: SPTutorialManagerComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "Component/SPTutorialManagerComponent.h"
+#include "SubSystem/SPCombatSubsystem.h"
+#include "Character/SPGASPlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Blueprint/UserWidget.h"
+
+USPTutorialManagerComponent::USPTutorialManagerComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void USPTutorialManagerComponent::StartTutorialScenario()
+{
+	bIsTutorialActive = true;
+	CurrentStep = 1;
+	ProcessStep();
+}
+
+void USPTutorialManagerComponent::OnPlayerTurnStarted()
+{
+}
+
+void USPTutorialManagerComponent::OnParryTimingTriggered()
+{
+}
+
+void USPTutorialManagerComponent::AdvanceStep()
+{
+	CurrentStep++;
+	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] Step %d �� �̵�"), CurrentStep);
+
+	// ������ ��(��: 8�ܰ� ����)�� �����ϸ� Ʃ�丮�� ����
+	if (CurrentStep >= 8)
+	{
+		bIsTutorialActive = false;
+		UGameplayStatics::SetGamePaused(GetWorld(), false);
+		if (ActivePopupWidget) ActivePopupWidget->RemoveFromParent();
+	}
+	else
+	{
+		ProcessStep();
+	}
+}
+
+bool USPTutorialManagerComponent::CanProcessInput(FGameplayTag InputTag) const
+{
+	if (!bIsTutorialActive) return true;
+
+	// ���� �ܰ躰�� ���Ǵ� �±� ��Ī ����
+	// Step 4�� �Ϲ� ����(Battle_Action_Attack)�� ���, �̷� ������ ����
+	return false;
+}
+
+void USPTutorialManagerComponent::ProcessStep()
+{
+	// ���⼭ ���� �Ͻ�����, ���� ����, ���̶���Ʈ ��ġ ������ �����մϴ�.
+	// WBP_TutorialPopup�� UpdateTutorialView �Լ��� ���⼭ ȣ���ϼ���!
+	UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+	// �˾� ����/������Ʈ ����...
 }
 
 // ==========================================
@@ -1733,3 +1701,71 @@ void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 	// -------------------------------------------------------------------------
 	// 아래는 기존 로직 (Payload에 타겟이 없을 때, 즉 일반적인 방법으로 데미지를 줄 때)
 
+	UE_LOG(LogTemp, Warning, TEXT("마녀: 무전 받음!"));
+	switch (SkillTargetingType)
+	{
+	case ETargetingType::Single:
+	{
+		if (AActor* Target = GetSingleTarget())
+		{
+			ApplyDamageToTarget(Target, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Area:
+	{
+		AActor* CenterTarget = PayloadTarget ? PayloadTarget : GetSingleTarget();
+
+		if (CenterTarget)
+		{
+			ApplyDamageToTarget(CenterTarget, PrimaryMultiplier); 
+
+			TArray<AActor*> SecTargets = GetSecondaryTargets(CenterTarget);
+			for (AActor* SecTarget : SecTargets)
+			{
+				ApplyDamageToTarget(SecTarget, SecondaryMultiplier); 
+			}
+		}
+		break;
+	}
+	case ETargetingType::All:
+	{
+		TArray<AActor*> AllEnemies = GetAllEnemies();
+		for (AActor* Enemy : AllEnemies)
+		{
+			ApplyDamageToTarget(Enemy, PrimaryMultiplier);
+		}
+		break;
+	}
+	case ETargetingType::Random:
+	{
+		if (AActor* RandomTarget = GetRandomEnemy())
+		{
+			ApplyDamageToTarget(RandomTarget, PrimaryMultiplier);
+		}
+		break;
+	}
+	}
+}
+
+void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+{
+	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+	if (!GameMode) return;
+
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!Avatar) return;
+
+	// TurnManager의 VIP 대기열에 나 자신을 ExtraTurns(2번) 만큼 넣습니다!!
+	for (int32 i = 0; i < ExtraTurns; ++i)
+	{
+		GameMode->GetTurnManager()->RequestInterruptTurn(Avatar);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동! 현재 턴을 유지한 채 추가 턴 %d개를 예약합니다."), ExtraTurns);
+}
+
+void USPGA_BattleActionBase::ExecuteJadeClockInterference(TSubclassOf<class UGameplayEffect> JadeClockBuffClass)
+{
+	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+	AActor* Avatar = GetAvatarActorFromActorInfo();
