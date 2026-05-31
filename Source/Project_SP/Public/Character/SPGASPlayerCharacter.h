@@ -117,8 +117,6 @@ protected:
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
 
-	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
-
 	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
 	void OnLevelUpEffect();
@@ -181,6 +179,8 @@ public:
 	void HandleWeaponShow();
 
 	void CheckLevelUp();
+
+	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
 
 	//행동 선택 시 UI 보여주는 연출 이벤트
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Camera | Action")

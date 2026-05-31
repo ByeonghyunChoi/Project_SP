@@ -242,7 +242,7 @@ void USPSaveGameSubsystem::SaveRunToDisk()
 	if (SaveInst)
 	{
 		SaveInst->RunData = RunData; // 서브시스템 메모리 데이터를 껍데기에 복사
-		UGameplayStatics::SaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
+		UGameplayStatics::AsyncSaveGameToSlot(SaveInst, RunSlotName, 0); // 디스크에 굽기!
 		UE_LOG(LogTemp, Warning, TEXT("런 데이터 디스크 저장 완료! [%s]"), *RunSlotName);
 	}
 }
@@ -324,7 +324,7 @@ void USPSaveGameSubsystem::SavePermToDisk()
 	if (SaveInst)
 	{
 		SaveInst->PermData = PermData;
-		UGameplayStatics::SaveGameToSlot(SaveInst, PermSlotName, 0);
+		UGameplayStatics::AsyncSaveGameToSlot(SaveInst, PermSlotName, 0);
 		UE_LOG(LogTemp, Warning, TEXT("영구 데이터 디스크 저장 완료! [%s]"), *PermSlotName);
 	}
 }

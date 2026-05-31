@@ -92,6 +92,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Reward")
 	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
 
+	void Cheat_JumpToBossRoom();
+
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }

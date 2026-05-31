@@ -308,6 +308,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat | State")
 	bool IsNormalAttackRestricted() const;
 
+	//시연용 치트 키
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_AddAllResources();
+
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_GoToBoss();
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;

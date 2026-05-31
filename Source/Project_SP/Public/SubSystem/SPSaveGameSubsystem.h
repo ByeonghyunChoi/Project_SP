@@ -39,10 +39,10 @@ public:
 
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerRunData& GetRunData() const { return RunData; }
+	FPlayerRunData& GetRunData() { return RunData; }
 
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
+	FPlayerMetaProgressionData& GetPermData() { return PermData; }
 
 	// 권능 수복 레벨을 업데이트하고 즉시 디스크에 저장하는 전용 Setter 함수
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
