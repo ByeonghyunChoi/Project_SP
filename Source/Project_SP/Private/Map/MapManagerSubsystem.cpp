@@ -5,6 +5,7 @@
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Data/Asset/SPStageMonsterPoolData.h"
+#include "Character/SPGASPlayerController.h"
 
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -126,12 +127,13 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	bIsReturningFromBattle = false;
 	bIsBattleActive = true;
 
+	PendingCombatLevelName = EncounterData->CombatLevelName;
+
 	// 플레이어 정보 저장
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 		SaveSys->SaveRunToDisk();
-
 		SaveSys->CachePermDataFromPlayer(PlayerPawn);
 		SaveSys->SavePermToDisk();
 	}
@@ -142,9 +144,15 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 		CombatSys->SetPendingEncounter(EncounterData, Advantage);
 	}
 
-	// 3. [이동] 전투 레벨로 전환
-	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
-	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
+	// 3. 전투 진입 연출 재생
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+	{
+		// 플레이어 이동 차단 (연출 중에 움직이면 안 되므로)
+		PC->DisableInput(PC);
+		PC->SetAllHUDVisibility(false);
+		UE_LOG(LogTemp, Warning, TEXT("UI 전투 진입 연출 재생 시작!"));
+		PC->PlayBattleTransitionEffect();
+	}
 }
 
 void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
@@ -386,28 +394,19 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
+	PendingNextMapType = SelectedType;
+
 	if (CurrentFloor >= 5 && CurrentStage < 2) // 5층(보스) 클리어 시
 	{
 		CurrentStage++;
 		CurrentFloor = 1;
 		CurrentMapType = SelectedType;
 		bIsReturningFromBattle = false;
-		LoadStageLevel();
 	}
 	else if (CurrentFloor < 5)
 	{
 		CurrentFloor++;
 		CurrentMapType = SelectedType;
-
-		if (CurrentFloor == 5) // 방금 올라간 층이 5층이라면 보스맵 로드
-		{
-			bIsReturningFromBattle = false;
-			LoadStageLevel();
-		}
-		else
-		{
-			SpawnMapActor(SelectedType);
-		}
 	}
 	else if (CurrentFloor >= 5 && CurrentStage >= 2)
 	{
@@ -416,7 +415,13 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 		return;
 	}
 
-	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+	{
+		PC->DisableInput(PC); // 이동 차단
+		UE_LOG(LogTemp, Warning, TEXT("포탈 진입 연출 재생 시작!"));
+		PC->PlayPortalTransitionEffect();
+	}
 }
 
 EMapType UMapManagerSubsystem::PickAndRemoveWeightedMap(TMap<EMapType, int32>& InOutWeightPool)
@@ -695,6 +700,34 @@ void UMapManagerSubsystem::Cheat_JumpToBossRoom()
 	}
 
 	LoadStageLevel();
+}
+
+void UMapManagerSubsystem::ExecuteBattleLevelLoad()
+{
+	if (!PendingCombatLevelName.IsNone())
+	{
+		UE_LOG(LogTemp, Log, TEXT("전투 맵으로 실제 이동 시작: %s"), *PendingCombatLevelName.ToString());
+		UGameplayStatics::OpenLevel(GetWorld(), PendingCombatLevelName);
+	}
+}
+
+void UMapManagerSubsystem::ExecutePortalTransitionLoad()
+{
+	if (CurrentFloor == 1 && CurrentStage > 1)
+	{
+		LoadStageLevel(); // 새 스테이지면 아예 OpenLevel
+	}
+	else if (CurrentFloor == 5)
+	{
+		bIsReturningFromBattle = false;
+		LoadStageLevel(); // 보스맵이면 OpenLevel
+	}
+	else
+	{
+		SpawnMapActor(PendingNextMapType); // 일반 층이면 액터 스폰(교체)!
+	}
+
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
 int32 UMapManagerSubsystem::CalculateMonsterLevel() const

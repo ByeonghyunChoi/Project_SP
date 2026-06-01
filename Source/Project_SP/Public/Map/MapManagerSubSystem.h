@@ -76,6 +76,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Map|Flow")
 	FOnAllStagesCleared OnAllStagesCleared;
 
+	UFUNCTION(BlueprintPure)
 	bool IsInBattleMap() { return bIsBattleActive; }
 	
 	//로비 맵 판독용
@@ -97,6 +98,12 @@ public:
 	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
 
 	void Cheat_JumpToBossRoom();
+
+	// UI 전투 진입 연출이 다 끝난 뒤에 실제로 맵을 여는 함수
+	void ExecuteBattleLevelLoad();
+
+	// 연출이 끝난 뒤에 실제로 다음 층 맵을 깔아주는 함수
+	void ExecutePortalTransitionLoad();
 
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
@@ -226,6 +233,12 @@ private:
 	FName SavedFieldLevelName;
 
 	bool bIsReturningToTutorial = false;
+
+	// 연출이 끝난 뒤에 로드할 맵 이름을 잠시 보관해두는 변수
+	FName PendingCombatLevelName;
+
+	// 다음 층으로 스폰할 맵의 종류를 임시로 기억해 두는 변수
+	EMapType PendingNextMapType;
 
 private:
 	// 맵 생성 및 플레이어 이동 처리

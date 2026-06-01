@@ -916,6 +916,26 @@ void ASPGASPlayerController::Cheat_GoToBoss()
 	}
 }
 
+void ASPGASPlayerController::OnBattleTransitionFinished()
+{
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		// 연출이 끝났으니 진짜로 전투 레벨을 로드하라고 맵 매니저에게 명령합니다!
+		MapManager->ExecuteBattleLevelLoad();
+	}
+}
+
+void ASPGASPlayerController::OnPortalTransitionFinished()
+{
+	UGameInstance* GI = GetGameInstance();
+	if (UMapManagerSubsystem* MapManager = GI ? GI->GetSubsystem<UMapManagerSubsystem>() : nullptr)
+	{
+		// 연출이 끝났으니 진짜로 다음 맵 스폰을 실행합니다!
+		MapManager->ExecutePortalTransitionLoad();
+	}
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
