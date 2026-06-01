@@ -229,7 +229,22 @@ void USPGA_BattleActionBase::ApplyDamageToTarget(AActor* TargetActor, float Dama
 
 					if (EquippedWeaponTag.IsValid())
 					{
-						AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+						float HitRate = ASC->GetNumericAttribute(USPGASAttributeSet::GetEffectHitRateAttribute());
+
+						float FinalChance = HitRate;
+						// 2. 0 ~ 100 사이의 주사위를 굴립니다.
+						float RandomRoll = FMath::RandRange(0.0f, 1.0f);
+
+						// 3. 주사위 결과가 최종 확률(효과명중)보다 낮거나 같으면 상태이상 적중!
+						if (RandomRoll <= FinalChance)
+						{
+							AvatarChar->GetStatusEffectComponent()->ApplyWeaponStatusEffectToTarget(EquippedWeaponTag, TargetActor);
+							UE_LOG(LogTemp, Warning, TEXT("상태이상 적중"), FinalChance, RandomRoll);
+						}
+						else
+						{
+							UE_LOG(LogTemp, Log, TEXT("상태이상 빗나감"), FinalChance, RandomRoll);
+						}
 					}
 				}
 			}

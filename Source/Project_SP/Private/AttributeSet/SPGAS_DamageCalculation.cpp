@@ -259,10 +259,6 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 
 	// 최소 데미지 보장
 	FinalDamage = FMath::Max<float>(FinalDamage, 1.0f);
-	// 메타 속성(IncomingDamage)에 값 누적
-	OutExecutionOutput.AddOutputModifier(
-		FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingDamageAttribute(), EGameplayModOp::Additive, FinalDamage)
-	);
 
 	//치명타 여부 추가
 	if (bIsActualCritical)
@@ -271,5 +267,10 @@ void USPGAS_DamageCalculation::Execute_Implementation(const FGameplayEffectCusto
 			FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingIsCriticalAttribute(), EGameplayModOp::Additive, 1.0f)
 		);
 	}
+
+	// 메타 속성(IncomingDamage)에 값 누적
+	OutExecutionOutput.AddOutputModifier(
+		FGameplayModifierEvaluatedData(USPGASAttributeSet::GetIncomingDamageAttribute(), EGameplayModOp::Additive, FinalDamage)
+	);
 }
 
