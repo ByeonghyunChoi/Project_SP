@@ -315,6 +315,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cheat")
 	void Cheat_GoToBoss();
 
+	// 전투 진입 화면 연출을 시작하라는 명령 (블루프린트에서 위젯 애니메이션 재생)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void PlayBattleTransitionEffect();
+
+	// 🌟 블루프린트 UI 연출이 끝났을 때 다시 C++로 알려줄 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void OnBattleTransitionFinished();
+
+	// 포탈 진입 시 부드러운 페이드 아웃 연출을 재생하라는 명령 (블루프린트에서 위젯 애니메이션 재생)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Map | UI")
+	void PlayPortalTransitionEffect();
+
+	// 🌟 블루프린트 연출이 끝났을 때 다시 C++로 알려줄 함수
+	UFUNCTION(BlueprintCallable, Category = "Map | UI")
+	void OnPortalTransitionFinished();
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;

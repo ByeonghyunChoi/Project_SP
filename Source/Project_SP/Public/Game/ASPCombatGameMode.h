@@ -72,6 +72,9 @@ public:
 		return GetRemainingRoundLimit() + FutureRoundsAV;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void StartFirstTurn();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;

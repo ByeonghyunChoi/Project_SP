@@ -219,55 +219,6 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 		Payload.Target = PlayerPawn;
 		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(PlayerPawn, FSPGameplayTags::Get().Event_Battle_Start, Payload);
 	}
-
-	// =======================================================================
-	// 🌟 [수정된 핵심] 턴 계산과 UI 업데이트는 튜토리얼 여부와 상관없이 '즉시' 실행!
-	// 이 함수들이 실행되어야 블루프린트 턴 UI에 초상화 데이터가 전달되어 그려집니다!
-	// =======================================================================
-	if (TurnManager)
-	{
-		RefreshTurnTimelineUI();
-		AActor* FirstActor = TurnManager->CalculateNextTurn();
-		StartTurn(FirstActor);
-	}
-
-	// =======================================================================
-	// 🌟 3. 튜토리얼 1차전일 경우 2초 뒤에 세상을 멈추는 타이머만 예약!
-	// =======================================================================
-	UGameInstance* GI = GetGameInstance();
-	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
-
-	if (CombatSys && CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
-	{
-		// ⏰ 타이머 1: 2.0초 뒤에 턴 순서 UI에 데이터를 채워 넣습니다.
-		FTimerHandle RefreshTimer;
-		GetWorld()->GetTimerManager().SetTimer(
-			RefreshTimer,
-			[this]()
-			{
-				RefreshTurnTimelineUI();
-				UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.0초: 턴 타임라인 UI 데이터 주입 완료"));
-			},
-			2.0f, false);
-
-		// ⏰ 타이머 2: 2.1초 뒤에 튜토리얼 각본을 시작하고 게임을 멈춥니다! (0.1초의 여유)
-		// 이 0.1초 동안 턴 UI가 크기(Geometry) 계산을 완벽하게 끝냅니다.
-		FTimerHandle TutorialTriggerTimer;
-		GetWorld()->GetTimerManager().SetTimer(
-			TutorialTriggerTimer,
-			[this, PlayerPawn]()
-			{
-				if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
-				{
-					if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.1초: UI 렌더링 완료! 튜토리얼 각본을 강제로 시작합니다!"));
-						TutMgr->StartTutorialScenario();
-					}
-				}
-			},
-			2.1f, false);
-	}
 }
 
 void AASPCombatGameMode::CheckAndStartBattle()
@@ -947,6 +898,60 @@ ASPGASMonsterCharacter* AASPCombatGameMode::SummonMonsterMidBattle(USPMonsterDat
 	}
 
 	return nullptr;
+}
+
+void AASPCombatGameMode::StartFirstTurn()
+{
+
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	// =======================================================================
+	// 🌟 [수정된 핵심] 턴 계산과 UI 업데이트는 튜토리얼 여부와 상관없이 '즉시' 실행!
+	// 이 함수들이 실행되어야 블루프린트 턴 UI에 초상화 데이터가 전달되어 그려집니다!
+	// =======================================================================
+	if (TurnManager)
+	{
+		RefreshTurnTimelineUI();
+		AActor* FirstActor = TurnManager->CalculateNextTurn();
+		StartTurn(FirstActor);
+	}
+
+	// =======================================================================
+	// 🌟 3. 튜토리얼 1차전일 경우 2초 뒤에 세상을 멈추는 타이머만 예약!
+	// =======================================================================
+	UGameInstance* GI = GetGameInstance();
+	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
+
+	if (CombatSys && CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
+	{
+		// ⏰ 타이머 1: 2.0초 뒤에 턴 순서 UI에 데이터를 채워 넣습니다.
+		FTimerHandle RefreshTimer;
+		GetWorld()->GetTimerManager().SetTimer(
+			RefreshTimer,
+			[this]()
+			{
+				RefreshTurnTimelineUI();
+				UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.0초: 턴 타임라인 UI 데이터 주입 완료"));
+			},
+			2.0f, false);
+
+		// ⏰ 타이머 2: 2.1초 뒤에 튜토리얼 각본을 시작하고 게임을 멈춥니다! (0.1초의 여유)
+		// 이 0.1초 동안 턴 UI가 크기(Geometry) 계산을 완벽하게 끝냅니다.
+		FTimerHandle TutorialTriggerTimer;
+		GetWorld()->GetTimerManager().SetTimer(
+			TutorialTriggerTimer,
+			[this, PlayerPawn]()
+			{
+				if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+				{
+					if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[GameMode] 2.1초: UI 렌더링 완료! 튜토리얼 각본을 강제로 시작합니다!"));
+						TutMgr->StartTutorialScenario();
+					}
+				}
+			},
+			2.1f, false);
+	}
 }
 
 void AASPCombatGameMode::ProcessEndOfTurn()
