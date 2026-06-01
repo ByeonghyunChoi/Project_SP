@@ -59,10 +59,26 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 	// ==========================================
 	// 3. 일반 재화 즉시 지급 (인벤토리)
 	// ==========================================
+	if (MapManager)
+	{
+		MapManager->PendingToastRewards.Empty();
+		MapManager->PendingExpReward = 0;
+
+		if (Reward.Gold > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold) += Reward.Gold;
+		if (Reward.Sand > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Sand) += Reward.Sand;
+		if (Reward.IncompleteEnergy > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::IncompleteEnergy) += Reward.IncompleteEnergy;
+		if (Reward.Fragment > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Fragment) += Reward.Fragment;
+		if (Reward.Exp > 0) MapManager->PendingExpReward += Reward.Exp;
+	}
+
+	//  그 다음 인벤토리 지급
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
 	if (Reward.Fragment > 0) InventoryComp->AddFragment(Reward.Fragment);
+
+	InventoryComp->OnOpenGetInventory.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("포션에서 재화 지급"));
 
 	if (Reward.Exp > 0)
 	{

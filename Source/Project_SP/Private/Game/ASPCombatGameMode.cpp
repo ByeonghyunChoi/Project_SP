@@ -608,6 +608,9 @@ void AASPCombatGameMode::EndBattle(bool bPlayerWon)
 
 				// 3. 재화 대기열(PendingToastRewards)에 보관
 				UInventoryComponent* Inv = PlayerPawn->FindComponentByClass<UInventoryComponent>();
+
+				MapManager->PendingToastRewards.Empty();
+				MapManager->PendingExpReward = 0;
 				if (Inv)
 				{
 					auto GiveReward = [&](EResourceType Type, int32 Amount) {

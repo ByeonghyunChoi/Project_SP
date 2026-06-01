@@ -19,6 +19,7 @@ enum class EResourceType : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, const FPlayerRunWallet&, CurrentWallet, const FPlayerPermanentWallet&, CurrentPermWallet);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOpenGetInventory);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UInventoryComponent : public UActorComponent
@@ -45,6 +46,10 @@ public:
 	// UI 업데이트 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryUpdated OnInventoryUpdated;
+
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnOpenGetInventory OnOpenGetInventory;
+
 
 	// =========================================================
 	// 1. 조회 (Getter)
