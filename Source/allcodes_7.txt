@@ -1,4 +1,5 @@
-﻿	{
+﻿	else
+	{
 		// 🌟 [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리합니다!
 		AActor* FoundMap = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
 		if (AMapBase* CurrentMap = Cast<AMapBase>(FoundMap))
@@ -452,6 +453,13 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 				{
 					OnDialogStandingSetup.Broadcast(*NPCAsset);
 				}
+				else
+				{
+					//  찾지 못했다면 빈 에셋 데이터를 억지로 만들어서 방송합니다!
+					FDialogAssetData EmptyAsset;
+					OnDialogStandingSetup.Broadcast(EmptyAsset);
+					UE_LOG(LogTemp, Warning, TEXT("[Dialog] %s 의 일러스트를 찾지 못해 빈 이미지를 송출합니다."), *Row.SpeakerID.ToString());
+				}
 				break; // 찾았으니 반복문 즉시 종료!
 			}
 		}
@@ -640,7 +648,7 @@ bool USPPowerUpgradeSubsystem::TryUpgradePower(EPowerUpgradeType UpgradeType, AP
 	if (!Inventory) return false;
 
 	// 핵심 기획: 오직 '파편'만 소모합니다! (이미 만들어두신 ConsumeFragment 함수 활용)
-	if (!Inventory->ConsumeFragment(Cost))
+	if (!Inventory->ConsumeIncompleteEnergy(Cost))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PowerUpgrade] 파편이 부족합니다! 필요 파편: %d"), Cost);
 		return false;
@@ -1555,6 +1563,7 @@ void USPCutsceneWidget::NativeConstruct()
 	if (Anim_Cutscene_12) CutsceneAnimMap.Add(12, Anim_Cutscene_12);
 	if (Anim_Cutscene_13) CutsceneAnimMap.Add(13, Anim_Cutscene_13);
 	if (Anim_Cutscene_14) CutsceneAnimMap.Add(14, Anim_Cutscene_14);
+	if (Anim_Cutscene_15) CutsceneAnimMap.Add(15, Anim_Cutscene_15);
 }
 // ==========================================
 // FILE: SPInteractionWidget.cpp
@@ -1853,6 +1862,3 @@ public:
 // ==========================================
 // FILE: SPGAS_DamageCalculation.h
 // ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once

@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Tag/SPGameplayTags.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
 URelicComponent::URelicComponent()
 {
@@ -101,6 +102,13 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 	}
 	// 5. 장착 목록에 최종 추가
 	EquippedRelics.Add(NewRelic);
+	// 저장 시스템 런 타임 저장
+	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		// 플레이어 폰(OwnerCharacter)에 있는 최신 유물 데이터를 세이브 서브시스템 런타임 메모리로 복사합니다. (렉 유발 X)
+		SaveSys->CacheRunDataFromPlayer(OwnerCharacter);
+		SaveSys->SaveRunToDisk(); 
+	}
 	//  [핵심 추가됨] 유물이 장착되었으니 UI를 갱신하라고 방송을 쏩니다!
 	if (OnRelicUpdated.IsBound())
 	{

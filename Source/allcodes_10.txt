@@ -1,13 +1,4 @@
 ﻿
-protected:
-	// 지지대 (거리, 각도 조절용)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<USpringArmComponent> CameraSpringArm;
-
-	// 실제 촬영할 카메라
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UCameraComponent> MainCamera;
-
 private:
 	// 플레이어 컨트롤러 캐싱 (화면 전환 명령을 내리기 위해 필요)
 	UPROPERTY()
@@ -522,6 +513,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
 	EMapType MapType;
 
+	UPROPERTY(EditAnywhere, Category = "Map | Setup")
+	TSubclassOf<class APortalActor> EndingPortalClass;
+
 public:
 	TArray<FTransform> GetSpawnTransformsByTag(FName PointTag) const;
 
@@ -666,6 +660,10 @@ public:
 	//로비 맵 판독용
 	bool GetIsInLobby() const { return bIsInLobby; }
 
+	//튜토리얼 맵 판독 용
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	bool GetIsInTutorialMap() const { return bIsInTutorialMap; }
+
 	// 일반 전투 몬스터 생성 함수
 	void PreGenerateAllEncounters();
 
@@ -795,6 +793,9 @@ private:
 	// [플래그] 플레이어가 로비 맵에 있는가?
 	bool bIsInLobby = true;
 
+	// [플래그] 플레이어가 튜토리얼 맵에 있는가?
+	bool bIsInTutorialMap = false;
+
 	// 몬스터 명부
 	UPROPERTY()
 	TMap<int32, FSavedEncounterData> PreGeneratedEncounters;
@@ -908,6 +909,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Portal | Visuals")
 	TMap<EMapType, TSubclassOf<AActor>> PortalVisualClasses;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Portal | UI")
+	TMap<EMapType, FText> PortalInteractTextMap;
 
 protected:
 	// Ȱ��ȭ/��Ȱ��ȭ �� �ð��� ��ȭ�� �ֱ� ���� �̺�Ʈ
@@ -1790,6 +1794,9 @@ public:
 
 	UPROPERTY(Transient, meta = (BindWidgetAnim))
 	TObjectPtr<UWidgetAnimation> Anim_Cutscene_14;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_15;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	TMap<int32, TObjectPtr<UWidgetAnimation>> CutsceneAnimMap;

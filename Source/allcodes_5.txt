@@ -1,4 +1,8 @@
-﻿
+﻿#include "Map/MapManagerSubSystem.h"
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h" 
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"  
+#include "Kismet/GameplayStatics.h"
+
 USPGA_FieldAttack::USPGA_FieldAttack()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
@@ -855,21 +859,19 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 	CurrentTurnActor = TurnActor;
 	UE_LOG(LogTemp, Log, TEXT("턴 시작: %s"), *TurnActor->GetName());
 
+	// 1. 튜토리얼 체크
 	if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(TurnActor))
 	{
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerChar->GetController()))
 		{
 			if (USPTutorialManagerComponent* TutMgr = PC->GetTutorialManager())
 			{
-				// 1. 이 턴이 자동 반격을 위한 턴인지 태그로 확인합니다.
 				bool bIsAutoCounter = false;
 				if (UAbilitySystemComponent* ASC = PlayerChar->GetAbilitySystemComponent())
 				{
 					bIsAutoCounter = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
 				}
 
-				// 2. VIP 턴(새치기 턴)이거나, 자동 반격 턴이라면 튜토리얼을 깨우지 않습니다!
-				// 오직 '진짜 내 정규 턴'이 왔을 때만 각본(Step 6)을 넘깁니다.
 				if (!bIsCurrentTurnInterrupt && !bIsAutoCounter)
 				{
 					TutMgr->OnPlayerTurnStarted();
@@ -894,7 +896,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 		{
 			// ==============================================================
-			// VIP 반격 턴 (패링 성공 시)
+			// 2. VIP 반격 턴 (패링 성공 시)
 			// ==============================================================
 			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady))
 			{
@@ -913,17 +915,15 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 						{
 							bool bActivated = false;
 
-							// 1. 스킬 발동 시도 (쿨타임이 남아있다면 GAS가 스스로 막고 false를 반환합니다)
 							for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 							{
 								if (Spec.Ability && Spec.Ability->GetClass() == WeaponData->ParrySkillAbility)
 								{
 									bActivated = ASC->TryActivateAbility(Spec.Handle);
-									break; // 찾았으니 루프 종료
+									break;
 								}
 							}
 
-							// 2. 결과 판정 및 강력한 return
 							if (bActivated)
 							{
 								UE_LOG(LogTemp, Warning, TEXT("데이터 에셋 기반 반격기 발동 완료"));
@@ -932,7 +932,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 							{
 								UE_LOG(LogTemp, Error, TEXT("반격기 발동 실패(쿨타임 등)! 턴을 강제 종료하고 빠져나갑니다."));
 								EndTurn(TurnActor);
-								return; // 🚨 [핵심] 여기서 함수를 즉시 탈출하여 '내 턴' 팻말이 억지로 붙는 버그를 차단합니다!
+								return;
 							}
 						}
 					}
@@ -944,7 +944,7 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 			}
 
 			// ==============================================================
-			// 상태이상(DoT) 및 사망/혼절 체크
+			// 3. 상태이상(DoT) 및 사망/혼절 체크
 			// ==============================================================
 			if (StatusComp && !bIsCurrentTurnInterrupt)
 			{
@@ -971,7 +971,25 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				return;
 			}
 
-			// 위쪽에서 return 당하지 않고 무사히 살아남은 녀석만 드디어 '내 턴' 팻말을 얻습니다.
+			// =====================================================================
+			// 🌟 [핵심 수정] 4. UI에 '내 턴이다!' 방송을 쏘기 "직전"에 쿨타임을 먼저 깎습니다!
+			// =====================================================================
+			if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
+			{
+				bool bIsTimeStopped = ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull);
+
+				if (!bIsCurrentTurnInterrupt && !bIsTimeStopped)
+				{
+					Character->ReduceCooldowns();
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[%s] 시간 간섭 버프/특수 턴 활성화 중! 쿨타임이 줄어들지 않습니다."), *TurnActor->GetName());
+				}
+			}
+			// =====================================================================
+
+			// 🌟 5. 드디어 '내 턴' 팻말 부여! (이 순간 UI가 방송을 듣고 방금 깎인 최신 쿨타임을 읽어갑니다)
 			ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Battle_TurnActive);
 
 			FGameplayEventData Payload;
@@ -980,35 +998,8 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 		}
 	}
 
-	// 턴이 확정된 후 UI를 갱신합니다.
+	// 6. 전체 턴 타임라인 UI 갱신
 	RefreshTurnTimelineUI();
-
-	if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
-	{
-		// 🌟 1. 이 캐릭터가 '시간 정지(수정해골 버프)' 상태인지 확인하기 위한 스위치
-		bool bIsTimeStopped = false;
-
-		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TurnActor))
-		{
-			if (UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent())
-			{
-				if (TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull))
-				{
-					bIsTimeStopped = true;
-				}
-			}
-		}
-
-		// 🌟 2. 시간이 멈추지 않았을 때만 기존처럼 쿨타임을 깎아줍니다!
-		if (!bIsCurrentTurnInterrupt && !bIsTimeStopped)
-		{
-			Character->ReduceCooldowns();
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[%s] 시간 간섭 버프 활성화 중! 쿨타임이 줄어들지 않습니다."), *TurnActor->GetName());
-		}
-	}
 }
 
 void AASPCombatGameMode::EndTurn(AActor* TurnActor)
@@ -1856,3 +1847,18 @@ USPGASGameInstance::USPGASGameInstance()
 }
 
 void USPGASGameInstance::Init()
+{
+    Super::Init();
+
+    // 1. ��ȭ ����ý����� ã�� �⺻ ���� ���̺��� �����մϴ�.
+    if (USPDialogSubsystem* DialogSubsystem = GetSubsystem<USPDialogSubsystem>())
+    {
+        if (DefaultDialogAssetTable)
+        {
+            DialogSubsystem->DefaultAssetTable = DefaultDialogAssetTable;
+        }
+    }
+
+    if (GEngine != nullptr)
+    {
+        UGameUserSettings* UserSettings = GEngine->GetGameUserSettings();
