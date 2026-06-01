@@ -379,6 +379,8 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 			{
 				PlayActionSound(InputTag, true);
 				HandleInputFeedback(InputTag, true);
+				OnTimeInterferenceChanged.Broadcast(true);
+
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
 
 				if (TutorialManager && TutorialManager->GetCurrentStep() == 7)
