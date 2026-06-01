@@ -73,7 +73,7 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetCriticalRateAttribute())
 	{
-		// 1. 내 몸에 골드버그 태그가 있다면 어떠한 변화가 와도 무조건 0으로 덮어씌움
+		// 내 몸에 골드버그 태그가 있다면 어떠한 변화가 와도 무조건 0으로 덮어씌움
 		if (GetOwningAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().Oparts_GoldBug))
 		{
 			NewValue = 0.0f;
@@ -96,6 +96,19 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	else if (Attribute == GetMaxExperienceAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 1.0f);
+	}
+	else if (Attribute == GetEffectHitRateAttribute())
+	{
+		// 내 몸에 '골드 버그' 태그가 있을 때만 효과 명중이 0 이상으로 오르는 것을 허용!
+		if (GetOwningAbilitySystemComponent()->HasMatchingGameplayTag(FSPGameplayTags::Get().Oparts_GoldBug))
+		{
+			NewValue = FMath::Max(NewValue, 0.0f);
+		}
+		else
+		{
+			// 다른 오파츠라면 효과 명중은 무조건 0.0f로 억제(고정)!
+			NewValue = 0.0f;
+		}
 	}
 }
 

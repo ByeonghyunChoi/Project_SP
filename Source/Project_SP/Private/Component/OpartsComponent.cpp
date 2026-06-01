@@ -106,6 +106,7 @@ void UOpartsComponent::UnequipCurrentOparts()
 	// 1. 기본 패시브 제거
 	if (RuntimeData.PassiveAbilityHandle.IsValid())
 	{
+		ASC->CancelAbilityHandle(RuntimeData.PassiveAbilityHandle);
 		ASC->ClearAbility(RuntimeData.PassiveAbilityHandle);
 	}
 
