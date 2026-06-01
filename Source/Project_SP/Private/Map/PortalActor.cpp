@@ -19,11 +19,16 @@ void APortalActor::ExecuteInteraction(AActor* Interactor)
 
 FText APortalActor::GetInteractText() const
 {
-	// Enum에서 순수 이름 문자열만 추출 (예: "NormalBattle")
-	FString EnumName = StaticEnum<EMapType>()->GetNameStringByValue((int64)TargetMapType);
+	if (PortalInteractTextMap.Contains(TargetMapType))
+	{
+		return PortalInteractTextMap[TargetMapType];
+	}
 
-	// 나중에 데이터 테이블에서 한글 이름을 가져오도록 확장하기 좋습니다.
-	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0} (으)로 이동"), FText::FromString(EnumName));
+	// 2. 블루프린트에 따로 안 적어뒀다면? 엔진의 리플렉션을 이용해 Enum의 DisplayName을 긁어옵니다.
+	FText DisplayName = StaticEnum<EMapType>()->GetDisplayNameTextByValue((int64)TargetMapType);
+
+	// 결과: "일반 전투(으)로 이동", "쉼터(으)로 이동" 형태로 자동 완성됨!
+	return FText::Format(NSLOCTEXT("Portal", "MoveFormat", "{0}(으)로 이동"), DisplayName);
 }
 
 bool APortalActor::CanInteract(AActor* Interactor) const

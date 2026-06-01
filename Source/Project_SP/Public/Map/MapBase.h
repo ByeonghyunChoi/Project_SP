@@ -38,6 +38,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Map | State")
 	EMapType MapType;
 
+	UPROPERTY(EditAnywhere, Category = "Map | Setup")
+	TSubclassOf<class APortalActor> EndingPortalClass;
+
 public:
 	TArray<FTransform> GetSpawnTransformsByTag(FName PointTag) const;
 

@@ -127,6 +127,11 @@ void AMapBase::HandleStateInProgress()
 	TArray<EMapType> Options = MapManager->GenerateNextFloorOptions();
 	SpawnedPortals.Empty();
 
+	bool bIsFinalBoss = (MapManager->GetCurrentStage() >= 2 && MapManager->GetCurrentFloor() >= 5);
+	TSubclassOf<APortalActor> ClassToSpawn = (bIsFinalBoss && EndingPortalClass) ? EndingPortalClass : PortalClass;
+
+	if (!ClassToSpawn) return;
+
 	// 🌟 1. 포탈이 딱 1개만 나올 때 (보스, 준비 맵)
 	if (Options.Num() == 1)
 	{
@@ -135,7 +140,7 @@ void AMapBase::HandleStateInProgress()
 
 		if (CenterPoints.Num() > 0)
 		{
-			APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, CenterPoints[0]);
+			APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(ClassToSpawn, CenterPoints[0]);
 			if (NewPortal)
 			{
 				NewPortal->SetPortalTargetType(Options[0]);
@@ -156,7 +161,7 @@ void AMapBase::HandleStateInProgress()
 
 	for (int32 i = 0; i < FMath::Min(Options.Num(), SpawnPoints.Num()); ++i)
 	{
-		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(PortalClass, SpawnPoints[i]);
+		APortalActor* NewPortal = GetWorld()->SpawnActor<APortalActor>(ClassToSpawn, SpawnPoints[i]);
 		if (NewPortal)
 		{
 			NewPortal->SetPortalTargetType(Options[i]);
