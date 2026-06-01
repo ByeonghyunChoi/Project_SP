@@ -7,9 +7,11 @@
 #include "NiagaraSystem.h"
 #include "Map/MapManagerSubSystem.h"
 #include "Data/RewardDataStructs.h"
+#include "Data/SPDataStructs.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+
 
 ARewardBox::ARewardBox()
 {
@@ -56,10 +58,30 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	// ==========================================
 	// 4. 일반 재화 즉시 지급 (인벤토리)
 	// ==========================================
+	if (MapManager)
+	{
+		MapManager->PendingToastRewards.Empty();
+		MapManager->PendingExpReward = 0;
+
+		if (Reward.Gold > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold) += Reward.Gold;
+		if (Reward.Sand > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Sand) += Reward.Sand;
+
+		if (Reward.IncompleteEnergy > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::IncompleteEnergy) += Reward.IncompleteEnergy;
+		if (Reward.Fragment > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Fragment) += Reward.Fragment;
+
+		if (Reward.Exp > 0) MapManager->PendingExpReward += Reward.Exp;
+
+		UE_LOG(LogTemp, Warning, TEXT("대기열 추가 완료"));
+	}
+
+	//  2. 대기열 세팅이 끝났으니 실제 재화를 지급합니다! (이때 InventoryComp 안에서 방송이 나가고, UI가 방금 넣은 큐를 읽어옵니다)
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
 	if (Reward.Fragment > 0) InventoryComp->AddFragment(Reward.Fragment);
+
+	InventoryComp->OnOpenGetInventory.Broadcast();
+	UE_LOG(LogTemp, Warning, TEXT("상자 보상 지급 완료"));
 
 	// (경험치 보상이 있다면 ASC를 통해 지급)
 	if (Reward.Exp > 0)
