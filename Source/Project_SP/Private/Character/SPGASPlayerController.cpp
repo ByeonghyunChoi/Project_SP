@@ -897,18 +897,6 @@ void ASPGASPlayerController::Cheat_AddAllResources()
 		InventoryComp->AddIncompleteEnergy(10000);
 		InventoryComp->AddFragment(10000);
 
-		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(PlayerPawn))
-		{
-			// 20레벨 데이터 테이블(커브)을 읽어서 공/방/체 스탯을 갱신하고, 체력을 100% 채움(true)!
-			PlayerChar->ApplyLevelStats(10, true);
-
-			// 깔끔한 UI를 위해 현재 경험치 바를 0으로 리셋해줍니다.
-			if (CachedASC)
-			{
-				CachedASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), 0.0f);
-			}
-		}
-
 		// 획득한 상태로 바로 세이브를 구워버려서 맵을 이동해도 안 날아가게 만듭니다.
 		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
