@@ -266,7 +266,7 @@ void USPGASAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute,
 	}
 	else if (Attribute == GetCriticalDamageAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 1.0f);
+		NewValue = FMath::Max(NewValue, 0.0f);
 	}
 	else if (Attribute == GetOutgoingDamageMultiplierAttribute() ||
 		Attribute == GetIncomingDamageMultiplierAttribute())
@@ -1506,6 +1506,9 @@ void ASPGASMonsterCharacter::RemoveVisualPlayingTag()
 #include "Components/WidgetComponent.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "Component/RelicComponent.h"
+#include "SubSystem/SPPowerUpgradeSubsystem.h"
+#include "Game/ASPCombatGameMode.h"
+#include "Manager/SPCombatTurnManager.h"
 
 
 
@@ -1588,8 +1591,8 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			// 세이브된 런 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
-			TargetLevel = FMath::RoundToInt(SaveSys->GetRunData().Stats.Level);
+			// 세이브된 데이터에서 레벨을 가져옴 (세이브가 없으면 기본값 1)
+			TargetLevel = FMath::RoundToInt(SaveSys->GetPermData().Stats.Level);
 		}
 
 		// 커브 테이블을 읽어와서 뼈대 스탯 세팅
@@ -1686,6 +1689,19 @@ void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelec
 }
 
 
+void ASPGASPlayerCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+
+	//  권능 영구 스탯 보너스 일괄 적용 (반드시 기본 스탯 세팅 이후에 호출!)
+	if (USPPowerUpgradeSubsystem* PowerSys = GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
+	{
+		PowerSys->ApplySavedStatUpgradesToPlayer(this);
+		UE_LOG(LogTemp, Log, TEXT("[PlayerCharacter] BeginPlay: 권능 영구 스탯이 캐릭터에게 성공적으로 적용되었습니다."));
+	}
+}
+
 void ASPGASPlayerCharacter::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
@@ -1769,3 +1785,74 @@ void ASPGASPlayerCharacter::GiveAbilities()
 	for (const auto& AbilityClass : BattlePassiveAbilities)
 	{
 		if (AbilityClass)
+		{
+			FGameplayAbilitySpec Spec(AbilityClass);
+			ASC->GiveAbility(Spec);
+			UE_LOG(LogTemp, Log, TEXT("   -> Given Battle Passive: %s"), *AbilityClass->GetName());
+		}
+	}
+
+	GiveWeaponAbilities();
+
+	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities End ==="));
+
+	// 초기 상태 활성화
+	ASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FieldTag));
+}
+
+void ASPGASPlayerCharacter::GiveWeaponAbilities()
+{
+	UE_LOG(LogTemp, Log, TEXT("Giving Weapon Abilities... Count: %d"), WeaponConfigs.Num());
+
+	for (const auto& Pair : WeaponConfigs)
+	{
+		UWeaponAbilityData* Data = Pair.Value;
+		if (Data)
+		{
+			if (Data->NormalAttackAbility) ASC->GiveAbility(FGameplayAbilitySpec(Data->NormalAttackAbility));
+			if (Data->WeaponSkillAbility)  ASC->GiveAbility(FGameplayAbilitySpec(Data->WeaponSkillAbility));
+			if (Data->ParrySkillAbility)   ASC->GiveAbility(FGameplayAbilitySpec(Data->ParrySkillAbility));
+
+			UE_LOG(LogTemp, Log, TEXT("  -> Weapon Registered: %s"), *Pair.Key.ToString());
+		}
+	}
+}
+
+void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
+{
+	if (!CameraBoom || !FollowCamera) return;
+
+	CameraBoom->TargetArmLength = Profile.TargetArmLength;
+	CameraBoom->SocketOffset = Profile.SocketOffset;
+	CameraBoom->SetRelativeRotation(Profile.RelativeRotation);
+	CameraBoom->bEnableCameraLag = Profile.bEnableLag;
+
+	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
+	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
+	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
+
+	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
+	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
+}
+
+ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
+{
+	if (WeaponConfigs.Contains(WeaponTag))
+	{
+		UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+		if (!Data) return ETargetingType::Single;
+
+		switch (ActionType)
+		{
+		case ESelectedActionType::NormalAttack: return Data->NormalAttackTargeting;
+		case ESelectedActionType::WeaponSkill:  return Data->WeaponSkillTargeting;
+		case ESelectedActionType::ParrySkill:   return Data->ParrySkillTargeting;
+		}
+	}
+	return ETargetingType::Single;
+}
+
+UWeaponAbilityData* ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
+{

@@ -1,78 +1,4 @@
-﻿			{
-				FGameplayEffectSpecHandle& Spec = (*PendingSpecs)[i];
-				if (Spec.IsValid())
-				{
-					if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
-					{
-						// 1. 데미지 폭발!
-						TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
-						PendingSpecs->RemoveAt(i);
-
-						// 🌟 [추가된 핵심 로직] 데미지가 들어갔으니 사운드 재생!
-						if (StatusEffectDataAsset)
-						{
-							// 데이터 에셋에서 이 상태이상(StatusTag)의 설정값을 가져옵니다.
-							const FStatusEffectConfig* Config = StatusEffectDataAsset->GetConfig(StatusTag);
-
-							// 설정값에 사운드가 지정되어 있다면 타겟 위치에서 재생!
-							if (Config && Config->StatusDamageSound)
-							{
-								UGameplayStatics::PlaySoundAtLocation(
-									this,
-									Config->StatusDamageSound,
-									TargetActor->GetActorLocation()
-								);
-							}
-						}
-
-						// 2. 피격 애니메이션 및 사망 처리
-						if (ASPGASCharacterBase* GASChar = Cast<ASPGASCharacterBase>(TargetActor))
-						{
-							if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
-							{
-								GASChar->PlayHitReact(GASChar->GetActorLocation());
-							}
-							else
-							{
-								UE_LOG(LogTemp, Warning, TEXT("[%s] 상태이상 데미지로 사망! 피격 모션을 생략합니다."), *TargetActor->GetName());
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
-{
-	if (!TargetASC) return;
-
-	FGameplayTagContainer TagContainer;
-	TagContainer.AddTag(StatusTagToRemove);
-
-	TargetASC->RemoveActiveEffectsWithGrantedTags(TagContainer);
-
-	if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(GetOwner()))
-	{
-		Monster->BroadcastStatusUI();
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[StatusComponent] 상태이상 제거됨: %s"), *StatusTagToRemove.ToString());
-}
-
-// ==========================================
-// FILE: SPTutorialManagerComponent.cpp
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
-#include "Component/SPTutorialManagerComponent.h"
-#include "SubSystem/SPCombatSubsystem.h"
-#include "Character/SPGASPlayerController.h"
-#include "Kismet/GameplayStatics.h"
-#include "Blueprint/UserWidget.h"
-
+﻿
 USPTutorialManagerComponent::USPTutorialManagerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -81,33 +7,69 @@ USPTutorialManagerComponent::USPTutorialManagerComponent()
 void USPTutorialManagerComponent::StartTutorialScenario()
 {
 	bIsTutorialActive = true;
-	CurrentStep = 1;
-	ProcessStep();
+	CurrentStep = 0;
+
+	if (TutorialPopupClass && !ActivePopupWidget)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+		{
+			ActivePopupWidget = CreateWidget<UUserWidget>(PC, TutorialPopupClass);
+			if (ActivePopupWidget) ActivePopupWidget->AddToViewport(100);
+		}
+	}
+	ProcessCurrentStep();
 }
 
-void USPTutorialManagerComponent::OnPlayerTurnStarted()
+void USPTutorialManagerComponent::EndTutorial()
 {
-}
+	bIsTutorialActive = false;
+	UGameplayStatics::SetGamePaused(GetWorld(), false);
 
-void USPTutorialManagerComponent::OnParryTimingTriggered()
-{
+	if (ActivePopupWidget)
+	{
+		ActivePopupWidget->RemoveFromParent();
+		ActivePopupWidget = nullptr;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] 튜토리얼 종료. 자유 전투 전환."));
 }
 
 void USPTutorialManagerComponent::AdvanceStep()
 {
-	CurrentStep++;
-	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] Step %d �� �̵�"), CurrentStep);
+	if (!bIsTutorialActive) return;
 
-	// ������ ��(��: 8�ܰ� ����)�� �����ϸ� Ʃ�丮�� ����
-	if (CurrentStep >= 8)
+	CurrentStep++;
+	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] 각본 이동 -> Step %d"), CurrentStep);
+
+	if (CurrentStep >= 8) EndTutorial();
+	else ProcessCurrentStep();
+}
+
+void USPTutorialManagerComponent::OnPlayerTurnStarted()
+{
+	if (!bIsTutorialActive) return;
+
+	// 🌟 [각본 매핑] 무기 스킬(Step 6)과 시간 간섭(Step 7)은 플레이어 턴이 시작될 때 멈춥니다!
+	if (CurrentStep == 6 || CurrentStep == 7)
 	{
-		bIsTutorialActive = false;
-		UGameplayStatics::SetGamePaused(GetWorld(), false);
-		if (ActivePopupWidget) ActivePopupWidget->RemoveFromParent();
+		FTimerHandle TurnStartDelayTimer;
+		GetWorld()->GetTimerManager().SetTimer(
+			TurnStartDelayTimer,
+			this,
+			&USPTutorialManagerComponent::ProcessCurrentStep, // 1.5초 뒤에 실행할 함수
+			1.0f,
+			false
+		);
 	}
-	else
+}
+
+void USPTutorialManagerComponent::OnParryTimingTriggered()
+{
+	if (!bIsTutorialActive) return;
+
+	// 🌟 [각본 매핑] 적이 나를 치려는 패링 타이밍(Step 5)이 오면 세상을 얼립니다!
+	if (CurrentStep == 5)
 	{
-		ProcessStep();
+		ProcessCurrentStep();
 	}
 }
 
@@ -115,20 +77,43 @@ bool USPTutorialManagerComponent::CanProcessInput(FGameplayTag InputTag) const
 {
 	if (!bIsTutorialActive) return true;
 
-	// ���� �ܰ躰�� ���Ǵ� �±� ��Ī ����
-	// Step 4�� �Ϲ� ����(Battle_Action_Attack)�� ���, �̷� ������ ����
-	return false;
+	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
+
+	if (CurrentStep >= 5 && InputTag.MatchesTagExact(Tags.Battle_Action_Parry))
+	{
+		return true;
+	}
+
+	switch (CurrentStep)
+	{
+	case 0: case 1: case 2: case 3: case 5: return false; // 설명 단계: 클릭(Next)만 허용
+	case 4: return InputTag.MatchesTagExact(Tags.Battle_Action_Attack); // 🌟 일반 공격 유도
+	case 6: return InputTag.MatchesTagExact(Tags.Battle_Action_Skill);  // 🌟 무기 스킬 유도
+	case 7: return InputTag.MatchesTagExact(Tags.Battle_Action_TimeInterference); // 🌟 시간 간섭 유도
+	default: return false;
+	}
 }
 
-void USPTutorialManagerComponent::ProcessStep()
+void USPTutorialManagerComponent::HideTutorialPopup()
 {
-	// ���⼭ ���� �Ͻ�����, ���� ����, ���̶���Ʈ ��ġ ������ �����մϴ�.
-	// WBP_TutorialPopup�� UpdateTutorialView �Լ��� ���⼭ ȣ���ϼ���!
+	if (ActivePopupWidget)
+	{
+		ActivePopupWidget->SetVisibility(ESlateVisibility::Hidden);
+	}
+}
+
+void USPTutorialManagerComponent::ProcessCurrentStep()
+{
+	// 1. UI 방송을 먼저 해서 위젯들이 생성되고 배치될 시간을 줍니다.
 	UGameplayStatics::SetGamePaused(GetWorld(), true);
 
-	// �˾� ����/������Ʈ ����...
-}
+	if (ActivePopupWidget)
+	{
+		ActivePopupWidget->SetVisibility(ESlateVisibility::Visible);
+	}
 
+	OnTutorialStepChanged.Broadcast(CurrentStep);
+}
 // ==========================================
 // FILE: OpartsDefinition.cpp
 // ==========================================
@@ -1769,3 +1754,105 @@ void USPGA_BattleActionBase::ExecuteJadeClockInterference(TSubclassOf<class UGam
 {
 	AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
 	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!GameMode || !Avatar) return;
+
+	// 1. 살아있는 모든 적을 가져와서 숫자를 셉니다.
+	TArray<AActor*> Enemies = GetAllEnemies();
+	int32 EnemyCount = Enemies.Num();
+
+	if (EnemyCount > 0 && JadeClockBuffClass)
+	{
+		UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+		if (ASC)
+		{
+			// 2. 나에게 적의 수만큼 '옥시계 버프 스택' 부여
+			FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+			Context.AddSourceObject(this);
+			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(JadeClockBuffClass, 1.0f, Context);
+
+			if (SpecHandle.IsValid())
+			{
+				// 🌟 스택 갯수를 적의 수로 세팅!
+				SpecHandle.Data->SetStackCount(EnemyCount);
+				ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+			}
+		}
+
+		// 3. 모든 적의 행동 게이지를 100(Max)으로 꽉 채웁니다!
+		for (AActor* Enemy : Enemies)
+		{
+			GameMode->GetTurnManager()->SetActionGauge(Enemy, ASPCombatTurnManager::MaxActionGauge);
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[옥시계] 적 %d명의 게이지를 100으로 만들고 패링 프리패스 버프를 %d스택 획득했습니다!"), EnemyCount, EnemyCount);
+	}
+
+	// 4. 내 턴 강제 종료 (적들이 미친 듯이 달려들기 시작합니다)
+	GameMode->EndTurn(Avatar);
+}
+
+void USPGA_BattleActionBase::ExecuteGoldBugInterference()
+{
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	if (!Avatar) return;
+
+	// 내 몸(플레이어)에 있는 상태이상 컴포넌트를 가져옵니다. 
+	USPStatusEffectComponent* StatusComp = Avatar->FindComponentByClass<USPStatusEffectComponent>();
+	if (!StatusComp) return;
+
+	TArray<AActor*> Enemies = GetAllEnemies();
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	for (AActor* Enemy : Enemies)
+	{
+		UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Enemy);
+		if (!TargetASC) continue;
+
+		USPStatusEffectComponent* TargetStatusComp = Enemy->FindComponentByClass<USPStatusEffectComponent>();
+		if (!TargetStatusComp) continue;
+
+		// 1. 현재 이 몬스터에게 '없는' 기본 상태이상을 조사합니다.
+		TArray<FGameplayTag> UnappliedTags;
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Burn))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Burn);
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Weathering))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Weathering);
+
+		if (!TargetASC->HasMatchingGameplayTag(SPTags.Debuff_Basic_Poison))
+			UnappliedTags.Add(SPTags.Debuff_Basic_Poison);
+
+		// 2. 모인 상태이상 후보들을 무작위로 섞습니다. (셔플)
+		for (int32 i = UnappliedTags.Num() - 1; i > 0; i--)
+		{
+			int32 j = FMath::RandRange(0, i);
+			UnappliedTags.Swap(i, j);
+		}
+
+		// 3. 앞에서부터 최대 2개를 뽑아서 대상에게 차례대로 주입합니다!
+		int32 ApplyCount = FMath::Min(2, UnappliedTags.Num());
+		for (int32 i = 0; i < ApplyCount; i++)
+		{
+			// 🌟 타겟의 컴포넌트에서 ProcessStatusEffect를 실행합니다!
+			TargetStatusComp->ProcessStatusEffect(UnappliedTags[i], TargetASC, Avatar);
+
+			UE_LOG(LogTemp, Warning, TEXT("[골드 버그] %s 에게 %s 를 부여했습니다!"), *Enemy->GetName(), *UnappliedTags[i].ToString());
+		}
+	}
+}
+
+
+// ==========================================
+// FILE: SPGA_FieldAttack.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+
+#include "GA/SPGA_FieldAttack.h"
+#include "Character/SPGASPlayerCharacter.h"  
+#include "Character/SPGASMonsterCharacter.h" 
+#include "Map/MapManagerSubSystem.h"
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h" 
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"  
+#include "Kismet/GameplayStatics.h"

@@ -1,75 +1,4 @@
-﻿		{
-			FGameplayAbilitySpec Spec(AbilityClass);
-			ASC->GiveAbility(Spec);
-			UE_LOG(LogTemp, Log, TEXT("   -> Given Battle Passive: %s"), *AbilityClass->GetName());
-		}
-	}
-
-	GiveWeaponAbilities();
-
-	UE_LOG(LogTemp, Warning, TEXT("=== GiveAbilities End ==="));
-
-	// 초기 상태 활성화
-	ASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FieldTag));
-}
-
-void ASPGASPlayerCharacter::GiveWeaponAbilities()
-{
-	UE_LOG(LogTemp, Log, TEXT("Giving Weapon Abilities... Count: %d"), WeaponConfigs.Num());
-
-	for (const auto& Pair : WeaponConfigs)
-	{
-		UWeaponAbilityData* Data = Pair.Value;
-		if (Data)
-		{
-			if (Data->NormalAttackAbility) ASC->GiveAbility(FGameplayAbilitySpec(Data->NormalAttackAbility));
-			if (Data->WeaponSkillAbility)  ASC->GiveAbility(FGameplayAbilitySpec(Data->WeaponSkillAbility));
-			if (Data->ParrySkillAbility)   ASC->GiveAbility(FGameplayAbilitySpec(Data->ParrySkillAbility));
-
-			UE_LOG(LogTemp, Log, TEXT("  -> Weapon Registered: %s"), *Pair.Key.ToString());
-		}
-	}
-}
-
-void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
-{
-	if (!CameraBoom || !FollowCamera) return;
-
-	CameraBoom->TargetArmLength = Profile.TargetArmLength;
-	CameraBoom->SocketOffset = Profile.SocketOffset;
-	CameraBoom->SetRelativeRotation(Profile.RelativeRotation);
-	CameraBoom->bEnableCameraLag = Profile.bEnableLag;
-
-	FollowCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
-	FollowCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
-
-	CombatCineCamera->SetRelativeLocation(Profile.CameraRelativeLocation);
-	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
-
-	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
-	UE_LOG(LogTemp, Log, TEXT("카메라 설정 적용됨! 길이: %f"), Profile.TargetArmLength);
-}
-
-ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
-{
-	if (WeaponConfigs.Contains(WeaponTag))
-	{
-		UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
-		if (!Data) return ETargetingType::Single;
-
-		switch (ActionType)
-		{
-		case ESelectedActionType::NormalAttack: return Data->NormalAttackTargeting;
-		case ESelectedActionType::WeaponSkill:  return Data->WeaponSkillTargeting;
-		case ESelectedActionType::ParrySkill:   return Data->ParrySkillTargeting;
-		}
-	}
-	return ETargetingType::Single;
-}
-
-UWeaponAbilityData* ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
-{
-	if (const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag))
+﻿	if (const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag))
 	{
 		return *FoundData;
 	}
@@ -171,7 +100,15 @@ void ASPGASPlayerCharacter::OnBattleStarted()
 
 	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController()))
 	{
+		if (!PC->GetCurrentWeaponTag().IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[시스템] 장착된 무기가 없어 기본 무기(펜리르)를 자동 장착합니다."));
+			// 이미 만들어둔 ProcessWeaponSwitch 함수를 재활용하여 완벽하게 장착시킵니다!
+			PC->ProcessWeaponSwitch(FSPGameplayTags::Get().Weapon_Fenrir);
+		}
+
 		PC->SetupAndShowBattleUI();
+		PC->OnWeaponChanged.Broadcast(FSPGameplayTags::Get().Weapon_Fenrir);
 	}
 }
 
@@ -433,6 +370,33 @@ void ASPGASPlayerCharacter::ExecuteTimeOverSequence()
 		MoveComp->StopMovementImmediately();
 	}
 
+	if (ASC)
+	{
+		ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Death);
+		ASC->CancelAllAbilities();
+	}
+
+	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		// A. 모든 적들의 진행 중인 행동(스킬/이동)을 강제로 취소시킴
+		for (AActor* Enemy : GM->GetCurrentEnemies())
+		{
+			if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Enemy))
+			{
+				if (UAbilitySystemComponent* EnemyASC = ASI->GetAbilitySystemComponent())
+				{
+					EnemyASC->CancelAllAbilities();
+				}
+			}
+		}
+
+		// B. 턴 매니저 자체를 파괴! (더 이상 누구에게도 턴이 돌아가지 않습니다)
+		if (GM->GetTurnManager())
+		{
+			GM->GetTurnManager()->Destroy();
+		}
+	}
+
 	// 3. 부모 클래스에 만들어둔 DeathMontage 재생!
 	if (DeathMontage)
 	{
@@ -493,10 +457,13 @@ void ASPGASPlayerCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutRes
 #include "Data/ShopDataStructs.h"
 #include "Data/Asset/OpartsDefinition.h"
 #include "Component/OpartsComponent.h"
+#include "Component/SPTutorialManagerComponent.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
+	TutorialManager = CreateDefaultSubobject<USPTutorialManagerComponent>(TEXT("TutorialManager"));
 	CurrentSelectedAction = ESelectedActionType::None;
 }
 
@@ -752,6 +719,38 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
 	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
 
+	if (TutorialManager && TutorialManager->IsTutorialActive())
+	{
+		if (TutorialManager->CanProcessInput(InputTag))
+		{
+			int32 Step = TutorialManager->GetCurrentStep();
+
+			// [기믹 1] 일반 공격 설명 중 정답 입력 시
+			if (Step == 4 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Attack))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false); // 세상 정지 해제
+				TutorialManager->HideTutorialPopup();              // UI 숨기기
+			}
+			// [기믹 2] 무기 스킬 설명 중 정답 입력 시
+			else if (Step == 6 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Skill))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false);
+				TutorialManager->HideTutorialPopup();
+			}
+			// [기믹 3] 시간 간섭 설명 중 정답 입력 시 ➡️ 대단원의 막을 내림!
+			else if (Step == 7 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_TimeInterference))
+			{
+				UGameplayStatics::SetGamePaused(GetWorld(), false);
+				TutorialManager->EndTutorial();                    // 튜토리얼 완전 종료 및 자유전투 전환!
+			}
+		}
+		else
+		{
+			HandleInputFeedback(InputTag, false);
+			return; // 오답 키는 철저하게 차단
+		}
+	}
+
 	// 무기 교체 입력 
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag("Weapon")))
 	{
@@ -770,7 +769,7 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	}
 
 	// 턴 체크
-	if (!IsMyTurn())
+	if (!IsMyTurn() && (!TutorialManager || !TutorialManager->IsTutorialActive()))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
 		return;
@@ -814,6 +813,11 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 				PlayActionSound(InputTag, true);
 				HandleInputFeedback(InputTag, true);
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
+
+				if (TutorialManager && TutorialManager->GetCurrentStep() == 7)
+				{
+					TutorialManager->AdvanceStep(); // Step 8로 넘어감 (튜토리얼 완전 종료!)
+				}
 			}
 			else
 			{
@@ -1303,6 +1307,60 @@ void ASPGASPlayerController::StartRegressionSequence()
 	GetWorld()->GetTimerManager().SetTimer(RegressionTimerHandle, this, &ASPGASPlayerController::ExecuteGoToLobby, 5.0f, false);
 }
 
+bool ASPGASPlayerController::IsNormalAttackRestricted() const
+{
+	// 1. 수정 해골 버프가 켜져 있다면 일반 공격 제한!
+	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Buff_CrystalSkull))
+	{
+		return true;
+	}
+	return false;
+}
+
+void ASPGASPlayerController::Cheat_AddAllResources()
+{
+	APawn* PlayerPawn = GetPawn();
+	if (!PlayerPawn) return;
+
+	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
+	{
+		// 재화 10000개씩 팍팍 꽂아주기!
+		InventoryComp->AddMoney(10000);
+		InventoryComp->AddSand(10000);
+		InventoryComp->AddIncompleteEnergy(10000);
+		InventoryComp->AddFragment(10000);
+
+		if (ASPGASPlayerCharacter* PlayerChar = Cast<ASPGASPlayerCharacter>(PlayerPawn))
+		{
+			// 20레벨 데이터 테이블(커브)을 읽어서 공/방/체 스탯을 갱신하고, 체력을 100% 채움(true)!
+			PlayerChar->ApplyLevelStats(20, true);
+
+			// 깔끔한 UI를 위해 현재 경험치 바를 0으로 리셋해줍니다.
+			if (CachedASC)
+			{
+				CachedASC->SetNumericAttributeBase(USPGASAttributeSet::GetExperienceAttribute(), 0.0f);
+			}
+		}
+
+		// 획득한 상태로 바로 세이브를 구워버려서 맵을 이동해도 안 날아가게 만듭니다.
+		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+		{
+			SaveSys->CacheRunDataFromPlayer(PlayerPawn);
+			SaveSys->SaveRunToDisk();
+			SaveSys->CachePermDataFromPlayer(PlayerPawn);
+			SaveSys->SavePermToDisk();
+		}
+	}
+}
+
+void ASPGASPlayerController::Cheat_GoToBoss()
+{
+	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
+	{
+		MapManager->Cheat_JumpToBossRoom();
+	}
+}
+
 void ASPGASPlayerController::StartTargetSelection()
 {
 	// 1. 적 목록 찾기
@@ -1441,6 +1499,20 @@ void ASPGASPlayerController::ExecuteBattleAbility(ESelectedActionType ActionType
 
 		// 캐릭터에게 실행 요청 (타겟 정보 전달)
 		PlayerCharacter->ActivateCombatAbility(CurrentWeaponTag, ActionType, TargetActor);
+		
+		if (TutorialManager && TutorialManager->IsTutorialActive())
+		{
+			// 일반 공격 발사 성공 -> 이제 적의 턴이 오고, 패링 타이밍(Step 5)을 기다림
+			if (TutorialManager->GetCurrentStep() == 4 && ActionType == ESelectedActionType::NormalAttack)
+			{
+				TutorialManager->SetCurrentStep(5);
+			}
+			// 무기 스킬 발사 성공 -> 이제 턴이 한 바퀴 돌고 시간 간섭(Step 7)을 기다림
+			else if (TutorialManager->GetCurrentStep() == 6 && ActionType == ESelectedActionType::WeaponSkill)
+			{
+				TutorialManager->SetCurrentStep(7);
+			}
+		}
 	}
 }
 
@@ -1522,15 +1594,51 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 {
 	if (!CachedASC) return;
 
+	if (TutorialManager && TutorialManager->IsTutorialActive())
+	{
+		// 🌟 적이 공격해와서 세상이 멈춘 Step 5 상태일 때 패링 키를 눌렀다면?
+		if (TutorialManager->GetCurrentStep() == 5)
+		{
+			UGameplayStatics::SetGamePaused(GetWorld(), false); // 정지 풀기
+			TutorialManager->HideTutorialPopup();              // UI 숨기기
+			TutorialManager->SetCurrentStep(6);                // 🚨 다음 타겟인 '무기스킬 대기상태'로 변경!
+
+			// ====================================================================
+			// 🌟 [핵심 수정] 엔진이 정지를 완전히 풀고 물리/애니메이션 틱을 재개할 수 있도록
+			// 0.05초만 딜레이를 준 뒤에 패링 스킬을 발동시킵니다!
+			// ====================================================================
+			FTimerHandle ParryTriggerTimer;
+			GetWorld()->GetTimerManager().SetTimer(
+				ParryTriggerTimer,
+				[this]()
+				{
+					if (CachedASC)
+					{
+						FGameplayTag ParryTag = FSPGameplayTags::Get().Battle_Action_Parry;
+						CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(ParryTag)); // 패링 발사!
+						UE_LOG(LogTemp, Warning, TEXT("[튜토리얼] 지연 패링 발동 완료!"));
+					}
+				},
+				0.05f, false);
+
+			return;
+		}
+		else if (TutorialManager->GetCurrentStep() < 5)
+		{
+			return;
+		}
+	}
+
 	if (IsMyTurn())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("지금은 내 턴입니다. 패링을 사용할 수 없습니다."));
 		return;
 	}
 
-	CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
+	bool bActivated = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
 
 	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+
 }
 
 
@@ -1748,24 +1856,3 @@ UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#pragma once
-
-#include "Component/InventoryComponent.h"
-#include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
-#include "SubSystem/SPPowerUpgradeSubsystem.h"
-#include "GameFramework/Pawn.h"
-#include "Kismet/GameplayStatics.h"
-
-UInventoryComponent::UInventoryComponent()
-{
-	PrimaryComponentTick.bCanEverTick = false;
-}
-
-void UInventoryComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-
-	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
