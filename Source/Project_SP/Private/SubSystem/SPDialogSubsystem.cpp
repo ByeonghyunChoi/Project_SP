@@ -74,6 +74,13 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 				{
 					OnDialogStandingSetup.Broadcast(*NPCAsset);
 				}
+				else
+				{
+					//  찾지 못했다면 빈 에셋 데이터를 억지로 만들어서 방송합니다!
+					FDialogAssetData EmptyAsset;
+					OnDialogStandingSetup.Broadcast(EmptyAsset);
+					UE_LOG(LogTemp, Warning, TEXT("[Dialog] %s 의 일러스트를 찾지 못해 빈 이미지를 송출합니다."), *Row.SpeakerID.ToString());
+				}
 				break; // 찾았으니 반복문 즉시 종료!
 			}
 		}

@@ -1,4 +1,94 @@
-﻿#pragma once
+﻿
+#include "CoreMinimal.h"
+#include "GameplayEffectExecutionCalculation.h"
+#include "SPGAS_DamageCalculation.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPGAS_DamageCalculation : public UGameplayEffectExecutionCalculation
+{
+	GENERATED_BODY()
+public:
+	USPGAS_DamageCalculation();
+	virtual void Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams, FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const override;
+	
+};
+// ==========================================
+// FILE: MerchantNPC.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "Blueprint/UserWidget.h"
+#include "Interface/InteractableInterface.h"
+#include "MerchantNPC.generated.h"
+
+class UShopComponent;
+
+UCLASS()
+class PROJECT_SP_API AMerchantNPC : public ACharacter, public IInteractableInterface
+{
+	GENERATED_BODY()
+
+public:
+	AMerchantNPC();
+
+	//상호작용을 실행할 때 호출
+	virtual void ExecuteInteraction(AActor* Interactor) override;
+	//UI에 표시할 상호작용 텍스트 반환
+	virtual FText GetInteractText() const override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Oparts|Setup")
+	FText InteractText = FText::FromString(TEXT("상호작용"));
+
+protected:
+	// 상점 기능을 담당할 컴포넌트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UShopComponent> ShopComp;
+
+	// 상인 이름 (예: "무기 상인", "잡화 상인") - 나중에 UI 제목으로 사용
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant Info")
+	FText MerchantName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Merchant | UI")
+	TSubclassOf<class UUserWidget> ShopWidgetClass;
+
+	// [추가] 생성된 위젯 인스턴스를 저장 (중복 생성 방지)
+	UPROPERTY()
+	TObjectPtr<class UUserWidget> ShopWidgetInstance;
+
+protected:
+	virtual void BeginPlay() override;
+
+public:
+	// 플레이어 컨트롤러에서 호출할 함수
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void OpenShop(APlayerController* PlayerController);
+};
+// ==========================================
+// FILE: MonsterInfo.h
+// ==========================================
+#pragma once
+
+#include "CoreMinimal.h"
+#include "MonsterInfo.generated.h"
+
+UENUM(BlueprintType)
+enum class EEnemyRank :uint8
+{
+    Normal,
+    Epic,
+    Boss
+};
+// ==========================================
+// FILE: SPGASAIController.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
 
 #include "CoreMinimal.h"
 #include "AIController.h"
@@ -381,6 +471,7 @@ protected:
 	FGameplayTag PendingWeaponTag;
 
 protected:
+	virtual void BeginPlay() override;
 
 	virtual void OnRep_PlayerState() override;
 
@@ -391,8 +482,6 @@ protected:
 	void OnHealthChanged(const struct FOnAttributeChangeData& Data);
 
 	void OnTimePowerChanged(const struct FOnAttributeChangeData& Data);
-
-	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
 
 	// 레벨 업 시 연출 담당 함수(블루프린트에서 구현)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player | Growth")
@@ -456,6 +545,8 @@ public:
 	void HandleWeaponShow();
 
 	void CheckLevelUp();
+
+	void ApplyLevelStats(int32 TargetLevel, bool bIsLevelUp = false);
 
 	//행동 선택 시 UI 보여주는 연출 이벤트
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Camera | Action")
@@ -609,6 +700,9 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "GameFlow | UI")
 	TObjectPtr<class UUserWidget> RegressionHUDWidget;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
+	TObjectPtr<class USPTutorialManagerComponent> TutorialManager;
+
 public:
 	// UI가 이 컨트롤러를 통해 상인을 찾아갈 수 있도록 길을 열어줍니다.
 	UPROPERTY(BlueprintReadWrite, Category = "Shop")
@@ -717,6 +811,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Growth")
 	int32 GetCurrentPlayerLevel() const;
 
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	class USPTutorialManagerComponent* GetTutorialManager() const { return TutorialManager; }
+
 	//전투 UI 활성화 함수
 	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
 	void SetupAndShowBattleUI();
@@ -770,10 +867,19 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "GameFlow | UI")
 	void ShowRegressionUI();
 
+	UFUNCTION(BlueprintPure, Category = "Combat | State")
+	bool IsNormalAttackRestricted() const;
+
+	//시연용 치트 키
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_AddAllResources();
+
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_GoToBoss();
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
-
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | UI")
 	FOnBattlePointUpdatedDelegate OnBattlePointUIUpdated;
@@ -895,7 +1001,7 @@ public:
 	int32 GetSand() const { return PermanentWallet.Sand; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
-	int32 GetIncompleteEnergy() const { return PermanentWallet.IncompleteEnergy; }
+	int32 GetIncompleteEnergy() const { return RunWallet.IncompleteEnergy; }
 
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetMoney() const { return RunWallet.Money; }
@@ -1375,7 +1481,9 @@ private:
 #include "SPTutorialManagerComponent.generated.h"
 
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTutorialStepChanged, int32, NewStep);
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API USPTutorialManagerComponent : public UActorComponent
 {
 	GENERATED_BODY()
@@ -1383,42 +1491,63 @@ class PROJECT_SP_API USPTutorialManagerComponent : public UActorComponent
 public:
 	USPTutorialManagerComponent();
 
-	// 1. Ʃ�丮�� ����� �Լ�
+	// 1. Ʃ�丮�� ����
 	UFUNCTION(BlueprintCallable, Category = "Tutorial")
 	void StartTutorialScenario();
 
-	// ���� �帧�� ���� ȣ��Ǵ� Ʈ���ŵ�
+	// Ʃ�丮�� ����
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void EndTutorial();
+
+	// ���� �ܰ�� ���� �ѱ��
+	UFUNCTION(BlueprintCallable, Category = "Tutorial")
+	void AdvanceStep();
+
+	// 2. �ܺ� Ʈ���� (���� ��峪 �� �Ŵ����� Ư�� ��Ȳ�� ȣ���� ��)
 	UFUNCTION(BlueprintCallable, Category = "Tutorial")
 	void OnPlayerTurnStarted();
 
 	UFUNCTION(BlueprintCallable, Category = "Tutorial")
 	void OnParryTimingTriggered();
 
-	UFUNCTION(BlueprintCallable, Category = "Tutorial")
-	void AdvanceStep();
-
-	// �Է� �˹��� (��Ʈ�ѷ����� �Ź� ȣ���Ͽ� ����ç�� ����)
+	// 3. �Է� �˹��� (PlayerController�� Ű�� ���� ������ ��� �Լ�)
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
 	bool CanProcessInput(FGameplayTag InputTag) const;
 
-protected:
-	// ���� ���� �ܰ�
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
-	int32 CurrentStep = 1;
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	int32 GetCurrentStep() const { return CurrentStep; }
 
-	// ������ ���� ���ΰ�?
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	bool IsTutorialActive() const { return bIsTutorialActive; }
+
+	void SetCurrentStep(int32 NewStep) { CurrentStep = NewStep; }
+
+	void HideTutorialPopup();
+
+public:
+	// �������� �� �̺�Ʈ�� ���ε��Ͽ� �ؽ�Ʈ�� ���� ��ġ�� ������Ʈ�մϴ�.
+	UPROPERTY(BlueprintAssignable, Category = "Tutorial|Event")
+	FOnTutorialStepChanged OnTutorialStepChanged;
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
+	int32 CurrentStep = 0;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Tutorial")
 	bool bIsTutorialActive = false;
 
-	// �˾� ���� Ŭ����
+	// ȭ�鿡 ��� �˾� ���� Ŭ���� (�������Ʈ���� �Ҵ�)
 	UPROPERTY(EditDefaultsOnly, Category = "Tutorial|UI")
 	TSubclassOf<class UUserWidget> TutorialPopupClass;
 
-	UPROPERTY()
+	// ������ ������ �˾� ���� �޸�
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TObjectPtr<class UUserWidget> ActivePopupWidget;
 
 private:
-	// �� ���ܺ� ���� �� UI ���� ����
-	void ProcessStep();
+	// ���� ���� ���� �� UI ������Ʈ ����
+	void ProcessCurrentStep();
+
 };
 // ==========================================
 // FILE: OpartsDefinition.h
@@ -1727,45 +1856,3 @@ struct FStageMonsterPool
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	FName CombatLevelName;
 
-	// �� ���������� ������ �Ϲ� ���͵� ���
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TArray<USPMonsterData*> NormalMonsters;
-
-	// �� ���������� ������ ���� ���͵� ���
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TArray<USPMonsterData*> StrongMonsters;
-};
-
-UCLASS()
-class PROJECT_SP_API USPStageMonsterPoolData : public UPrimaryDataAsset
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnPool")
-	TMap<int32, FStageMonsterPool> StagePools;
-};
-// ==========================================
-// FILE: StatusEffectData.h
-// ==========================================
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "GameplayEffect.h"
-#include "Tag/SPGameplayTags.h"
-#include "StatusEffectData.generated.h"
-
-/**
- * 
- */
-USTRUCT(BlueprintType)
-struct FStatusEffectConfig
-{
-	GENERATED_BODY()
-
-	// �����̻� �̸� 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)

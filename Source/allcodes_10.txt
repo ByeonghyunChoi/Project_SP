@@ -1,35 +1,4 @@
 ﻿
-#pragma once
-
-#include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-#include "SPBattleCameraActor.generated.h"
-
-class USpringArmComponent;
-class UCameraComponent;
-class APlayerController;
-
-UCLASS()
-class PROJECT_SP_API ASPBattleCameraActor : public AActor
-{
-	GENERATED_BODY()
-	
-public:	
-	// Sets default values for this actor's properties
-	ASPBattleCameraActor();
-
-	// 전투 시작 시 게임모드에서 호출하여 PC와 기본 카메라(돌아올 곳)를 기억하게 합니다.
-	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
-	void InitCameraManager(APlayerController* PC);
-
-	// 🌟 타겟에게 카메라를 줌인!
-	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
-	void FocusOnTarget(AActor* TargetActor, float BlendTime = 0.0f);
-
-	// 🌟 연출이 끝나고 원래 시점(기본 카메라)으로 복귀!
-	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
-	void ReturnToMainView(float BlendTime = 0.0f);
-
 protected:
 	// 지지대 (거리, 각도 조절용)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -657,9 +626,13 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	// 새 게임 시작 
+	// 로그라이크 시작 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartNewRun();
+
+	// 새 게임 시작
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void StartNewCampaign();
 
 	// 전투 맵 진입 (필드 -> 전투)
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
@@ -704,6 +677,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Reward")
 	FRewardResult GenerateInteractableReward(bool bIsHealingObject, int32 Stage, EMapType MapType);
 
+	void Cheat_JumpToBossRoom();
+
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -724,6 +699,10 @@ public:
 	int32 GetMaxFloors() const { return 5; }
 
 	TMap<int32, FSavedEncounterData> GetPreGeneratedEncounters() const { return PreGeneratedEncounters; }
+
+	FTransform GetSavedFieldTransform() const { return SavedFieldTransform; }
+
+	FName GetSavedFieldLevelName() const { return SavedFieldLevelName; }
 
 	// 레벨 계산기
 	UFUNCTION(BlueprintPure, Category = "MapProgress")
@@ -1355,9 +1334,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade")
 	void ApplyNewRunBonuses();
 
+	// 게임 시작 시, 저장된 권능 레벨을 싹 읽어와서 캐릭터의 어트리뷰트에 일괄 적용하는 함수
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void ApplySavedStatUpgradesToPlayer(class APawn* PlayerPawn);
+
+	// UI를 처음 열었을 때(또는 업데이트 시) 화면에 띄워줄 정보를 한 번에 반환하는 함수
+	UFUNCTION(BlueprintPure, Category = "PowerUpgrade|Stats")
+	void GetStatUpgradeInfo(EPowerUpgradeType StatType, int32& OutCurrentLevel, int32& OutNextCost, float& OutCurrentEffectValue) const;
+
+	// 버튼 7개에 각각 연결할 7개의 업그레이드 함수들
+	// 반환값: 성공 여부(bSuccess), 그리고 UI를 즉시 갱신할 수 있는 3가지 정보
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_ATK(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_DEF(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_Speed(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_HP(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_DamageInc(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_CritChance(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
+	UFUNCTION(BlueprintCallable, Category = "PowerUpgrade|Stats")
+	void UpgradeStat_CritDamage(class APlayerController* PC, bool& bSuccess, int32& OutLevel, int32& OutNextCost, float& OutEffectValue);
+
 private:
 	// 데이터 테이블에서 정보 추출하는 내부 헬퍼 함수
 	FPowerUpgradeData* GetUpgradeData(EPowerUpgradeType UpgradeType) const;
+
+	// 7개의 버튼이 공통으로 사용할 내부 실제 업그레이드 로직
+	bool TryUpgradeStatInternal(EPowerUpgradeType StatType, class APlayerController* PC);
 };
 // ==========================================
 // FILE: SPSaveGameSubsystem.h
@@ -1403,10 +1416,10 @@ public:
 
 	//Getter
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerRunData& GetRunData() const { return RunData; }
+	FPlayerRunData& GetRunData() { return RunData; }
 
 	UFUNCTION(BlueprintPure, Category = "SaveSystem|Data")
-	const FPlayerMetaProgressionData& GetPermData() const { return PermData; }
+	FPlayerMetaProgressionData& GetPermData() { return PermData; }
 
 	// 권능 수복 레벨을 업데이트하고 즉시 디스크에 저장하는 전용 Setter 함수
 	UFUNCTION(BlueprintCallable, Category = "SaveSystem|Perm")
@@ -1623,6 +1636,7 @@ public:
 	FGameplayTag Cooldown_Weapon_Jormungandr_Parry;
 	FGameplayTag Cooldown_Skill_TimeInterference;
 	FGameplayTag Cooldown_Witch_Summon;
+	FGameplayTag Cooldown_ParryPenalty;
 
 	//상태 이상(Debuff)
 	FGameplayTag Debuff_Basic_Weathering;  // 풍화
@@ -1714,6 +1728,79 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "UI")
 	UUserWidget* GetWidgetByClass(TSubclassOf<UUserWidget> WidgetClass) const;
+};
+// ==========================================
+// FILE: SPCutsceneWidget.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Blueprint/UserWidget.h"
+#include "SPCutsceneWidget.generated.h"
+
+/**
+ * 
+ */
+UCLASS()
+class PROJECT_SP_API USPCutsceneWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_01;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_02;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_03;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_04;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_05;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_06;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_07;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_08;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_09;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_10;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_11;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_12;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_13;
+
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_14;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+	TMap<int32, TObjectPtr<UWidgetAnimation>> CutsceneAnimMap;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "Cutscene")
+	float PlayCutsceneAnimation(int32 CutsceneIndex);
+
+protected:
+	virtual void NativeConstruct() override;
+	
 };
 // ==========================================
 // FILE: SPInteractionWidget.h

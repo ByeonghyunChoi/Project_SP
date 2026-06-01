@@ -1,4 +1,46 @@
-﻿	FName EffectName;
+﻿	// �� ���������� ������ �Ϲ� ���͵� ���
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<USPMonsterData*> NormalMonsters;
+
+	// �� ���������� ������ ���� ���͵� ���
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<USPMonsterData*> StrongMonsters;
+};
+
+UCLASS()
+class PROJECT_SP_API USPStageMonsterPoolData : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnPool")
+	TMap<int32, FStageMonsterPool> StagePools;
+};
+// ==========================================
+// FILE: StatusEffectData.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "GameplayEffect.h"
+#include "Tag/SPGameplayTags.h"
+#include "StatusEffectData.generated.h"
+
+/**
+ * 
+ */
+USTRUCT(BlueprintType)
+struct FStatusEffectConfig
+{
+	GENERATED_BODY()
+
+	// �����̻� �̸� 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName EffectName;
 
 	// ������ GE Ŭ����(�� �� ������) 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
@@ -242,6 +284,7 @@ struct FRewardResult
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Gold = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Sand = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 IncompleteEnergy = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite) int32 Fragment = 0;
@@ -502,6 +545,9 @@ struct FPlayerRunWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Money = 0; // 골드
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
+    int32 IncompleteEnergy = 0; // 불완전한 기운
 };
 
 USTRUCT(BlueprintType)
@@ -511,9 +557,6 @@ struct FPlayerPermanentWallet
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Sand = 0; // 모래
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
-    int32 IncompleteEnergy = 0; // 불완전한 기운
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Resource")
     int32 Fragment = 0; // 파편
@@ -576,6 +619,13 @@ struct FPlayerMapProgressData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EMapType CurrentMapType = EMapType::NormalBattle;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName SavedFieldLevelName;
+
+    // 튜토리얼 1차전 클리어 여부 세이브
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsTutorialBasicCleared = false;
+
     // 방을 클리어한 상태에서 저장되었는가? (보상 상자 띄우기 위함)
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EMapState CurrentRoomState = EMapState::InProgress;
@@ -621,14 +671,14 @@ UENUM(BlueprintType)
 enum class EPowerUpgradeType : uint8
 {
     None			UMETA(DisplayName = "없음"),
-    CombatResource	UMETA(DisplayName = "전투 자원 강화 (BP 증가)"),
-    RelicReroll		UMETA(DisplayName = "유물 리롤 해금"),
-    RewardBoost		UMETA(DisplayName = "보상 강화 (획득량 증가)"),
-    TimeSkillCost	UMETA(DisplayName = "시간 간섭 코스트 감소"),
-    MaxTimePower	UMETA(DisplayName = "시간의 힘 최대치 증가"),
-    FreeRevive		UMETA(DisplayName = "생존 (1회 무료 부활)"),
-    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)"),
-    RelicLuck		UMETA(DisplayName = "보상 운 (유물 등장 확률 증가)")
+    Stat_ATK	UMETA(DisplayName = "공격력 증가"),
+    Stat_DEF		UMETA(DisplayName = "방어력 증가"),
+    Stat_Speed		UMETA(DisplayName = "속도 증가"),
+    Stat_HP	UMETA(DisplayName = "체력 증가"),
+    Stat_DamageInc	UMETA(DisplayName = "가하는 피해량 증가"),
+    Stat_CritChance		UMETA(DisplayName = "치명타 확률 증가"),
+    Stat_CritDamage     UMETA(DisplayName = "치명타 피해 증가"),
+    StartGold		UMETA(DisplayName = "경제 (시작 골드 획득)")
 };
 
 // 권능 수복 데이터 테이블 구조체
@@ -685,6 +735,10 @@ struct FPlayerMetaProgressionData //영구 데이터
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerOpartsData OpartsData;
 
+    // 스탯 데이터 포함 (계층 구조)
+    UPROPERTY()
+    FPlayerStatsData Stats; // 스탯
+
 	// 권능 수복
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerPowerUpgradeData PowerUpgradeData;
@@ -706,6 +760,8 @@ struct FPlayerMetaProgressionData //영구 데이터
         OpartsData = FPlayerOpartsData();
 		// 권능 수복 데이터 초기화
         PowerUpgradeData = FPlayerPowerUpgradeData();
+        // 스텟 초기화
+        Stats = FPlayerStatsData();
         // 인트로 컷신 초기화
         bHasSeenIntro = false;
         bHasSeenIntro2 = false;
@@ -724,22 +780,15 @@ struct FPlayerRunData // 런 데이터
     UPROPERTY()
     FPlayerRunWallet RunWallet; // 일시적 재화
 
-    // 스탯 데이터 포함 (계층 구조)
-    UPROPERTY()
-    FPlayerStatsData Stats; // 스탯
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerRelicData RelicData; // 유물
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPlayerMapProgressData MapProgress;
 
-    bool IsValid() const { return  Stats.CurrentHealth >= 0.0f; }
-
     // 초기화
     void Reset()
     {
-        Stats = FPlayerStatsData();
         RunWallet = FPlayerRunWallet();
         RelicData = FPlayerRelicData();
         MapProgress = FPlayerMapProgressData();
@@ -1597,6 +1646,13 @@ protected:
 	// �и� ���� �� ����� ����
 	UPROPERTY(EditDefaultsOnly, Category = "Parry | Sound")
 	TArray<TObjectPtr<class USoundBase>> ParrySuccessSounds;
+
+	// �и� ���� �� ��Ÿ�� ���� GE
+	UPROPERTY(EditDefaultsOnly, Category = "Parry | Penalty")
+	TSubclassOf<class UGameplayEffect> ParryPenaltyGE;
+
+	// ���Ƽ�� �����ϴ� ���� ���� �Լ�
+	void ApplyParryPenalty();
 };
 // ==========================================
 // FILE: ASPCombatGameMode.h
@@ -1741,7 +1797,7 @@ protected:
 
 	// ���� ���� �� �����ؾ� �� �ð��� ��(TP)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Battle | Round")
-	float PenaltyTPCost = 30.0f;
+	float PenaltyTPCost = 10.0f;
 
 	// óġ�� ���� ���� ������ ��Ƶδ� ���
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle | Reward")
@@ -1769,3 +1825,34 @@ private:
 // FILE: SPBattleCameraActor.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "SPBattleCameraActor.generated.h"
+
+class USpringArmComponent;
+class UCameraComponent;
+class APlayerController;
+
+UCLASS()
+class PROJECT_SP_API ASPBattleCameraActor : public AActor
+{
+	GENERATED_BODY()
+	
+public:	
+	// Sets default values for this actor's properties
+	ASPBattleCameraActor();
+
+	// 전투 시작 시 게임모드에서 호출하여 PC와 기본 카메라(돌아올 곳)를 기억하게 합니다.
+	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
+	void InitCameraManager(APlayerController* PC);
+
+	// 🌟 타겟에게 카메라를 줌인!
+	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
+	void FocusOnTarget(AActor* TargetActor, float BlendTime = 0.0f);
+
+	// 🌟 연출이 끝나고 원래 시점(기본 카메라)으로 복귀!
+	UFUNCTION(BlueprintCallable, Category = "Battle | Camera")
+	void ReturnToMainView(float BlendTime = 0.0f);

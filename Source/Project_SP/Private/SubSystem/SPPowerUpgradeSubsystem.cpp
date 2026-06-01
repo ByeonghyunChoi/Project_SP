@@ -116,7 +116,7 @@ bool USPPowerUpgradeSubsystem::TryUpgradePower(EPowerUpgradeType UpgradeType, AP
 	if (!Inventory) return false;
 
 	// 핵심 기획: 오직 '파편'만 소모합니다! (이미 만들어두신 ConsumeFragment 함수 활용)
-	if (!Inventory->ConsumeFragment(Cost))
+	if (!Inventory->ConsumeIncompleteEnergy(Cost))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[PowerUpgrade] 파편이 부족합니다! 필요 파편: %d"), Cost);
 		return false;
