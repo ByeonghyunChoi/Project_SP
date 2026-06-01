@@ -104,6 +104,10 @@ void ASPGASCharacterBase::ReportReadyToGameMode()
 
 void ASPGASCharacterBase::PlayHitReact(const FVector& ImpactPoint)
 {
+	if (ASC && ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
+	{
+		return;
+	}
 
 	if (HitReactMontage && GetMesh()->GetAnimInstance())
 	{

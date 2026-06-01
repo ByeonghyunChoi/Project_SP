@@ -69,6 +69,7 @@ void UMapManagerSubsystem::StartNewRun()
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
+	bIsInTutorialMap = false;
 	bIsTutorialBasicCleared = false;
 
 	PreGenerateAllEncounters();
@@ -101,6 +102,7 @@ void UMapManagerSubsystem::StartNewCampaign()
 	CurrentFloor = 1;
 	CurrentMapType = EMapType::NormalBattle;
 	bIsInLobby = false;
+	bIsInTutorialMap = true;
 	bIsTutorialBasicCleared = false;
 
 	// 3. 튜토리얼 맵으로 다이렉트 텔레포트! (엔진 OpenLevel 하드코딩 대체)
@@ -195,7 +197,9 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 
 	FString CurrentLevelName = LoadedWorld->GetOutermost()->GetName();
 
-	if (CurrentLevelName.Contains("Tutorial") && !bIsReturningToTutorial && !bIsLoadingSave && !bIsReturningFromBattle)
+	bIsInTutorialMap = CurrentLevelName.Contains("Tutorial");
+
+	if (bIsInTutorialMap && !bIsReturningToTutorial && !bIsLoadingSave && !bIsReturningFromBattle)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[MapManager] 튜토리얼 최초 진입! 로그라이크 맵 생성을 무시하고 PlayerStart에서 스폰합니다."));
 		return; // 🚨 함수를 즉시 탈출! 엔진이 알아서 튜토리얼 맵의 PlayerStart에 예쁘게 스폰해줍니다.
@@ -483,10 +487,10 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 
 	// 그 외 일반 층(2층, 3층)일 때는 정상적으로 가중치를 돌려 2개를 뽑습니다.
 	TMap<EMapType, int32> FloorWeightPool;
-	FloorWeightPool.Add(EMapType::NormalBattle, 3);
-	FloorWeightPool.Add(EMapType::Rest, 1);
+	FloorWeightPool.Add(EMapType::NormalBattle, 1);
+	FloorWeightPool.Add(EMapType::Rest, 100);
 	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
-	FloorWeightPool.Add(EMapType::Jester, 1);
+	FloorWeightPool.Add(EMapType::Jester, 100);
 
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));
@@ -808,6 +812,7 @@ void UMapManagerSubsystem::GoToLobby()
 	bIsInLobby = true;
 	bIsBattleActive = false;
 	bIsReturningFromBattle = false;
+	bIsInTutorialMap = false;
 	CurrentRoomState = EMapState::None;
 
 

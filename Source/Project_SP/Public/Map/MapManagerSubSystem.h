@@ -81,6 +81,10 @@ public:
 	//로비 맵 판독용
 	bool GetIsInLobby() const { return bIsInLobby; }
 
+	//튜토리얼 맵 판독 용
+	UFUNCTION(BlueprintPure, Category = "Tutorial")
+	bool GetIsInTutorialMap() const { return bIsInTutorialMap; }
+
 	// 일반 전투 몬스터 생성 함수
 	void PreGenerateAllEncounters();
 
@@ -209,6 +213,9 @@ private:
 
 	// [플래그] 플레이어가 로비 맵에 있는가?
 	bool bIsInLobby = true;
+
+	// [플래그] 플레이어가 튜토리얼 맵에 있는가?
+	bool bIsInTutorialMap = false;
 
 	// 몬스터 명부
 	UPROPERTY()
