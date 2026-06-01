@@ -346,7 +346,7 @@ bool UOpartsComponent::TryUpgradeLevel()
 			Cost = 130;
 			break;
 		default:
-			Cost = 100;
+			Cost = 200;
 		break;
 	}
 
