@@ -46,4 +46,5 @@ void USPCutsceneWidget::NativeConstruct()
 	if (Anim_Cutscene_12) CutsceneAnimMap.Add(12, Anim_Cutscene_12);
 	if (Anim_Cutscene_13) CutsceneAnimMap.Add(13, Anim_Cutscene_13);
 	if (Anim_Cutscene_14) CutsceneAnimMap.Add(14, Anim_Cutscene_14);
+	if (Anim_Cutscene_15) CutsceneAnimMap.Add(15, Anim_Cutscene_15);
 }

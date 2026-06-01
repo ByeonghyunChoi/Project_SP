@@ -57,6 +57,9 @@ public:
 	UPROPERTY(Transient, meta = (BindWidgetAnim))
 	TObjectPtr<UWidgetAnimation> Anim_Cutscene_14;
 
+	UPROPERTY(Transient, meta = (BindWidgetAnim))
+	TObjectPtr<UWidgetAnimation> Anim_Cutscene_15;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	TMap<int32, TObjectPtr<UWidgetAnimation>> CutsceneAnimMap;
 

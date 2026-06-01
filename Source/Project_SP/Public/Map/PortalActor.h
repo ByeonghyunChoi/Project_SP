@@ -48,6 +48,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Portal | Visuals")
 	TMap<EMapType, TSubclassOf<AActor>> PortalVisualClasses;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Portal | UI")
+	TMap<EMapType, FText> PortalInteractTextMap;
+
 protected:
 	// 활성화/비활성화 시 시각적 변화를 주기 위한 이벤트
 	UFUNCTION(BlueprintImplementableEvent)

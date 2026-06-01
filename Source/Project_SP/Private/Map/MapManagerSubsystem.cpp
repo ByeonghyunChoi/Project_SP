@@ -453,6 +453,13 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 		return CurrentPortalOptions;
 	}
 
+	if (CurrentStage >= 2 && CurrentFloor >= 5)
+	{
+		// 타입은 중요하지 않습니다 (어차피 밟으면 MoveToNextFloor에서 엔딩으로 가로챔)
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
 	int32 NextFloor = CurrentFloor + 1;
 
 	if (NextFloor > 5)

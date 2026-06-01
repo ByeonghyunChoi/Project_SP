@@ -337,13 +337,13 @@ bool UOpartsComponent::TryUpgradeLevel()
 	switch (FMath::CeilToInt((RuntimeData.CurrentLevel+1) / 10.0f))
 	{
 		case 1:
-			Cost = 10;
+			Cost = 30;
 			break;
 		case 2:
-			Cost = 35;
+			Cost = 70;
 			break;
 		case 3:
-			Cost = 65;
+			Cost = 130;
 			break;
 		default:
 			Cost = 100;
