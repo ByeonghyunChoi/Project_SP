@@ -858,12 +858,16 @@ void UMapManagerSubsystem::GoToLobby()
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->ResetRunData();
+		SaveSys->GetPermData().Stats.CurrentHealth = SaveSys->GetPermData().Stats.MaxHealth;
+		SaveSys->SavePermToDisk();
 	}
 
 	if (!LobbyLevelReference.IsNull())
 	{
 		UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevelReference);
 	}
+
+
 }
 
 void UMapManagerSubsystem::InitializeCurrentMap(AMapBase* InMapActor)
