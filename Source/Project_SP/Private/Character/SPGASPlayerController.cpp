@@ -963,9 +963,34 @@ void ASPGASPlayerController::StartTargetSelection()
 		return;
 	}
 
+	// =========================================================================
+	// 🌟 [핵심 추가] 타겟 배열을 '화면 왼쪽에서 오른쪽' 순서로 강제 정렬합니다!
+	// =========================================================================
+	if (PlayerCameraManager)
+	{
+		// 카메라가 바라보는 기준에서 완벽한 '오른쪽' 방향 벡터를 구합니다.
+		FVector CameraRight = PlayerCameraManager->GetCameraRotation().RotateVector(FVector::RightVector);
+
+		// 람다 함수를 이용해 위치를 비교하여 배열을 정렬합니다.
+		AvailableTargets.Sort([CameraRight](const TWeakObjectPtr<AActor>& A, const TWeakObjectPtr<AActor>& B)
+			{
+				if (A.IsValid() && B.IsValid())
+				{
+					// 내적(Dot Product)을 구하면, 몬스터가 화면 좌/우 축의 어느 좌표에 있는지 알 수 있습니다!
+					float PositionA = FVector::DotProduct(A->GetActorLocation(), CameraRight);
+					float PositionB = FVector::DotProduct(B->GetActorLocation(), CameraRight);
+
+					// 값이 작을수록 화면 왼쪽, 클수록 화면 오른쪽입니다.
+					return PositionA < PositionB;
+				}
+				return false;
+			});
+	}
+	// =========================================================================
+
 	// 2. 초기화
 	bIsSelectingTarget = true;
-	CurrentTargetIndex = 0; 
+	CurrentTargetIndex = 0;
 
 	// 3. 하이라이트 ON
 	HighlightCurrentTarget(true);
