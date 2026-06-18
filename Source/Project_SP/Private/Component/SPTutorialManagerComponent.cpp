@@ -108,6 +108,13 @@ void USPTutorialManagerComponent::HideTutorialPopup()
 	{
 		ActivePopupWidget->SetVisibility(ESlateVisibility::Hidden);
 	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		PC->SetInputMode(InputMode);
+	}
 }
 
 void USPTutorialManagerComponent::ProcessCurrentStep()
@@ -118,6 +125,14 @@ void USPTutorialManagerComponent::ProcessCurrentStep()
 	if (ActivePopupWidget)
 	{
 		ActivePopupWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetWidgetToFocus(ActivePopupWidget->TakeWidget()); // 포커스 꼬임 방지
+		PC->SetInputMode(InputMode);
 	}
 
 	OnTutorialStepChanged.Broadcast(CurrentStep);
