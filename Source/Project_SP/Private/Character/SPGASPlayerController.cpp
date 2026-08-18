@@ -918,6 +918,17 @@ void ASPGASPlayerController::Cheat_GoToBoss()
 	}
 }
 
+void ASPGASPlayerController::Cheat_ResetGame()
+{
+	if (USPSaveGameSubsystem* SaveManager = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		SaveManager->ResetAllData();
+	}
+
+	UGameplayStatics::OpenLevel(this, FName("Title_Level"));
+
+}
+
 void ASPGASPlayerController::OnBattleTransitionFinished()
 {
 	UGameInstance* GI = GetGameInstance();

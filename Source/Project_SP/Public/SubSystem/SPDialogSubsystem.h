@@ -24,6 +24,7 @@ public:
 	// 대화 시작 함수
 	UFUNCTION(BlueprintCallable, Category = "Dialog")
 	void StartDialog(UDataTable* DialogTable, UDataTable* AssetTable, APlayerController* PC, TSubclassOf<class UUserWidget> DialogWidgetClass);
+	
 	// 대화 바로 띄우기 함수
 	UFUNCTION(BlueprintCallable, Category = "Dialog")
 	void PlayNextDialog();

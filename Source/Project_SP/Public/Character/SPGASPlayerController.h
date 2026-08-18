@@ -315,6 +315,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cheat")
 	void Cheat_GoToBoss();
 
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_ResetGame();
+
 	// 전투 진입 화면 연출을 시작하라는 명령 (블루프린트에서 위젯 애니메이션 재생)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
 	void PlayBattleTransitionEffect();
