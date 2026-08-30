@@ -46,7 +46,7 @@ public:
 	// UI 업데이트 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryUpdated OnInventoryUpdated;
-
+	// 팝업 UI 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnOpenGetInventory OnOpenGetInventory;
 

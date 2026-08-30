@@ -1,6 +1,27 @@
-﻿	else
+﻿				{
+					IntProp->SetPropertyValue_InContainer(RewardUI, Reward.RelicRewardCount);
+				}
+			}
+
+			if (FProperty* BossProp = RewardUI->GetClass()->FindPropertyByName(FName("bIsBossReward")))
+			{
+				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(BossProp))
+				{
+					BoolProp->SetPropertyValue_InContainer(RewardUI, Reward.bIsBossReward);
+				}
+			}
+
+			RewardUI->AddToViewport();
+
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
+			PC->SetInputMode(InputMode);
+			PC->bShowMouseCursor = true;
+		}
+	}
+	else
 	{
-		// 🌟 [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리합니다!
+		//  [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리
 		AActor* FoundMap = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
 		if (AMapBase* CurrentMap = Cast<AMapBase>(FoundMap))
 		{
@@ -34,7 +55,7 @@ void ARewardBox::SetupParticleByMapType(EMapType InMapType)
 	// 1. 맵 타입에 따라 켤 파티클 결정
 	switch (InMapType)
 	{
-	case EMapType::NormalBattle: // (선생님의 Enum 이름에 맞게 수정해주세요)
+	case EMapType::NormalBattle:
 		SelectedParticle = NormalParticle;
 		break;
 	case EMapType::Jester:
@@ -49,11 +70,11 @@ void ARewardBox::SetupParticleByMapType(EMapType InMapType)
 		break;
 	}
 
-	// 2. 파티클 갈아끼우고 켜기!
+	// 2. 파티클 갈아끼우고 켜기
 	if (SelectedParticle)
 	{
 		RewardParticle->SetAsset(SelectedParticle);
-		RewardParticle->Activate(true); // 재생 버튼 누르기!
+		RewardParticle->Activate(true); // 재생 버튼 누르기
 	}
 }
 // ==========================================
@@ -144,10 +165,26 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 	// ==========================================
 	// 3. 일반 재화 즉시 지급 (인벤토리)
 	// ==========================================
+	if (MapManager)
+	{
+		MapManager->PendingToastRewards.Empty();
+		MapManager->PendingExpReward = 0;
+
+		if (Reward.Gold > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold) += Reward.Gold;
+		if (Reward.Sand > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Sand) += Reward.Sand;
+		if (Reward.IncompleteEnergy > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::IncompleteEnergy) += Reward.IncompleteEnergy;
+		if (Reward.Fragment > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Fragment) += Reward.Fragment;
+		if (Reward.Exp > 0) MapManager->PendingExpReward += Reward.Exp;
+	}
+
+	//  그 다음 인벤토리 지급
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
 	if (Reward.Fragment > 0) InventoryComp->AddFragment(Reward.Fragment);
+
+	InventoryComp->OnOpenGetInventory.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("포션에서 재화 지급"));
 
 	if (Reward.Exp > 0)
 	{
@@ -1845,20 +1882,3 @@ public:
 	//��Ÿ �Ӽ� ����
 	// ������ ������ 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
-	FGameplayAttributeData IncomingDamage;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamage)
-
-	// ������ ��
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
-	FGameplayAttributeData IncomingHeal;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
-
-	// ġ��Ÿ ����
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
-	FGameplayAttributeData IncomingIsCritical;
-	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingIsCritical)
-
-};
-// ==========================================
-// FILE: SPGAS_DamageCalculation.h
-// ==========================================

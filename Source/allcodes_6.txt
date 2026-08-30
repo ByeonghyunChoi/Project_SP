@@ -1,18 +1,4 @@
-﻿
-        if (UserSettings != nullptr)
-        {
-            // ��ü ����Ƽ ������ '�߰�(Medium)'���� �����մϴ�.
-            // (0 = Low, 1 = Medium, 2 = High, 3 = Epic, 4 = Cinematic)
-            UserSettings->SetOverallScalabilityLevel(1);
-
-            // ����� ������ �ý��ۿ� �����ϰ� �����մϴ�.
-            // bCheckForCommandLineOverrides �Ķ���͸� true�� �ָ� ����� �μ��� ���� ������ �������� �ʽ��ϴ�.
-            UserSettings->ApplySettings(true);
-        }
-    }
-}
-
-void USPGASGameInstance::SetbIsReturnFromGame(bool IsReturn)
+﻿void USPGASGameInstance::SetbIsReturnFromGame(bool IsReturn)
 {
 	bIsReturnFromGame = IsReturn;
 }
@@ -778,6 +764,7 @@ void AMapBase::HandleStateCleared()
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Character/SPGASPlayerCharacter.h"
 #include "Data/Asset/SPStageMonsterPoolData.h"
+#include "Character/SPGASPlayerController.h"
 
 
 void UMapManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -899,12 +886,13 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 	bIsReturningFromBattle = false;
 	bIsBattleActive = true;
 
+	PendingCombatLevelName = EncounterData->CombatLevelName;
+
 	// 플레이어 정보 저장
 	if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
 		SaveSys->CacheRunDataFromPlayer(PlayerPawn);
 		SaveSys->SaveRunToDisk();
-
 		SaveSys->CachePermDataFromPlayer(PlayerPawn);
 		SaveSys->SavePermToDisk();
 	}
@@ -915,9 +903,15 @@ void UMapManagerSubsystem::StartBattleEncounter(APawn* PlayerPawn, const UCombat
 		CombatSys->SetPendingEncounter(EncounterData, Advantage);
 	}
 
-	// 3. [이동] 전투 레벨로 전환
-	UGameplayStatics::OpenLevel(GetWorld(), EncounterData->CombatLevelName);
-	UE_LOG(LogTemp, Log, TEXT("전투 맵으로 이동: %s"), *EncounterData->CombatLevelName.ToString());
+	// 3. 전투 진입 연출 재생
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+	{
+		// 플레이어 이동 차단 (연출 중에 움직이면 안 되므로)
+		PC->DisableInput(PC);
+		PC->SetAllHUDVisibility(false);
+		UE_LOG(LogTemp, Warning, TEXT("UI 전투 진입 연출 재생 시작!"));
+		PC->PlayBattleTransitionEffect();
+	}
 }
 
 void UMapManagerSubsystem::ReturnToField(bool bIsVictory)
@@ -1159,28 +1153,19 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 	CurrentRoomState = EMapState::InProgress;
 	CurrentPortalOptions.Empty();
 
+	PendingNextMapType = SelectedType;
+
 	if (CurrentFloor >= 5 && CurrentStage < 2) // 5층(보스) 클리어 시
 	{
 		CurrentStage++;
 		CurrentFloor = 1;
 		CurrentMapType = SelectedType;
 		bIsReturningFromBattle = false;
-		LoadStageLevel();
 	}
 	else if (CurrentFloor < 5)
 	{
 		CurrentFloor++;
 		CurrentMapType = SelectedType;
-
-		if (CurrentFloor == 5) // 방금 올라간 층이 5층이라면 보스맵 로드
-		{
-			bIsReturningFromBattle = false;
-			LoadStageLevel();
-		}
-		else
-		{
-			SpawnMapActor(SelectedType);
-		}
 	}
 	else if (CurrentFloor >= 5 && CurrentStage >= 2)
 	{
@@ -1189,7 +1174,13 @@ void UMapManagerSubsystem::MoveToNextFloor(EMapType SelectedType)
 		return;
 	}
 
-	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
+	{
+		PC->DisableInput(PC); // 이동 차단
+		UE_LOG(LogTemp, Warning, TEXT("포탈 진입 연출 재생 시작!"));
+		PC->PlayPortalTransitionEffect();
+	}
 }
 
 EMapType UMapManagerSubsystem::PickAndRemoveWeightedMap(TMap<EMapType, int32>& InOutWeightPool)
@@ -1468,6 +1459,34 @@ void UMapManagerSubsystem::Cheat_JumpToBossRoom()
 	}
 
 	LoadStageLevel();
+}
+
+void UMapManagerSubsystem::ExecuteBattleLevelLoad()
+{
+	if (!PendingCombatLevelName.IsNone())
+	{
+		UE_LOG(LogTemp, Log, TEXT("전투 맵으로 실제 이동 시작: %s"), *PendingCombatLevelName.ToString());
+		UGameplayStatics::OpenLevel(GetWorld(), PendingCombatLevelName);
+	}
+}
+
+void UMapManagerSubsystem::ExecutePortalTransitionLoad()
+{
+	if (CurrentFloor == 1 && CurrentStage > 1)
+	{
+		LoadStageLevel(); // 새 스테이지면 아예 OpenLevel
+	}
+	else if (CurrentFloor == 5)
+	{
+		bIsReturningFromBattle = false;
+		LoadStageLevel(); // 보스맵이면 OpenLevel
+	}
+	else
+	{
+		SpawnMapActor(PendingNextMapType); // 일반 층이면 액터 스폰(교체)!
+	}
+
+	OnMapLocationChanged.Broadcast(CurrentStage, CurrentFloor);
 }
 
 int32 UMapManagerSubsystem::CalculateMonsterLevel() const
@@ -1765,9 +1784,11 @@ void APortalActor::ExecutePortalTransition()
 #include "NiagaraSystem.h"
 #include "Map/MapManagerSubSystem.h"
 #include "Data/RewardDataStructs.h"
+#include "Data/SPDataStructs.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
+
 
 ARewardBox::ARewardBox()
 {
@@ -1803,21 +1824,41 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	if (!MapManager || !InventoryComp) return;
 
 	// ==========================================
-	// 3. 보상 추첨기 돌리기! (가중치 룰 적용)
+	// 3. 보상 추첨기 돌리기 (가중치 룰 적용)
 	// ==========================================
 	int32 CurrentStage = MapManager->GetCurrentStage();
 	EMapType CurrentMapType = MapManager->GetCurrentMapType();
 
-	// 상자(false) 보상 추첨!
+	// 상자(false) 보상 추첨
 	FRewardResult Reward = MapManager->GenerateInteractableReward(false, CurrentStage, CurrentMapType);
 
 	// ==========================================
 	// 4. 일반 재화 즉시 지급 (인벤토리)
 	// ==========================================
+	if (MapManager)
+	{
+		MapManager->PendingToastRewards.Empty();
+		MapManager->PendingExpReward = 0;
+
+		if (Reward.Gold > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Gold) += Reward.Gold;
+		if (Reward.Sand > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Sand) += Reward.Sand;
+
+		if (Reward.IncompleteEnergy > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::IncompleteEnergy) += Reward.IncompleteEnergy;
+		if (Reward.Fragment > 0) MapManager->PendingToastRewards.FindOrAdd(EResourceType::Fragment) += Reward.Fragment;
+
+		if (Reward.Exp > 0) MapManager->PendingExpReward += Reward.Exp;
+
+		UE_LOG(LogTemp, Warning, TEXT("대기열 추가 완료"));
+	}
+
+	//  2. 대기열 세팅이 끝났으니 실제 재화를 지급
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
 	if (Reward.Fragment > 0) InventoryComp->AddFragment(Reward.Fragment);
+
+	InventoryComp->OnOpenGetInventory.Broadcast();
+	UE_LOG(LogTemp, Warning, TEXT("상자 보상 지급 완료"));
 
 	// (경험치 보상이 있다면 ASC를 통해 지급)
 	if (Reward.Exp > 0)
@@ -1831,7 +1872,7 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	}
 
 	// ==========================================
-	// 5. 유물이 당첨되었다면? (UI 띄우기) / 아니라면 즉시 클리어!
+	// 5. 유물이 당첨되었다면? (UI 띄우기) / 아니라면 즉시 클리어
 	// ==========================================
 	if (Reward.RelicRewardCount > 0 && RelicRewardWidgetClass)
 	{
@@ -1841,24 +1882,3 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 			if (FProperty* CountProp = RewardUI->GetClass()->FindPropertyByName(FName("RelicRewardCount")))
 			{
 				if (FIntProperty* IntProp = CastField<FIntProperty>(CountProp))
-				{
-					IntProp->SetPropertyValue_InContainer(RewardUI, Reward.RelicRewardCount);
-				}
-			}
-
-			if (FProperty* BossProp = RewardUI->GetClass()->FindPropertyByName(FName("bIsBossReward")))
-			{
-				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(BossProp))
-				{
-					BoolProp->SetPropertyValue_InContainer(RewardUI, Reward.bIsBossReward);
-				}
-			}
-
-			RewardUI->AddToViewport();
-
-			FInputModeUIOnly InputMode;
-			InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
-			PC->SetInputMode(InputMode);
-			PC->bShowMouseCursor = true;
-		}
-	}

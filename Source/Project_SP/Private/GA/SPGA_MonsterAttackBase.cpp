@@ -19,25 +19,25 @@ void USPGA_MonsterAttackBase::ActivateAbility(const FGameplayAbilitySpecHandle H
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
-	// 🌟 어빌리티가 시작되자마자 '패링 무전'을 기다리는 잠복 근무(Task)를 시작합니다!
+	// 공격 어빌리티가 진행되는 동안 플레이어의 패링성공 여부를 기다리기 시작
 	UAbilityTask_WaitGameplayEvent* WaitParriedTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
 		this,
 		FSPGameplayTags::Get().Event_Battle_Parried
 	);
 
+	// 패링이 성공하면
 	if (WaitParriedTask)
 	{
-		// 무전이 들어오면 OnParriedEventCallback 함수를 실행하라고 바인딩합니다.
+		// OnParriedEventCallback 함수를 실행하라고 바인딩
 		WaitParriedTask->EventReceived.AddDynamic(this, &USPGA_MonsterAttackBase::OnParriedEventCallback);
-
-		// 잠복 근무 시작!
+		// 하던 공격을 멈추고 튕겨나가는 연출 실행
 		WaitParriedTask->ReadyForActivation();
 	}
 
 	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, FSPGameplayTags::Get().Event_Battle_ApplyDamage);
 	if (WaitDamageEventTask)
 	{
-		// 무전이 오면 OnDamageEventReceived 함수를 실행해라!
+		// 무전이 오면 OnDamageEventReceived 함수를 실행
 		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_MonsterAttackBase::OnDamageEventReceived);
 		WaitDamageEventTask->ReadyForActivation();
 	}

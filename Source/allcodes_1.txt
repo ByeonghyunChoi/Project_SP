@@ -1650,11 +1650,11 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 	SetCameraProfile(FieldCameraSetting);
 	ReportReadyToGameMode();
 
-	ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController());
-	if (PC)
-	{
-		PC->ConsoleCommand(TEXT("showdebug abilitysystem"));
-	}
+	//ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(GetController());
+	//if (PC)
+	//{
+	//	PC->ConsoleCommand(TEXT("showdebug abilitysystem"));
+	//}
 }
 
 
@@ -1862,3 +1862,23 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
 {
 	if (WeaponConfigs.Contains(WeaponTag))
+	{
+		UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
+		if (!Data) return ETargetingType::Single;
+
+		switch (ActionType)
+		{
+		case ESelectedActionType::NormalAttack: return Data->NormalAttackTargeting;
+		case ESelectedActionType::WeaponSkill:  return Data->WeaponSkillTargeting;
+		case ESelectedActionType::ParrySkill:   return Data->ParrySkillTargeting;
+		}
+	}
+	return ETargetingType::Single;
+}
+
+UWeaponAbilityData* ASPGASPlayerCharacter::GetWeaponData(FGameplayTag WeaponTag) const
+{
+	if (const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag))
+	{
+		return *FoundData;
+	}

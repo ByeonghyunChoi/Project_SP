@@ -47,12 +47,12 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	if (!MapManager || !InventoryComp) return;
 
 	// ==========================================
-	// 3. 보상 추첨기 돌리기! (가중치 룰 적용)
+	// 3. 보상 추첨기 돌리기 (가중치 룰 적용)
 	// ==========================================
 	int32 CurrentStage = MapManager->GetCurrentStage();
 	EMapType CurrentMapType = MapManager->GetCurrentMapType();
 
-	// 상자(false) 보상 추첨!
+	// 상자(false) 보상 추첨
 	FRewardResult Reward = MapManager->GenerateInteractableReward(false, CurrentStage, CurrentMapType);
 
 	// ==========================================
@@ -74,7 +74,7 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 		UE_LOG(LogTemp, Warning, TEXT("대기열 추가 완료"));
 	}
 
-	//  2. 대기열 세팅이 끝났으니 실제 재화를 지급합니다! (이때 InventoryComp 안에서 방송이 나가고, UI가 방금 넣은 큐를 읽어옵니다)
+	//  2. 대기열 세팅이 끝났으니 실제 재화를 지급
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);
@@ -95,7 +95,7 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	}
 
 	// ==========================================
-	// 5. 유물이 당첨되었다면? (UI 띄우기) / 아니라면 즉시 클리어!
+	// 5. 유물이 당첨되었다면? (UI 띄우기) / 아니라면 즉시 클리어
 	// ==========================================
 	if (Reward.RelicRewardCount > 0 && RelicRewardWidgetClass)
 	{
@@ -128,7 +128,7 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 	}
 	else
 	{
-		// 🌟 [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리합니다!
+		//  [추가된 로직] 유물이 당첨되지 않았을 경우, UI가 없으므로 여기서 바로 맵을 클리어 처리
 		AActor* FoundMap = UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass());
 		if (AMapBase* CurrentMap = Cast<AMapBase>(FoundMap))
 		{
@@ -162,7 +162,7 @@ void ARewardBox::SetupParticleByMapType(EMapType InMapType)
 	// 1. 맵 타입에 따라 켤 파티클 결정
 	switch (InMapType)
 	{
-	case EMapType::NormalBattle: // (선생님의 Enum 이름에 맞게 수정해주세요)
+	case EMapType::NormalBattle:
 		SelectedParticle = NormalParticle;
 		break;
 	case EMapType::Jester:
@@ -177,10 +177,10 @@ void ARewardBox::SetupParticleByMapType(EMapType InMapType)
 		break;
 	}
 
-	// 2. 파티클 갈아끼우고 켜기!
+	// 2. 파티클 갈아끼우고 켜기
 	if (SelectedParticle)
 	{
 		RewardParticle->SetAsset(SelectedParticle);
-		RewardParticle->Activate(true); // 재생 버튼 누르기!
+		RewardParticle->Activate(true); // 재생 버튼 누르기
 	}
 }

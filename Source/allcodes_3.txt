@@ -1,4 +1,22 @@
-﻿#include "Component/InventoryComponent.h"
+﻿ASPGASPlayerState::ASPGASPlayerState()
+{
+	ASC = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("GAS"));
+	AttributeSet = CreateDefaultSubobject<USPGASAttributeSet>(TEXT("AttributeSet"));
+}
+
+UAbilitySystemComponent* ASPGASPlayerState::GetAbilitySystemComponent() const
+{
+	return ASC;
+}
+
+// ==========================================
+// FILE: InventoryComponent.cpp
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "Component/InventoryComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h" //세이브 서브시스템 헤더
 #include "SubSystem/SPPowerUpgradeSubsystem.h"
 #include "GameFramework/Pawn.h"
@@ -16,10 +34,10 @@ void UInventoryComponent::BeginPlay()
 
 	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		// 게임을 처음 켜서 시작한 첫 번째 맵(세션)일 때 딱 한 번만 권능 보너스를 정산합니다!
+		// 게임을 처음 켜서 시작한 첫 번째 맵(세션)일 때 딱 한 번만 권능 보너스를 정산
 		if (!SaveSys->bHasInitializedThisSession)
 		{
-			// 🌟 권능 보너스 골드 계산 및 지급
+			//  권능 보너스 골드 계산 및 지급
 			if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
 			{
 				float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
@@ -30,13 +48,13 @@ void UInventoryComponent::BeginPlay()
 				}
 			}
 
-			// 지급된 보너스 장부를 세이브 시스템 메모리에 안전하게 동기화!
+			// 지급된 보너스 장부를 세이브 시스템 메모리에 안전하게 동기화
 			if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 			{
 				SaveSys->CacheRunDataFromPlayer(OwnerPawn);
 			}
 
-			// 🌟 세팅이 끝났으니, 다음 맵부터는 이 코드가 다시 실행되지 않도록 스위치를 켭니다.
+			// 세팅이 끝났으니, 다음 맵부터는 이 코드가 다시 실행되지 않도록 스위치를 킴
 			SaveSys->ActivateNewRun();
 			SaveSys->bHasInitializedThisSession = true;
 		}
@@ -165,11 +183,10 @@ bool UInventoryComponent::ConsumeFragment(int32 Amount)
 
 void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet)
 {
-	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씁니다.
+	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씀
 	RunWallet = InRunWallet;
 	PermanentWallet = InPermWallet;
 
-	// 2. 돈이 바뀌었으니 UI(위젯) 숫자도 바뀌어야겠죠? 방송을 켭니다!
 	if (OnInventoryUpdated.IsBound())
 	{
 		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
@@ -186,7 +203,7 @@ void UInventoryComponent::SyncWalletToSaveSystem()
 	{
 		if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신합니다! (렉 유발 X)
+			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신
 			SaveSys->CacheRunDataFromPlayer(OwnerPawn);
 			SaveSys->CachePermDataFromPlayer(OwnerPawn);
 
@@ -623,6 +640,7 @@ bool UOpartsComponent::TryUnlockNextArtifact()
 #include "GameFramework/Character.h"
 #include "Tag/SPGameplayTags.h"
 #include "Character/SPGASPlayerCharacter.h"
+#include "SubSystem/SPSaveGameSubsystem.h"
 
 URelicComponent::URelicComponent()
 {
@@ -719,7 +737,12 @@ bool URelicComponent::AddRelic(const URelicDefinition* NewRelic)
 	// 5. 장착 목록에 최종 추가
 	EquippedRelics.Add(NewRelic);
 	// 저장 시스템 런 타임 저장
-
+	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
+	{
+		// 플레이어 폰(OwnerCharacter)에 있는 최신 유물 데이터를 세이브 서브시스템 런타임 메모리로 복사합니다. (렉 유발 X)
+		SaveSys->CacheRunDataFromPlayer(OwnerCharacter);
+		SaveSys->SaveRunToDisk(); 
+	}
 	//  [핵심 추가됨] 유물이 장착되었으니 UI를 갱신하라고 방송을 쏩니다!
 	if (OnRelicUpdated.IsBound())
 	{
@@ -1859,6 +1882,3 @@ void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* 
 #include "Blueprint/UserWidget.h"
 
 USPTutorialManagerComponent::USPTutorialManagerComponent()
-{
-	PrimaryComponentTick.bCanEverTick = false;
-}

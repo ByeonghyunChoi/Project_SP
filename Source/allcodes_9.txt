@@ -1,4 +1,25 @@
 ﻿
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataAsset.h"
+#include "Data/Asset/SPMonsterData.h"
+#include "SPStageMonsterPoolData.generated.h"
+
+
+USTRUCT(BlueprintType)
+struct FStageMonsterPool
+{
+	GENERATED_BODY()
+
+	// �� ������������ ������ ������ �� �̸�
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	FName CombatLevelName;
+
+	// �� ���������� ������ �Ϲ� ���͵� ���
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	TArray<USPMonsterData*> NormalMonsters;
+
 	// �� ���������� ������ ���� ���͵� ���
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	TArray<USPMonsterData*> StrongMonsters;
@@ -1728,6 +1749,9 @@ public:
 		return GetRemainingRoundLimit() + FutureRoundsAV;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Combat | Flow")
+	void StartFirstTurn();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Battle")
 	TSubclassOf<class ASPCombatTurnManager> TurnManagerClass;
@@ -1858,7 +1882,3 @@ protected:
 	// 지지대 (거리, 각도 조절용)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USpringArmComponent> CameraSpringArm;
-
-	// 실제 촬영할 카메라
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UCameraComponent> MainCamera;

@@ -20,10 +20,10 @@ void UInventoryComponent::BeginPlay()
 
 	if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 	{
-		// 게임을 처음 켜서 시작한 첫 번째 맵(세션)일 때 딱 한 번만 권능 보너스를 정산합니다!
+		// 게임을 처음 켜서 시작한 첫 번째 맵(세션)일 때 딱 한 번만 권능 보너스를 정산
 		if (!SaveSys->bHasInitializedThisSession)
 		{
-			// 🌟 권능 보너스 골드 계산 및 지급
+			//  권능 보너스 골드 계산 및 지급
 			if (USPPowerUpgradeSubsystem* PowerSys = GetWorld()->GetGameInstance()->GetSubsystem<USPPowerUpgradeSubsystem>())
 			{
 				float BonusGold = PowerSys->GetPowerEffectValue(EPowerUpgradeType::StartGold);
@@ -34,13 +34,13 @@ void UInventoryComponent::BeginPlay()
 				}
 			}
 
-			// 지급된 보너스 장부를 세이브 시스템 메모리에 안전하게 동기화!
+			// 지급된 보너스 장부를 세이브 시스템 메모리에 안전하게 동기화
 			if (APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 			{
 				SaveSys->CacheRunDataFromPlayer(OwnerPawn);
 			}
 
-			// 🌟 세팅이 끝났으니, 다음 맵부터는 이 코드가 다시 실행되지 않도록 스위치를 켭니다.
+			// 세팅이 끝났으니, 다음 맵부터는 이 코드가 다시 실행되지 않도록 스위치를 킴
 			SaveSys->ActivateNewRun();
 			SaveSys->bHasInitializedThisSession = true;
 		}
@@ -169,11 +169,10 @@ bool UInventoryComponent::ConsumeFragment(int32 Amount)
 
 void UInventoryComponent::LoadWalletData(const FPlayerRunWallet& InRunWallet, const FPlayerPermanentWallet& InPermWallet)
 {
-	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씁니다.
+	// 1. 세이브 파일에서 가져온 데이터로 내 지갑을 통째로 덮어씀
 	RunWallet = InRunWallet;
 	PermanentWallet = InPermWallet;
 
-	// 2. 돈이 바뀌었으니 UI(위젯) 숫자도 바뀌어야겠죠? 방송을 켭니다!
 	if (OnInventoryUpdated.IsBound())
 	{
 		OnInventoryUpdated.Broadcast(RunWallet, PermanentWallet);
@@ -190,7 +189,7 @@ void UInventoryComponent::SyncWalletToSaveSystem()
 	{
 		if (USPSaveGameSubsystem* SaveSys = GetWorld()->GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
 		{
-			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신합니다! (렉 유발 X)
+			// 디스크 저장이 아니라, 서브시스템의 메모리(Cache)만 즉시 갱신
 			SaveSys->CacheRunDataFromPlayer(OwnerPawn);
 			SaveSys->CachePermDataFromPlayer(OwnerPawn);
 

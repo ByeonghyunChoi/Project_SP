@@ -180,7 +180,7 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 
 	if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TargetMonster))
 	{
-		// 몬스터에게 "너 패링당했어!" (Event.Combat.Parried) 무전을 날립니다.
+		// 몬스터에게 무전을 날림
 		FGameplayEventData Payload;
 		Payload.Instigator = GetAvatarActorFromActorInfo(); // 내가 때렸다
 		ASI->GetAbilitySystemComponent()->HandleGameplayEvent(FSPGameplayTags::Get().Event_Battle_Parried, &Payload);

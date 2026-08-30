@@ -1,4 +1,21 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿	FGameplayAttributeData IncomingDamage;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingDamage)
+
+	// ������ ��
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingHeal;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingHeal)
+
+	// ġ��Ÿ ����
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Attributes | Meta")
+	FGameplayAttributeData IncomingIsCritical;
+	ATTRIBUTE_ACCESSORS(USPGASAttributeSet, IncomingIsCritical)
+
+};
+// ==========================================
+// FILE: SPGAS_DamageCalculation.h
+// ==========================================
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -880,6 +897,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cheat")
 	void Cheat_GoToBoss();
 
+	UFUNCTION(BlueprintCallable, Category = "Cheat")
+	void Cheat_ResetGame();
+
+	// 전투 진입 화면 연출을 시작하라는 명령 (블루프린트에서 위젯 애니메이션 재생)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat | UI")
+	void PlayBattleTransitionEffect();
+
+	// 🌟 블루프린트 UI 연출이 끝났을 때 다시 C++로 알려줄 함수
+	UFUNCTION(BlueprintCallable, Category = "Combat | UI")
+	void OnBattleTransitionFinished();
+
+	// 포탈 진입 시 부드러운 페이드 아웃 연출을 재생하라는 명령 (블루프린트에서 위젯 애니메이션 재생)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Map | UI")
+	void PlayPortalTransitionEffect();
+
+	// 🌟 블루프린트 연출이 끝났을 때 다시 C++로 알려줄 함수
+	UFUNCTION(BlueprintCallable, Category = "Map | UI")
+	void OnPortalTransitionFinished();
+
 private:
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
@@ -970,6 +1006,7 @@ enum class EResourceType : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryUpdated, const FPlayerRunWallet&, CurrentWallet, const FPlayerPermanentWallet&, CurrentPermWallet);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOpenGetInventory);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_SP_API UInventoryComponent : public UActorComponent
@@ -996,6 +1033,10 @@ public:
 	// UI 업데이트 알림용
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryUpdated OnInventoryUpdated;
+	// 팝업 UI 알림용
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnOpenGetInventory OnOpenGetInventory;
+
 
 	// =========================================================
 	// 1. 조회 (Getter)
@@ -1841,24 +1882,3 @@ public:
 // FILE: SPStageMonsterPoolData.h
 // ==========================================
 // Fill out your copyright notice in the Description page of Project Settings.
-
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "Data/Asset/SPMonsterData.h"
-#include "SPStageMonsterPoolData.generated.h"
-
-
-USTRUCT(BlueprintType)
-struct FStageMonsterPool
-{
-	GENERATED_BODY()
-
-	// �� ������������ ������ ������ �� �̸�
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FName CombatLevelName;
-
-	// �� ���������� ������ �Ϲ� ���͵� ���
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	TArray<USPMonsterData*> NormalMonsters;

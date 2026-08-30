@@ -1209,15 +1209,15 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 
 	if (TutorialManager && TutorialManager->IsTutorialActive())
 	{
-		// 🌟 적이 공격해와서 세상이 멈춘 Step 5 상태일 때 패링 키를 눌렀다면?
+		
 		if (TutorialManager->GetCurrentStep() == 5)
 		{
 			UGameplayStatics::SetGamePaused(GetWorld(), false); // 정지 풀기
 			TutorialManager->HideTutorialPopup();              // UI 숨기기
-			TutorialManager->SetCurrentStep(6);                // 🚨 다음 타겟인 '무기스킬 대기상태'로 변경!
+			TutorialManager->SetCurrentStep(6);                // 다음 타겟인 '무기스킬 대기상태'로 변경
 
 			// ====================================================================
-			// 🌟 [핵심 수정] 엔진이 정지를 완전히 풀고 물리/애니메이션 틱을 재개할 수 있도록
+			// 엔진이 정지를 완전히 풀고 물리/애니메이션 틱을 재개할 수 있도록
 			// 0.05초만 딜레이를 준 뒤에 패링 스킬을 발동시킵니다!
 			// ====================================================================
 			FTimerHandle ParryTriggerTimer;
@@ -1250,7 +1250,7 @@ void ASPGASPlayerController::OnParryPressed(const FInputActionValue& Value)
 
 	bool bActivated = CachedASC->TryActivateAbilitiesByTag(FGameplayTagContainer(FSPGameplayTags::Get().Battle_Action_Parry));
 
-	UE_LOG(LogTemp, Warning, TEXT("[Input] 실시간 패링 키 눌림! (스킬 발동 시도)"));
+	UE_LOG(LogTemp, Warning, TEXT("실시간 패링 키 눌림! (스킬 발동 시도)"));
 
 }
 
