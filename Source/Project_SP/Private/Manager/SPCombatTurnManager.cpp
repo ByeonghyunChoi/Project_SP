@@ -109,7 +109,7 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 
 		SetActionGauge(Actor, NewGauge);
 
-		if (NewGauge >= MaxActionGauge - 0.01f)
+		if (NewGauge >= MaxActionGauge - KINDA_SMALL_NUMBER)
 		{
 			TurnQueue.AddUnique(Actor);
 		}
