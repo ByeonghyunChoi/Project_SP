@@ -36,6 +36,30 @@ enum class ETargetingType : uint8
 	Random      UMETA(DisplayName = "랜덤")         // 랜덤 (화살표 1개)
 };
 
+// 캐릭터가 현재 턴을 어떻게 받을 수 있는지 나타내는 상태
+UENUM(BlueprintType)
+enum class ETurnAvailability : uint8
+{
+	CanAct,       // 정상적으로 행동 가능
+	SkipTurn,     // 턴은 도착했지만 행동하지 못하고 소비
+	Unavailable   // 턴 대상 자체가 아님
+};
+
+// TurnManager의 다음 턴 계산 결과
+struct FTurnResult
+{
+	AActor* NextActor = nullptr;
+	float ElapsedTime = 0.0f;
+};
+
+// 턴 소비 정책
+UENUM(BlueprintType)
+enum class ETurnConsumePolicy : uint8
+{
+	ConsumeGauge,
+	PreserveGauge
+};
+
 
 // 순수 UI 정보
 USTRUCT(BlueprintType)

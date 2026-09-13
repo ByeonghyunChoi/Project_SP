@@ -27,9 +27,6 @@ protected:
 	// 턴 시작 이벤트 감지 (내 차례가 옴)
 	void OnTurnStartEvent(const FGameplayEventData* Payload);
 
-	// 턴 종료 지연 처리 함수
-	void FinishTurnDelayed();
-
 	// 연출 대기용 타이머 핸들과, 실제 턴 행동을 시도할 함수
 	FTimerHandle TurnWaitTimerHandle;
 	void TryExecuteAITurn();

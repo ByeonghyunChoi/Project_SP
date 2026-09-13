@@ -5,6 +5,7 @@
 #include "Game/SPBattleCameraActor.h"
 #include "Game/SPBattleDirector.h"
 #include "Manager/SPCombatTurnManager.h"
+#include "Manager/SPGASBattleTypes.h"
 #include "SubSystem/SPCombatSubsystem.h"
 #include "Data/CombatEncounterData.h"
 #include "Map/SPGASSpawnPoint.h"      
@@ -26,7 +27,8 @@
 #include "Data/RewardDataStructs.h"
 #include "GA/SPGA_BattleActionBase.h"
 #include "Component/SPTutorialManagerComponent.h"
-
+#include "Engine/GameInstance.h"
+#include "TimerManager.h"
 
 AASPCombatGameMode::AASPCombatGameMode()
 {
@@ -351,19 +353,34 @@ void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 				UE_LOG(LogTemp, Warning, TEXT("시간이 멈춘 상태라 도트 딜 및 상태이상 턴 감소가 무시됩니다."));
 			}
 
-			if (ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute()) <= 0.0f)
+			if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(TurnActor))
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 사망하여 턴을 취소합니다."), *TurnActor->GetName());
-				EndTurn(TurnActor);
-				return;
-			}
+				switch (Character->GetTurnAvailability())
+				{
+				case ETurnAvailability::CanAct:
+					break;
 
-			if (ASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn))
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[%s] 혼절 상태! 턴 강제 종료."), *TurnActor->GetName());
-				ASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_SkipTurn);
-				EndTurn(TurnActor);
-				return;
+				case ETurnAvailability::SkipTurn:
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("[%s] 행동 불가 상태로 턴을 소비합니다."),
+						*TurnActor->GetName());
+
+					Character->HandleSkippedTurn();
+					EndTurn(TurnActor);
+					return;
+
+				case ETurnAvailability::Unavailable:
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("[%s] 턴 수행이 불가능하여 현재 턴을 종료합니다."),
+						*TurnActor->GetName());
+
+					EndTurn(TurnActor);
+					return;
+				}
 			}
 
 			// =====================================================================
@@ -440,27 +457,31 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 			// 행동 게이지 0으로 초기화
 			if (TurnManager)
 			{
-				TurnManager->ClearActorFromQueue(TurnActor);
+				const ETurnConsumePolicy ConsumePolicy = (bIsCurrentTurnInterrupt && bIsCurrentTurnParry)
+					? ETurnConsumePolicy::PreserveGauge
+					: ETurnConsumePolicy::ConsumeGauge;
 
-				// VIP 턴이면서, 그게 '패링(반격)'일 때만 게이지를 보존합니다!
-				if (bIsCurrentTurnInterrupt && bIsCurrentTurnParry)
+				TurnManager->ConsumeTurn(
+					TurnActor,
+					ConsumePolicy);
+
+				if (ConsumePolicy == ETurnConsumePolicy::PreserveGauge)
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[%s] 패링 반격 턴 종료! 행동 게이지가 보존됩니다."), *TurnActor->GetName());
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("[%s] 패링 반격 턴 종료! 행동 게이지가 보존됩니다."),
+						*TurnActor->GetName());
 				}
-				else
+				else if (bIsCurrentTurnInterrupt)
 				{
-					// 정규 턴이거나, 시간 간섭으로 얻은 추가 턴이라면 평소처럼 게이지를 비웁니다!
-					float CurrentGauge = TurnManager->GetActionGauge(TurnActor);
-					float OverflowGauge = FMath::Max(0.0f, CurrentGauge - ASPCombatTurnManager::MaxActionGauge);
-					TurnManager->SetActionGauge(TurnActor, OverflowGauge);
-
-					if (bIsCurrentTurnInterrupt)
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[%s] 시간 간섭(추가) 턴 종료! 행동 게이지가 0으로 초기화됩니다."), *TurnActor->GetName());
-					}
+					UE_LOG(
+						LogTemp,
+						Warning,
+						TEXT("[%s] 시간 간섭 추가 턴 종료! 행동 게이지를 소비합니다."),
+						*TurnActor->GetName());
 				}
 
-				// 🌟 턴 종료 시 특수 상태 플래그들은 깔끔하게 초기화
 				bIsCurrentTurnInterrupt = false;
 				bIsCurrentTurnParry = false;
 			}
@@ -646,17 +667,17 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 {
 	if (!TurnManager) return;
 
-	// 🌟 1. 결과를 받아올 빈 변수를 하나 만듭니다.
 	int32 CycleEndIndex = -1;
 
-	// 🌟 2. 인자를 2개(예측 개수, 결과 담을 변수) 전달합니다!
-	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, CycleEndIndex);
+	const float AVToCycleEnd = GetAVToCycleEnd();
 
-	TArray<AActor*> VIPTurns = TurnManager->GetInterruptQueue();
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, AVToCycleEnd, CycleEndIndex);
+
+	TArray<AActor*> InterruptTurns = TurnManager->GetInterruptQueue();
 
 	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
 	{
-		VIPTurns.Insert(CurrentTurnActor, 0);
+		InterruptTurns.Insert(CurrentTurnActor, 0);
 	}
 
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
@@ -664,8 +685,7 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	{
 		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(PlayerPawn->GetController()))
 		{
-			// 🌟 3. 컨트롤러의 UI 업데이트 이벤트에도 이 인덱스를 같이 넘겨줍니다!
-			PC->UpdateTurnTimelineUI(NormalPredicted, VIPTurns, CycleEndIndex);
+			PC->UpdateTurnTimelineUI(NormalPredicted, InterruptTurns, CycleEndIndex);
 		}
 	}
 }
@@ -914,8 +934,18 @@ void AASPCombatGameMode::StartFirstTurn()
 	if (TurnManager)
 	{
 		RefreshTurnTimelineUI();
-		AActor* FirstActor = TurnManager->CalculateNextTurn();
-		StartTurn(FirstActor);
+
+		FTurnResult TurnResult = TurnManager->CalculateNextTurn();
+
+		if (TurnResult.ElapsedTime > 0.0f)
+		{
+			AdvanceBattleTime(TurnResult.ElapsedTime);
+		}
+
+		if (IsValid(TurnResult.NextActor))
+		{
+			StartTurn(TurnResult.NextActor);
+		}
 	}
 
 	// =======================================================================
@@ -1008,11 +1038,30 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 			return;
 		}
 
-		AActor* NextActor = TurnManager->CalculateNextTurn();
-		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
+		FTurnResult TurnResult = TurnManager->CalculateNextTurn();
+
+		if (TurnResult.ElapsedTime > 0.0f)
+		{
+			AdvanceBattleTime(TurnResult.ElapsedTime);
+		}
+
+		AActor* NextActor = TurnResult.NextActor;
+
+		if (!IsValid(NextActor))
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[CombatGameMode] 다음 행동자를 찾지 못했습니다."));
+			return;
+		}
+
+		if (TurnManager->GetActionGauge(NextActor)
+			< ASPCombatTurnManager::MaxActionGauge)
 		{
 			bIsCurrentTurnInterrupt = true;
 		}
+
 		StartTurn(NextActor);
 	}
 }

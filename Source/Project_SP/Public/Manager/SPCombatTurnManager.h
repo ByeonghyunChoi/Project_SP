@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Info.h"
+#include "Manager/SPGASBattleTypes.h"
 #include "SPCombatTurnManager.generated.h"
 
 /**
@@ -24,7 +25,7 @@ public:
 	void InitializeParticipants(const TArray<AActor*>& InParticipants);
 
 	// 다음 행동할 유닛 계산 (게이지 100 찰 때까지 시뮬레이션)
-	AActor* CalculateNextTurn();
+	FTurnResult CalculateNextTurn();
 
 	// 죽은 유닛 제외 (전투 중 사망 시 호출)
 	void RemoveParticipant(AActor* DeadActor);
@@ -42,7 +43,7 @@ public:
 
 	//턴 순서 시뮬레이션 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
-	TArray<AActor*> PredictTurnOrder(int32 PredictionCount, int32& OutCycleEndIndex);
+	TArray<AActor*> PredictTurnOrder(int32 PredictionCount, float AVToCycleEnd, int32& OutCycleEndIndex);
 
 	// VIP 턴 요구 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
@@ -62,6 +63,8 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "TurnManager | Interrupt")
 	FORCEINLINE TArray<AActor*> GetInterruptQueue() const { return InterruptQueue; }
+
+	void ConsumeTurn(AActor* Target, ETurnConsumePolicy ConsumePolicy = ETurnConsumePolicy::ConsumeGauge);
 
 public:
 	static constexpr float MaxActionGauge = 10000.0f;

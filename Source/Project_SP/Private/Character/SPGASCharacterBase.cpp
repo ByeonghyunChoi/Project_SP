@@ -7,6 +7,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Component/SPStatusEffectComponent.h"
 #include "Manager/SPCombatTurnManager.h"
+#include "Engine/World.h"
+#include "Components/SkeletalMeshComponent.h"
 
 
 
@@ -57,6 +59,30 @@ void ASPGASCharacterBase::FinishTurn()
 		// 3. 실패했다면 원인은 클라이언트이기 때문! (GameMode는 서버에만 존재합니다)
 		UE_LOG(LogTemp, Error, TEXT("GameMode를 찾을 수 없습니다! (클라이언트에서 실행되었을 가능성 높음)"));
 	}
+}
+
+ETurnAvailability ASPGASCharacterBase::GetTurnAvailability() const
+{
+	if (!ASC)
+	{
+		return ETurnAvailability::Unavailable;
+	}
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	const float CurrentHealth = ASC->GetNumericAttribute(USPGASAttributeSet::GetHealthAttribute());
+	
+	if (CurrentHealth <= 0.0f || ASC->HasMatchingGameplayTag(SPTags.State_Death))
+	{
+		return ETurnAvailability::Unavailable;
+	}
+
+	if (ASC->HasMatchingGameplayTag(SPTags.State_Status_SkipTurn))
+	{
+		return ETurnAvailability::SkipTurn;
+	}
+
+	return ETurnAvailability::CanAct;
 }
 
 void ASPGASCharacterBase::ReduceCooldowns()
@@ -141,6 +167,14 @@ void ASPGASCharacterBase::CancelAbilitiesWithTag(FGameplayTagContainer WithTags)
 	if (ASC)
 	{
 		ASC->CancelAbilities(&WithTags, nullptr, nullptr);
+	}
+}
+
+void ASPGASCharacterBase::HandleSkippedTurn()
+{
+	if (StatusEffectComponent)
+	{
+		StatusEffectComponent->HandleSkippedTurn();
 	}
 }
 

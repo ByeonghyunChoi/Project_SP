@@ -51,6 +51,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat | Status")
 	void ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag);
 
+	void HandleSkippedTurn();
+
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Combat | Visual")
 	FOnStatusVisualDelegate OnStatusVisualTriggered;
