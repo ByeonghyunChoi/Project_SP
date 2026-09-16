@@ -454,7 +454,7 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 				}
 			}
 
-			// 행동 게이지 0으로 초기화
+			// 행동 게이지 처리
 			if (TurnManager)
 			{
 				const ETurnConsumePolicy ConsumePolicy = (bIsCurrentTurnInterrupt && bIsCurrentTurnParry)

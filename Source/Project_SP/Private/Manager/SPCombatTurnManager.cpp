@@ -227,35 +227,13 @@ void ASPCombatTurnManager::ConsumeTurn(AActor* Target, ETurnConsumePolicy Consum
 
 	ClearActorFromQueue(Target);
 
-	const float BeforeGauge = GetActionGauge(Target);
-
-	if (ConsumePolicy == ETurnConsumePolicy::PreserveGauge)
-	{
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("[TurnManager] %s Gauge 보존: %.1f"),
-			*Target->GetName(),
-			BeforeGauge);
-
-		return;
-	}
-
 	const float CurrentGauge = GetActionGauge(Target);
-
 	const float OverflowGauge = FMath::Max(
 		0.0f,
 		CurrentGauge - MaxActionGauge);
 
 	SetActionGauge(Target, OverflowGauge);
 
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("[TurnManager] %s Gauge 소비: %.1f -> %.1f"),
-		*Target->GetName(),
-		BeforeGauge,
-		OverflowGauge);
 }
 
 

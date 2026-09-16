@@ -41,8 +41,8 @@ UENUM(BlueprintType)
 enum class ETurnAvailability : uint8
 {
 	CanAct,       // 정상적으로 행동 가능
-	SkipTurn,     // 턴은 도착했지만 행동하지 못하고 소비
-	Unavailable   // 턴 대상 자체가 아님
+	SkipTurn,     // 상태이상으로 인해 행동하지 못하고 턴만 소비
+	Unavailable   // 현재 턴을 수행할 수 없음
 };
 
 // TurnManager의 다음 턴 계산 결과
@@ -52,7 +52,7 @@ struct FTurnResult
 	float ElapsedTime = 0.0f;
 };
 
-// 턴 소비 정책
+// 턴 진행 시 Action Gague 소비 정책
 UENUM(BlueprintType)
 enum class ETurnConsumePolicy : uint8
 {
