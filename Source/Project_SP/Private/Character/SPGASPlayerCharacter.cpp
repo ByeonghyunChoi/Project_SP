@@ -21,6 +21,9 @@
 #include "SubSystem/SPPowerUpgradeSubsystem.h"
 #include "Game/ASPCombatGameMode.h"
 #include "Manager/SPCombatTurnManager.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Engine/GameInstance.h"
 
 
 
@@ -154,28 +157,11 @@ void ASPGASPlayerCharacter::PossessedBy(AController* NewController)
 
 void ASPGASPlayerCharacter::ActivateCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType, AActor* TargetActor)
 {
-	// 무기 데이터 확인
-	if (!WeaponConfigs.Contains(WeaponTag))
+	const TSubclassOf<UGameplayAbility> AbilityClassToActivate = GetCombatAbilityClass(WeaponTag, ActionType);
+
+	if (!AbilityClassToActivate)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Character: 해당 무기 데이터가 없습니다 (%s)"), *WeaponTag.ToString());
 		return;
-	}
-
-	UWeaponAbilityData* Data = WeaponConfigs[WeaponTag];
-	TSubclassOf<UGameplayAbility> AbilityClassToActivate;
-
-	// 행동 타입에 맞는 클래스 선택 (Enum 활용)
-	switch (ActionType)
-	{
-	case ESelectedActionType::NormalAttack:
-		AbilityClassToActivate = Data->NormalAttackAbility;
-		break;
-	case ESelectedActionType::WeaponSkill:
-		AbilityClassToActivate = Data->WeaponSkillAbility;
-		break;
-	case ESelectedActionType::ParrySkill:
-		AbilityClassToActivate = Data->ParrySkillAbility;
-		break;
 	}
 
 	// 어빌리티 실행
@@ -351,6 +337,30 @@ void ASPGASPlayerCharacter::SetCameraProfile(const FCameraProfile& Profile)
 	CombatCineCamera->SetRelativeRotation(Profile.CameraRelativeRotation);
 
 	CameraBoom->PreviousArmOrigin = CameraBoom->GetComponentLocation();
+}
+
+TSubclassOf<UGameplayAbility> ASPGASPlayerCharacter::GetCombatAbilityClass(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
+{
+	const TObjectPtr<UWeaponAbilityData>* FoundData = WeaponConfigs.Find(WeaponTag);
+
+	if (!FoundData || !IsValid(*FoundData))
+	{
+		return nullptr;
+	}
+
+	const UWeaponAbilityData* WeaponData = *FoundData;
+
+	switch (ActionType)
+	{
+	case ESelectedActionType::NormalAttack:
+		return WeaponData->NormalAttackAbility;
+	case ESelectedActionType::WeaponSkill:
+		return WeaponData->WeaponSkillAbility;
+	case ESelectedActionType::ParrySkill:
+		return WeaponData->ParrySkillAbility;
+	default:
+		return nullptr;
+	}
 }
 
 ETargetingType ASPGASPlayerCharacter::GetTargetingType(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
