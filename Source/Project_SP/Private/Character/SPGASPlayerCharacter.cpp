@@ -463,6 +463,32 @@ void ASPGASPlayerCharacter::AddExperience(float ExpAmount)
 	}
 }
 
+bool ASPGASPlayerCharacter::CanSelectCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType) const
+{
+	if (!ASC)
+	{
+		return false;
+	}
+
+	const TSubclassOf<UGameplayAbility> AbilityClass = GetCombatAbilityClass(WeaponTag, ActionType);
+
+	if (!AbilityClass)
+	{
+		return false;
+	}
+
+	FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromClass(AbilityClass);
+
+	if (!Spec || !Spec->Ability)
+	{
+		return false;
+	}
+
+	return Spec->Ability->CanActivateAbility(
+		Spec->Handle,
+		ASC->AbilityActorInfo.Get());
+}
+
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();

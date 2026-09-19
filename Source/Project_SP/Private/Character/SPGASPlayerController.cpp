@@ -26,6 +26,8 @@
 #include "Component/OpartsComponent.h"
 #include "Component/SPTutorialManagerComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "TimerManager.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -415,28 +417,23 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			// '해골 수정(CrystalSkull)' 고유 태그를 검사합니다!
-			bool bIsCrystalSkull = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull);
+			ASPGASPlayerCharacter* PlayerChar =
+				Cast<ASPGASPlayerCharacter>(GetPawn());
 
-			// 1. 쿨타임 검사
-			if (!bIsCrystalSkull && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			if (!PlayerChar ||
+				!PlayerChar->CanSelectCombatAbility(
+					CurrentWeaponTag,
+					InputType))
 			{
 				PlayActionSound(InputTag, false);
 				HandleInputFeedback(InputTag, false);
-				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
-				return; // 타겟팅 진입 차단!
-			}
 
-			// 2. BP 및 프리패스(시간 간섭) 검사
-			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
+				UE_LOG(
+					LogTemp,
+					Warning,
+					TEXT("[BattleAction] 현재 사용할 수 없는 행동입니다."));
 
-			// 해골 수정 버프가 없는데, BP마저 부족하다면?
-			if (!bIsCrystalSkull && GetCurrentBP() < Cost)
-			{
-				PlayActionSound(InputTag, false);
-				HandleInputFeedback(InputTag, false);
-				UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족합니다!"));
-				return; // 타겟팅 진입 차단!
+				return;
 			}
 		}
 
