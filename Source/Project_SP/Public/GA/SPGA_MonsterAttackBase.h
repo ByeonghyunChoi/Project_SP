@@ -3,14 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
+#include "GA/SPGA_CombatActionBase.h"
 #include "SPGA_MonsterAttackBase.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class PROJECT_SP_API USPGA_MonsterAttackBase : public UGameplayAbility
+class PROJECT_SP_API USPGA_MonsterAttackBase : public USPGA_CombatActionBase
 {
 	GENERATED_BODY()
 
@@ -18,8 +18,7 @@ public:
 	USPGA_MonsterAttackBase();
 
 protected:
-	// 어빌리티 시작 시 패링 이벤트 리스너(WaitGameplayEvent)를 켭니다.
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void SetupActionEventListeners() override;
 
 	// 플레이어에게 패링 당했을 때 호출되는 함수! (블루프린트에서 연출 구현)
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")

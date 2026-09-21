@@ -249,6 +249,21 @@ void AASPCombatGameMode::ApplyPlayerSavedData()
 	}
 }
 
+void AASPCombatGameMode::HandleBattleActionFinished(AActor* ActionActor)
+{
+	if (!IsValid(ActionActor))
+	{
+		return;
+	}
+
+	if (ActionActor != CurrentTurnActor)
+	{
+		return;
+	}
+
+	EndTurn(ActionActor);
+}
+
 void AASPCombatGameMode::StartTurn(AActor* TurnActor)
 {
 	if (!TurnActor) return;
@@ -498,8 +513,23 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 
 void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 {
-	if (ReadyParticipants.Contains(Character)) return;
+	if (ReadyParticipants.Contains(Character))
+	{
+		return;
+	}
+
 	ReadyParticipants.Add(Character);
+
+	if (ASPGASCharacterBase* BattleCharacter =
+		Cast<ASPGASCharacterBase>(Character))
+	{
+		BattleCharacter->OnBattleActionFinished.RemoveAll(this);
+
+		BattleCharacter->OnBattleActionFinished.AddUObject(
+			this,
+			&AASPCombatGameMode::HandleBattleActionFinished
+		);
+	}
 
 	if (Character == UGameplayStatics::GetPlayerPawn(GetWorld(), 0))
 	{

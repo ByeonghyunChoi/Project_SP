@@ -164,4 +164,6 @@ private:
 
 	void ApplyPlayerSavedData();
 
+	void HandleBattleActionFinished(AActor* ActionActor);
+
 };

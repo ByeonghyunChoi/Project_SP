@@ -11,6 +11,8 @@
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Manager/SPCombatTurnManager.h"
 #include "Sound/SoundBase.h"
+#include "Engine/World.h"
+#include "Camera/CameraShakeBase.h"
 
 USPGA_BattleActionBase::USPGA_BattleActionBase()
 {
@@ -90,23 +92,6 @@ void USPGA_BattleActionBase::ApplyCost(const FGameplayAbilitySpecHandle Handle, 
 	Super::ApplyCost(Handle, ActorInfo, ActivationInfo);
 }
 
-void USPGA_BattleActionBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
-{
-	if (TriggerEventData) CachedEventData = *TriggerEventData;
-
-	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
-		this,
-		FSPGameplayTags::Get().Event_Battle_ApplyDamage
-	);
-
-	if (WaitDamageEventTask)
-	{
-		WaitDamageEventTask->EventReceived.AddDynamic(this, &USPGA_BattleActionBase::OnDamageEventReceived);
-		WaitDamageEventTask->ReadyForActivation();
-	}
-
-	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
-}
 
 void USPGA_BattleActionBase::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
 {
@@ -152,6 +137,94 @@ bool USPGA_BattleActionBase::ConsumeTimeInterferenceStack()
 		}
 	}
 	return false;
+}
+
+void USPGA_BattleActionBase::PrepareBattleAction(const FGameplayEventData* TriggerEventData)
+{
+	Super::PrepareBattleAction(TriggerEventData);
+
+	if (TriggerEventData)
+	{
+		CachedEventData = *TriggerEventData;
+	}
+}
+
+bool USPGA_BattleActionBase::CommitBattleAction(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)
+{
+	if (!Super::CommitBattleAction(
+		Handle,
+		ActorInfo,
+		ActivationInfo))
+	{
+		return false;
+	}
+
+	ApplyTurnBasedCooldown();
+
+	return true;
+}
+
+void USPGA_BattleActionBase::SetupActionEventListeners()
+{
+	Super::SetupActionEventListeners();
+
+
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			FSPGameplayTags::Get().Event_Battle_ApplyDamage);
+
+	if (!WaitDamageEventTask)
+	{
+		return;
+	}
+
+	WaitDamageEventTask->EventReceived.AddDynamic(
+		this,
+		&USPGA_BattleActionBase::OnDamageEventReceived);
+
+	WaitDamageEventTask->ReadyForActivation();
+}
+
+bool USPGA_BattleActionBase::ValidateBattleAction() const
+{
+	if (!Super::ValidateBattleAction())
+	{
+		return false;
+	}
+
+	switch (SkillTargetingType)
+	{
+	case ETargetingType::Single:
+	case ETargetingType::Area:
+	{
+		return IsValidBattleTarget(GetSingleTarget());
+	}
+
+	case ETargetingType::All:
+	case ETargetingType::Random:
+	{
+		const TArray<AActor*> ValidTargets = GetAllEnemies();
+
+		if (ValidTargets.IsEmpty())
+		{
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("[BattleAction] 행동 가능한 Target이 없습니다."));
+
+			return false;
+		}
+
+		return true;
+	}
+
+	case ETargetingType::Self:
+		return IsValid(GetAvatarActorFromActorInfo());
+
+	default:
+		return false;
+	}
 }
 
 FGameplayTag USPGA_BattleActionBase::GetCooldownTag() const
@@ -474,6 +547,8 @@ AActor* USPGA_BattleActionBase::GetRandomEnemy() const
 }
 
 
+
+
 void USPGA_BattleActionBase::OnDamageEventReceived(FGameplayEventData Payload)
 {
 	float PrimaryMultiplier = (Payload.EventMagnitude > 0.0f) ? Payload.EventMagnitude : DefaultDamageMultiplier;
@@ -647,5 +722,50 @@ void USPGA_BattleActionBase::ExecuteGoldBugInterference()
 		}
 	}
 }
+
+void USPGA_BattleActionBase::SetupDamageEventListener()
+{
+	UAbilityTask_WaitGameplayEvent* WaitDamageEventTask =
+		UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+			this,
+			FSPGameplayTags::Get().Event_Battle_ApplyDamage
+		);
+
+	if (!WaitDamageEventTask)
+	{
+		return;
+	}
+
+	WaitDamageEventTask->EventReceived.AddDynamic(
+		this,
+		&USPGA_BattleActionBase::OnDamageEventReceived
+	);
+
+	WaitDamageEventTask->ReadyForActivation();
+}
+
+bool USPGA_BattleActionBase::IsValidBattleTarget(AActor* Target) const
+{
+	if (!IsValid(Target))
+	{
+		return false;
+	}
+
+	UAbilitySystemComponent* TargetASC =
+		UAbilitySystemBlueprintLibrary::
+		GetAbilitySystemComponent(Target);
+
+	if (!TargetASC)
+	{
+		return false;
+	}
+
+	const float Health =
+		TargetASC->GetNumericAttribute(
+			USPGASAttributeSet::GetHealthAttribute());
+
+	return Health > 0.0f;
+}
+
 
 
