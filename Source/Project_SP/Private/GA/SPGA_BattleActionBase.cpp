@@ -622,11 +622,7 @@ void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 	AActor* Avatar = GetAvatarActorFromActorInfo();
 	if (!Avatar) return;
 
-	// TurnManager의 VIP 대기열에 나 자신을 ExtraTurns(2번) 만큼 넣습니다!!
-	for (int32 i = 0; i < ExtraTurns; ++i)
-	{
-		GameMode->GetTurnManager()->RequestInterruptTurn(Avatar);
-	}
+	GameMode->RequestInterrupt(Avatar, ExtraTurns);
 
 	UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동! 현재 턴을 유지한 채 추가 턴 %d개를 예약합니다."), ExtraTurns);
 }

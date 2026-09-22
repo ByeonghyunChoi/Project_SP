@@ -349,17 +349,6 @@ void ASPCombatTurnManager::RequestInterruptTurn(AActor* Interrupter)
 	OnTurnOrderChanged.Broadcast();
 }
 
-AActor* ASPCombatTurnManager::PopInterruptActor()
-{
-	if (InterruptQueue.Num() > 0)
-	{
-		AActor* VIP = InterruptQueue[0];
-		InterruptQueue.RemoveAt(0);
-		return VIP;
-	}
-	return nullptr;
-}
-
 void ASPCombatTurnManager::ClearActorFromQueue(AActor* Target)
 {
 	if (TurnQueue.Contains(Target))

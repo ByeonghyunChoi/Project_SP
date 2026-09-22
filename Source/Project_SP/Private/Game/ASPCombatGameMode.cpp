@@ -511,6 +511,21 @@ void AASPCombatGameMode::EndTurn(AActor* TurnActor)
 	ProcessEndOfTurn();
 }
 
+void AASPCombatGameMode::RequestInterrupt(AActor* Requester, int32 Count)
+{
+	if (!TurnManager || !IsValid(Requester))
+	{
+		return;
+	}
+
+	for (int32 i = 0; i < Count; ++i)
+	{
+		TurnManager->RequestInterruptTurn(Requester);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[GameMode] %s 에게 인터럽트 턴 %d개 부여"), *Requester->GetName(), Count);
+}
+
 void AASPCombatGameMode::ReportCharacterReady(AActor* Character)
 {
 	if (ReadyParticipants.Contains(Character))
@@ -1061,13 +1076,6 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 	// 4. 다음 타자 호출
 	if (TurnManager)
 	{
-		if (AActor* VIPActor = TurnManager->PopInterruptActor())
-		{
-			bIsCurrentTurnInterrupt = true;
-			StartTurn(VIPActor);
-			return;
-		}
-
 		FTurnResult TurnResult = TurnManager->CalculateNextTurn();
 
 		if (TurnResult.ElapsedTime > 0.0f)

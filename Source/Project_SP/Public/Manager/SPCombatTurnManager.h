@@ -49,8 +49,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")
 	void RequestInterruptTurn(AActor* Interrupter);
 
-	AActor* PopInterruptActor();
-
 	void ClearActorFromQueue(AActor* Target);
 
 	void SetRoundIterating(bool bIsIterating);

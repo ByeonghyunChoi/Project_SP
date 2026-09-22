@@ -343,6 +343,12 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
 		return;
 	}
+
+	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_ActionExecuting))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[입력 차단] 행동 실행 중에는 다른 입력을 받지 않습니다."));
+		return;
+	}
 	
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_TimeInterference))
 	{
