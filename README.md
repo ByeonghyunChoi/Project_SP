@@ -162,5 +162,4 @@ GA - GameMode(정책) - TurnManager(순수 계산)의 책임 경계가 명확해
 
 ## Contact
 
-- GitHub: (본인 GitHub 프로필 링크)
-- Email: (이메일 주소 추가 예정)
+- Email: cqg0112@gmail.com
