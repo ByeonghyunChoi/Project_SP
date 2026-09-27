@@ -36,6 +36,23 @@
 #include "Widgets/SViewport.h"
 #include "Input/Events.h"
 #include "InputCoreTypes.h"
+#include "CoreGlobals.h"
+
+namespace
+{
+	struct FKeyboardMenu
+	{
+		const TCHAR* ClassPath;
+		FName CloseButton;
+	};
+
+	const FKeyboardMenu KeyboardMenus[] =
+	{
+		{ TEXT("/Game/Title/HUD/WBP_SettingMenu.WBP_SettingMenu_C"), TEXT("Exit_Button") },
+		{ TEXT("/Game/Field/HUD/WBP_SystemMenu.WBP_SystemMenu_C"), TEXT("Btn_Resume") },
+		{ TEXT("/Game/Field/HUD/Artifact/WBP_PlayerInfo.WBP_PlayerInfo_C"), TEXT("Exit") }
+	};
+}
 
 class FSPInteractionUIInputProcessor final : public IInputProcessor
 {
@@ -84,16 +101,26 @@ bool ASPGASPlayerController::HandleEscapeInput(EInputEvent Event)
 	if (Event == IE_Released)
 	{
 		const bool bConsumed = bConsumeEscapeUntilRelease;
+		if (bConsumed) LastUIConsumedEscapeFrame = GFrameCounter;
 		bConsumeEscapeUntilRelease = false;
 		return bConsumed;
 	}
 	if (bConsumeEscapeUntilRelease) return true;
 	if (Event != IE_Pressed) return false;
+	if (LastUIConsumedEscapeFrame == GFrameCounter)
+	{
+		bConsumeEscapeUntilRelease = true;
+		return true;
+	}
 
+	// Snapshot before closing: a visible modal blocks options even if it cannot close.
+	const bool bHadBlockingUI = HasOptionsBlockingUI();
 	// Set the guard before invoking Blueprint close callbacks, which may change
 	// input mode, flush keys or unpause the game synchronously.
 	bConsumeEscapeUntilRelease = true;
-	bConsumeEscapeUntilRelease = CloseTopInteractionUI();
+	const bool bClosedUI = CloseTopInteractionUI();
+	bConsumeEscapeUntilRelease = bHadBlockingUI || bClosedUI;
+	if (bConsumeEscapeUntilRelease) LastUIConsumedEscapeFrame = GFrameCounter;
 	return bConsumeEscapeUntilRelease;
 }
 
@@ -160,21 +187,9 @@ bool ASPGASPlayerController::CloseKeyboardOpenedUI()
 	// These legacy Blueprint menus bypass RegisterMovementBlockingUI and can pause
 	// the world. Discover them on Escape (not PlayerTick, which stops while paused).
 	// Settings is a child dialog of the system menu, so dismiss it first.
-	struct FKeyboardMenu
-	{
-		const TCHAR* ClassPath;
-		FName CloseButton;
-	};
-	static const FKeyboardMenu Menus[] =
-	{
-		{ TEXT("/Game/Title/HUD/WBP_SettingMenu.WBP_SettingMenu_C"), TEXT("Exit_Button") },
-		{ TEXT("/Game/Field/HUD/WBP_SystemMenu.WBP_SystemMenu_C"), TEXT("Btn_Resume") },
-		{ TEXT("/Game/Field/HUD/Artifact/WBP_PlayerInfo.WBP_PlayerInfo_C"), TEXT("Button_123") }
-	};
-
 	TArray<UUserWidget*> Widgets;
 	UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), true);
-	for (const FKeyboardMenu& Menu : Menus)
+	for (const FKeyboardMenu& Menu : KeyboardMenus)
 	{
 		for (UUserWidget* Widget : Widgets)
 		{
@@ -191,6 +206,7 @@ bool ASPGASPlayerController::CloseKeyboardOpenedUI()
 				{
 					// Reuse the actual close path, including unpause, input mode and sounds.
 					// Consuming this Escape prevents BP_PlayerController from opening a menu.
+					LastUIConsumedEscapeFrame = GFrameCounter;
 					CloseButton->OnClicked.Broadcast();
 					return true;
 				}
@@ -210,6 +226,7 @@ bool ASPGASPlayerController::CloseTopInteractionUI()
 		if (!Widget || !Widget->IsInViewport() || !Widget->IsVisible()) continue;
 		if (Widget == LobbyHUDWidget || Widget == FieldHUDWidget || Widget == BattleHUDWidget) continue;
 		const FSimpleDelegate Handler = InteractionUICloseHandlers.FindRef(Widget);
+		LastUIConsumedEscapeFrame = GFrameCounter;
 		UnregisterMovementBlockingUI(Widget);
 		if (Handler.IsBound()) Handler.Execute();
 		else Widget->RemoveFromParent();
@@ -243,6 +260,31 @@ void ASPGASPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	InteractionUIInputProcessor.Reset();
 	InteractionUICloseHandlers.Empty();
 	Super::EndPlay(EndPlayReason);
+}
+
+bool ASPGASPlayerController::CanOpenOptionsMenu() const
+{
+	return !bConsumeEscapeUntilRelease && LastUIConsumedEscapeFrame != GFrameCounter
+		&& !HasOptionsBlockingUI();
+}
+
+bool ASPGASPlayerController::HasOptionsBlockingUI() const
+{
+	if (IsMovementBlockedByUI()) return true;
+	if (!GetWorld()) return false;
+
+	TArray<UUserWidget*> Widgets;
+	UWidgetBlueprintLibrary::GetAllWidgetsOfClass(GetWorld(), Widgets, UUserWidget::StaticClass(), true);
+	for (const UUserWidget* Widget : Widgets)
+	{
+		if (!IsValid(Widget) || !Widget->IsInViewport() || !Widget->IsVisible()
+			|| Widget->GetOwningPlayer() != this) continue;
+		for (const FKeyboardMenu& Menu : KeyboardMenus)
+		{
+			if (Widget->GetClass()->GetPathName() == Menu.ClassPath) return true;
+		}
+	}
+	return false;
 }
 
 bool ASPGASPlayerController::IsMovementBlockedByUI() const

@@ -63,6 +63,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI | Input")
 	bool IsMovementBlockedByUI() const;
 
+	// Check before opening options in Blueprint. Includes the Escape used to close another UI.
+	UFUNCTION(BlueprintPure, Category = "UI | Input")
+	bool CanOpenOptionsMenu() const;
+
 	// Close keyboard menus or explicitly registered modal UI; never persistent HUDs.
 	UFUNCTION(BlueprintCallable, Category = "UI | Input")
 	bool CloseTopInteractionUI();
@@ -352,6 +356,8 @@ public:
 
 private:
 	bool bConsumeEscapeUntilRelease = false;
+	uint64 LastUIConsumedEscapeFrame = MAX_uint64;
+	bool HasOptionsBlockingUI() const;
 	bool CloseKeyboardOpenedUI();
 	TArray<TWeakObjectPtr<class UUserWidget>> MovementBlockingWidgets;
 	TMap<TWeakObjectPtr<UUserWidget>, FSimpleDelegate> InteractionUICloseHandlers;
