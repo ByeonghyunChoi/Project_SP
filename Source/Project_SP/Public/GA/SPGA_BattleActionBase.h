@@ -1,12 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Abilities/GameplayAbility.h"
+#include "GA/SPGA_CombatActionBase.h"
 #include "Manager/SPGASBattleTypes.h"
 #include "SPGA_BattleActionBase.generated.h"
 
 UCLASS()
-class PROJECT_SP_API USPGA_BattleActionBase : public UGameplayAbility
+class PROJECT_SP_API USPGA_BattleActionBase : public USPGA_CombatActionBase
 {
 	GENERATED_BODY()
 
@@ -15,7 +15,6 @@ public:
 	virtual bool CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	virtual bool CheckCooldown(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
-	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
@@ -24,6 +23,15 @@ public:
 public:
 	UPROPERTY(BlueprintReadOnly, Category = "Targeting")
 	FGameplayEventData CachedEventData;
+
+protected:
+	virtual void PrepareBattleAction(const FGameplayEventData* TriggerEventData) override;
+
+	virtual bool CommitBattleAction(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) override;
+
+	virtual void SetupActionEventListeners() override;
+
+	virtual bool ValidateBattleAction() const override;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combat")
@@ -56,6 +64,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Combat | Audio")
 	TObjectPtr<class USoundBase> HitSound;
+
+private:
+	bool bBattleActionCompleted = false;
 
 public:
 	FGameplayTag GetCooldownTag() const;
@@ -94,5 +105,9 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Combat|TimeInterference")
 	void ExecuteGoldBugInterference();
 
-	
+	void SetupDamageEventListener();
+
+
+private:
+	bool IsValidBattleTarget(AActor* Target) const;
 };

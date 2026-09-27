@@ -160,6 +160,7 @@ public:
 	// Getter
 	const FCameraProfile& GetFieldCameraProfile() const { return FieldCameraSetting; }
 	const FCameraProfile& GetCombatCameraProfile() const { return CombatCameraSetting; }
+	TSubclassOf<UGameplayAbility> GetCombatAbilityClass(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 	TObjectPtr<class UWidgetComponent> GetWeaponWidgetComponent() { return WeaponWidgetComponent; }
 	TObjectPtr<class UWidgetComponent> GetActionWidgetComponent() { return ActionWidgetComponent; }
 	TObjectPtr<class UWidgetComponent> GetBattlePointWidgetComponent() { return BattlePointWidgetComponent; }
@@ -187,8 +188,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Camera | Action")
 	void ToggleActionCameraMode(bool bIsSelecting, bool bInstantReset, int32 TargetIndex, ETargetingType TargetType);
 	
-public:
 	// 경험치 획득 함수
 	UFUNCTION(BlueprintCallable, Category = "Player | Growth")
 	void AddExperience(float ExpAmount);
+
+	bool CanSelectCombatAbility(FGameplayTag WeaponTag, ESelectedActionType ActionType) const;
 };

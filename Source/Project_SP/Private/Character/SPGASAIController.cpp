@@ -90,16 +90,6 @@ void ASPGASAIController::OnTurnStartEvent(const FGameplayEventData* Payload)
 	TryExecuteAITurn();
 }
 
-// [추가] 실제로 턴을 넘기는 함수
-void ASPGASAIController::FinishTurnDelayed()
-{
-	if (ASPGASCharacterBase* GASCharacter = Cast<ASPGASCharacterBase>(GetPawn()))
-	{
-		// GameMode에게 턴 종료 알림
-		GASCharacter->FinishTurn();
-	}
-}
-
 void ASPGASAIController::TryExecuteAITurn()
 {
 	if (!CachedASC) return;
@@ -110,18 +100,6 @@ void ASPGASAIController::TryExecuteAITurn()
 	{
 		GetWorld()->GetTimerManager().SetTimer(TurnWaitTimerHandle, this, &ASPGASAIController::TryExecuteAITurn, 0.1f, false);
 		return;
-	}
-
-	if (CachedASC->HasMatchingGameplayTag(SPTags.State_Status_SkipTurn))
-	{
-		UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 기절/혼절 상태입니다! 턴을 강제로 스킵합니다. <<<"));
-
-		// 1턴만 쉬어야 하므로, 확인했으면 이름표(태그)를 바로 떼어줍니다!
-		CachedASC->RemoveLooseGameplayTag(SPTags.State_Status_SkipTurn);
-
-		// 행동 없이 즉시 턴 종료!
-		FinishTurnDelayed();
-		return; // 아래쪽에 있는 대본(스킬) 읽기 로직으로 못 넘어가게 원천 차단!
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT(">>> [AI] 연출 종료 확인, 진짜 턴 행동 시작! <<<"));
