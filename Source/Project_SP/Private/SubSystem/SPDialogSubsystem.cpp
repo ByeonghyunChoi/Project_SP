@@ -1,6 +1,7 @@
-﻿
+
 
 #include "SubSystem/SPDialogSubsystem.h"
+#include "Character/SPGASPlayerController.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -41,6 +42,10 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 	if (ActiveDialogWidget && !ActiveDialogWidget->IsInViewport())
 	{
 		ActiveDialogWidget->AddToViewport(100);
+		if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
+		{
+			SPPC->RegisterMovementBlockingUI(ActiveDialogWidget);
+		}
 
 		// 입력 모드를 UI 전용으로 변경
 		FInputModeUIOnly InputMode;

@@ -26,12 +26,76 @@
 #include "Component/OpartsComponent.h"
 #include "Component/SPTutorialManagerComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
+#include "GameFramework/PawnMovementComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
 	TutorialManager = CreateDefaultSubobject<USPTutorialManagerComponent>(TEXT("TutorialManager"));
 	CurrentSelectedAction = ESelectedActionType::None;
+}
+
+bool ASPGASPlayerController::IsMovementBlockedByUI() const
+{
+	for (const TWeakObjectPtr<UUserWidget>& Entry : MovementBlockingWidgets)
+	{
+		const UUserWidget* Widget = Entry.Get();
+		if (Widget && Widget->IsInViewport() && Widget->IsVisible())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool ASPGASPlayerController::IsMoveInputIgnored() const
+{
+	// Keep Blueprint/cutscene input locks independent from the UI lock.
+	return Super::IsMoveInputIgnored() || IsMovementBlockedByUI();
+}
+
+void ASPGASPlayerController::StopMovementForUI()
+{
+	StopMovement();
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		ControlledPawn->ConsumeMovementInputVector();
+		if (UPawnMovementComponent* Movement = ControlledPawn->GetMovementComponent())
+		{
+			Movement->StopMovementImmediately();
+		}
+	}
+}
+
+void ASPGASPlayerController::RegisterMovementBlockingUI(UUserWidget* Widget)
+{
+	if (!IsValid(Widget)) return;
+	MovementBlockingWidgets.AddUnique(TWeakObjectPtr<UUserWidget>(Widget));
+	if (IsMovementBlockedByUI())
+	{
+		StopMovementForUI();
+		bWasMovementBlockedByUI = true;
+	}
+}
+
+void ASPGASPlayerController::UnregisterMovementBlockingUI(UUserWidget* Widget)
+{
+	MovementBlockingWidgets.Remove(TWeakObjectPtr<UUserWidget>(Widget));
+}
+
+void ASPGASPlayerController::PlayerTick(float DeltaTime)
+{
+	MovementBlockingWidgets.RemoveAll([](const TWeakObjectPtr<UUserWidget>& Entry)
+	{
+		return !Entry.IsValid();
+	});
+	const bool bBlocked = IsMovementBlockedByUI();
+	if (bBlocked && !bWasMovementBlockedByUI)
+	{
+		StopMovementForUI();
+	}
+	bWasMovementBlockedByUI = bBlocked;
+	Super::PlayerTick(DeltaTime);
 }
 
 void ASPGASPlayerController::BeginPlay()
@@ -194,6 +258,8 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 
 void ASPGASPlayerController::OnMove(const FInputActionValue& Value)
 {
+	if (IsMoveInputIgnored()) return;
+
 	// 필드 전용 이동 로직
 	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_BlockMove)) return;
 

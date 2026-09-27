@@ -1,4 +1,5 @@
-﻿#include "Map/RewardBox.h"
+#include "Map/RewardBox.h"
+#include "Character/SPGASPlayerController.h"
 #include "Map/MapBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
@@ -119,6 +120,10 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 			}
 
 			RewardUI->AddToViewport();
+			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
+			{
+				SPPC->RegisterMovementBlockingUI(RewardUI);
+			}
 
 			FInputModeUIOnly InputMode;
 			InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());

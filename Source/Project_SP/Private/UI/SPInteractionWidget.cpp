@@ -8,7 +8,7 @@ void USPInteractionWidget::UpdateInteractionText(const FText& Text)
 {
 	if (Txt_ActionName)
 	{
-		Txt_ActionName->SetText(Text);
+		Txt_ActionName->SetText(FText::Format(NSLOCTEXT("SPInteractionWidget", "InteractionPrompt", "[F] {0}"), Text));
 	}
 }
 

@@ -46,6 +46,19 @@ class PROJECT_SP_API ASPGASPlayerController : public APlayerController
 public:
 	ASPGASPlayerController();
 
+	virtual bool IsMoveInputIgnored() const override;
+	virtual void PlayerTick(float DeltaTime) override;
+
+	// Register after adding the modal widget to the viewport. Hidden/removed widgets do not block.
+	UFUNCTION(BlueprintCallable, Category = "UI | Input")
+	void RegisterMovementBlockingUI(class UUserWidget* Widget);
+
+	UFUNCTION(BlueprintCallable, Category = "UI | Input")
+	void UnregisterMovementBlockingUI(class UUserWidget* Widget);
+
+	UFUNCTION(BlueprintPure, Category = "UI | Input")
+	bool IsMovementBlockedByUI() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -335,6 +348,10 @@ public:
 	void OnPortalTransitionFinished();
 
 private:
+	TArray<TWeakObjectPtr<class UUserWidget>> MovementBlockingWidgets;
+	bool bWasMovementBlockedByUI = false;
+	void StopMovementForUI();
+
 	UPROPERTY()
 	TObjectPtr<class UAbilitySystemComponent> CachedASC;
 public:

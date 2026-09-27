@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Character/MerchantNPC.h"
@@ -75,6 +75,11 @@ void AMerchantNPC::OpenShop(APlayerController* PlayerController)
 			if (!ShopWidgetInstance->IsInViewport())
 			{
 				ShopWidgetInstance->AddToViewport();
+			}
+
+			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PlayerController))
+			{
+				SPPC->RegisterMovementBlockingUI(ShopWidgetInstance);
 			}
 
 			// 입력 모드를 UI 전용으로 변경하고 마우스 커서를 보여줌

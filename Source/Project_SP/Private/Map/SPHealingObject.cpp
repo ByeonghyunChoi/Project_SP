@@ -1,7 +1,8 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Map/SPHealingObject.h"
+#include "Character/SPGASPlayerController.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "AbilitySystemBlueprintLibrary.h"
@@ -113,6 +114,10 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 			}
 
 			RewardUI->AddToViewport();
+			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
+			{
+				SPPC->RegisterMovementBlockingUI(RewardUI);
+			}
 
 			FInputModeUIOnly InputMode;
 			InputMode.SetWidgetToFocus(RewardUI->GetCachedWidget());
@@ -141,7 +146,7 @@ void ASPHealingObject::ExecuteInteraction(AActor* Interactor)
 
 FText ASPHealingObject::GetInteractText() const
 {
-	return FText::FromString(TEXT("회복 하기[F]"));
+	return FText::FromString(TEXT("회복 하기"));
 }
 
 void ASPHealingObject::PlayInteractSound_Implementation()
