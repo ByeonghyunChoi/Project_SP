@@ -28,12 +28,62 @@
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "TimerManager.h"
+#include "GameFramework/PawnMovementComponent.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
 	TutorialManager = CreateDefaultSubobject<USPTutorialManagerComponent>(TEXT("TutorialManager"));
 	CurrentSelectedAction = ESelectedActionType::None;
+}
+
+bool ASPGASPlayerController::IsMoveInputIgnored() const
+{
+	return Super::IsMoveInputIgnored() || IsMovementBlockedByUI();
+}
+
+void ASPGASPlayerController::PlayerTick(float DeltaTime)
+{
+	MovementBlockingWidgets.RemoveAll([](const TWeakObjectPtr<UUserWidget>& Entry)
+		{
+			return !Entry.IsValid();
+		});
+	const bool bBlocked = IsMovementBlockedByUI();
+	if (bBlocked && !bWasMovementBlockedByUI)
+	{
+		StopMovementForUI();
+	}
+	bWasMovementBlockedByUI = bBlocked;
+	Super::PlayerTick(DeltaTime);
+}
+
+void ASPGASPlayerController::RegisterMovementBlockingUI(UUserWidget* Widget)
+{
+	if (!IsValid(Widget)) return;
+	MovementBlockingWidgets.AddUnique(TWeakObjectPtr<UUserWidget>(Widget));
+	if (IsMovementBlockedByUI())
+	{
+		StopMovementForUI();
+		bWasMovementBlockedByUI = true;
+	}
+}
+
+void ASPGASPlayerController::UnregisterMovementBlockingUI(UUserWidget* Widget)
+{
+	MovementBlockingWidgets.Remove(TWeakObjectPtr<UUserWidget>(Widget));
+}
+
+bool ASPGASPlayerController::IsMovementBlockedByUI() const
+{
+	for (const TWeakObjectPtr<UUserWidget>& Entry : MovementBlockingWidgets)
+	{
+		const UUserWidget* Widget = Entry.Get();
+		if (Widget && Widget->IsInViewport() && Widget->IsVisible())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void ASPGASPlayerController::BeginPlay()
@@ -908,38 +958,6 @@ bool ASPGASPlayerController::IsNormalAttackRestricted() const
 	return false;
 }
 
-void ASPGASPlayerController::Cheat_AddAllResources()
-{
-	APawn* PlayerPawn = GetPawn();
-	if (!PlayerPawn) return;
-
-	if (UInventoryComponent* InventoryComp = PlayerPawn->FindComponentByClass<UInventoryComponent>())
-	{
-		// 재화 10000개씩 팍팍 꽂아주기!
-		InventoryComp->AddMoney(10000);
-		InventoryComp->AddSand(10000);
-		InventoryComp->AddIncompleteEnergy(10000);
-		InventoryComp->AddFragment(10000);
-
-		// 획득한 상태로 바로 세이브를 구워버려서 맵을 이동해도 안 날아가게 만듭니다.
-		if (USPSaveGameSubsystem* SaveSys = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-		{
-			SaveSys->CacheRunDataFromPlayer(PlayerPawn);
-			SaveSys->SaveRunToDisk();
-			SaveSys->CachePermDataFromPlayer(PlayerPawn);
-			SaveSys->SavePermToDisk();
-		}
-	}
-}
-
-void ASPGASPlayerController::Cheat_GoToBoss()
-{
-	if (UMapManagerSubsystem* MapManager = GetGameInstance()->GetSubsystem<UMapManagerSubsystem>())
-	{
-		MapManager->Cheat_JumpToBossRoom();
-	}
-}
-
 void ASPGASPlayerController::OnBattleTransitionFinished()
 {
 	UGameInstance* GI = GetGameInstance();
@@ -957,6 +975,19 @@ void ASPGASPlayerController::OnPortalTransitionFinished()
 	{
 		// 연출이 끝났으니 진짜로 다음 맵 스폰을 실행합니다!
 		MapManager->ExecutePortalTransitionLoad();
+	}
+}
+
+void ASPGASPlayerController::StopMovementForUI()
+{
+	StopMovement();
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		ControlledPawn->ConsumeMovementInputVector();
+		if (UPawnMovementComponent* Movement = ControlledPawn->GetMovementComponent())
+		{
+			Movement->StopMovementImmediately();
+		}
 	}
 }
 
