@@ -204,7 +204,26 @@ void AASPCombatGameMode::FinalizeBattleSetup()
 	bIsBattleRunning = true;
 	UE_LOG(LogTemp, Warning, TEXT("[GameMode] 전원 세팅 완료! 전투 UI를 띄우고 즉시 전투를 시작합니다."));
 
-	// 1. 캐릭터 전투 시작 (이 안에서 메인 HUD가 켜지고 껍데기가 생성됩니다!)
+	if (USPCombatSubsystem* CombatSys =
+		GetGameInstance()->GetSubsystem<USPCombatSubsystem>())
+	{
+		if (CombatSys->GetCurrentTutorialStage()
+			== ETutorialStage::Tutorial_Basic)
+		{
+			if (ASPGASPlayerController* PC =
+				Cast<ASPGASPlayerController>(
+					GetWorld()->GetFirstPlayerController()))
+			{
+				if (USPTutorialManagerComponent* TutMgr =
+					PC->GetTutorialManager())
+				{
+					TutMgr->PrepareTutorialScenario();
+				}
+			}
+		}
+	}
+
+	//캐릭터 전투 시작 (이 안에서 메인 HUD가 켜지고 껍데기가 생성됩니다!)
 	for (AActor* Participant : AllParticipants)
 	{
 		if (ASPGASCharacterBase* Character = Cast<ASPGASCharacterBase>(Participant))

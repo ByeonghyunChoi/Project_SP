@@ -18,7 +18,7 @@ class PROJECT_SP_API USPTutorialManagerComponent : public UActorComponent
 public:
 	USPTutorialManagerComponent();
 
-	// 1. 튜토리얼 제어
+	// 튜토리얼 제어
 	UFUNCTION(BlueprintCallable, Category = "Tutorial")
 	void StartTutorialScenario();
 
@@ -51,6 +51,8 @@ public:
 
 	void HideTutorialPopup();
 
+	void PrepareTutorialScenario();
+
 public:
 	// 위젯에서 이 이벤트에 바인딩하여 텍스트와 구멍 위치를 업데이트합니다.
 	UPROPERTY(BlueprintAssignable, Category = "Tutorial|Event")
@@ -74,5 +76,8 @@ protected:
 private:
 	// 내부 상태 갱신 및 UI 업데이트 지시
 	void ProcessCurrentStep();
+
+private:
+	bool bIsTutorialPending = false;
 
 };

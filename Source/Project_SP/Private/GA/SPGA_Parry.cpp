@@ -159,7 +159,7 @@ bool USPGA_Parry::CheckCounterConditions()
 					if (TargetCooldownTag.IsValid() && PlayerASC->HasMatchingGameplayTag(TargetCooldownTag))
 					{
 						UE_LOG(LogTemp, Warning, TEXT("패링 성공: 하지만 반격 스킬(%s)이 쿨타임 중이라 추가 턴을 얻지 못합니다!"), *WeaponData->ParrySkillAbility->GetName());
-						return false; // ❌ 쿨타임 컷!
+						return false;
 					}
 				}
 			}
