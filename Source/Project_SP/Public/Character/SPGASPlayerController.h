@@ -226,6 +226,8 @@ protected:
 	// 타이머 종료 후 로비로 보내는 함수
 	void ExecuteGoToLobby();
 
+	bool IsBattleActionExecuting() const;
+
 public:
 	// 무기 교체 처리
 	UFUNCTION(BlueprintCallable, Category = "Combat")

@@ -480,6 +480,36 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGamepl
 	}
 }
 
+void USPStatusEffectComponent::HandleSkippedTurn()
+{
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor)
+	{
+		return;
+	}
+
+	UAbilitySystemComponent* OwnerASC =
+		UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(OwnerActor);
+
+	if (!OwnerASC)
+	{
+		return;
+	}
+
+	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
+
+	if (OwnerASC->HasMatchingGameplayTag(SPTags.State_Status_SkipTurn))
+	{
+		OwnerASC->RemoveLooseGameplayTag(SPTags.State_Status_SkipTurn);
+
+		UE_LOG(
+			LogTemp,
+			Log,
+			TEXT("[%s] 턴 스킵 상태를 소비했습니다."),
+			*OwnerActor->GetName());
+	}
+}
+
 void USPStatusEffectComponent::RemoveStatusEffectByTag(UAbilitySystemComponent* TargetASC, FGameplayTag StatusTagToRemove)
 {
 	if (!TargetASC) return;

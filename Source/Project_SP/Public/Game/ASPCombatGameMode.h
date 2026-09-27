@@ -27,6 +27,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Battle")
 	void EndTurn(AActor* TurnActor);
 
+	UFUNCTION(BlueprintCallable, Category = "Battle | Interrupt")
+	void RequestInterrupt(AActor* Requester, int32 Count = 1);
+
 	UFUNCTION(BlueprintCallable, Category = "Battle | ReadyCheck")
 	void ReportCharacterReady(AActor* Character);
 
@@ -163,5 +166,7 @@ private:
 	void CheckAndStartBattle();
 
 	void ApplyPlayerSavedData();
+
+	void HandleBattleActionFinished(AActor* ActionActor);
 
 };

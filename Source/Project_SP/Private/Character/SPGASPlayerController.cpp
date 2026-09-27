@@ -26,76 +26,14 @@
 #include "Component/OpartsComponent.h"
 #include "Component/SPTutorialManagerComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
-#include "GameFramework/PawnMovementComponent.h"
+#include "Engine/GameInstance.h"
+#include "TimerManager.h"
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
 	bShowMouseCursor = true;
 	TutorialManager = CreateDefaultSubobject<USPTutorialManagerComponent>(TEXT("TutorialManager"));
 	CurrentSelectedAction = ESelectedActionType::None;
-}
-
-bool ASPGASPlayerController::IsMovementBlockedByUI() const
-{
-	for (const TWeakObjectPtr<UUserWidget>& Entry : MovementBlockingWidgets)
-	{
-		const UUserWidget* Widget = Entry.Get();
-		if (Widget && Widget->IsInViewport() && Widget->IsVisible())
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-bool ASPGASPlayerController::IsMoveInputIgnored() const
-{
-	// Keep Blueprint/cutscene input locks independent from the UI lock.
-	return Super::IsMoveInputIgnored() || IsMovementBlockedByUI();
-}
-
-void ASPGASPlayerController::StopMovementForUI()
-{
-	StopMovement();
-	if (APawn* ControlledPawn = GetPawn())
-	{
-		ControlledPawn->ConsumeMovementInputVector();
-		if (UPawnMovementComponent* Movement = ControlledPawn->GetMovementComponent())
-		{
-			Movement->StopMovementImmediately();
-		}
-	}
-}
-
-void ASPGASPlayerController::RegisterMovementBlockingUI(UUserWidget* Widget)
-{
-	if (!IsValid(Widget)) return;
-	MovementBlockingWidgets.AddUnique(TWeakObjectPtr<UUserWidget>(Widget));
-	if (IsMovementBlockedByUI())
-	{
-		StopMovementForUI();
-		bWasMovementBlockedByUI = true;
-	}
-}
-
-void ASPGASPlayerController::UnregisterMovementBlockingUI(UUserWidget* Widget)
-{
-	MovementBlockingWidgets.Remove(TWeakObjectPtr<UUserWidget>(Widget));
-}
-
-void ASPGASPlayerController::PlayerTick(float DeltaTime)
-{
-	MovementBlockingWidgets.RemoveAll([](const TWeakObjectPtr<UUserWidget>& Entry)
-	{
-		return !Entry.IsValid();
-	});
-	const bool bBlocked = IsMovementBlockedByUI();
-	if (bBlocked && !bWasMovementBlockedByUI)
-	{
-		StopMovementForUI();
-	}
-	bWasMovementBlockedByUI = bBlocked;
-	Super::PlayerTick(DeltaTime);
 }
 
 void ASPGASPlayerController::BeginPlay()
@@ -258,8 +196,6 @@ void ASPGASPlayerController::InitAbilitySystem(APawn* InPawn)
 
 void ASPGASPlayerController::OnMove(const FInputActionValue& Value)
 {
-	if (IsMoveInputIgnored()) return;
-
 	// 필드 전용 이동 로직
 	if (CachedASC && CachedASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_BlockMove)) return;
 
@@ -352,35 +288,55 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 {
 	const FSPGameplayTags& GameplayTags = FSPGameplayTags::Get();
 
-	if (TutorialManager && TutorialManager->IsTutorialActive())
+	if (IsBattleActionExecuting())
 	{
-		if (TutorialManager->CanProcessInput(InputTag))
-		{
-			int32 Step = TutorialManager->GetCurrentStep();
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("[입력 차단] 행동 실행 중: %s"),
+			*InputTag.ToString()
+		);
 
-			// [기믹 1] 일반 공격 설명 중 정답 입력 시
-			if (Step == 4 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Attack))
-			{
-				UGameplayStatics::SetGamePaused(GetWorld(), false); // 세상 정지 해제
-				TutorialManager->HideTutorialPopup();              // UI 숨기기
-			}
-			// [기믹 2] 무기 스킬 설명 중 정답 입력 시
-			else if (Step == 6 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_Skill))
-			{
-				UGameplayStatics::SetGamePaused(GetWorld(), false);
-				TutorialManager->HideTutorialPopup();
-			}
-			// [기믹 3] 시간 간섭 설명 중 정답 입력 시 ➡️ 대단원의 막을 내림!
-			else if (Step == 7 && InputTag.MatchesTagExact(GameplayTags.Battle_Action_TimeInterference))
-			{
-				UGameplayStatics::SetGamePaused(GetWorld(), false);
-				TutorialManager->EndTutorial();                    // 튜토리얼 완전 종료 및 자유전투 전환!
-			}
-		}
-		else
+		HandleInputFeedback(InputTag, false);
+		return;
+	}
+
+	if (TutorialManager && !TutorialManager->CanProcessInput(InputTag))
+	{
+		HandleInputFeedback(InputTag, false);
+		return;
+	}
+
+	if (TutorialManager &&
+		TutorialManager->IsTutorialActive())
+	{
+		const int32 Step =
+			TutorialManager->GetCurrentStep();
+
+		if (Step == 4 &&
+			InputTag.MatchesTagExact(
+				GameplayTags.Battle_Action_Attack))
 		{
-			HandleInputFeedback(InputTag, false);
-			return; // 오답 키는 철저하게 차단
+			UGameplayStatics::SetGamePaused(
+				GetWorld(), false);
+
+			TutorialManager->HideTutorialPopup();
+		}
+		else if (Step == 6 &&
+			InputTag.MatchesTagExact(
+				GameplayTags.Battle_Action_Skill))
+		{
+			UGameplayStatics::SetGamePaused(
+				GetWorld(), false);
+
+			TutorialManager->HideTutorialPopup();
+		}
+		else if (Step == 7 &&
+			InputTag.MatchesTagExact(
+				GameplayTags.Battle_Action_TimeInterference))
+		{
+			// ★ 시간 간섭 누르는 순간 튜토리얼 종료
+			TutorialManager->EndTutorial();
 		}
 	}
 
@@ -402,12 +358,22 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 	}
 
 	// 턴 체크
-	if (!IsMyTurn() && (!TutorialManager || !TutorialManager->IsTutorialActive()))
+	const bool bIsTimeInterferenceActive =
+		CachedASC &&
+		CachedASC->HasMatchingGameplayTag(
+			GameplayTags.State_Buff_CrystalSkull);
+
+	if (!IsMyTurn() &&
+		!bIsTimeInterferenceActive)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("아직 내 턴이 아닙니다."));
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("아직 내 턴이 아닙니다."));
+
 		return;
 	}
-	
+
 	if (InputTag.MatchesTag(GameplayTags.Battle_Action_TimeInterference))
 	{
 		if (bIsSelectingTarget) CancelTargetSelection(); // 타겟팅 중이었다면 취소
@@ -448,11 +414,6 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 				OnTimeInterferenceChanged.Broadcast(true);
 
 				UE_LOG(LogTemp, Warning, TEXT("[시간 간섭] 발동!"));
-
-				if (TutorialManager && TutorialManager->GetCurrentStep() == 7)
-				{
-					TutorialManager->AdvanceStep(); // Step 8로 넘어감 (튜토리얼 완전 종료!)
-				}
 			}
 			else
 			{
@@ -481,28 +442,23 @@ void ASPGASPlayerController::OnBattleInputPressed(FGameplayTag InputTag)
 
 		if (InputType == ESelectedActionType::WeaponSkill)
 		{
-			// '해골 수정(CrystalSkull)' 고유 태그를 검사합니다!
-			bool bIsCrystalSkull = CachedASC && CachedASC->HasMatchingGameplayTag(GameplayTags.State_Buff_CrystalSkull);
+			ASPGASPlayerCharacter* PlayerChar =
+				Cast<ASPGASPlayerCharacter>(GetPawn());
 
-			// 1. 쿨타임 검사
-			if (!bIsCrystalSkull && GetSkillCooldownTurns(GameplayTags.Battle_Action_Skill) > 0)
+			if (!PlayerChar ||
+				!PlayerChar->CanSelectCombatAbility(
+					CurrentWeaponTag,
+					InputType))
 			{
 				PlayActionSound(InputTag, false);
 				HandleInputFeedback(InputTag, false);
-				UE_LOG(LogTemp, Warning, TEXT("[시스템] 무기 스킬 쿨타임 중입니다!"));
-				return; // 타겟팅 진입 차단!
-			}
 
-			// 2. BP 및 프리패스(시간 간섭) 검사
-			int32 Cost = GetSkillCost(GameplayTags.Battle_Action_Skill);
+				UE_LOG(
+					LogTemp,
+					Warning,
+					TEXT("[BattleAction] 현재 사용할 수 없는 행동입니다."));
 
-			// 해골 수정 버프가 없는데, BP마저 부족하다면?
-			if (!bIsCrystalSkull && GetCurrentBP() < Cost)
-			{
-				PlayActionSound(InputTag, false);
-				HandleInputFeedback(InputTag, false);
-				UE_LOG(LogTemp, Warning, TEXT("[시스템] BP가 부족합니다!"));
-				return; // 타겟팅 진입 차단!
+				return;
 			}
 		}
 
@@ -984,17 +940,6 @@ void ASPGASPlayerController::Cheat_GoToBoss()
 	}
 }
 
-void ASPGASPlayerController::Cheat_ResetGame()
-{
-	if (USPSaveGameSubsystem* SaveManager = GetGameInstance()->GetSubsystem<USPSaveGameSubsystem>())
-	{
-		SaveManager->ResetAllData();
-	}
-
-	UGameplayStatics::OpenLevel(this, FName("Title_Level"));
-
-}
-
 void ASPGASPlayerController::OnBattleTransitionFinished()
 {
 	UGameInstance* GI = GetGameInstance();
@@ -1420,6 +1365,13 @@ void ASPGASPlayerController::ExecuteGoToLobby()
 		// 맵 매니저의 기능 재활용! (세이브 데이터 초기화 + 로비 레벨 이동)
 		MapManager->GoToLobby();
 	}
+}
+
+bool ASPGASPlayerController::IsBattleActionExecuting() const
+{
+	return CachedASC &&
+		CachedASC->HasMatchingGameplayTag(
+			FSPGameplayTags::Get().State_ActionExecuting);
 }
 
 

@@ -14,6 +14,7 @@ USPTutorialManagerComponent::USPTutorialManagerComponent()
 
 void USPTutorialManagerComponent::StartTutorialScenario()
 {
+	bIsTutorialPending = false;
 	bIsTutorialActive = true;
 	CurrentStep = 0;
 
@@ -30,6 +31,7 @@ void USPTutorialManagerComponent::StartTutorialScenario()
 
 void USPTutorialManagerComponent::EndTutorial()
 {
+	bIsTutorialPending = false;
 	bIsTutorialActive = false;
 	UGameplayStatics::SetGamePaused(GetWorld(), false);
 
@@ -38,6 +40,7 @@ void USPTutorialManagerComponent::EndTutorial()
 		ActivePopupWidget->RemoveFromParent();
 		ActivePopupWidget = nullptr;
 	}
+
 	UE_LOG(LogTemp, Warning, TEXT("[Tutorial] 튜토리얼 종료. 자유 전투 전환."));
 }
 
@@ -83,7 +86,15 @@ void USPTutorialManagerComponent::OnParryTimingTriggered()
 
 bool USPTutorialManagerComponent::CanProcessInput(FGameplayTag InputTag) const
 {
-	if (!bIsTutorialActive) return true;
+	if (bIsTutorialPending)
+	{
+		return false;
+	}
+
+	if (!bIsTutorialActive)
+	{
+		return true;
+	}
 
 	const FSPGameplayTags& Tags = FSPGameplayTags::Get();
 
@@ -115,6 +126,11 @@ void USPTutorialManagerComponent::HideTutorialPopup()
 		InputMode.SetHideCursorDuringCapture(false);
 		PC->SetInputMode(InputMode);
 	}
+}
+
+void USPTutorialManagerComponent::PrepareTutorialScenario()
+{
+	bIsTutorialPending = true;
 }
 
 void USPTutorialManagerComponent::ProcessCurrentStep()

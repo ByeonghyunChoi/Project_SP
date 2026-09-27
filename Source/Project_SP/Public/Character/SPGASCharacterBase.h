@@ -4,9 +4,11 @@
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
 #include "AttributeSet/SPGASAttributeSet.h"
+#include "Manager/SPGASBattleTypes.h"
 #include "SPGASCharacterBase.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FCharacterDamageDelegate, float, DamageAmount, bool, bIsCritical);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnBattleActionFinished, AActor*);
 
 UCLASS(Abstract) 
 class PROJECT_SP_API ASPGASCharacterBase : public ACharacter, public IAbilitySystemInterface
@@ -41,6 +43,8 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Combat|UI")
     FCharacterDamageDelegate OnDamageTaken;
 
+    FOnBattleActionFinished OnBattleActionFinished;
+
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
 
@@ -50,6 +54,13 @@ public:
     //턴을 종료하고 GameMode에게 알림
     UFUNCTION(BlueprintCallable, Category = "GAS | Turn")
     virtual void FinishTurn();
+
+    //행동 종료를 알림
+    void NotifyBattleActionFinished();
+
+    //현재 캐릭터가 턴을 수행할 수 있는지 여부 반환
+    UFUNCTION(BlueprintPure, Category = "GAS | Turn")
+    ETurnAvailability GetTurnAvailability() const;
 
     //턴 시작 시 쿨타임 감소
     UFUNCTION(BlueprintCallable, Category = "GAS | Turn")
@@ -77,6 +88,8 @@ public:
     void CancelAbilitiesWithTag(FGameplayTagContainer WithTags);
 
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
+
+    void HandleSkippedTurn();
 
 protected:
     virtual void OnSpeedChanged(const struct FOnAttributeChangeData& Data);
