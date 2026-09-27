@@ -48,6 +48,10 @@ public:
 
 	virtual bool IsMoveInputIgnored() const override;
 	virtual void PlayerTick(float DeltaTime) override;
+	virtual bool InputKey(const FInputKeyParams& Params) override;
+
+	// Shared by Slate (including UI-only/paused menus) and controller input.
+	bool HandleEscapeInput(EInputEvent Event);
 
 	// Register after adding the modal widget to the viewport. Hidden/removed widgets do not block.
 	UFUNCTION(BlueprintCallable, Category = "UI | Input")
@@ -59,8 +63,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "UI | Input")
 	bool IsMovementBlockedByUI() const;
 
+	// Close keyboard menus or explicitly registered modal UI; never persistent HUDs.
+	UFUNCTION(BlueprintCallable, Category = "UI | Input")
+	bool CloseTopInteractionUI();
+
+	void SetInteractionUICloseHandler(UUserWidget* Widget, FSimpleDelegate Handler);
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;
 
@@ -340,7 +351,11 @@ public:
 	void OnPortalTransitionFinished();
 
 private:
+	bool bConsumeEscapeUntilRelease = false;
+	bool CloseKeyboardOpenedUI();
 	TArray<TWeakObjectPtr<class UUserWidget>> MovementBlockingWidgets;
+	TMap<TWeakObjectPtr<UUserWidget>, FSimpleDelegate> InteractionUICloseHandlers;
+	TSharedPtr<class IInputProcessor> InteractionUIInputProcessor;
 	bool bWasMovementBlockedByUI = false;
 	void StopMovementForUI();
 

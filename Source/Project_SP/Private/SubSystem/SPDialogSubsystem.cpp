@@ -45,6 +45,8 @@ void USPDialogSubsystem::StartDialog(UDataTable* DialogTable, UDataTable* AssetT
 		if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
 		{
 			SPPC->RegisterMovementBlockingUI(ActiveDialogWidget);
+			SPPC->SetInteractionUICloseHandler(ActiveDialogWidget,
+				FSimpleDelegate::CreateUObject(this, &USPDialogSubsystem::EndDialog));
 		}
 
 		// 입력 모드를 UI 전용으로 변경
@@ -136,6 +138,10 @@ void USPDialogSubsystem::EndDialog()
 
 	if (ActiveDialogWidget)
 	{
+		if (ASPGASPlayerController* PC = Cast<ASPGASPlayerController>(ActiveDialogWidget->GetOwningPlayer()))
+		{
+			PC->UnregisterMovementBlockingUI(ActiveDialogWidget);
+		}
 		ActiveDialogWidget->RemoveFromParent();
 		ActiveDialogWidget = nullptr;
 	}

@@ -123,6 +123,15 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 			if (ASPGASPlayerController* SPPC = Cast<ASPGASPlayerController>(PC))
 			{
 				SPPC->RegisterMovementBlockingUI(RewardUI);
+				// The box is consumed below. Skipping its reward must still unlock the exit.
+				TWeakObjectPtr<AMapBase> RewardMap = Cast<AMapBase>(
+					UGameplayStatics::GetActorOfClass(GetWorld(), AMapBase::StaticClass()));
+				SPPC->SetInteractionUICloseHandler(RewardUI,
+					FSimpleDelegate::CreateWeakLambda(RewardUI, [RewardUI, RewardMap]()
+					{
+						RewardUI->RemoveFromParent();
+						if (RewardMap.IsValid()) RewardMap->SetMapState(EMapState::Cleared);
+					}));
 			}
 
 			FInputModeUIOnly InputMode;
