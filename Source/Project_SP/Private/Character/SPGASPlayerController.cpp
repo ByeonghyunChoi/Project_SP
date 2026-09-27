@@ -13,6 +13,8 @@
 #include "Tag/SPGameplayTags.h"
 #include "Components/WidgetComponent.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Components/Button.h"
 #include "AttributeSet/SPGASAttributeSet.h"
 #include "GameplayEffect.h"
 #include "Data/Asset/WeaponAbilityData.h"
@@ -27,6 +29,79 @@
 #include "Component/SPTutorialManagerComponent.h"
 #include "SubSystem/SPSaveGameSubsystem.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "Engine/GameViewportClient.h"
+#include "Widgets/SViewport.h"
+#include "Input/Events.h"
+#include "InputCoreTypes.h"
+
+class FSPInteractionUIInputProcessor final : public IInputProcessor
+{
+public:
+	explicit FSPInteractionUIInputProcessor(ASPGASPlayerController* InController) : Controller(InController) {}
+	virtual void Tick(float, FSlateApplication&, TSharedRef<ICursor>) override {}
+	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& Event) override
+	{
+		ASPGASPlayerController* PC = Controller.Get();
+		if (!PC || Event.GetKey() != EKeys::Escape) return false;
+		// Closing can move focus. Keep consuming repeats until the physical release.
+		if (Event.IsRepeat()) return PC->HandleEscapeInput(IE_Repeat);
+		// Do not intercept editor shortcuts or input belonging to another PIE window.
+		UGameViewportClient* Viewport = PC->GetWorld() ? PC->GetWorld()->GetGameViewport() : nullptr;
+		const TSharedPtr<SViewport> ViewportWidget = Viewport ? Viewport->GetGameViewportWidget() : nullptr;
+		bool bHasGameFocus = ViewportWidget && (ViewportWidget->HasKeyboardFocus() || ViewportWidget->HasFocusedDescendants());
+		if (!bHasGameFocus)
+		{
+			// In embedded PIE, UMG overlays are siblings of SViewport, not descendants.
+			TArray<UUserWidget*> Widgets;
+			UWidgetBlueprintLibrary::GetAllWidgetsOfClass(PC, Widgets, UUserWidget::StaticClass(), true);
+			for (UUserWidget* Widget : Widgets)
+			{
+				if (!IsValid(Widget) || Widget->GetOwningPlayer() != PC || !Widget->IsVisible()) continue;
+				const TSharedPtr<SWidget> SlateWidget = Widget->GetCachedWidget();
+				if (SlateWidget && (SlateWidget->HasKeyboardFocus() || SlateWidget->HasFocusedDescendants()))
+				{
+					bHasGameFocus = true;
+					break;
+				}
+			}
+		}
+		return bHasGameFocus && PC->HandleEscapeInput(IE_Pressed);
+	}
+	virtual bool HandleKeyUpEvent(FSlateApplication&, const FKeyEvent& Event) override
+	{
+		ASPGASPlayerController* PC = Controller.Get();
+		return PC && Event.GetKey() == EKeys::Escape && PC->HandleEscapeInput(IE_Released);
+	}
+private:
+	TWeakObjectPtr<ASPGASPlayerController> Controller;
+};
+
+bool ASPGASPlayerController::HandleEscapeInput(EInputEvent Event)
+{
+	if (Event == IE_Released)
+	{
+		const bool bConsumed = bConsumeEscapeUntilRelease;
+		bConsumeEscapeUntilRelease = false;
+		return bConsumed;
+	}
+	if (bConsumeEscapeUntilRelease) return true;
+	if (Event != IE_Pressed) return false;
+
+	// Set the guard before invoking Blueprint close callbacks, which may change
+	// input mode, flush keys or unpause the game synchronously.
+	bConsumeEscapeUntilRelease = true;
+	bConsumeEscapeUntilRelease = CloseTopInteractionUI();
+	return bConsumeEscapeUntilRelease;
+}
+
+bool ASPGASPlayerController::InputKey(const FInputKeyParams& Params)
+{
+	// Catch Escape before PlayerInput queues BP_PlayerController's menu binding,
+	// even when it arrives through a route that bypasses the Slate preprocessor.
+	if (Params.Key == EKeys::Escape && HandleEscapeInput(Params.Event)) return true;
+	return Super::InputKey(Params);
+}
 
 ASPGASPlayerController::ASPGASPlayerController()
 {
@@ -70,7 +145,8 @@ void ASPGASPlayerController::StopMovementForUI()
 void ASPGASPlayerController::RegisterMovementBlockingUI(UUserWidget* Widget)
 {
 	if (!IsValid(Widget)) return;
-	MovementBlockingWidgets.AddUnique(TWeakObjectPtr<UUserWidget>(Widget));
+	MovementBlockingWidgets.Remove(TWeakObjectPtr<UUserWidget>(Widget));
+	MovementBlockingWidgets.Add(TWeakObjectPtr<UUserWidget>(Widget));
 	if (IsMovementBlockedByUI())
 	{
 		StopMovementForUI();
@@ -81,6 +157,102 @@ void ASPGASPlayerController::RegisterMovementBlockingUI(UUserWidget* Widget)
 void ASPGASPlayerController::UnregisterMovementBlockingUI(UUserWidget* Widget)
 {
 	MovementBlockingWidgets.Remove(TWeakObjectPtr<UUserWidget>(Widget));
+	InteractionUICloseHandlers.Remove(TWeakObjectPtr<UUserWidget>(Widget));
+}
+
+void ASPGASPlayerController::SetInteractionUICloseHandler(UUserWidget* Widget, FSimpleDelegate Handler)
+{
+	if (IsValid(Widget)) InteractionUICloseHandlers.Add(Widget, MoveTemp(Handler));
+}
+
+bool ASPGASPlayerController::CloseKeyboardOpenedUI()
+{
+	// These legacy Blueprint menus bypass RegisterMovementBlockingUI and can pause
+	// the world. Discover them on Escape (not PlayerTick, which stops while paused).
+	// Settings is a child dialog of the system menu, so dismiss it first.
+	struct FKeyboardMenu
+	{
+		const TCHAR* ClassPath;
+		FName CloseButton;
+	};
+	static const FKeyboardMenu Menus[] =
+	{
+		{ TEXT("/Game/Title/HUD/WBP_SettingMenu.WBP_SettingMenu_C"), TEXT("Exit_Button") },
+		{ TEXT("/Game/Field/HUD/WBP_SystemMenu.WBP_SystemMenu_C"), TEXT("Btn_Resume") },
+		{ TEXT("/Game/Field/HUD/Artifact/WBP_PlayerInfo.WBP_PlayerInfo_C"), TEXT("Button_123") }
+	};
+
+	TArray<UUserWidget*> Widgets;
+	UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), true);
+	for (const FKeyboardMenu& Menu : Menus)
+	{
+		for (UUserWidget* Widget : Widgets)
+		{
+			if (!IsValid(Widget) || !Widget->IsInViewport() || !Widget->IsVisible()
+				|| Widget->GetOwningPlayer() != this
+				|| Widget->GetClass()->GetPathName() != Menu.ClassPath)
+			{
+				continue;
+			}
+
+			if (UButton* CloseButton = Cast<UButton>(Widget->GetWidgetFromName(Menu.CloseButton)))
+			{
+				if (CloseButton->GetIsEnabled() && CloseButton->OnClicked.IsBound())
+				{
+					// Reuse the actual close path, including unpause, input mode and sounds.
+					// Consuming this Escape prevents BP_PlayerController from opening a menu.
+					CloseButton->OnClicked.Broadcast();
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool ASPGASPlayerController::CloseTopInteractionUI()
+{
+	if (CloseKeyboardOpenedUI()) return true;
+
+	for (int32 Index = MovementBlockingWidgets.Num() - 1; Index >= 0; --Index)
+	{
+		UUserWidget* Widget = MovementBlockingWidgets[Index].Get();
+		if (!Widget || !Widget->IsInViewport() || !Widget->IsVisible()) continue;
+		if (Widget == LobbyHUDWidget || Widget == FieldHUDWidget || Widget == BattleHUDWidget) continue;
+		const FSimpleDelegate Handler = InteractionUICloseHandlers.FindRef(Widget);
+		UnregisterMovementBlockingUI(Widget);
+		if (Handler.IsBound()) Handler.Execute();
+		else Widget->RemoveFromParent();
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		for (int32 Remaining = MovementBlockingWidgets.Num() - 1; Remaining >= 0; --Remaining)
+		{
+			UUserWidget* Other = MovementBlockingWidgets[Remaining].Get();
+			if (Other && Other->IsInViewport() && Other->IsVisible())
+			{
+				InputMode.SetWidgetToFocus(Other->TakeWidget());
+				break;
+			}
+		}
+		SetInputMode(InputMode);
+		bShowMouseCursor = true;
+		FlushPressedKeys();
+		return true;
+	}
+	return false;
+}
+
+void ASPGASPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (InteractionUIInputProcessor && FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(InteractionUIInputProcessor);
+	}
+	InteractionUIInputProcessor.Reset();
+	InteractionUICloseHandlers.Empty();
+	Super::EndPlay(EndPlayReason);
 }
 
 void ASPGASPlayerController::PlayerTick(float DeltaTime)
@@ -101,6 +273,11 @@ void ASPGASPlayerController::PlayerTick(float DeltaTime)
 void ASPGASPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	if (IsLocalController() && FSlateApplication::IsInitialized())
+	{
+		InteractionUIInputProcessor = MakeShared<FSPInteractionUIInputProcessor>(this);
+		FSlateApplication::Get().RegisterInputPreProcessor(InteractionUIInputProcessor, 0);
+	}
 
 	// 마우스 커서 설정 (필드/전투 모두 사용)
 	FInputModeGameAndUI InputModeData;
