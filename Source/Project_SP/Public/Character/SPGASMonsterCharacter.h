@@ -48,6 +48,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat | AI", meta = (ExposeOnSpawn = "true"))
     TObjectPtr<AActor> Summoner = nullptr;
 
+    UPROPERTY(BlueprintReadWrite, Category = "Combat | Summon")
+    int32 AliveMinionsCount = 0;
+
 public:
     UFUNCTION(BlueprintPure, Category = "Enemy Stats")
     EMonsterRank GetEnemyRank() const { return MonsterDataAsset ? MonsterDataAsset->MonsterRank : EMonsterRank::Normal; }
@@ -92,6 +95,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Combat | AI")
     void SetAttackedLastTurn(bool bAttacked) { bWasAttackedLastTurn = bAttacked; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combat | Summon")
+    void RegisterSummonedMinion() { AliveMinionsCount++; }
+
+    UFUNCTION(BlueprintCallable, Category = "Combat | Summon")
+    void NotifyMinionDied();
 
 public:
     UPROPERTY(BlueprintAssignable, Category = "Combat | UI")

@@ -257,16 +257,9 @@ void ASPGASMonsterCharacter::Die()
 
 	if (Summoner)
 	{
-		if (UAbilitySystemComponent* SummonerASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Summoner))
+		if (ASPGASMonsterCharacter* SummonerMonster = Cast<ASPGASMonsterCharacter>(Summoner))
 		{
-			FGameplayEventData Payload;
-			Payload.Instigator = this;       
-			Payload.Target = Summoner;  
-
-			FGameplayTag DeathTag = FGameplayTag::RequestGameplayTag(FName("Event.Witch.MinionDied"));
-			SummonerASC->HandleGameplayEvent(DeathTag, &Payload);
-
-			UE_LOG(LogTemp, Warning, TEXT("[%s] 주인님(%s)에게 사망 무전을 보냈습니다!"), *GetName(), *Summoner->GetName());
+			SummonerMonster->NotifyMinionDied();
 		}
 	}
 
@@ -348,6 +341,20 @@ void ASPGASMonsterCharacter::RemoveVisualPlayingTag()
 
 		ASC->SetLooseGameplayTagCount(FSPGameplayTags::Get().State_Status_VisualPlaying, 0);
 		UE_LOG(LogTemp, Warning, TEXT("[%s] 연출 종료! AI 족쇄 완벽 해제 완료!"), *GetName());
+	}
+}
+
+void ASPGASMonsterCharacter::NotifyMinionDied()
+{
+	AliveMinionsCount = FMath::Max(0, AliveMinionsCount - 1);
+
+	if (AliveMinionsCount <= 0)
+	{
+		if (UAbilitySystemComponent* MyASC = GetAbilitySystemComponent())
+		{
+			FGameplayTagContainer ShieldTag(FSPGameplayTags::Get().State_Monster_Witch_ShieldActive);
+			MyASC->RemoveActiveEffectsWithGrantedTags(ShieldTag);
+		}
 	}
 }
 

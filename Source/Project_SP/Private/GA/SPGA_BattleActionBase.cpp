@@ -762,6 +762,3 @@ bool USPGA_BattleActionBase::IsValidBattleTarget(AActor* Target) const
 
 	return Health > 0.0f;
 }
-
-
-

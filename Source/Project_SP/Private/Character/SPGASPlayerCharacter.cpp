@@ -489,6 +489,19 @@ bool ASPGASPlayerCharacter::CanSelectCombatAbility(FGameplayTag WeaponTag, ESele
 		ASC->AbilityActorInfo.Get());
 }
 
+void ASPGASPlayerCharacter::TryGrantAutoCounterTurn(AActor* TargetMonster)
+{
+	if (!ASC) return;
+
+	ASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_AutoCounterReady);
+	LastParriedTarget = TargetMonster;
+
+	if (AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
+	{
+		GameMode->RequestInterrupt(this, 1);
+	}
+}
+
 void ASPGASPlayerCharacter::OnBattleStarted()
 {
 	Super::OnBattleStarted();

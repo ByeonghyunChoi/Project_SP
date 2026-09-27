@@ -227,13 +227,14 @@ void ASPCombatTurnManager::ConsumeTurn(AActor* Target, ETurnConsumePolicy Consum
 
 	ClearActorFromQueue(Target);
 
+	if (ConsumePolicy == ETurnConsumePolicy::PreserveGauge)
+	{
+		return; // 게이지를 건드리지 않고 그대로 보존
+	}
+
 	const float CurrentGauge = GetActionGauge(Target);
-	const float OverflowGauge = FMath::Max(
-		0.0f,
-		CurrentGauge - MaxActionGauge);
-
+	const float OverflowGauge = FMath::Max(0.0f, CurrentGauge - MaxActionGauge);
 	SetActionGauge(Target, OverflowGauge);
-
 }
 
 
@@ -250,27 +251,26 @@ void ASPCombatTurnManager::SetActionGauge(AActor* Target, float NewValue)
 	}
 }
 
-TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, float AVToCycleEnd, int32& OutCycleEndIndex)
+TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, float AVToCycleEnd, int32& OutCycleEndIndex, AActor* ExcludeActor)
 {
-	OutCycleEndIndex = -1; // -1이면 화면 안에 라운드 종료 선이 없다는 뜻
+	OutCycleEndIndex = -1;
 	TArray<AActor*> PredictedOrder;
-	float TotalSimTime = 0.0f; // 시뮬레이션에서 흐른 누적 가상 시간
+	float TotalSimTime = 0.0f;
 
-	// 1. 이미 대기열에 있는 유닛 (시간 흐르지 않음)
-	for (AActor* QueuedActor : TurnQueue)
-	{
-		if (PredictedOrder.Num() >= PredictionCount) return PredictedOrder;
-		PredictedOrder.Add(QueuedActor);
-	}
-
-	// 2. 가상 게이지 리스트 세팅
 	TArray<FSimulatedActor> SimList;
 	for (AActor* Actor : Participants)
 	{
-		if (IsValid(Actor)) SimList.Add({ Actor, GetSpeed(Actor), GetActionGauge(Actor) });
+		if (IsValid(Actor))
+		{
+			const float StartingGauge = (Actor == ExcludeActor) ? 0.0f : GetActionGauge(Actor);
+			SimList.Add({ Actor, GetSpeed(Actor), StartingGauge });
+
+			UE_LOG(LogTemp, Warning, TEXT("[예측 디버그] %s | Speed: %.1f | 시작 게이지: %.1f"),
+				*Actor->GetName(), GetSpeed(Actor), StartingGauge);
+		}
 	}
 
-	// 3. 평행우주 시간 돌리기
+	// 평행우주 시간 돌리기
 	while (PredictedOrder.Num() < PredictionCount)
 	{
 		float MinTime = TNumericLimits<float>::Max();
@@ -280,8 +280,7 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 		{
 			if (Sim.Speed > 0.0f)
 			{
-				float TimeNeeded = (MaxActionGauge - Sim.Gauge) / Sim.Speed;
-				if (TimeNeeded < 0.0f) TimeNeeded = 0.0f;
+				float TimeNeeded = FMath::Max(0.0f, (MaxActionGauge - Sim.Gauge) / Sim.Speed);
 				if (TimeNeeded < MinTime)
 				{
 					MinTime = TimeNeeded;
@@ -292,14 +291,13 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 
 		if (!bValid) break;
 
-		// 다음 턴이 오기 전에 데드라인을 넘는다면?!
+		// 다음 턴이 오기 전에 라운드 종료 데드라인을 넘는다면
 		if (TotalSimTime + MinTime >= AVToCycleEnd - KINDA_SMALL_NUMBER)
 		{
-			OutCycleEndIndex = PredictedOrder.Num(); // 전광판이 들어갈 위치 기록!
-			return PredictedOrder; // 💥 여기서 예측을 강제 종료하고 배열 반환!
+			OutCycleEndIndex = PredictedOrder.Num();
+			return PredictedOrder;
 		}
 
-		// 시간을 흐르게 합니다
 		TotalSimTime += MinTime;
 
 		TArray<int32> WinnerIndices;
@@ -308,20 +306,33 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 			if (SimList[i].Speed > 0.0f)
 			{
 				SimList[i].Gauge += (SimList[i].Speed * MinTime);
-				if (SimList[i].Gauge >= MaxActionGauge - 0.01f) WinnerIndices.Add(i);
+				if (SimList[i].Gauge >= MaxActionGauge - 0.01f)
+				{
+					WinnerIndices.Add(i);
+				}
 			}
 		}
 
 		if (WinnerIndices.Num() > 1)
 		{
-			WinnerIndices.Sort([&SimList](const int32 A, const int32 B) {
-				const FSimulatedActor& SimA = SimList[A];
-				const FSimulatedActor& SimB = SimList[B];
-				if (!FMath::IsNearlyEqual(SimA.Speed, SimB.Speed)) return SimA.Speed > SimB.Speed;
-				bool bPlayerA = SimA.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
-				bool bPlayerB = SimB.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
-				if (bPlayerA != bPlayerB) return bPlayerA;
-				return SimA.Gauge > SimB.Gauge;
+			WinnerIndices.Sort([&SimList](const int32 A, const int32 B)
+				{
+					const FSimulatedActor& SimA = SimList[A];
+					const FSimulatedActor& SimB = SimList[B];
+
+					if (!FMath::IsNearlyEqual(SimA.Speed, SimB.Speed))
+					{
+						return SimA.Speed > SimB.Speed;
+					}
+
+					bool bPlayerA = SimA.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+					bool bPlayerB = SimB.Actor->IsA(ASPGASPlayerCharacter::StaticClass());
+					if (bPlayerA != bPlayerB)
+					{
+						return bPlayerA;
+					}
+
+					return SimA.Gauge > SimB.Gauge;
 				});
 		}
 

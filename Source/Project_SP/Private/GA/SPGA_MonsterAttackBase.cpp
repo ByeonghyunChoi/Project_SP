@@ -75,8 +75,14 @@ void USPGA_MonsterAttackBase::ApplyDamageToTarget(AActor* TargetActor, float Dam
 
 	if (SourceASC && SourceASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled))
 	{
+		SourceASC->RemoveLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
 		UE_LOG(LogTemp, Warning, TEXT("[시스템] 패링된 공격입니다! 데미지를 주지 않고 스킵합니다."));
 		return;
+	}
+
+	if (ASPGASCharacterBase* TargetChar = Cast<ASPGASCharacterBase>(TargetActor))
+	{
+		TargetChar->bComboFullyParried = false;
 	}
 
 	if (SourceASC && TargetASC)

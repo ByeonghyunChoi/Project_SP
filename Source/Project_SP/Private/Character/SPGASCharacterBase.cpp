@@ -189,11 +189,5 @@ void ASPGASCharacterBase::OnSpeedChanged(const FOnAttributeChangeData& Data)
 
 void ASPGASCharacterBase::OnActionGaugeChanged(const FOnAttributeChangeData& Data)
 {
-	if (AASPCombatGameMode* GM = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		if (ASPCombatTurnManager* TM = GM->GetTurnManager())
-		{
-			TM->OnTurnOrderChanged.Broadcast();
-		}
-	}
+
 }

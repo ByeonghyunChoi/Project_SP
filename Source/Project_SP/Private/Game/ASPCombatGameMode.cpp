@@ -732,14 +732,19 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	if (!TurnManager) return;
 
 	int32 CycleEndIndex = -1;
-
 	const float AVToCycleEnd = GetAVToCycleEnd();
 
-	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, AVToCycleEnd, CycleEndIndex);
+	AActor* NormalExcludeActor = bIsCurrentTurnInterrupt ? nullptr : CurrentTurnActor;
+	TArray<AActor*> NormalPredicted = TurnManager->PredictTurnOrder(6, AVToCycleEnd, CycleEndIndex, NormalExcludeActor);
+
+	if (CurrentTurnActor && !bIsCurrentTurnInterrupt)
+	{
+		NormalPredicted.Insert(CurrentTurnActor, 0);
+	}
 
 	TArray<AActor*> InterruptTurns = TurnManager->GetInterruptQueue();
 
-	if (bIsCurrentTurnInterrupt && CurrentTurnActor)
+	if (CurrentTurnActor && bIsCurrentTurnInterrupt)
 	{
 		InterruptTurns.Insert(CurrentTurnActor, 0);
 	}
@@ -758,9 +763,6 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 {
 	if (!DeadActor) return;
 
-	// ==========================================
-	// 🌟 1. 플레이어가 죽었을 때 (튜토리얼 2차전 패배 가로채기!)
-	// ==========================================
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 	if (DeadActor == PlayerPawn)
 	{
@@ -786,11 +788,10 @@ void AASPCombatGameMode::OnCharacterDied(AActor* DeadActor)
 			{
 				MapManager->GoToLobby(); // 로비 맵으로 텔레포트
 			}
-			return; // 🚨 다른 사망 로직이나 게임오버 안 타고 여기서 강제 종료!
+			return; 
 		}
 		else
 		{
-			// 튜토리얼이 아닌 진짜 게임에서 플레이어가 죽었을 때
 			EndBattle(false);
 			return;
 		}
@@ -991,14 +992,9 @@ void AASPCombatGameMode::StartFirstTurn()
 {
 
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	// =======================================================================
-	// 🌟 [수정된 핵심] 턴 계산과 UI 업데이트는 튜토리얼 여부와 상관없이 '즉시' 실행!
-	// 이 함수들이 실행되어야 블루프린트 턴 UI에 초상화 데이터가 전달되어 그려집니다!
-	// =======================================================================
+
 	if (TurnManager)
 	{
-		RefreshTurnTimelineUI();
-
 		FTurnResult TurnResult = TurnManager->CalculateNextTurn();
 
 		if (TurnResult.ElapsedTime > 0.0f)
@@ -1012,15 +1008,11 @@ void AASPCombatGameMode::StartFirstTurn()
 		}
 	}
 
-	// =======================================================================
-	// 🌟 3. 튜토리얼 1차전일 경우 2초 뒤에 세상을 멈추는 타이머만 예약!
-	// =======================================================================
 	UGameInstance* GI = GetGameInstance();
 	USPCombatSubsystem* CombatSys = GI ? GI->GetSubsystem<USPCombatSubsystem>() : nullptr;
 
 	if (CombatSys && CombatSys->GetCurrentTutorialStage() == ETutorialStage::Tutorial_Basic)
 	{
-		// ⏰ 타이머 1: 2.0초 뒤에 턴 순서 UI에 데이터를 채워 넣습니다.
 		FTimerHandle RefreshTimer;
 		GetWorld()->GetTimerManager().SetTimer(
 			RefreshTimer,
@@ -1031,8 +1023,6 @@ void AASPCombatGameMode::StartFirstTurn()
 			},
 			2.0f, false);
 
-		// ⏰ 타이머 2: 2.1초 뒤에 튜토리얼 각본을 시작하고 게임을 멈춥니다! (0.1초의 여유)
-		// 이 0.1초 동안 턴 UI가 크기(Geometry) 계산을 완벽하게 끝냅니다.
 		FTimerHandle TutorialTriggerTimer;
 		GetWorld()->GetTimerManager().SetTimer(
 			TutorialTriggerTimer,
@@ -1074,7 +1064,6 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 
 		if (ASPGASMonsterCharacter* Monster = Cast<ASPGASMonsterCharacter>(Corpse))
 		{
-			// 🌟 드디어 여기서 쓰러집니다!
 			Monster->ExecuteVisualDeath();
 		}
 	}
@@ -1095,6 +1084,11 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 	// 4. 다음 타자 호출
 	if (TurnManager)
 	{
+		TurnManager->SetRoundIterating(false);
+	}
+
+	if (TurnManager)
+	{
 		FTurnResult TurnResult = TurnManager->CalculateNextTurn();
 
 		if (TurnResult.ElapsedTime > 0.0f)
@@ -1106,15 +1100,11 @@ void AASPCombatGameMode::ProcessEndOfTurn()
 
 		if (!IsValid(NextActor))
 		{
-			UE_LOG(
-				LogTemp,
-				Warning,
-				TEXT("[CombatGameMode] 다음 행동자를 찾지 못했습니다."));
+			UE_LOG(LogTemp, Warning, TEXT("[CombatGameMode] 다음 행동자를 찾지 못했습니다."));
 			return;
 		}
 
-		if (TurnManager->GetActionGauge(NextActor)
-			< ASPCombatTurnManager::MaxActionGauge)
+		if (TurnManager->GetActionGauge(NextActor) < ASPCombatTurnManager::MaxActionGauge)
 		{
 			bIsCurrentTurnInterrupt = true;
 		}

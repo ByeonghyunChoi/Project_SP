@@ -43,7 +43,7 @@ public:
 
 	//턴 순서 시뮬레이션 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager")
-	TArray<AActor*> PredictTurnOrder(int32 PredictionCount, float AVToCycleEnd, int32& OutCycleEndIndex);
+	TArray<AActor*> PredictTurnOrder(int32 PredictionCount, float AVToCycleEnd, int32& OutCycleEndIndex, AActor* ExcludeActor = nullptr);
 
 	// VIP 턴 요구 함수
 	UFUNCTION(BlueprintCallable, Category = "TurnManager | Interrupt")

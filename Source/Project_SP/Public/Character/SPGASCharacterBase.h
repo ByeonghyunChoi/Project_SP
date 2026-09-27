@@ -30,7 +30,6 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
     TObjectPtr<class USPStatusEffectComponent> StatusEffectComponent;
-
     // 피격 몽타주
     UPROPERTY(EditAnywhere, Category = "Combat|Animation")
     UAnimMontage* HitReactMontage;
@@ -44,6 +43,9 @@ public:
     FCharacterDamageDelegate OnDamageTaken;
 
     FOnBattleActionFinished OnBattleActionFinished;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Combat|Parry")
+    bool bComboFullyParried = true;
 
 public:
     FORCEINLINE class USPGASAttributeSet* GetAttributeSet() const { return AttributeSet; }
@@ -90,6 +92,9 @@ public:
     FORCEINLINE class USPStatusEffectComponent* GetStatusEffectComponent() const { return StatusEffectComponent; }
 
     void HandleSkippedTurn();
+
+    UFUNCTION(BlueprintCallable, Category = "Combat|Parry")
+    void ResetComboParryTracking() { bComboFullyParried = true; }
 
 protected:
     virtual void OnSpeedChanged(const struct FOnAttributeChangeData& Data);

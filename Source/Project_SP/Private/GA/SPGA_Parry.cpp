@@ -16,8 +16,9 @@
 #include "SubSystem/SPCombatSubsystem.h"
 
 
-bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
+bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster, bool& bOutWasProjectileParry)
 {
+	bOutWasProjectileParry = false;
 	AActor* MyAvatar = GetAvatarActorFromActorInfo();
 	UAbilitySystemComponent* PlayerASC = GetAbilitySystemComponentFromActorInfo();
 	const FSPGameplayTags& SPTags = FSPGameplayTags::Get();
@@ -74,6 +75,7 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster)
 					{
 						Projectile->bIsParried = true;
 						Projectile->Destroy();
+						bOutWasProjectileParry = true;
 						UE_LOG(LogTemp, Warning, TEXT("[패링 성공] 투사체를 튕겨냈습니다!"));
 						return true;
 					}
@@ -170,7 +172,7 @@ bool USPGA_Parry::CheckCounterConditions()
 	return true;
 }
 
-void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
+void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster, bool bApplyDamageDisabledTag)
 {
 	if (ParrySuccessSounds.Num() > 0)
 	{
@@ -198,9 +200,12 @@ void USPGA_Parry::SendParriedEventToMonster(AActor* TargetMonster)
 		ASC->HandleGameplayEvent(FSPGameplayTags::Get().Event_Combat_ParrySuccess, &ParryPayload);
 	}
 
-	if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetMonster))
+	if (bApplyDamageDisabledTag)
 	{
-		TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
+		if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetMonster))
+		{
+			TargetASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_DamageDisabled);
+		}
 	}
 }
 
