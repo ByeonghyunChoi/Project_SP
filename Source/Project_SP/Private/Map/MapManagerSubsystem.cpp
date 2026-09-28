@@ -585,13 +585,13 @@ FRewardResult UMapManagerSubsystem::CalculateCombatRewards(const TArray<EMonster
 	{
 		if (Stage == 1)
 		{
-			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 250 : 60;
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 100 : 20;
 			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 70; TotalReward.Sand += 10; TotalReward.IncompleteEnergy += 2; }
 			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 83; TotalReward.Sand += 13; TotalReward.IncompleteEnergy += 3; }
 		}
 		else if (Stage == 2)
 		{
-			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 1300 : 330;
+			TotalReward.Exp += (Rank == EMonsterRank::Boss) ? 200 : 30;
 			if (MapType == EMapType::NormalBattle) { TotalReward.Gold += 80; TotalReward.Sand += 12; TotalReward.IncompleteEnergy += 2; }
 			else if (MapType == EMapType::StrongEnemyBattle) { TotalReward.Gold += 96; TotalReward.Sand += 15; TotalReward.IncompleteEnergy += 4; }
 		}
