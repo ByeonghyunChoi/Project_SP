@@ -197,15 +197,15 @@ void UMapManagerSubsystem::OnPostLoadMapWithWorld(UWorld* LoadedWorld)
 {
 	if (!MapDataTable) return;
 
+	FString CurrentLevelName = LoadedWorld->GetOutermost()->GetName();
+
+	bIsInTutorialMap = CurrentLevelName.Contains("Tutorial");
+
 	if (bIsBattleActive)
 	{
 		UE_LOG(LogTemp, Log, TEXT("전투 레벨 로드 완료 - 맵 스폰을 건너뜁니다."));
 		return;
 	}
-
-	FString CurrentLevelName = LoadedWorld->GetOutermost()->GetName();
-
-	bIsInTutorialMap = CurrentLevelName.Contains("Tutorial");
 
 	if (bIsInTutorialMap && !bIsReturningToTutorial && !bIsLoadingSave && !bIsReturningFromBattle)
 	{
