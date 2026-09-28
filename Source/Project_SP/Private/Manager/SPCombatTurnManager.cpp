@@ -291,12 +291,7 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 
 		if (!bValid) break;
 
-		// 다음 턴이 오기 전에 라운드 종료 데드라인을 넘는다면
-		if (TotalSimTime + MinTime >= AVToCycleEnd - KINDA_SMALL_NUMBER)
-		{
-			OutCycleEndIndex = PredictedOrder.Num();
-			return PredictedOrder;
-		}
+		const bool bCrossesCycleEnd = (TotalSimTime + MinTime >= AVToCycleEnd - KINDA_SMALL_NUMBER);
 
 		TotalSimTime += MinTime;
 
@@ -341,6 +336,12 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 			if (PredictedOrder.Num() >= PredictionCount) break;
 			PredictedOrder.Add(SimList[WinnerIndex].Actor);
 			SimList[WinnerIndex].Gauge -= MaxActionGauge;
+		}
+
+		if (bCrossesCycleEnd)
+		{
+			OutCycleEndIndex = PredictedOrder.Num();
+			return PredictedOrder;
 		}
 	}
 

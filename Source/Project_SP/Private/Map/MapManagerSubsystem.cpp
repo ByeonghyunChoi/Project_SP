@@ -464,7 +464,6 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 
 	if (CurrentStage >= 2 && CurrentFloor >= 5)
 	{
-		// 타입은 중요하지 않습니다 (어차피 밟으면 MoveToNextFloor에서 엔딩으로 가로챔)
 		CurrentPortalOptions.Add(EMapType::NormalBattle);
 		return CurrentPortalOptions;
 	}
@@ -476,25 +475,27 @@ TArray<EMapType> UMapManagerSubsystem::GenerateNextFloorOptions()
 		NextFloor = 1;
 	}
 
-	// 4층(준비 맵)일 때 옵션을 딱 1개만 넣습니다!
+	if (NextFloor == 1)
+	{
+		CurrentPortalOptions.Add(EMapType::NormalBattle);
+		return CurrentPortalOptions;
+	}
+
 	if (NextFloor == 4)
 	{
 		CurrentPortalOptions.Add(EMapType::Prepare);
 		return CurrentPortalOptions;
 	}
 
-	// 5층(보스 맵)일 때 옵션을 딱 1개만 넣습니다!
 	if (NextFloor == 5)
 	{
 		CurrentPortalOptions.Add(EMapType::BossBattle);
 		return CurrentPortalOptions;
 	}
 
-	// 그 외 일반 층(2층, 3층)일 때는 정상적으로 가중치를 돌려 2개를 뽑습니다.
 	TMap<EMapType, int32> FloorWeightPool;
-	FloorWeightPool.Add(EMapType::NormalBattle, 1);
+	FloorWeightPool.Add(EMapType::NormalBattle, 100);
 	FloorWeightPool.Add(EMapType::Rest, 100);
-	FloorWeightPool.Add(EMapType::StrongEnemyBattle, 1);
 	FloorWeightPool.Add(EMapType::Jester, 100);
 
 	CurrentPortalOptions.Add(PickAndRemoveWeightedMap(FloorWeightPool));

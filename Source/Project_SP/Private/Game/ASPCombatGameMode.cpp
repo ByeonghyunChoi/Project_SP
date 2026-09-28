@@ -740,6 +740,11 @@ void AASPCombatGameMode::RefreshTurnTimelineUI()
 	if (CurrentTurnActor && !bIsCurrentTurnInterrupt)
 	{
 		NormalPredicted.Insert(CurrentTurnActor, 0);
+
+		if (CycleEndIndex >= 0)
+		{
+			CycleEndIndex += 1;
+		}
 	}
 
 	TArray<AActor*> InterruptTurns = TurnManager->GetInterruptQueue();
