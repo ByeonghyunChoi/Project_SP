@@ -204,13 +204,13 @@ TArray<URelicDefinition*> URelicComponent::GenerateRelicRewards(int32 CurrentSta
 	else if (CurrentStage <= 1) // 스테이지 1
 	{
 		if (RandomValue <= 75.0f) SelectedRarity = ERelicRarity::Normal; // 1~ 75 (75%)
-		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
+		else if (RandomValue <= 97.0f) SelectedRarity = ERelicRarity::Rare; // 76~ 95 (20%)
 		else SelectedRarity = ERelicRarity::Unique; // 96~100 (5%)
 	}
 	else if (CurrentStage == 2) // 스테이지 2
 	{
 		if (RandomValue <= 35.0f) SelectedRarity = ERelicRarity::Normal; //1~ 35 (35%)
-		else if (RandomValue <= 90.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
+		else if (RandomValue <= 95.0f) SelectedRarity = ERelicRarity::Rare; // 36~ 90 (55%)
 		else SelectedRarity = ERelicRarity::Unique; // 91~100 (10%)
 	}
 	else if (CurrentStage == 3) // 스테이지 3 이상
