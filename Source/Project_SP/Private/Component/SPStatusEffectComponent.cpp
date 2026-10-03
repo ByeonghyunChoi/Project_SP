@@ -440,17 +440,12 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGamepl
 				{
 					if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
 					{
-						// 1. 데미지 폭발!
 						TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 						PendingSpecs->RemoveAt(i);
 
-						// 🌟 [추가된 핵심 로직] 데미지가 들어갔으니 사운드 재생!
 						if (StatusEffectDataAsset)
 						{
-							// 데이터 에셋에서 이 상태이상(StatusTag)의 설정값을 가져옵니다.
 							const FStatusEffectConfig* Config = StatusEffectDataAsset->GetConfig(StatusTag);
-
-							// 설정값에 사운드가 지정되어 있다면 타겟 위치에서 재생!
 							if (Config && Config->StatusDamageSound)
 							{
 								UGameplayStatics::PlaySoundAtLocation(
@@ -461,7 +456,6 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGamepl
 							}
 						}
 
-						// 2. 피격 애니메이션 및 사망 처리
 						if (ASPGASCharacterBase* GASChar = Cast<ASPGASCharacterBase>(TargetActor))
 						{
 							if (!TargetASC->HasMatchingGameplayTag(FSPGameplayTags::Get().State_Death))
