@@ -13,7 +13,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 
 - **장르**: 3D 턴제 전투 로그라이크
 - **개발 인원**: 4인 팀 프로젝트
-- **개발 기간**: (기간 입력)
+- **개발 기간**: 2025.05.16 ~ 2026.06.12
 - **담당 영역**: Turn System · Combat System · Status Effect System · Parry System
 - **플레이 영상**: [YouTube](https://youtu.be/pEEvE2xtDd0)
 
