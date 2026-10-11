@@ -28,8 +28,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 7. [트러블슈팅 2 — 턴 순서 시스템 이중 트랙 설계](#트러블슈팅-2--턴-순서-시스템-이중-트랙-설계)
 8. [트러블슈팅 3 — 책임 분리: GA가 TurnManager를 직접 조작하던 문제](#트러블슈팅-3--책임-분리-ga가-turnmanager를-직접-조작하던-문제)
 9. [C++ / Blueprint 하이브리드 워크플로우](#c--blueprint-하이브리드-워크플로우)
-10. [실행 방법](#실행-방법)
-11. [기술 스택](#기술-스택)
+10. [기술 스택](#기술-스택)
 
 \---
 
@@ -53,7 +52,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 * **턴 사이클 관리**: 라운드/턴 시작·종료, 승패 판정 (`GameMode`)
 * **턴 순서 계산**: 게이지 기반 일반 턴 + 인터럽트(끼어들기) 턴 이중 트랙, 미래 턴 순서 예측 (`TurnManager`)
 * **상태이상 시스템**: DoT, 턴 감소, 연출-데미지 타이밍 동기화 (`StatusEffectComponent`)
-* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA\_Parry`)
+* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA\\\_Parry`)
 * **연출 큐 관리**: 상태이상 연출을 순서대로 재생하고 카메라를 포커싱 (`BattleDirector`)
 * **턴 타임라인 UI 데이터**: 일반 줄/VIP 줄 예측 순서 제공 (`PredictTurnOrder()`)
 
@@ -127,7 +126,7 @@ BattleDirector (연출 큐 처리, 카메라 포커스)
 **`GameMode::RequestInterrupt()` — GA는 정책 창구인 GameMode에만 요청**
 
 ```cpp
-void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor\\\* Requester, int32 Count)
 {
     if (!TurnManager || !IsValid(Requester))
     {
@@ -149,17 +148,17 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
     // 1. 인터럽트(VIP) 큐를 먼저 소비
     while (InterruptQueue.Num() > 0)
     {
-        AActor\* InterruptActor = InterruptQueue\[0];
+        AActor\\\* InterruptActor = InterruptQueue\\\[0];
         InterruptQueue.RemoveAt(0);
 
-        if (IsValid(InterruptActor) \&\& Participants.Contains(InterruptActor))
+        if (IsValid(InterruptActor) \\\&\\\& Participants.Contains(InterruptActor))
         {
             return { InterruptActor, 0.0f };
         }
     }
 
     // 2. 이미 행동 가능한 일반 턴(TurnQueue)
-    while (TurnQueue.Num() > 0) { /\* 게이지가 찬 첫 유닛 반환 \*/ }
+    while (TurnQueue.Num() > 0) { /\\\* 게이지가 찬 첫 유닛 반환 \\\*/ }
 
     // 3. 없으면 가장 빨리 행동할 유닛까지 게이지를 진행 (생략)
     ...
@@ -175,8 +174,8 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 |-|-|-|
 |턴 시작/종료, 정책 창구|`Game/ASPCombatGameMode`|`ProcessEndOfTurn()`, `RequestInterrupt()`|
 |턴 순서 계산·예측·인터럽트|`Manager/SPCombatTurnManager`|`CalculateNextTurn()`, `PredictTurnOrder()`, `RequestInterruptTurn()`|
-|행동 GA 공통(추가 턴 부여)|`GA/SPGA\_BattleActionBase`|`GrantExtraTurns()`|
-|패링 판정|`GA/SPGA\_Parry`|`CheckWeaponMatch()`|
+|행동 GA 공통(추가 턴 부여)|`GA/SPGA\\\_BattleActionBase`|`GrantExtraTurns()`|
+|패링 판정|`GA/SPGA\\\_Parry`|`CheckWeaponMatch()`|
 |상태이상 처리·연출 타이밍|`Component/SPStatusEffectComponent`|`PendingDamageMap`, `ExecutePendingDamage()`|
 |연출 큐·카메라|`Game/SPBattleDirector`, `Game/SPBattleCameraActor`|—|
 
@@ -192,7 +191,7 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 
 ### 해결
 
-`TMap<AActor\*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
+`TMap<AActor\\\*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
 
 ```
 상태이상 적용 → PendingDamageMap에 예약 → VFX 재생(+Delay) → ExecutePendingDamage() → 다음 시퀀스(BattleDirector)
@@ -248,9 +247,9 @@ InterruptQueue(VIP 턴) ──┘
 
 ```cpp
 // Before
-void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA\\\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode\\\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     for (int32 i = 0; i < ExtraTurns; ++i)
     {
         GameMode->GetTurnManager()->RequestInterruptTurn(Avatar); // TurnManager 직접 조작
@@ -260,17 +259,17 @@ void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 
 ### 해결
 
-`GameMode`에 `RequestInterrupt(AActor\* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
+`GameMode`에 `RequestInterrupt(AActor\\\* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
 
 ```cpp
 // After
-void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA\\\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode\\\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     GameMode->RequestInterrupt(Avatar, ExtraTurns); // GameMode에게 알리기만 함
 }
 
-void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor\\\* Requester, int32 Count)
 {
     for (int32 i = 0; i < Count; ++i)
     {
