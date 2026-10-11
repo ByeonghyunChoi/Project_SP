@@ -52,7 +52,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 * **턴 사이클 관리**: 라운드/턴 시작·종료, 승패 판정 (`GameMode`)
 * **턴 순서 계산**: 게이지 기반 일반 턴 + 인터럽트(끼어들기) 턴 이중 트랙, 미래 턴 순서 예측 (`TurnManager`)
 * **상태이상 시스템**: DoT, 턴 감소, 연출-데미지 타이밍 동기화 (`StatusEffectComponent`)
-* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA\\\_Parry`)
+* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA\_Parry`)
 * **연출 큐 관리**: 상태이상 연출을 순서대로 재생하고 카메라를 포커싱 (`BattleDirector`)
 * **턴 타임라인 UI 데이터**: 일반 줄/VIP 줄 예측 순서 제공 (`PredictTurnOrder()`)
 
@@ -121,12 +121,12 @@ BattleDirector (연출 큐 처리, 카메라 포커스)
 
 ## 구현 — 핵심 코드
 
-설계 판단이 드러나는 두 함수입니다. 실제 코드의 일부를 발췌했습니다(로그·일부 구간 생략).
+설계 판단이 드러나는 코드입니다. 실제 코드의 일부를 발췌했습니다(로그·일부 구간 생략).
 
 **`GameMode::RequestInterrupt()` — GA는 정책 창구인 GameMode에만 요청**
 
 ```cpp
-void AASPCombatGameMode::RequestInterrupt(AActor\\\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
 {
     if (!TurnManager || !IsValid(Requester))
     {
@@ -148,17 +148,17 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
     // 1. 인터럽트(VIP) 큐를 먼저 소비
     while (InterruptQueue.Num() > 0)
     {
-        AActor\\\* InterruptActor = InterruptQueue\\\[0];
+        AActor\* InterruptActor = InterruptQueue\[0];
         InterruptQueue.RemoveAt(0);
 
-        if (IsValid(InterruptActor) \\\&\\\& Participants.Contains(InterruptActor))
+        if (IsValid(InterruptActor) \&\& Participants.Contains(InterruptActor))
         {
             return { InterruptActor, 0.0f };
         }
     }
 
     // 2. 이미 행동 가능한 일반 턴(TurnQueue)
-    while (TurnQueue.Num() > 0) { /\\\* 게이지가 찬 첫 유닛 반환 \\\*/ }
+    while (TurnQueue.Num() > 0) { /\* 게이지가 찬 첫 유닛 반환 \*/ }
 
     // 3. 없으면 가장 빨리 행동할 유닛까지 게이지를 진행 (생략)
     ...
@@ -168,14 +168,50 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 * 인터럽트 큐를 먼저 확인하므로 VIP 턴(패링 반격·시간 간섭)이 게이지와 무관하게 즉시 개입합니다.
 * 다음 행동자 결정을 이 함수 하나로 모아 턴 순서의 책임을 `TurnManager`로 일원화했습니다.
 
+**`SPStatusEffectComponent.cpp` — 로직은 예약 + 이벤트 발행만, 데미지는 연출이 끝난 뒤 적용**
+
+```cpp
+// ProcessTurnStartDoT() 중 (일부 발췌)
+// 1. 연출이 끝날 때까지 데미지 스펙을 예약
+PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
+
+// 2. 연출 중 태그 부착 (AI 행동 정지용)
+OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State\_Status\_VisualPlaying);
+
+// 3. 블루프린트에 연출 시작 이벤트 발행
+OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
+```
+
+```cpp
+// 연출이 끝난 시점에 Blueprint가 호출 (일부 발췌)
+void USPStatusEffectComponent::ExecutePendingDamage(AActor\* TargetActor, FGameplayTag StatusTag)
+{
+    if (TArray<FGameplayEffectSpecHandle>\* PendingSpecs = PendingDamageMap.Find(TargetActor))
+    {
+        for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
+        {
+            if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
+            {
+                TargetASC->ApplyGameplayEffectSpecToSelf(\*Spec.Data.Get());
+                PendingSpecs->RemoveAt(i);
+                // 사운드 · 피격 모션 (생략)
+            }
+        }
+    }
+}
+```
+
+* 상태이상 컴포넌트는 연출을 직접 재생하지 않고 `OnStatusVisualTriggered`로 알리기만 합니다. 카메라 포커스·VFX는 `BattleDirector`/Blueprint가 맡습니다.
+* 데미지 스펙은 `PendingDamageMap`에 예약해 두었다가, 연출이 끝나면 `ExecutePendingDamage()`로 적용합니다. (주석은 설명용으로 수정, 조건문·변수 선언 일부 생략)
+
 ### 대표 코드 위치
 
 |역할|파일|대표 함수|
 |-|-|-|
 |턴 시작/종료, 정책 창구|`Game/ASPCombatGameMode`|`ProcessEndOfTurn()`, `RequestInterrupt()`|
 |턴 순서 계산·예측·인터럽트|`Manager/SPCombatTurnManager`|`CalculateNextTurn()`, `PredictTurnOrder()`, `RequestInterruptTurn()`|
-|행동 GA 공통(추가 턴 부여)|`GA/SPGA\\\_BattleActionBase`|`GrantExtraTurns()`|
-|패링 판정|`GA/SPGA\\\_Parry`|`CheckWeaponMatch()`|
+|행동 GA 공통(추가 턴 부여)|`GA/SPGA\_BattleActionBase`|`GrantExtraTurns()`|
+|패링 판정|`GA/SPGA\_Parry`|`CheckWeaponMatch()`|
 |상태이상 처리·연출 타이밍|`Component/SPStatusEffectComponent`|`PendingDamageMap`, `ExecutePendingDamage()`|
 |연출 큐·카메라|`Game/SPBattleDirector`, `Game/SPBattleCameraActor`|—|
 
@@ -191,7 +227,7 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 
 ### 해결
 
-`TMap<AActor\\\*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
+`TMap<AActor\*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
 
 ```
 상태이상 적용 → PendingDamageMap에 예약 → VFX 재생(+Delay) → ExecutePendingDamage() → 다음 시퀀스(BattleDirector)
@@ -247,9 +283,9 @@ InterruptQueue(VIP 턴) ──┘
 
 ```cpp
 // Before
-void USPGA\\\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\\\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     for (int32 i = 0; i < ExtraTurns; ++i)
     {
         GameMode->GetTurnManager()->RequestInterruptTurn(Avatar); // TurnManager 직접 조작
@@ -259,17 +295,17 @@ void USPGA\\\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 
 ### 해결
 
-`GameMode`에 `RequestInterrupt(AActor\\\* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
+`GameMode`에 `RequestInterrupt(AActor\* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
 
 ```cpp
 // After
-void USPGA\\\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\\\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     GameMode->RequestInterrupt(Avatar, ExtraTurns); // GameMode에게 알리기만 함
 }
 
-void AASPCombatGameMode::RequestInterrupt(AActor\\\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
 {
     for (int32 i = 0; i < Count; ++i)
     {
