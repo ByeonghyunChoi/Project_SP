@@ -75,7 +75,7 @@ void ARewardBox::ExecuteInteraction(AActor* Interactor)
 		UE_LOG(LogTemp, Warning, TEXT("대기열 추가 완료"));
 	}
 
-	//  2. 대기열 세팅이 끝났으니 실제 재화를 지급합니다! (이때 InventoryComp 안에서 방송이 나가고, UI가 방금 넣은 큐를 읽어옵니다)
+	
 	if (Reward.Gold > 0) InventoryComp->AddMoney(Reward.Gold);
 	if (Reward.Sand > 0) InventoryComp->AddSand(Reward.Sand);
 	if (Reward.IncompleteEnergy > 0) InventoryComp->AddIncompleteEnergy(Reward.IncompleteEnergy);

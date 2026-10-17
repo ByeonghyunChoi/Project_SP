@@ -33,7 +33,7 @@ public:
 	void EndDialog();
 
 public:
-	// 블루프린트(UI)에서 바인딩할 수 있도록
+	// 블루프린트(UI)
 	UPROPERTY(BlueprintAssignable, Category = "Dialog")
 	FOnDialogRowUpdated OnDialogRowUpdated;
 
