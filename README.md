@@ -13,7 +13,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 
 * **장르**: 3D 턴제 전략 로그라이트
 * **개발 인원**: 4인 팀 프로젝트
-* **개발 기간**: 2025.12.01 \~ 2026.09.20
+* **개발 기간**: 2025.12.01 ~ 2026.09.20
 * **수상**: 2026.06.09 호서대학교 게임소프트웨어학과 졸업작품 팀 수상 · 은상
 * **담당 영역**: Turn System · Combat System · Status Effect System · Parry System
 * **플레이 영상**: [YouTube](https://youtu.be/pEEvE2xtDd0)
@@ -33,7 +33,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 11. [실행 방법](#실행-방법)
 12. [기술 스택](#기술-스택)
 
-\---
+---
 
 ## 게임 소개
 
@@ -48,7 +48,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 |**실시간 패링**|적 공격 타이밍에 맞춰 패링을 입력하고, 성공하면 반격 턴을 획득|
 |**로그라이트 진행**|층마다 맵을 선택해 보스까지 진행하고, 보상과 유물로 성장|
 
-\---
+---
 
 ## 내 역할
 
@@ -57,13 +57,13 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 * **턴 사이클 관리**: 라운드/턴 시작·종료, 승패 판정 (`GameMode`)
 * **턴 순서 계산**: 게이지 기반 일반 턴 + 인터럽트(끼어들기) 턴 이중 트랙, 미래 턴 순서 예측 (`TurnManager`)
 * **상태이상 시스템**: DoT, 턴 감소, 연출-데미지 타이밍 동기화 (`StatusEffectComponent`)
-* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA\_Parry`)
+* **패링/반격 시스템**: 실시간 입력 기반 패링 판정, 성공 시 반격 턴 부여 (`SPGA_Parry`)
 * **연출 큐 관리**: 상태이상 연출을 순서대로 재생하고 카메라를 포커싱 (`BattleDirector`)
 * **턴 타임라인 UI 데이터**: 일반 줄/VIP 줄 예측 순서 제공 (`PredictTurnOrder()`)
 
 GAS는 원래 실시간 액션 게임을 위한 프레임워크라서 "적용 즉시 반영"이라는 기본 동작과 "연출 → 데미지 반영" 순서가 필요한 턴제 요구사항이 자주 충돌했습니다. 이 프로젝트의 핵심은 **GAS의 표준 흐름을 유지하면서 턴제에 필요한 타이밍 제어를 별도 레이어로 얹은 것**입니다.
 
-\---
+---
 
 ## 문제와 설계 목표
 
@@ -96,7 +96,7 @@ GAS는 원래 실시간 액션 게임을 위한 프레임워크라서 "적용 �
 
 상태이상·유물 같은 효과를 쉽게 관리하고, 무기를 하나의 상태(태그)로 취급해 그 상태에 맞는 공격 스킬(GA)을 연결하기 위해 GAS를 선택했습니다. 핵심은 **상태 → 판단 → 로직**을 태그와 이벤트로 분리해 연결하는 것입니다. 패링 한 번이 이 세 층을 모두 거칩니다.
 
-!\[상태 → 판단 → 로직](docs/images/design-gas.png)
+![상태 → 판단 → 로직](docs/images/design-gas.png)
 
 * **상태 (태그)**: 플레이어는 `Weapon.Fenrir`, 몬스터는 `Weakness.Fenrir`와 `State.ParryWindow` 태그를 가집니다. `State.ParryWindow`는 애님 노티파이가 몽타주의 해당 구간 동안에만 몬스터에게 부착하고, 구간이 끝나면 제거합니다.
 * **판단 (태그 비교)**: 플레이어가 패링을 시도하면 `CheckWeaponMatch()`가 무기·약점 태그의 일치 여부와 `ParryWindow` 태그의 유무를 확인해 성공/실패를 가릅니다.
@@ -104,7 +104,7 @@ GAS는 원래 실시간 액션 게임을 위한 프레임워크라서 "적용 �
 
 패링 타이밍을 별도의 타이머나 변수가 아니라 **태그가 붙어 있는 구간**으로 표현했기 때문에, 판단 로직은 타이밍 계산을 알 필요가 없습니다. 같은 방식으로 무기 태그별 일반 공격·무기 스킬·부여하는 상태이상, 오파츠 태그별 시간 간섭 스킬도 구분했습니다.
 
-\---
+---
 
 ## 아키텍처
 
@@ -118,15 +118,15 @@ GA / StatusEffectComponent (행동·상태이상 효과 실행)
 BattleDirector (연출 큐 처리, 카메라 포커스)
 ```
 
-!\[아키텍처 다이어그램](docs/images/architecture.png)
+![아키텍처 다이어그램](docs/images/architecture.png)
 
 각 시스템은 델리게이트(`OnStatusVisualTriggered`, `OnTurnOrderChanged`, `OnBattleActionFinished`)로 느슨하게 연결되어 있어, 연출 방식이 바뀌어도 턴 계산 로직에는 영향을 주지 않습니다. 이 구조를 왜 이렇게 나눴는지는 앞의 [문제와 설계 목표](#문제와-설계-목표)에 정리했습니다.
 
-\---
+---
 
 ## 클래스 관계
 
-전투 사이클을 구성하는 클래스를 정리했습니다.
+전투 사이클을 구성하는 클래스만 정리했습니다. 필드·맵·저장 관련 클래스는 제외했습니다. 실선 화살표는 소유·생성, 점선 화살표는 호출·이벤트(델리게이트) 연결입니다.
 
 ### 턴 · 연출 구조
 
@@ -171,15 +171,15 @@ classDiagram
     ASPCombatTurnManager ..> ASPCombatGameMode : OnTurnOrderChanged
     ASPBattleDirector ..> ASPCombatGameMode : EndTurn
     ASPGASCharacterBase ..> ASPCombatGameMode : OnBattleActionFinished
-    ASPGASCharacterBase \*-- USPStatusEffectComponent
+    ASPGASCharacterBase *-- USPStatusEffectComponent
     USPStatusEffectComponent ..> ASPBattleDirector : OnStatusVisualTriggered
     ASPGASCharacterBase <|-- ASPGASPlayerCharacter
     ASPGASCharacterBase <|-- ASPGASMonsterCharacter
 ```
 
-* `GameMode`가 `TurnManager`, `BattleDirector`, `BattleCameraActor`를 생성하고, 몬스터를 `BattleDirector`에 등록합니다(`RegisterMonster`).
-* `StatusEffectComponent`는 `BattleDirector`를 직접 호출하지 않고 `OnStatusVisualTriggered` 이벤트로만 연출을 요청합니다. `BattleDirector`가 몬스터 등록 시 이 이벤트를 구독합니다.
-* `TurnManager`는 `OnTurnOrderChanged`로 턴 순서 변경을 알리고, `GameMode`가 이를 받아 타임라인 UI를 갱신합니다.
+- `GameMode`가 `TurnManager`, `BattleDirector`, `BattleCameraActor`를 생성하고, 몬스터를 `BattleDirector`에 등록합니다(`RegisterMonster`).
+- `StatusEffectComponent`는 `BattleDirector`를 직접 호출하지 않고 `OnStatusVisualTriggered` 이벤트로만 연출을 요청합니다. `BattleDirector`가 몬스터 등록 시 이 이벤트를 구독합니다.
+- `TurnManager`는 `OnTurnOrderChanged`로 턴 순서 변경을 알리고, `GameMode`가 이를 받아 타임라인 UI를 갱신합니다.
 
 ### 행동(GA) 구조
 
@@ -189,12 +189,12 @@ classDiagram
     class UGameplayAbility {
         <<Engine>>
     }
-    class USPGA\_CombatActionBase
-    class USPGA\_BattleActionBase {
+    class USPGA_CombatActionBase
+    class USPGA_BattleActionBase {
         +GrantExtraTurns()
     }
-    class USPGA\_MonsterAttackBase
-    class USPGA\_Parry {
+    class USPGA_MonsterAttackBase
+    class USPGA_Parry {
         +CheckWeaponMatch()
     }
     class ASPCombatGameMode {
@@ -205,19 +205,19 @@ classDiagram
         +ApplyWeaponStatusEffectToTarget()
     }
 
-    UGameplayAbility <|-- USPGA\_CombatActionBase
-    UGameplayAbility <|-- USPGA\_Parry
-    USPGA\_CombatActionBase <|-- USPGA\_BattleActionBase
-    USPGA\_CombatActionBase <|-- USPGA\_MonsterAttackBase
-    USPGA\_BattleActionBase ..> ASPCombatGameMode : RequestInterrupt, EndTurn
-    USPGA\_BattleActionBase ..> USPStatusEffectComponent : 무기 상태이상 부여
-    USPGA\_Parry ..> USPGA\_MonsterAttackBase : Event.Battle.Parried
+    UGameplayAbility <|-- USPGA_CombatActionBase
+    UGameplayAbility <|-- USPGA_Parry
+    USPGA_CombatActionBase <|-- USPGA_BattleActionBase
+    USPGA_CombatActionBase <|-- USPGA_MonsterAttackBase
+    USPGA_BattleActionBase ..> ASPCombatGameMode : RequestInterrupt, EndTurn
+    USPGA_BattleActionBase ..> USPStatusEffectComponent : 무기 상태이상 부여
+    USPGA_Parry ..> USPGA_MonsterAttackBase : Event.Battle.Parried
 ```
 
-* 행동 GA는 `TurnManager`를 직접 다루지 않고 `GameMode`의 `RequestInterrupt()`, `EndTurn()`만 호출합니다.
-* 패링 GA는 몬스터에게 `Event.Battle.Parried` 이벤트를 보내고, 몬스터 공격 GA가 이를 기다렸다가 공격을 중단합니다.
+- 행동 GA는 `TurnManager`를 직접 다루지 않고 `GameMode`의 `RequestInterrupt()`, `EndTurn()`만 호출합니다.
+- 패링 GA는 몬스터에게 `Event.Battle.Parried` 이벤트를 보내고, 몬스터 공격 GA가 이를 기다렸다가 공격을 중단합니다.
 
-\---
+---
 
 ## 구현 — 핵심 코드
 
@@ -226,7 +226,7 @@ classDiagram
 **`GameMode::RequestInterrupt()` — GA는 정책 창구인 GameMode에만 요청**
 
 ```cpp
-void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor* Requester, int32 Count)
 {
     if (!TurnManager || !IsValid(Requester))
     {
@@ -248,17 +248,17 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
     // 1. 인터럽트(VIP) 큐를 먼저 소비
     while (InterruptQueue.Num() > 0)
     {
-        AActor\* InterruptActor = InterruptQueue\[0];
+        AActor* InterruptActor = InterruptQueue[0];
         InterruptQueue.RemoveAt(0);
 
-        if (IsValid(InterruptActor) \&\& Participants.Contains(InterruptActor))
+        if (IsValid(InterruptActor) && Participants.Contains(InterruptActor))
         {
             return { InterruptActor, 0.0f };
         }
     }
 
     // 2. 이미 행동 가능한 일반 턴(TurnQueue)
-    while (TurnQueue.Num() > 0) { /\* 게이지가 찬 첫 유닛 반환 \*/ }
+    while (TurnQueue.Num() > 0) { /* 게이지가 찬 첫 유닛 반환 */ }
 
     // 3. 없으면 가장 빨리 행동할 유닛까지 게이지를 진행 (생략)
     ...
@@ -276,7 +276,7 @@ FTurnResult ASPCombatTurnManager::CalculateNextTurn()
 PendingDamageMap.FindOrAdd(Owner).Add(DamageSpec);
 
 // 2. 연출 중 태그 부착 (AI 행동 정지용)
-OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State\_Status\_VisualPlaying);
+OwnerASC->AddLooseGameplayTag(FSPGameplayTags::Get().State_Status_VisualPlaying);
 
 // 3. 블루프린트에 연출 시작 이벤트 발행
 OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
@@ -284,15 +284,15 @@ OnStatusVisualTriggered.Broadcast(Owner, StatusTag, false);
 
 ```cpp
 // 연출이 끝난 시점에 Blueprint가 호출 (일부 발췌)
-void USPStatusEffectComponent::ExecutePendingDamage(AActor\* TargetActor, FGameplayTag StatusTag)
+void USPStatusEffectComponent::ExecutePendingDamage(AActor* TargetActor, FGameplayTag StatusTag)
 {
-    if (TArray<FGameplayEffectSpecHandle>\* PendingSpecs = PendingDamageMap.Find(TargetActor))
+    if (TArray<FGameplayEffectSpecHandle>* PendingSpecs = PendingDamageMap.Find(TargetActor))
     {
         for (int32 i = PendingSpecs->Num() - 1; i >= 0; --i)
         {
             if (Spec.Data->DynamicAssetTags.HasTagExact(StatusTag))
             {
-                TargetASC->ApplyGameplayEffectSpecToSelf(\*Spec.Data.Get());
+                TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
                 PendingSpecs->RemoveAt(i);
                 // 사운드 · 피격 모션 (생략)
             }
@@ -310,14 +310,14 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor\* TargetActor, FGamep
 |-|-|-|
 |턴 시작/종료, 정책 창구|`Game/ASPCombatGameMode`|`ProcessEndOfTurn()`, `RequestInterrupt()`|
 |턴 순서 계산·예측·인터럽트|`Manager/SPCombatTurnManager`|`CalculateNextTurn()`, `PredictTurnOrder()`, `RequestInterruptTurn()`|
-|행동 GA 공통(추가 턴 부여)|`GA/SPGA\_BattleActionBase`|`GrantExtraTurns()`|
-|패링 판정|`GA/SPGA\_Parry`|`CheckWeaponMatch()`|
+|행동 GA 공통(추가 턴 부여)|`GA/SPGA_BattleActionBase`|`GrantExtraTurns()`|
+|패링 판정|`GA/SPGA_Parry`|`CheckWeaponMatch()`|
 |상태이상 처리·연출 타이밍|`Component/SPStatusEffectComponent`|`PendingDamageMap`, `ExecutePendingDamage()`|
 |연출 큐·카메라|`Game/SPBattleDirector`, `Game/SPBattleCameraActor`|—|
 
 > 경로는 프로젝트 소스 폴더 기준 상대 경로입니다.
 
-\---
+---
 
 ## 트러블슈팅 1 — GAS와 턴제 연출 타이밍의 충돌
 
@@ -327,7 +327,7 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor\* TargetActor, FGamep
 
 ### 해결
 
-`TMap<AActor\*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
+`TMap<AActor*, TArray<FGameplayEffectSpecHandle>> PendingDamageMap`에 데미지 스펙을 임시로 보관하고, 연출이 끝나는 시점(Blueprint에서 VFX 재생 + Delay로 타이밍 제어)에 `ExecutePendingDamage()`를 호출해 실제 GE를 적용하는 2단계 구조로 분리했습니다. GAS의 표준 흐름(GE)은 그대로 두고, 타이밍만 별도 레이어에서 제어하는 방식입니다.
 
 ```
 상태이상 적용 → PendingDamageMap에 예약 → VFX 재생(+Delay) → ExecutePendingDamage() → 다음 시퀀스(BattleDirector)
@@ -339,13 +339,13 @@ void USPStatusEffectComponent::ExecutePendingDamage(AActor\* TargetActor, FGamep
 
 상태이상 종류가 늘어나도 GE 로직 수정 없이 연출-데미지 타이밍의 일관성이 유지됩니다. `OnStatusVisualTriggered` 델리게이트로 `BattleDirector`의 연출 큐와도 자연스럽게 연동됩니다.
 
-!\[연출 재생 중 → 데미지 반영](docs/images/ts1-result.png)
+![연출 재생 중 → 데미지 반영](docs/images/ts1-result.png)
 
 연출이 재생되는 동안에는 적 체력이 그대로(328)이고, 연출이 끝난 뒤에 108 피해가 반영되어 220이 됩니다.
 
 **역할 분리**: C++에서는 `ExecutePendingDamage()`, `OnStatusVisualTriggered` 델리게이트로 실행 가능한 시점과 구조를 정의하고, Blueprint에서는 VFX 재생 시점과 Delay 수치(0.4s/1.2s)를 반복 테스트하며 튜닝했습니다.
 
-\---
+---
 
 ## 트러블슈팅 2 — 턴 순서 시스템 이중 트랙 설계
 
@@ -367,11 +367,11 @@ InterruptQueue(VIP 턴) ──┘
 
 새로운 인터럽트 트리거가 추가되어도 기존 턴 로직 수정 없이 확장 가능합니다. UI 턴 타임라인도 실제 상태 변경 없이(사이드 이펙트 없이) 갱신됩니다.
 
-!\[일반 줄과 VIP 줄](docs/images/ts2-result.png)
+![일반 줄과 VIP 줄](docs/images/ts2-result.png)
 
 타임라인 UI는 일반 줄(게이지 기반 예측 순서)과 VIP 줄(인터럽트로 행동하는 턴)을 독립적으로 표시합니다. 위 예시는 시간 간섭을 사용했을 때 VIP 줄에 플레이어 턴 2개가 추가된 모습입니다.
 
-\---
+---
 
 ## 트러블슈팅 3 — 책임 분리: GA가 TurnManager를 직접 조작하던 문제
 
@@ -383,9 +383,9 @@ InterruptQueue(VIP 턴) ──┘
 
 ```cpp
 // Before
-void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     for (int32 i = 0; i < ExtraTurns; ++i)
     {
         GameMode->GetTurnManager()->RequestInterruptTurn(Avatar); // TurnManager 직접 조작
@@ -395,17 +395,17 @@ void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 
 ### 해결
 
-`GameMode`에 `RequestInterrupt(AActor\* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
+`GameMode`에 `RequestInterrupt(AActor* Requester, int32 Count)`라는 정책 창구를 신설했습니다. GA는 이제 GameMode에게 "알리기"만 하고, 실제 인터럽트 큐 조작은 GameMode → TurnManager 순으로 위임합니다.
 
 ```cpp
 // After
-void USPGA\_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
+void USPGA_BattleActionBase::GrantExtraTurns(int32 ExtraTurns)
 {
-    AASPCombatGameMode\* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
+    AASPCombatGameMode* GameMode = Cast<AASPCombatGameMode>(GetWorld()->GetAuthGameMode());
     GameMode->RequestInterrupt(Avatar, ExtraTurns); // GameMode에게 알리기만 함
 }
 
-void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
+void AASPCombatGameMode::RequestInterrupt(AActor* Requester, int32 Count)
 {
     for (int32 i = 0; i < Count; ++i)
     {
@@ -416,17 +416,17 @@ void AASPCombatGameMode::RequestInterrupt(AActor\* Requester, int32 Count)
 
 같은 맥락에서, `GameMode::ProcessEndOfTurn()`이 `PopInterruptActor()`로 인터럽트 큐를 먼저 소비한 뒤 `CalculateNextTurn()`을 호출하던 구조도 정리했습니다. `CalculateNextTurn()` 내부에도 동일한 인터럽트 큐 체크 로직이 있었는데, `PopInterruptActor()`가 항상 먼저 소비해버려서 사실상 죽은 코드였던 것입니다. `PopInterruptActor()`를 제거하고 `CalculateNextTurn()` 하나로 턴 순서 결정 책임을 완전히 `TurnManager`로 일원화했습니다.
 
-!\[Before/After 리팩터링](docs/images/interrupt-refactor.png)
+![Before/After 리팩터링](docs/images/interrupt-refactor.png)
 
 ### 결과
 
 GA - GameMode(정책) - TurnManager(순수 계산)의 책임 경계가 명확해졌습니다. 인터럽트 정책이 늘어나도 `GameMode`의 `RequestInterrupt()` 한 곳만 수정하면 확장 가능합니다.
 
-!\[패링 성공 후 반격 턴](docs/images/ts3-result.png)
+![패링 성공 후 반격 턴](docs/images/ts3-result.png)
 
 패링 성공 후 `GameMode`를 거쳐 부여된 반격 턴에서 플레이어가 공격하는 실제 플레이 장면입니다.
 
-\---
+---
 
 ## C++ / Blueprint 하이브리드 워크플로우
 
@@ -435,27 +435,27 @@ GA - GameMode(정책) - TurnManager(순수 계산)의 책임 경계가 명확해
 
 언리얼 실무에서 흔한 C++/BP 병행 워크플로우를 그대로 따랐습니다. 로직의 뼈대(언제, 무엇을 실행 가능하게 할지)는 C++에서 인터페이스로 정의하고, 감각적으로 튜닝이 필요한 연출 타이밍은 BP에서 빠르게 반복 테스트했습니다.
 
-\---
+---
 
 ## 실행 방법
 
 * **엔진**: Unreal Engine 5.5.4 (C++ 프로젝트이므로 Visual Studio 필요)
-* **저장소**: [Project\_SP (BH 브랜치)](https://github.com/ByeonghyunChoi/Project_SP/tree/BH)
+* **저장소**: [Project_SP (BH 브랜치)](https://github.com/ByeonghyunChoi/Project_SP/tree/BH)
 * **시작 맵**: `Title`
 
 ### 조작키
 
-|구분|동작|키|
-|-|-|-|
-|필드|이동|`W` `A` `S` `D`|
-|필드|상호작용|`F`|
-|필드|공격|마우스 좌클릭|
-|전투|무기 선택|`W` `A` `Z`|
-|전투|행동 선택|`E` `D` `X`|
-|전투|패링|`Space`|
-|전투|타겟 변경|`←` `→`|
+| 구분 | 동작 | 키 |
+|---|---|---|
+| 필드 | 이동 | `W` `A` `S` `D` |
+| 필드 | 상호작용 | `F` |
+| 필드 | 공격 | 마우스 좌클릭 |
+| 전투 | 무기 선택 | `W` `A` `Z` |
+| 전투 | 행동 선택 | `E` `D` `X` |
+| 전투 | 패링 | `Space` |
+| 전투 | 타겟 변경 | `←` `→` |
 
-\---
+---
 
 ## 기술 스택
 
@@ -464,9 +464,8 @@ GA - GameMode(정책) - TurnManager(순수 계산)의 책임 경계가 명확해
 * **Framework**: Gameplay Ability System (GAS)
 * **Version Control**: Git
 
-\---
+---
 
 ## Contact
 
 * Email: cqg0112@gmail.com
-
