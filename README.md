@@ -1,8 +1,8 @@
-# 크로노클라즘 — 전투 시스템 사이클 (GAS 기반 턴제 전투 로그라이크)
+# 크로노클라즘 — 전투 시스템 사이클 (GAS 기반 턴제 전략 로그라이트)
 
-> 추방당한 시간의 신이 시간을 조작해 신의 자리를 되찾아가는 다크 판타지 턴제 로그라이크
+> 추방당한 시간의 신이 시간을 조작해 신의 자리를 되찾아가는 다크 판타지 턴제 전략 로그라이트
 
-Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D 턴제 전투 로그라이크 게임 **크로노클라즘**에서 **전투 시스템 사이클** 파트를 담당했습니다.
+Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D 턴제 전략 로그라이트 게임 **크로노클라즘**에서 **전투 시스템 사이클** 파트를 담당했습니다.
 
 <p align="center">
   <img src="docs/images/game-field.png" alt="필드 탐험" width="32%"/>
@@ -11,9 +11,10 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 </p>
 <p align="center"><sub>필드 탐험 · 턴제 전투 · 스킬 연출</sub></p>
 
-* **장르**: 3D 턴제 전투 로그라이크
+* **장르**: 3D 턴제 전략 로그라이트
 * **개발 인원**: 4인 팀 프로젝트
-* **개발 기간**: 2025.05.16 ~ 2026.06.12
+* **개발 기간**: 2025.12.01 ~ 2026.09.20
+* **수상**: 2026.06.09 호서대학교 게임소프트웨어학과 졸업작품 팀 수상 · 은상
 * **담당 영역**: Turn System · Combat System · Status Effect System · Parry System
 * **플레이 영상**: [YouTube](https://youtu.be/pEEvE2xtDd0)
 
@@ -23,12 +24,14 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 2. [내 역할](#내-역할)
 3. [문제와 설계 목표](#문제와-설계-목표)
 4. [아키텍처](#아키텍처)
-5. [구현 — 핵심 코드](#구현--핵심-코드)
-6. [트러블슈팅 1 — GAS와 턴제 연출 타이밍의 충돌](#트러블슈팅-1--gas와-턴제-연출-타이밍의-충돌)
-7. [트러블슈팅 2 — 턴 순서 시스템 이중 트랙 설계](#트러블슈팅-2--턴-순서-시스템-이중-트랙-설계)
-8. [트러블슈팅 3 — 책임 분리: GA가 TurnManager를 직접 조작하던 문제](#트러블슈팅-3--책임-분리-ga가-turnmanager를-직접-조작하던-문제)
-9. [C++ / Blueprint 하이브리드 워크플로우](#c--blueprint-하이브리드-워크플로우)
-10. [기술 스택](#기술-스택)
+5. [클래스 관계](#클래스-관계)
+6. [구현 — 핵심 코드](#구현--핵심-코드)
+7. [트러블슈팅 1 — GAS와 턴제 연출 타이밍의 충돌](#트러블슈팅-1--gas와-턴제-연출-타이밍의-충돌)
+8. [트러블슈팅 2 — 턴 순서 시스템 이중 트랙 설계](#트러블슈팅-2--턴-순서-시스템-이중-트랙-설계)
+9. [트러블슈팅 3 — 책임 분리: GA가 TurnManager를 직접 조작하던 문제](#트러블슈팅-3--책임-분리-ga가-turnmanager를-직접-조작하던-문제)
+10. [C++ / Blueprint 하이브리드 워크플로우](#c--blueprint-하이브리드-워크플로우)
+11. [실행 방법](#실행-방법)
+12. [기술 스택](#기술-스택)
 
 ---
 
@@ -36,12 +39,14 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 
 시간의 신이었던 주인공이 인간으로 추방당한 뒤, 시간을 조작해 신의 자리를 되찾아가는 이야기입니다.
 
+**패링으로 적의 턴에 개입할 수 있는 1 vs 다수 턴제 전투 시스템을 구현했습니다.**
+
 |핵심 플레이|설명|
 |-|-|
 |**필드 탐험**|필드에서 몬스터를 공격하면 전투에 진입|
 |**턴제 전투**|속도 기반 행동 게이지로 턴을 결정하고, 무기별 공격·스킬로 약점 속성을 공략|
 |**실시간 패링**|적 공격 타이밍에 맞춰 패링을 입력하고, 성공하면 반격 턴을 획득|
-|**로그라이크 진행**|층마다 맵을 선택해 보스까지 진행하고, 보상과 유물로 성장|
+|**로그라이트 진행**|층마다 맵을 선택해 보스까지 진행하고, 보상과 유물로 성장|
 
 ---
 
@@ -116,6 +121,101 @@ BattleDirector (연출 큐 처리, 카메라 포커스)
 ![아키텍처 다이어그램](docs/images/architecture.png)
 
 각 시스템은 델리게이트(`OnStatusVisualTriggered`, `OnTurnOrderChanged`, `OnBattleActionFinished`)로 느슨하게 연결되어 있어, 연출 방식이 바뀌어도 턴 계산 로직에는 영향을 주지 않습니다. 이 구조를 왜 이렇게 나눴는지는 앞의 [문제와 설계 목표](#문제와-설계-목표)에 정리했습니다.
+
+---
+
+## 클래스 관계
+
+전투 사이클을 구성하는 클래스만 정리했습니다. 필드·맵·저장 관련 클래스는 제외했습니다. 실선 화살표는 소유·생성, 점선 화살표는 호출·이벤트(델리게이트) 연결입니다.
+
+### 턴 · 연출 구조
+
+```mermaid
+classDiagram
+    direction TB
+    class ASPCombatGameMode {
+        +StartTurn()
+        +EndTurn()
+        +ProcessEndOfTurn()
+        +RequestInterrupt(Requester, Count)
+    }
+    class ASPCombatTurnManager {
+        +CalculateNextTurn()
+        +PredictTurnOrder()
+        +RequestInterruptTurn()
+        +OnTurnOrderChanged
+    }
+    class ASPBattleDirector {
+        +RegisterMonster()
+        +HandleStatusVisual()
+        -VisualQueue
+    }
+    class ASPBattleCameraActor
+    class USPStatusEffectComponent {
+        +ProcessStatusEffect()
+        +ProcessTurnStartDoT()
+        +ExecutePendingDamage()
+        -PendingDamageMap
+        +OnStatusVisualTriggered
+    }
+    class ASPGASCharacterBase {
+        +OnBattleActionFinished
+    }
+    class ASPGASPlayerCharacter
+    class ASPGASMonsterCharacter
+
+    ASPCombatGameMode --> ASPCombatTurnManager : 생성, 턴 계산 위임
+    ASPCombatGameMode --> ASPBattleDirector : 생성, RegisterMonster
+    ASPCombatGameMode --> ASPBattleCameraActor : 생성
+    ASPBattleDirector --> ASPBattleCameraActor : 포커스 지시
+    ASPCombatTurnManager ..> ASPCombatGameMode : OnTurnOrderChanged
+    ASPBattleDirector ..> ASPCombatGameMode : EndTurn
+    ASPGASCharacterBase ..> ASPCombatGameMode : OnBattleActionFinished
+    ASPGASCharacterBase *-- USPStatusEffectComponent
+    USPStatusEffectComponent ..> ASPBattleDirector : OnStatusVisualTriggered
+    ASPGASCharacterBase <|-- ASPGASPlayerCharacter
+    ASPGASCharacterBase <|-- ASPGASMonsterCharacter
+```
+
+- `GameMode`가 `TurnManager`, `BattleDirector`, `BattleCameraActor`를 생성하고, 몬스터를 `BattleDirector`에 등록합니다(`RegisterMonster`).
+- `StatusEffectComponent`는 `BattleDirector`를 직접 호출하지 않고 `OnStatusVisualTriggered` 이벤트로만 연출을 요청합니다. `BattleDirector`가 몬스터 등록 시 이 이벤트를 구독합니다.
+- `TurnManager`는 `OnTurnOrderChanged`로 턴 순서 변경을 알리고, `GameMode`가 이를 받아 타임라인 UI를 갱신합니다.
+
+### 행동(GA) 구조
+
+```mermaid
+classDiagram
+    direction TB
+    class UGameplayAbility {
+        <<Engine>>
+    }
+    class USPGA_CombatActionBase
+    class USPGA_BattleActionBase {
+        +GrantExtraTurns()
+    }
+    class USPGA_MonsterAttackBase
+    class USPGA_Parry {
+        +CheckWeaponMatch()
+    }
+    class ASPCombatGameMode {
+        +EndTurn()
+        +RequestInterrupt(Requester, Count)
+    }
+    class USPStatusEffectComponent {
+        +ApplyWeaponStatusEffectToTarget()
+    }
+
+    UGameplayAbility <|-- USPGA_CombatActionBase
+    UGameplayAbility <|-- USPGA_Parry
+    USPGA_CombatActionBase <|-- USPGA_BattleActionBase
+    USPGA_CombatActionBase <|-- USPGA_MonsterAttackBase
+    USPGA_BattleActionBase ..> ASPCombatGameMode : RequestInterrupt, EndTurn
+    USPGA_BattleActionBase ..> USPStatusEffectComponent : 무기 상태이상 부여
+    USPGA_Parry ..> USPGA_MonsterAttackBase : Event.Battle.Parried
+```
+
+- 행동 GA는 `TurnManager`를 직접 다루지 않고 `GameMode`의 `RequestInterrupt()`, `EndTurn()`만 호출합니다.
+- 패링 GA는 몬스터에게 `Event.Battle.Parried` 이벤트를 보내고, 몬스터 공격 GA가 이를 기다렸다가 공격을 중단합니다.
 
 ---
 
@@ -334,6 +434,26 @@ GA - GameMode(정책) - TurnManager(순수 계산)의 책임 경계가 명확해
 * **Blueprint**: VFX 재생 시점, Delay 수치 등 연출 타이밍을 반복 테스트하며 튜닝
 
 언리얼 실무에서 흔한 C++/BP 병행 워크플로우를 그대로 따랐습니다. 로직의 뼈대(언제, 무엇을 실행 가능하게 할지)는 C++에서 인터페이스로 정의하고, 감각적으로 튜닝이 필요한 연출 타이밍은 BP에서 빠르게 반복 테스트했습니다.
+
+---
+
+## 실행 방법
+
+* **엔진**: Unreal Engine 5.5.4 (C++ 프로젝트이므로 Visual Studio 필요)
+* **저장소**: [Project_SP (BH 브랜치)](https://github.com/ByeonghyunChoi/Project_SP/tree/BH)
+* **시작 맵**: `Title`
+
+### 조작키
+
+| 구분 | 동작 | 키 |
+|---|---|---|
+| 필드 | 이동 | `W` `A` `S` `D` |
+| 필드 | 상호작용 | `F` |
+| 필드 | 공격 | 마우스 좌클릭 |
+| 전투 | 무기 선택 | `W` `A` `Z` |
+| 전투 | 행동 선택 | `E` `D` `X` |
+| 전투 | 패링 | `Space` |
+| 전투 | 타겟 변경 | `←` `→` |
 
 ---
 
