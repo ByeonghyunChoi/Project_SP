@@ -264,9 +264,6 @@ TArray<AActor*> ASPCombatTurnManager::PredictTurnOrder(int32 PredictionCount, fl
 		{
 			const float StartingGauge = (Actor == ExcludeActor) ? 0.0f : GetActionGauge(Actor);
 			SimList.Add({ Actor, GetSpeed(Actor), StartingGauge });
-
-			UE_LOG(LogTemp, Warning, TEXT("[예측 디버그] %s | Speed: %.1f | 시작 게이지: %.1f"),
-				*Actor->GetName(), GetSpeed(Actor), StartingGauge);
 		}
 	}
 

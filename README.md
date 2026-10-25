@@ -16,7 +16,7 @@ Unreal Engine 5.5.4 / C++ / Blueprint / Gameplay Ability System(GAS) 기반 3D �
 * **개발 기간**: 2025.12.01 ~ 2026.09.20
 * **수상**: 2026.06.09 호서대학교 게임소프트웨어학과 졸업작품 팀 수상 · 은상
 * **담당 영역**: Turn System · Combat System · Status Effect System · Parry System
-* **플레이 영상**: [YouTube](https://youtu.be/pEEvE2xtDd0)
+* **플레이 영상**: [YouTube](https://youtu.be/uDn3DkF8ekI)
 
 ## 목차
 

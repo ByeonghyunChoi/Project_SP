@@ -100,14 +100,14 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster, bool& 
 	UAbilitySystemComponent* TargetASC = TargetMonster->GetAbilitySystemComponent();
 	if (!TargetASC)
 	{
-		ApplyParryPenalty(); // 🚨 페널티!
+		ApplyParryPenalty();
 		return false;
 	}
 
 	if (!TargetASC->HasMatchingGameplayTag(SPTags.State_ParryWindow))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("패링 실패: 몬스터가 패링 가능 상태가 아닙니다."));
-		ApplyParryPenalty(); // 🚨 타이밍 못 맞춤 페널티!
+		ApplyParryPenalty();
 		return false;
 	}
 
@@ -125,7 +125,7 @@ bool USPGA_Parry::CheckWeaponMatch(ASPGASMonsterCharacter* TargetMonster, bool& 
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("패링 실패: 무기와 몬스터의 약점이 불일치합니다."));
-	ApplyParryPenalty(); // 🚨 약점 못 맞춤 페널티!
+	ApplyParryPenalty();
 	return false;
 }
 
